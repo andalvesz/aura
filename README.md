@@ -1,36 +1,120 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Aura
 
-## Getting Started
+Workspace premium com Next.js 16, TypeScript, Tailwind CSS, Supabase Auth e shadcn/ui.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js 16 (App Router + `proxy.ts`)
+- TypeScript
+- Tailwind CSS v4
+- Supabase (Auth + Database)
+- shadcn/ui + Lucide Icons
+- Framer Motion
+
+## Estrutura
+
+```
+app/           # Rotas e páginas
+components/    # UI (landing, auth, dashboard)
+lib/           # Supabase SSR, auth helpers
+utils/         # Utilitários (cn)
+types/         # Tipos TypeScript
+proxy.ts       # Proteção de rotas (Next.js 16)
+supabase/      # SQL inicial
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 1. Onde colocar as variáveis de ambiente
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Ambiente | Arquivo / local |
+|----------|-----------------|
+| **Local** | `.env.local` na raiz do projeto (copie de `.env.example`) |
+| **Vercel** | Project → Settings → Environment Variables |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Variáveis obrigatórias:
 
-## Learn More
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbG...
+```
 
-To learn more about Next.js, take a look at the following resources:
+> Use apenas a **anon key** no frontend. Nunca commite `.env.local`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 2. Como rodar localmente
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+# Instalar dependências
+npm install
 
-## Deploy on Vercel
+# Configurar envs
+cp .env.example .env.local
+# Edite .env.local com suas credenciais Supabase
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+# Desenvolvimento
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Acesse [http://localhost:3000](http://localhost:3000).
+
+## 3. Como conectar o Supabase
+
+1. Crie um projeto em [supabase.com](https://supabase.com).
+2. Vá em **Project Settings → API** e copie:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+3. No **SQL Editor**, execute o conteúdo de `supabase/schema.sql`.
+4. Em **Authentication → Providers**, mantenha **Email** habilitado.
+5. Em **Authentication → URL Configuration**, adicione:
+   - **Site URL**: `http://localhost:3000` (dev) ou sua URL Vercel (prod)
+   - **Redirect URLs**: `http://localhost:3000/auth/callback` e `https://seu-dominio.vercel.app/auth/callback`
+6. (Opcional) Desative **Confirm email** em Authentication → Providers → Email se quiser login imediato após cadastro em dev.
+
+## 4. Como fazer deploy na Vercel
+
+1. Faça push do repositório para GitHub.
+2. Em [vercel.com](https://vercel.com), **Add New Project** e importe o repo.
+3. Framework preset: **Next.js** (detectado automaticamente).
+4. Adicione as envs `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em **Environment Variables**.
+5. Deploy.
+6. No Supabase, atualize **Site URL** e **Redirect URLs** com o domínio `.vercel.app` (ou domínio customizado).
+
+```bash
+# Alternativa via CLI
+npx vercel
+npx vercel --prod
+```
+
+## 5. Como evitar loop de autenticação
+
+O Aura separa responsabilidades em duas camadas:
+
+| Camada | Arquivo | Função |
+|--------|---------|--------|
+| **Proxy (otimista)** | `proxy.ts` + `lib/supabase/proxy.ts` | Atualiza sessão/cookies; redireciona usuário logado de `/login` e `/cadastro` para `/dashboard`; redireciona não logado de `/dashboard` para `/login` |
+| **Servidor (autoritativo)** | `lib/auth.ts` + `app/dashboard/layout.tsx` | `getUser()` / `requireUser()` valida sessão antes de renderizar o dashboard |
+
+Regras que evitam loops:
+
+1. **Rotas de auth** (`/login`, `/cadastro`) e **protegidas** (`/dashboard`) são tratadas de forma exclusiva — a landing `/` permanece pública para todos.
+2. Usuário **com sessão** em `/login` ou `/cadastro` → redirect **uma vez** para `/dashboard`.
+3. Usuário **sem sessão** em `/dashboard` → redirect para `/login?redirect=/dashboard...`.
+4. O proxy sempre chama `supabase.auth.getUser()` (não `getSession()`), que valida o token no servidor Supabase.
+5. Cookies de sessão são renovados via `setAll` no proxy antes de qualquer redirect.
+
+Se ainda houver loop, verifique:
+
+- Site URL e Redirect URLs corretos no Supabase
+- Mesmas envs na Vercel e no Supabase (projeto correto)
+- Relógio do sistema sincronizado
+
+## Scripts
+
+| Comando | Descrição |
+|---------|-----------|
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` | Build de produção |
+| `npm run start` | Servidor de produção |
+| `npm run lint` | ESLint |
+
+## Licença
+
+MIT

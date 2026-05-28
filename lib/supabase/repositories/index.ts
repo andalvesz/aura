@@ -1,0 +1,11 @@
+export { BaseRepository, type RepositoryResult } from "./base.repository";
+export { GastosRepository } from "./gastos.repository";
+export { EventosRepository } from "./eventos.repository";
+export { ClientesRepository } from "./clientes.repository";
+export { OrcamentosRepository } from "./orcamentos.repository";
+export { EstoqueRepository } from "./estoque.repository";
+export { TreinosRepository } from "./treinos.repository";
+export { DietaRepository } from "./dieta.repository";
+export { ConteudosRepository } from "./conteudos.repository";
+export { LeadsRepository } from "./leads.repository";
+export { AiMessagesRepository } from "./ai-messages.repository";

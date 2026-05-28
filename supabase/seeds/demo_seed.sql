@@ -1,0 +1,2 @@
+-- Copia canônica: supabase/migrations/20250528130000_seed_demo_data.sql
+-- Uso: select public.seed_demo_data();
