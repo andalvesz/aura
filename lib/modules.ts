@@ -38,60 +38,84 @@ export const MODULES: ModuleConfig[] = [
     href: "/dashboard/financeiro",
     label: "Financeiro Pessoal",
     shortLabel: "Financeiro",
-    description: "Controle de gastos, categorias e previsão mensal.",
+    description: "Controle de gastos, receitas e metas financeiras.",
     icon: Wallet,
     accent: "text-emerald-400",
-    overview: { metric: "Saldo estimado", value: "R$ 4.280", hint: "−12% vs mês anterior" },
+    overview: {
+      metric: "Status",
+      value: "—",
+      hint: "Nenhum dado financeiro cadastrado",
+    },
   },
   {
     id: "calendario",
     href: "/dashboard/calendario",
     label: "Calendário com IA",
     shortLabel: "Calendário",
-    description: "Agenda inteligente com assistente Aura IA.",
+    description: "Agenda inteligente e organização pessoal.",
     icon: CalendarDays,
     accent: "text-sky-400",
-    overview: { metric: "Próximo evento", value: "15:00", hint: "Reunião com cliente" },
+    overview: {
+      metric: "Eventos",
+      value: "0",
+      hint: "Nenhum evento cadastrado",
+    },
   },
   {
     id: "alvesz",
     href: "/dashboard/alvesz",
     label: "Alvesz Experience",
     shortLabel: "Alvesz",
-    description: "Eventos, orçamentos, estoque e precificação.",
+    description: "Clientes, estoque, eventos e orçamentos.",
     icon: Building2,
     accent: "text-violet-400",
-    overview: { metric: "Faturamento previsto", value: "R$ 28.5k", hint: "3 eventos ativos" },
+    overview: {
+      metric: "Orçamentos",
+      value: "0",
+      hint: "Nenhum orçamento cadastrado",
+    },
   },
   {
     id: "saude",
     href: "/dashboard/saude",
     label: "Saúde, Treino e Mente",
     shortLabel: "Saúde",
-    description: "Treino, alimentação, hábitos e bem-estar.",
+    description: "Treino, alimentação, hábitos e evolução.",
     icon: Dumbbell,
     accent: "text-rose-400",
-    overview: { metric: "Hábitos hoje", value: "4/6", hint: "67% da meta semanal" },
+    overview: {
+      metric: "Hábitos",
+      value: "0",
+      hint: "Nenhum hábito cadastrado",
+    },
   },
   {
     id: "social-media",
     href: "/dashboard/social-media",
     label: "Social Media Creator",
     shortLabel: "Social Media",
-    description: "Calendário de conteúdo e roteiros com IA.",
+    description: "Conteúdo, vídeos, roteiros e planejamento.",
     icon: Share2,
     accent: "text-amber-400",
-    overview: { metric: "Vídeos planejados", value: "8", hint: "3 para esta semana" },
+    overview: {
+      metric: "Conteúdos",
+      value: "0",
+      hint: "Nenhum conteúdo planejado",
+    },
   },
   {
     id: "consorcios",
     href: "/dashboard/consorcios",
     label: "Consórcios e Vendas",
     shortLabel: "Consórcios",
-    description: "Funil, leads, metas e estratégia diária.",
+    description: "Leads, funil de vendas e estratégias.",
     icon: Target,
     accent: "text-orange-400",
-    overview: { metric: "Leads hoje", value: "7", hint: "2 conversões pendentes" },
+    overview: {
+      metric: "Leads",
+      value: "0",
+      hint: "Nenhum lead cadastrado",
+    },
   },
 ];
 
@@ -103,11 +127,21 @@ export const HOME_NAV = {
 
 export function getModule(id: ModuleId): ModuleConfig {
   const mod = MODULES.find((m) => m.id === id);
-  if (!mod) throw new Error(`Module not found: ${id}`);
+
+  if (!mod) {
+    throw new Error(`Module not found: ${id}`);
+  }
+
   return mod;
 }
 
-export function isModuleActive(pathname: string, href: string): boolean {
-  if (href === "/dashboard") return pathname === "/dashboard";
+export function isModuleActive(
+  pathname: string,
+  href: string
+): boolean {
+  if (href === "/dashboard") {
+    return pathname === "/dashboard";
+  }
+
   return pathname === href || pathname.startsWith(`${href}/`);
 }
