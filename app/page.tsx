@@ -1,17 +1,19 @@
-import { Features } from "@/components/landing/features";
-import { Hero } from "@/components/landing/hero";
-import { Navbar } from "@/components/landing/navbar";
+import { AuraChat } from "@/components/dashboard/aura-chat";
 
-export default function HomePage() {
+export default function DashboardPage() {
   return (
-    <main className="min-h-screen">
-      <Navbar />
-      <Hero />
-      <Features />
-      <footer className="border-t border-white/5 py-8 text-center text-sm text-zinc-500">
-        © <span suppressHydrationWarning>{new Date().getFullYear()}</span>{" "}
-        Aura. Todos os direitos reservados.
-      </footer>
-    </main>
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-2xl font-semibold text-zinc-100">
+          Aura OS
+        </h1>
+
+        <p className="text-sm text-zinc-500">
+          Sistema operacional pessoal de Anderson Alves.
+        </p>
+      </div>
+
+      <AuraChat />
+    </div>
   );
 }
