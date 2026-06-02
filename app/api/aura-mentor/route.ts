@@ -1,8 +1,9 @@
 import OpenAI, { APIError } from "openai";
-import { getGrowthLeadsMentorContext } from "@/lib/supabase/services/growth.service";
+import { getGrowthExecutiveMentorContext, getGrowthLeadsMentorContext } from "@/lib/supabase/services/growth.service";
 import {
   GROWTH_MENTOR_EMPTY_LEADS_MESSAGE,
   isGrowthMentorCrmQuery,
+  isGrowthMentorExecutiveQuery,
   isGrowthMentorLeadQuery,
 } from "@/utils/growth";
 
@@ -65,7 +66,8 @@ Parceiro para captação de clientes em consórcios de imóveis, veículos e inv
 - NUNCA peça ao usuário para informar leads manualmente quando os dados do CRM já estiverem disponíveis no contexto
 - Para análise de leads, priorização ou diagnóstico de funil, use exclusivamente os dados reais do Supabase fornecidos
 - Para geração de conteúdo e planejamento semanal, use os insights de nicho derivados do CRM (maior demanda, ticket médio, oportunidades abertas)
-- Nunca peça ao usuário para informar nichos ou leads manualmente quando os dados do CRM estiverem disponíveis`;
+- Nunca peça ao usuário para informar nichos ou leads manualmente quando os dados do CRM estiverem disponíveis
+- Para "Meu dia" e resumo executivo, atue como Diretor Executivo: prioridades, meta, alertas, score e recomendações com dados reais do Supabase`;
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -147,10 +149,28 @@ export async function POST(req: Request) {
     }
 
     let systemPrompt = SYSTEM_PROMPT;
+    const isExecutiveQuery = isGrowthMentorExecutiveQuery(message, actionId);
     const isCrmQuery = isGrowthMentorCrmQuery(message, actionId);
     const isPipelineQuery = isGrowthMentorLeadQuery(message, actionId);
 
-    if (isCrmQuery) {
+    if (isExecutiveQuery) {
+      const { context, error } = await getGrowthExecutiveMentorContext();
+
+      if (error || !context) {
+        console.error("[aura-mentor] Erro ao carregar resumo executivo:", error);
+        return Response.json(
+          {
+            error:
+              error === "Usuário não autenticado."
+                ? "Faça login para ver seu resumo do dia."
+                : "Não foi possível carregar a central de comando.",
+          },
+          { status: error === "Usuário não autenticado." ? 401 : 500 }
+        );
+      }
+
+      systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
+    } else if (isCrmQuery) {
       const { context, error, leadCount } = await getGrowthLeadsMentorContext(
         actionId || undefined
       );

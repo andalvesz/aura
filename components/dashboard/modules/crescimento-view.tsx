@@ -36,6 +36,7 @@ import { formatBRL } from "@/utils/format";
 import {
   calculateLevel,
   computeGrowthLeadMetrics,
+  computeMonthlyExecutiveScore,
   computeRevenueProgress,
   getGrowthLeadStatusLabel,
   GROWTH_LEAD_STATUSES,
@@ -172,6 +173,10 @@ export function CrescimentoView() {
   const leadMetrics = useMemo(
     () => computeGrowthLeadMetrics(growthLeads),
     [growthLeads]
+  );
+  const executiveScore = useMemo(
+    () => computeMonthlyExecutiveScore(missions, growthLeads),
+    [missions, growthLeads]
   );
   const hasXp = (currentGoal?.xp_total ?? 0) > 0;
 
@@ -373,7 +378,7 @@ export function CrescimentoView() {
         </>
       ) : (
         <>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
           <MetricCard
             label="Meta mensal"
             value={
@@ -419,6 +424,12 @@ export function CrescimentoView() {
                 ? "Concluídas hoje"
                 : "Nenhuma missão concluída hoje"
             }
+          />
+          <MetricCard
+            label="Score do mês"
+            value={`${executiveScore}/100`}
+            hint="Missões · leads · vendas · conteúdo"
+            hintClassName="text-violet-400/90"
           />
         </div>
 

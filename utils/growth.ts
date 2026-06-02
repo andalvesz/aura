@@ -239,6 +239,8 @@ export const GROWTH_MENTOR_CONTENT_ACTIONS = [
   "planejamento-semanal",
 ] as const;
 
+export const GROWTH_MENTOR_EXECUTIVE_ACTIONS = ["meu-dia"] as const;
+
 export const GROWTH_MENTOR_CRM_ACTIONS = [
   ...GROWTH_MENTOR_LEAD_ACTIONS,
   ...GROWTH_MENTOR_CONTENT_ACTIONS,
@@ -249,6 +251,9 @@ export type GrowthMentorLeadAction =
 
 export type GrowthMentorContentAction =
   (typeof GROWTH_MENTOR_CONTENT_ACTIONS)[number];
+
+export type GrowthMentorExecutiveAction =
+  (typeof GROWTH_MENTOR_EXECUTIVE_ACTIONS)[number];
 
 export type GrowthMentorCrmAction = (typeof GROWTH_MENTOR_CRM_ACTIONS)[number];
 
@@ -272,6 +277,12 @@ export function isGrowthMentorContentAction(
   actionId: string
 ): actionId is GrowthMentorContentAction {
   return GROWTH_MENTOR_CONTENT_ACTIONS.includes(actionId as GrowthMentorContentAction);
+}
+
+export function isGrowthMentorExecutiveAction(
+  actionId: string
+): actionId is GrowthMentorExecutiveAction {
+  return GROWTH_MENTOR_EXECUTIVE_ACTIONS.includes(actionId as GrowthMentorExecutiveAction);
 }
 
 export function isGrowthMentorCrmAction(
@@ -312,6 +323,13 @@ const GROWTH_MENTOR_CONTENT_PHRASES = [
   "ideias de posts",
 ] as const;
 
+const GROWTH_MENTOR_EXECUTIVE_PHRASES = [
+  "meu dia",
+  "resumo do dia",
+  "prioridades de hoje",
+  "central de comando",
+] as const;
+
 function normalizeMentorQuery(text: string): string {
   return text
     .toLowerCase()
@@ -343,6 +361,16 @@ export function isGrowthMentorContentQuery(message: string, actionId?: string): 
   const normalized = normalizeMentorQuery(message);
 
   return GROWTH_MENTOR_CONTENT_PHRASES.some((phrase) =>
+    normalized.includes(normalizeMentorQuery(phrase))
+  );
+}
+
+export function isGrowthMentorExecutiveQuery(message: string, actionId?: string): boolean {
+  if (actionId && isGrowthMentorExecutiveAction(actionId)) return true;
+
+  const normalized = normalizeMentorQuery(message);
+
+  return GROWTH_MENTOR_EXECUTIVE_PHRASES.some((phrase) =>
     normalized.includes(normalizeMentorQuery(phrase))
   );
 }
@@ -840,3 +868,214 @@ export const SALES_FUNNEL_STEPS = [
   "Proposta",
   "Fechamento",
 ] as const;
+
+function daysSince(dateStr: string): number {
+  const date = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function getMonthPrefix(date = getCurrentMonthReference()): string {
+  return date.slice(0, 7);
+}
+
+export function computeMonthlyExecutiveScore(
+  missions: GrowthMission[],
+  leads: GrowthLead[],
+  monthPrefix = getMonthPrefix()
+): number {
+  const missionsCompleted = missions.filter(
+    (m) => m.mission_date.startsWith(monthPrefix) && m.status === "completed"
+  ).length;
+  const leadsCreated = leads.filter((l) => l.created_at.startsWith(monthPrefix)).length;
+  const salesClosed = leads.filter(
+    (l) => l.status === "fechado" && l.updated_at.startsWith(monthPrefix)
+  ).length;
+  const contentPublished = missions.filter(
+    (m) =>
+      m.mission_key === "postar" &&
+      m.status === "completed" &&
+      m.mission_date.startsWith(monthPrefix)
+  ).length;
+
+  const missionPts = Math.min(25, Math.round((missionsCompleted / 30) * 25));
+  const leadPts = Math.min(25, Math.round((leadsCreated / 8) * 25));
+  const salesPts = Math.min(25, Math.round((salesClosed / 4) * 25));
+  const contentPts = Math.min(25, Math.round((contentPublished / 12) * 25));
+
+  return missionPts + leadPts + salesPts + contentPts;
+}
+
+export function detectExecutiveAlerts(
+  leads: GrowthLead[],
+  missions: GrowthMission[],
+  metrics: GrowthLeadMetrics
+): string[] {
+  const alerts: string[] = [];
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(now.getDate() - 7);
+
+  for (const lead of leads) {
+    if (!GROWTH_LEAD_ACTIVE_STATUSES.includes(
+      lead.status as (typeof GROWTH_LEAD_ACTIVE_STATUSES)[number]
+    )) {
+      continue;
+    }
+
+    const idleDays = daysSince(lead.updated_at);
+
+    if (lead.status === "proposta" && idleDays >= 5) {
+      alerts.push(`⚠ Proposta de ${lead.nome} sem retorno há ${idleDays} dias.`);
+    } else if (idleDays >= 7) {
+      alerts.push(`⚠ ${lead.nome} está há ${idleDays} dias sem interação.`);
+    }
+  }
+
+  const recentLeads = leads.filter((l) => new Date(l.created_at) >= sevenDaysAgo);
+  if (leads.length > 0 && recentLeads.length === 0) {
+    alerts.push("⚠ Nenhum lead novo nos últimos 7 dias.");
+  }
+
+  const activeStages = metrics.porStatus.filter(
+    (s) => s.status !== "Fechado" && s.status !== "Perdido" && s.count > 0
+  );
+  const topActive = activeStages.sort((a, b) => b.percent - a.percent)[0];
+  if (topActive && topActive.percent >= 50 && metrics.ativos >= 3) {
+    alerts.push(
+      `⚠ Funil travado: ${topActive.percent}% dos leads ativos estão em ${topActive.status}.`
+    );
+  }
+
+  const recentContent = missions.some(
+    (m) =>
+      m.mission_key === "postar" &&
+      m.status === "completed" &&
+      new Date(m.mission_date) >= sevenDaysAgo
+  );
+  if (!recentContent) {
+    alerts.push("⚠ Queda de conteúdo: nenhuma publicação registrada nos últimos 7 dias.");
+  }
+
+  return [...new Set(alerts)];
+}
+
+export function buildExecutivePriorities(
+  leads: GrowthLead[],
+  missions: GrowthMission[],
+  contentInsights: GrowthContentInsights
+): string[] {
+  const priorities: string[] = [];
+  const today = getTodayDate();
+  const dailyMissions = mergeDailyMissions(missions, today);
+  const topLead = sortGrowthLeadOpportunities(leads)[0];
+
+  if (topLead) {
+    const valor = formatBRL(topLead.valor_potencial ?? 0);
+    const status = getGrowthLeadStatusLabel(topLead.status).toLowerCase();
+    if (topLead.status === "negociacao" || topLead.status === "proposta") {
+      priorities.push(
+        `Fazer follow-up com ${topLead.nome} (${valor} em ${status})`
+      );
+    } else {
+      priorities.push(`Avançar ${topLead.nome} (${valor} — ${status})`);
+    }
+  }
+
+  const postarMission = dailyMissions.find((m) => m.key === "postar");
+  if (postarMission?.status === "pending") {
+    const nicho = contentInsights.maiorDemanda ?? "eventos";
+    priorities.push(`Publicar Reel sobre ${nicho.toLowerCase()}`);
+  }
+
+  const pendingMission = dailyMissions.find((m) => m.status === "pending");
+  if (pendingMission) {
+    priorities.push(`Concluir missão ${pendingMission.titulo}`);
+  }
+
+  const propostaLead = leads.find((l) => l.status === "proposta");
+  if (propostaLead && propostaLead.nome !== topLead?.nome) {
+    priorities.push(`Enviar proposta para ${propostaLead.nome}`);
+  }
+
+  const followupLead = leads.find(
+    (l) => l.status === "contato" || l.status === "novo"
+  );
+  if (followupLead && priorities.length < 4) {
+    priorities.push(`Prospectar ou contatar ${followupLead.nome}`);
+  }
+
+  return priorities.slice(0, 6);
+}
+
+export function buildExecutiveDayContext(params: {
+  leads: GrowthLead[];
+  goal: GrowthGoal | null;
+  missions: GrowthMission[];
+}): string {
+  const { leads, goal, missions } = params;
+  const metrics = computeGrowthLeadMetrics(leads);
+  const contentInsights = analyzeGrowthLeadContentInsights(leads);
+  const score = computeMonthlyExecutiveScore(missions, leads);
+  const alerts = detectExecutiveAlerts(leads, missions, metrics);
+  const prioridades = buildExecutivePriorities(leads, missions, contentInsights);
+  const todayMissions = mergeDailyMissions(missions);
+
+  const metaMensal = goal?.meta_receita_mensal ?? 0;
+  const receitaFechada = metrics.receita;
+  const faltaMeta = Math.max(0, metaMensal - receitaFechada);
+
+  const prioridadesLines =
+    prioridades.length > 0
+      ? prioridades.map((p, i) => `${i + 1}. ${p}`).join("\n")
+      : "1. Cadastrar leads e definir meta mensal para personalizar prioridades.";
+
+  const alertLines =
+    alerts.length > 0 ? alerts.join("\n") : "Nenhum alerta crítico no momento.";
+
+  const missoesHoje = todayMissions
+    .map((m) => `* ${m.titulo}: ${m.status === "completed" ? "concluída" : "pendente"}`)
+    .join("\n");
+
+  const topRecommendations = prioridades.slice(0, 3);
+
+  return `## CENTRAL DE COMANDO — RESUMO EXECUTIVO (${getTodayDate()})
+
+### Meta mensal
+Meta: ${formatBRL(metaMensal)}
+Fechado: ${formatBRL(receitaFechada)}
+Faltam: ${formatBRL(faltaMeta)}
+
+### Score do mês
+Score atual: ${score}/100
+(composição: missões concluídas · leads criados · vendas fechadas · conteúdo publicado)
+
+### Alertas inteligentes
+${alertLines}
+
+### Prioridades de hoje (pré-calculadas)
+${prioridadesLines}
+
+### Missões de hoje
+${missoesHoje}
+
+### Pipeline resumido
+* Leads ativos: ${metrics.ativos}
+* Receita em negociação: ${formatBRL(metrics.receitaEmNegociacao)}
+* Maior demanda (conteúdo): ${contentInsights.maiorDemanda ?? "N/A"}
+* Taxa de conversão: ${metrics.taxaConversao.toFixed(1)}%
+
+### Top 3 ações de maior impacto (pré-calculadas)
+${topRecommendations.map((r, i) => `${i + 1}. ${r}`).join("\n")}
+
+## INSTRUÇÕES PARA ESTA RESPOSTA
+Responda como Diretor Executivo da Aura. Estruture assim:
+
+1. **Prioridades de hoje** — use a lista pré-calculada, cite valores reais dos leads
+2. **Meta mensal** — Meta / Fechado / Faltam com valores acima
+3. **Alertas inteligentes** — liste os alertas detectados
+4. **Score do mês** — Score atual: ${score}/100
+5. **Se eu fosse você hoje, faria isso:** — liste exatamente as 3 ações de maior impacto
+
+Seja direto, executivo e orientado a decisão. Use dados reais — nunca peça informações manualmente.`;
+}

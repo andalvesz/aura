@@ -10,6 +10,7 @@ import {
   PenLine,
   Send,
   Sparkles,
+  Sun,
   Tag,
   TrendingUp,
 } from "lucide-react";
@@ -27,9 +28,18 @@ type QuickAction = {
   icon: React.ComponentType<{ className?: string }>;
   prompt: string;
   usesLeadData?: boolean;
+  usesExecutiveData?: boolean;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
+  {
+    id: "meu-dia",
+    label: "Meu dia",
+    icon: Sun,
+    usesExecutiveData: true,
+    prompt:
+      "Me dê meu resumo executivo do dia: prioridades, meta mensal, alertas, score do mês e as 3 ações de maior impacto que devo fazer hoje.",
+  },
   {
     id: "plano-vendas",
     label: "Criar plano de vendas",
@@ -184,7 +194,10 @@ export function AuraMentor() {
   }
 
   function handleQuickAction(action: QuickAction) {
-    sendMessage(action.prompt, action.usesLeadData ? action.id : undefined);
+    sendMessage(
+      action.prompt,
+      action.usesLeadData || action.usesExecutiveData ? action.id : undefined
+    );
   }
 
   return (
