@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { parseRequestJson } from "@/utils/safe-json";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -6,7 +7,13 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { message } = await req.json();
+    const { data: body, error: bodyError } = await parseRequestJson<{ message?: string }>(req);
+
+    if (bodyError || !body) {
+      return Response.json({ error: bodyError ?? "Requisição inválida." }, { status: 400 });
+    }
+
+    const message = typeof body.message === "string" ? body.message.trim() : "";
 
     if (!message) {
       return Response.json(

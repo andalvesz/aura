@@ -17,7 +17,8 @@ import {
 import { ActionButton } from "../action-button";
 import { MetricCard } from "../metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
-import { useConteudos } from "@/hooks";
+import { useConteudos } from "@/hooks/use-conteudos";
+import { parseJsonResponse } from "@/utils/safe-json";
 import type { Conteudo } from "@/types/database";
 import {
   computeSocialMetrics,
@@ -89,15 +90,23 @@ export function SocialMediaView() {
           objetivo: target.objetivo,
         }),
       });
-      const data = await res.json();
+      const { data, error: parseError } = await parseJsonResponse<{
+        roteiro?: string;
+        error?: string;
+      }>(res);
 
-      if (!res.ok || data.error) {
-        toast.error(data.error ?? "Erro ao gerar roteiro.");
+      if (parseError) {
+        toast.error(parseError);
+        return;
+      }
+
+      if (!res.ok || data?.error) {
+        toast.error(data?.error ?? "Erro ao gerar roteiro.");
         return;
       }
 
       const { error } = await update(target.id, {
-        roteiro: data.roteiro,
+        roteiro: data?.roteiro ?? "",
         status: "roteiro",
       });
 

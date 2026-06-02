@@ -1,5 +1,6 @@
 import OpenAI, { APIError } from "openai";
 import { SOCIAL_ROTEIRO_CONTEXT } from "@/utils/social";
+import { parseRequestJson } from "@/utils/safe-json";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -19,7 +20,17 @@ function resolveError(error: unknown): string {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const { data: body, error: bodyError } = await parseRequestJson<{
+      titulo?: string;
+      plataforma?: string;
+      formato?: string;
+      objetivo?: string;
+    }>(req);
+
+    if (bodyError || !body) {
+      return Response.json({ error: bodyError ?? "Requisição inválida." }, { status: 400 });
+    }
+
     const titulo = typeof body.titulo === "string" ? body.titulo.trim() : "";
     const plataforma = typeof body.plataforma === "string" ? body.plataforma : "instagram";
     const formato = typeof body.formato === "string" ? body.formato : "reels";

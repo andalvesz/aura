@@ -23,6 +23,7 @@ import {
   isNexusCalendarQuery,
   isNexusDashboardQuery,
 } from "@/utils/nexus";
+import { parseRequestJson } from "@/utils/safe-json";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -141,7 +142,16 @@ function resolveMentorErrorMessage(error: unknown): {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const { data: body, error: bodyError } = await parseRequestJson<{
+      message?: string;
+      actionId?: string;
+      history?: unknown;
+    }>(req);
+
+    if (bodyError || !body) {
+      return Response.json({ error: bodyError ?? "Requisição inválida." }, { status: 400 });
+    }
+
     const message = typeof body.message === "string" ? body.message.trim() : "";
     const actionId =
       typeof body.actionId === "string" ? body.actionId.trim() : "";

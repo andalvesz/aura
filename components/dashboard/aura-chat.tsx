@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { parseJsonResponse } from "@/utils/safe-json";
 import { Send, Sparkles } from "lucide-react";
 
 type Message = {
@@ -39,13 +40,20 @@ export function AuraChat() {
         body: JSON.stringify({ message: text }),
       });
 
-      const data = await response.json();
+      const { data, error: parseError } = await parseJsonResponse<{
+        text?: string;
+        error?: string;
+      }>(response);
 
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
-          text: data.text ?? data.error ?? "Não consegui responder agora.",
+          text:
+            parseError ??
+            data?.text ??
+            data?.error ??
+            "Não consegui responder agora.",
         },
       ]);
     } catch {

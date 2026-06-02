@@ -16,7 +16,9 @@ import { ListSkeleton } from "@/components/dashboard/loading-skeleton";
 import { ActionButton } from "@/components/dashboard/action-button";
 import { MiniCalendar } from "@/components/dashboard/mini-calendar";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
-import { useEventos, useGrowthLeads } from "@/hooks";
+import { useEventos } from "@/hooks/use-eventos";
+import { useGrowthLeads } from "@/hooks/use-growth-leads";
+import { parseJsonResponse } from "@/utils/safe-json";
 import type { Evento } from "@/types/database";
 import type { ParsedEventoSuggestion } from "@/utils/calendar";
 import { getEventoTipoLabel, proximosEventos } from "@/utils/calendar";
@@ -80,22 +82,43 @@ export function CalendarioView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
-      const data = await res.json();
+      const { data, error: parseError } = await parseJsonResponse<{
+        suggestion?: ParsedEventoSuggestion;
+        error?: string;
+      }>(res);
 
-      if (!res.ok || data.error) {
+      if (parseError) {
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", text: parseError },
+        ]);
+        return;
+      }
+
+      if (!res.ok || data?.error) {
         setMessages((m) => [
           ...m,
           {
             role: "assistant",
             text:
-              data.error ??
+              data?.error ??
               "Não consegui interpretar. Use Novo evento para cadastrar manualmente.",
           },
         ]);
         return;
       }
 
-      const s = data.suggestion as ParsedEventoSuggestion;
+      const s = data?.suggestion;
+      if (!s?.titulo || !s.data) {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "assistant",
+            text: "Não entendi o compromisso. Tente reformular ou cadastre manualmente.",
+          },
+        ]);
+        return;
+      }
       setSuggestion(s);
       setMessages((m) => [
         ...m,

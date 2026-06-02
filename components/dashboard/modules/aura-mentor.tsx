@@ -18,6 +18,7 @@ import {
   Brain,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { parseJsonResponse } from "@/utils/safe-json";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 
 type Message = {
@@ -192,14 +193,17 @@ export function AuraMentor() {
         }),
       });
 
-      const data = await response.json();
+      const { data, error: parseError } = await parseJsonResponse<{
+        text?: string;
+        error?: string;
+      }>(response);
 
-      if (!response.ok) {
+      if (parseError || !response.ok) {
         setMessages((current) => [
           ...current,
           {
             role: "assistant",
-            text: data.error ?? "Não consegui responder agora.",
+            text: parseError ?? data?.error ?? "Não consegui responder agora.",
           },
         ]);
         return;
@@ -209,7 +213,7 @@ export function AuraMentor() {
         ...current,
         {
           role: "assistant",
-          text: data.text ?? "Não consegui responder agora.",
+          text: data?.text ?? "Não consegui responder agora.",
         },
       ]);
     } catch {

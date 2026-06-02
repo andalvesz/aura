@@ -128,6 +128,58 @@ export type AlveszEvento = {
   updated_at: string;
 };
 
+export type HealthHabit = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  frequencia: string;
+  status: string;
+  data: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HealthWorkout = {
+  id: string;
+  user_id: string;
+  nome: string;
+  grupo_muscular: string;
+  exercicios: Json;
+  duracao_min: number;
+  observacoes: string | null;
+  data: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HealthMeal = {
+  id: string;
+  user_id: string;
+  nome: string;
+  horario: string;
+  alimentos: string | null;
+  calorias: number | null;
+  observacoes: string | null;
+  data: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type HealthSessionTipo = "leitura" | "meditacao";
+
+export type HealthSession = {
+  id: string;
+  user_id: string;
+  tipo: HealthSessionTipo;
+  titulo: string;
+  duracao_min: number;
+  data: string;
+  status: string;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Lead = {
   id: string;
   user_id: string;
@@ -443,6 +495,50 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      health_habits: TableDef<
+        HealthHabit,
+        Omit<HealthHabit, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      health_workouts: TableDef<
+        HealthWorkout,
+        Omit<
+          HealthWorkout,
+          "id" | "created_at" | "updated_at" | "observacoes" | "exercicios"
+        > & {
+          id?: string;
+          observacoes?: string | null;
+          exercicios?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      health_meals: TableDef<
+        HealthMeal,
+        Omit<
+          HealthMeal,
+          "id" | "created_at" | "updated_at" | "alimentos" | "calorias" | "observacoes"
+        > & {
+          id?: string;
+          alimentos?: string | null;
+          calorias?: number | null;
+          observacoes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      health_sessions: TableDef<
+        HealthSession,
+        Omit<HealthSession, "id" | "created_at" | "updated_at" | "observacoes"> & {
+          id?: string;
+          observacoes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -483,7 +579,11 @@ export type UserScopedTable =
   | "growth_analyses"
   | "growth_leads"
   | "growth_content_memory"
-  | "alvesz_eventos";
+  | "alvesz_eventos"
+  | "health_habits"
+  | "health_workouts"
+  | "health_meals"
+  | "health_sessions";
 
 export type AiModule =
   | "financeiro"

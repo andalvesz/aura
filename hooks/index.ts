@@ -13,3 +13,7 @@ export { useGrowthAnalyses } from "./use-growth-analyses";
 export { useGrowthActions } from "./use-growth-actions";
 export { useGrowthLeads } from "./use-growth-leads";
 export { useAlveszEventos } from "./use-alvesz-eventos";
+export { useHealthHabits } from "./use-health-habits";
+export { useHealthWorkouts } from "./use-health-workouts";
+export { useHealthMeals } from "./use-health-meals";
+export { useHealthSessions } from "./use-health-sessions";
