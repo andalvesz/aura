@@ -6,4 +6,5 @@ export * from "./saude.service";
 export * from "./social.service";
 export * from "./consorcios.service";
 export * from "./ai.service";
+export * from "./growth.service";
 export * from "./seed.service";

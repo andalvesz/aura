@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Dumbbell,
   Home,
+  Rocket,
   Share2,
   Target,
   Wallet,
@@ -15,7 +16,8 @@ export type ModuleId =
   | "alvesz"
   | "saude"
   | "social-media"
-  | "consorcios";
+  | "consorcios"
+  | "crescimento";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -115,6 +117,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Leads",
       value: "0",
       hint: "Nenhum lead cadastrado",
+    },
+  },
+  {
+    id: "crescimento",
+    href: "/dashboard/crescimento",
+    label: "Crescimento Digital",
+    shortLabel: "Crescimento",
+    description:
+      "Missões, vendas online, análise de perfis e estratégias de crescimento.",
+    icon: Rocket,
+    accent: "text-cyan-400",
+    overview: {
+      metric: "XP",
+      value: "—",
+      hint: "Nenhuma meta ou missão registrada",
     },
   },
 ];

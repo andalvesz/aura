@@ -128,6 +128,74 @@ export type AiMessage = {
   created_at: string;
 };
 
+export type GrowthGoal = {
+  id: string;
+  user_id: string;
+  meta_receita_mensal: number;
+  receita_atual: number;
+  xp_total: number;
+  nivel: number;
+  mes_referencia: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GrowthMissionStatus = "pending" | "completed";
+
+export type GrowthMission = {
+  id: string;
+  user_id: string;
+  mission_key: string;
+  titulo: string;
+  descricao: string;
+  xp_reward: number;
+  status: GrowthMissionStatus;
+  mission_date: string;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GrowthVertical = "alvesz" | "consorcios" | "marca_pessoal";
+
+export type GrowthAction = {
+  id: string;
+  user_id: string;
+  vertical: GrowthVertical;
+  oferta_principal: string | null;
+  canal_venda: string | null;
+  publico_alvo: string | null;
+  cta: string | null;
+  funil: string | null;
+  ideias_acao: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GrowthProfile = {
+  id: string;
+  user_id: string;
+  plataforma: string;
+  username: string;
+  nicho: string | null;
+  objetivo: string | null;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GrowthAnalysisStatus = "pending" | "completed" | "failed";
+
+export type GrowthAnalysis = {
+  id: string;
+  user_id: string;
+  profile_id: string | null;
+  conteudo: string | null;
+  status: GrowthAnalysisStatus;
+  created_at: string;
+  updated_at: string;
+};
+
 type TableDef<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -218,6 +286,47 @@ export type Database = {
           created_at?: string;
         }
       >;
+      growth_goals: TableDef<
+        GrowthGoal,
+        Omit<GrowthGoal, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      growth_missions: TableDef<
+        GrowthMission,
+        Omit<GrowthMission, "id" | "created_at" | "updated_at" | "completed_at"> & {
+          id?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      growth_actions: TableDef<
+        GrowthAction,
+        Omit<GrowthAction, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      growth_profiles: TableDef<
+        GrowthProfile,
+        Omit<GrowthProfile, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      growth_analyses: TableDef<
+        GrowthAnalysis,
+        Omit<GrowthAnalysis, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -250,7 +359,12 @@ export type UserScopedTable =
   | "dieta"
   | "conteudos"
   | "leads"
-  | "ai_messages";
+  | "ai_messages"
+  | "growth_goals"
+  | "growth_missions"
+  | "growth_actions"
+  | "growth_profiles"
+  | "growth_analyses";
 
 export type AiModule =
   | "financeiro"
@@ -258,4 +372,5 @@ export type AiModule =
   | "alvesz"
   | "saude"
   | "social-media"
-  | "consorcios";
+  | "consorcios"
+  | "crescimento";

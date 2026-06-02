@@ -9,3 +9,10 @@ export { DietaRepository } from "./dieta.repository";
 export { ConteudosRepository } from "./conteudos.repository";
 export { LeadsRepository } from "./leads.repository";
 export { AiMessagesRepository } from "./ai-messages.repository";
+export {
+  GrowthGoalsRepository,
+  GrowthMissionsRepository,
+  GrowthActionsRepository,
+  GrowthProfilesRepository,
+  GrowthAnalysesRepository,
+} from "./growth.repository";

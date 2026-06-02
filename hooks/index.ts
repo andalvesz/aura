@@ -6,3 +6,8 @@ export { useConteudos } from "./use-conteudos";
 export { useEstoque } from "./use-estoque";
 export { useClientes } from "./use-clientes";
 export { useOrcamentos } from "./use-orcamentos";
+export { useGrowthProfiles } from "./use-growth-profiles";
+export { useGrowthMissions } from "./use-growth-missions";
+export { useGrowthGoals } from "./use-growth-goals";
+export { useGrowthAnalyses } from "./use-growth-analyses";
+export { useGrowthActions } from "./use-growth-actions";

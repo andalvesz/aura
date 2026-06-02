@@ -1,4 +1,5 @@
 import { AuraChat } from "@/components/dashboard/aura-chat";
+import { ModuleOverviewGrid } from "@/components/dashboard/module-overview-grid";
 
 export default function DashboardPage() {
   return (
@@ -12,6 +13,8 @@ export default function DashboardPage() {
           Sistema operacional pessoal de Anderson Alves.
         </p>
       </div>
+
+      <ModuleOverviewGrid />
 
       <AuraChat />
     </div>
