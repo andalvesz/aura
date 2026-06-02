@@ -95,3 +95,11 @@ export async function createGrowthLead(
   const { supabase, userId } = await getDataContext();
   return new GrowthLeadsRepository(supabase, userId).create(payload);
 }
+
+export async function updateGrowthLead(
+  id: string,
+  payload: TableUpdate<"growth_leads">
+) {
+  const { supabase, userId } = await getDataContext();
+  return new GrowthLeadsRepository(supabase, userId).update(id, payload);
+}

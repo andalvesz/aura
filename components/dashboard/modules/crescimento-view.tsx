@@ -1,10 +1,22 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Circle, Plus, Sparkles, Target, TrendingUp } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  Plus,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/dashboard/empty-state";
-import { MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
+import {
+  ListSkeleton,
+  MetricsSkeleton,
+} from "@/components/dashboard/loading-skeleton";
 import {
   useGrowthActions,
   useGrowthAnalyses,
@@ -14,13 +26,20 @@ import {
   useGrowthProfiles,
 } from "@/hooks";
 import { buildProfileAnalysisInput, isSupabaseTableMissingError } from "@/lib/growth";
-import type { GrowthProfile } from "@/types/database";
+import type {
+  GrowthLeadCanal,
+  GrowthLeadStatus,
+  GrowthProfile,
+  GrowthVertical,
+} from "@/types/database";
 import { formatBRL } from "@/utils/format";
 import {
   AURA_MENTOR_SUGGESTIONS,
   calculateLevel,
   computeGrowthLeadMetrics,
   computeRevenueProgress,
+  getGrowthLeadStatusLabel,
+  GROWTH_LEAD_STATUSES,
   countCompletedToday,
   getActionForVertical,
   getCurrentGoal,
@@ -36,6 +55,7 @@ import {
 import { ActionButton } from "../action-button";
 import { MetricCard } from "../metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
+import { AddGrowthLeadModal } from "./add-growth-lead-modal";
 import { AddGrowthProfileModal } from "./add-growth-profile-modal";
 import { SetGrowthGoalModal } from "./set-growth-goal-modal";
 
@@ -115,11 +135,17 @@ export function CrescimentoView() {
   } = useGrowthProfiles();
   const { data: actions, loading: actionsLoading, error: actionsError } = useGrowthActions();
   const { data: analyses, create: createAnalysis, error: analysesError } = useGrowthAnalyses();
-  const { data: growthLeads, loading: growthLeadsLoading, error: growthLeadsError } =
-    useGrowthLeads();
+  const {
+    data: growthLeads,
+    loading: growthLeadsLoading,
+    error: growthLeadsError,
+    create: createGrowthLead,
+    update: updateGrowthLead,
+  } = useGrowthLeads();
 
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [goalModalOpen, setGoalModalOpen] = useState(false);
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [mentorPrompt, setMentorPrompt] = useState<string | null>(null);
   const [completingKey, setCompletingKey] = useState<string | null>(null);
 
@@ -263,6 +289,38 @@ export function CrescimentoView() {
     setCompletingKey(null);
   }
 
+  async function handleCreateGrowthLead(payload: {
+    nome: string;
+    contato: string;
+    origem: string;
+    canal: GrowthLeadCanal;
+    vertical: GrowthVertical | null;
+    status: GrowthLeadStatus;
+    valor_potencial: number;
+    observacoes: string;
+  }) {
+    const result = await createGrowthLead({
+      nome: payload.nome,
+      contato: payload.contato || null,
+      origem: payload.origem,
+      canal: payload.canal,
+      vertical: payload.vertical,
+      status: payload.status,
+      valor_potencial: payload.valor_potencial,
+      observacoes: payload.observacoes || null,
+    });
+    return { error: result.error };
+  }
+
+  async function moveGrowthLead(id: string, status: GrowthLeadStatus) {
+    const { error } = await updateGrowthLead(id, { status });
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    toast.success(`Status: ${getGrowthLeadStatusLabel(status)}`);
+  }
+
   async function handleAnalyzeProfile(profile: GrowthProfile) {
     const input = buildProfileAnalysisInput(profile);
     const { error } = await createAnalysis({
@@ -292,6 +350,14 @@ export function CrescimentoView() {
           className="w-full sm:w-auto"
         >
           Definir meta
+        </ActionButton>
+        <ActionButton
+          icon={<Users className="size-3.5" />}
+          onClick={() => setLeadModalOpen(true)}
+          className="w-full sm:w-auto"
+          disabled={Boolean(growthDataError)}
+        >
+          Novo lead
         </ActionButton>
         <ActionButton
           icon={<Plus className="size-3.5" />}
@@ -409,11 +475,73 @@ export function CrescimentoView() {
                 hintClassName="text-emerald-400/90"
               />
             </div>
-            {leadMetrics.total === 0 && !growthLeadsError && (
-              <p className="mt-3 text-center text-[11px] text-zinc-600">
-                Cadastro de leads em breve. Métricas refletem dados reais do Supabase.
-              </p>
-            )}
+            <div className="mt-4 border-t border-white/[0.06] pt-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[12px] font-medium text-zinc-300">Lista de leads</p>
+                <ActionButton
+                  icon={<Plus className="size-3.5" />}
+                  variant="ghost"
+                  className="h-7 px-2 text-[11px]"
+                  disabled={Boolean(growthDataError)}
+                  onClick={() => setLeadModalOpen(true)}
+                >
+                  Adicionar
+                </ActionButton>
+              </div>
+              {growthLeadsLoading ? (
+                <ListSkeleton rows={4} />
+              ) : growthLeads.length === 0 ? (
+                <EmptyState
+                  title="Nenhum lead cadastrado"
+                  description="Cadastre leads da Alvesz, consórcios ou marca pessoal."
+                  action={
+                    <ActionButton
+                      icon={<Plus className="size-3.5" />}
+                      onClick={() => setLeadModalOpen(true)}
+                      disabled={Boolean(growthDataError)}
+                    >
+                      Novo lead
+                    </ActionButton>
+                  }
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {growthLeads.map((lead) => (
+                    <li
+                      key={lead.id}
+                      className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium text-zinc-200">{lead.nome}</p>
+                        <p className="mt-0.5 text-[11px] text-zinc-600">
+                          {[lead.origem, lead.contato].filter(Boolean).join(" · ") ||
+                            "Sem contato"}
+                        </p>
+                        {lead.valor_potencial > 0 && (
+                          <p className="mt-0.5 text-[11px] text-cyan-400/90">
+                            {formatBRL(lead.valor_potencial)}
+                          </p>
+                        )}
+                      </div>
+                      <select
+                        value={lead.status}
+                        onChange={(e) =>
+                          moveGrowthLead(lead.id, e.target.value as GrowthLeadStatus)
+                        }
+                        disabled={Boolean(growthDataError)}
+                        className="h-8 w-full shrink-0 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[12px] text-zinc-300 sm:w-40"
+                      >
+                        {GROWTH_LEAD_STATUSES.map((s) => (
+                          <option key={s.value} value={s.value} className="bg-zinc-900">
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </PanelContent>
         </Panel>
         </>
@@ -709,6 +837,12 @@ export function CrescimentoView() {
           </PanelContent>
         </Panel>
       </div>
+
+      <AddGrowthLeadModal
+        open={leadModalOpen}
+        onClose={() => setLeadModalOpen(false)}
+        onSubmit={handleCreateGrowthLead}
+      />
 
       <AddGrowthProfileModal
         open={profileModalOpen}

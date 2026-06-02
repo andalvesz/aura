@@ -184,8 +184,12 @@ create table if not exists public.growth_leads (
   origem text not null default 'outro',
   nome text not null,
   contato text,
-  status text not null default 'novo' check (status in ('novo', 'contato', 'proposta', 'fechado', 'perdido')),
+  status text not null default 'novo' check (status in ('novo', 'contato', 'proposta', 'negociacao', 'fechado', 'perdido')),
   valor_potencial numeric(12, 2) not null default 0 check (valor_potencial >= 0),
+  vertical text check (vertical in ('alvesz', 'consorcios', 'marca_pessoal')),
+  observacoes text,
+  canal text not null default 'outro' check (canal in ('instagram', 'whatsapp', 'indicacao', 'outro')),
+  external_id text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

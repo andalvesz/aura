@@ -65,17 +65,20 @@ export function useSupabaseCrud<T extends UserScopedTable>({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    if (!enabled) return;
-    setLoading(true);
-    setError(null);
-    const { data: rows, error: err } = await getQuery(supabase, table)
-      .select("*")
-      .order(orderBy, { ascending });
-    setData((rows ?? []) as TableRow<T>[]);
-    setError(err?.message ?? null);
-    setLoading(false);
-  }, [supabase, table, orderBy, ascending, enabled]);
+  const refresh = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!enabled) return;
+      if (!options?.silent) setLoading(true);
+      setError(null);
+      const { data: rows, error: err } = await getQuery(supabase, table)
+        .select("*")
+        .order(orderBy, { ascending });
+      setData((rows ?? []) as TableRow<T>[]);
+      setError(err?.message ?? null);
+      if (!options?.silent) setLoading(false);
+    },
+    [supabase, table, orderBy, ascending, enabled]
+  );
 
   useEffect(() => {
     refresh();
@@ -100,7 +103,11 @@ export function useSupabaseCrud<T extends UserScopedTable>({
         setError(err.message);
         return { data: null, error: err.message };
       }
-      await refresh();
+      if (row) {
+        setData((prev) => [row as TableRow<T>, ...prev]);
+      } else {
+        await refresh({ silent: true });
+      }
       return { data: row as TableRow<T>, error: null };
     },
     [supabase, table, refresh]
@@ -109,35 +116,50 @@ export function useSupabaseCrud<T extends UserScopedTable>({
   const update = useCallback(
     async (id: string, payload: TableUpdate<T>) => {
       setError(null);
+      const previous = data;
+      setData((prev) =>
+        prev.map((row) =>
+          row.id === id ? ({ ...row, ...payload } as TableRow<T>) : row
+        )
+      );
       const { data: row, error: err } = await getQuery(supabase, table)
         .update(payload as Record<string, unknown>)
         .eq("id", id)
         .select()
         .single();
       if (err) {
+        setData(previous);
         setError(err.message);
         return { data: null, error: err.message };
       }
-      await refresh();
+      if (row) {
+        setData((prev) =>
+          prev.map((item) => (item.id === id ? (row as TableRow<T>) : item))
+        );
+      } else {
+        await refresh({ silent: true });
+      }
       return { data: row as TableRow<T>, error: null };
     },
-    [supabase, table, refresh]
+    [supabase, table, refresh, data]
   );
 
   const remove = useCallback(
     async (id: string) => {
       setError(null);
+      const previous = data;
+      setData((prev) => prev.filter((row) => row.id !== id));
       const { error: err } = await getQuery(supabase, table)
         .delete()
         .eq("id", id);
       if (err) {
+        setData(previous);
         setError(err.message);
         return { error: err.message };
       }
-      await refresh();
       return { error: null };
     },
-    [supabase, table, refresh]
+    [supabase, table, data]
   );
 
   return { data, loading, error, refresh, create, update, remove };

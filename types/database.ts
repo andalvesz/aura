@@ -196,7 +196,15 @@ export type GrowthAnalysis = {
   updated_at: string;
 };
 
-export type GrowthLeadStatus = "novo" | "contato" | "proposta" | "fechado" | "perdido";
+export type GrowthLeadStatus =
+  | "novo"
+  | "contato"
+  | "proposta"
+  | "negociacao"
+  | "fechado"
+  | "perdido";
+
+export type GrowthLeadCanal = "instagram" | "whatsapp" | "indicacao" | "outro";
 
 export type GrowthLead = {
   id: string;
@@ -206,6 +214,10 @@ export type GrowthLead = {
   contato: string | null;
   status: GrowthLeadStatus;
   valor_potencial: number;
+  vertical: GrowthVertical | null;
+  observacoes: string | null;
+  canal: GrowthLeadCanal;
+  external_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -343,8 +355,15 @@ export type Database = {
       >;
       growth_leads: TableDef<
         GrowthLead,
-        Omit<GrowthLead, "id" | "created_at" | "updated_at"> & {
+        Omit<
+          GrowthLead,
+          "id" | "created_at" | "updated_at" | "contato" | "vertical" | "observacoes" | "external_id"
+        > & {
           id?: string;
+          contato?: string | null;
+          vertical?: GrowthVertical | null;
+          observacoes?: string | null;
+          external_id?: string | null;
           created_at?: string;
           updated_at?: string;
         }

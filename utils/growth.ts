@@ -163,7 +163,30 @@ export function countCompletedToday(missions: GrowthMission[]): number {
   ).length;
 }
 
-export const GROWTH_LEAD_ACTIVE_STATUSES = ["novo", "contato", "proposta"] as const;
+export const GROWTH_LEAD_STATUSES = [
+  { value: "novo", label: "Novo" },
+  { value: "contato", label: "Contato" },
+  { value: "proposta", label: "Proposta" },
+  { value: "negociacao", label: "Negociação" },
+  { value: "fechado", label: "Fechado" },
+  { value: "perdido", label: "Perdido" },
+] as const;
+
+export type GrowthLeadStatusValue = (typeof GROWTH_LEAD_STATUSES)[number]["value"];
+
+export const GROWTH_LEAD_ACTIVE_STATUSES = [
+  "novo",
+  "contato",
+  "proposta",
+  "negociacao",
+] as const;
+
+export const GROWTH_LEAD_CANAIS = [
+  { value: "instagram", label: "Instagram" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "indicacao", label: "Indicação" },
+  { value: "outro", label: "Outro" },
+] as const;
 
 export type GrowthLeadMetrics = {
   total: number;
@@ -171,6 +194,10 @@ export type GrowthLeadMetrics = {
   fechados: number;
   receita: number;
 };
+
+export function getGrowthLeadStatusLabel(status: string): string {
+  return GROWTH_LEAD_STATUSES.find((s) => s.value === status)?.label ?? status;
+}
 
 export function computeGrowthLeadMetrics(leads: GrowthLead[]): GrowthLeadMetrics {
   const ativos = leads.filter((l) =>
