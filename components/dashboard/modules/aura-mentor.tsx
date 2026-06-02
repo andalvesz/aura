@@ -2,9 +2,11 @@
 
 import {
   BarChart3,
+  Building2,
   CalendarDays,
   Camera,
   Filter,
+  LayoutDashboard,
   LineChart,
   ListOrdered,
   PenLine,
@@ -31,6 +33,7 @@ type QuickAction = {
   usesLeadData?: boolean;
   usesExecutiveData?: boolean;
   usesMemoryData?: boolean;
+  usesNexusData?: boolean;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
@@ -39,8 +42,33 @@ const QUICK_ACTIONS: QuickAction[] = [
     label: "Meu dia",
     icon: Sun,
     usesExecutiveData: true,
+    usesNexusData: true,
     prompt:
-      "Me dê meu resumo executivo do dia: prioridades, meta mensal, alertas, score do mês e as 3 ações de maior impacto que devo fazer hoje.",
+      "Meu dia: liste minhas tarefas (missões), leads prioritários, reuniões da agenda e metas. Inclua prioridades, alertas, score do mês e as 3 ações de maior impacto para hoje.",
+  },
+  {
+    id: "dashboard-executivo",
+    label: "Dashboard executivo",
+    icon: LayoutDashboard,
+    usesNexusData: true,
+    prompt:
+      "Dashboard executivo Nexus: resumo único com receita potencial, receita fechada, eventos, leads prioritários e missões de hoje. Destaque 3 ações imediatas.",
+  },
+  {
+    id: "alvesz-resumo",
+    label: "Alvesz",
+    icon: Building2,
+    usesNexusData: true,
+    prompt:
+      "Resumo da Alvesz Experience: orçamentos, clientes e eventos cadastrados. Indique pipeline, oportunidades e próximos passos comerciais.",
+  },
+  {
+    id: "calendario-hoje",
+    label: "Agenda",
+    icon: CalendarDays,
+    usesNexusData: true,
+    prompt:
+      "O que tenho na agenda? Liste compromissos, follow-ups e eventos dos próximos dias com horários e prioridade.",
   },
   {
     id: "insights-do-mes",
@@ -204,12 +232,13 @@ export function AuraMentor() {
   }
 
   function handleQuickAction(action: QuickAction) {
-    sendMessage(
-      action.prompt,
-      action.usesLeadData || action.usesExecutiveData || action.usesMemoryData
-        ? action.id
-        : undefined
-    );
+    const passesActionId =
+      action.usesLeadData ||
+      action.usesExecutiveData ||
+      action.usesMemoryData ||
+      action.usesNexusData;
+
+    sendMessage(action.prompt, passesActionId ? action.id : undefined);
   }
 
   return (

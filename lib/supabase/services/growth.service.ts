@@ -17,7 +17,6 @@ import type {
 } from "@/types/database";
 import {
   analyzeGrowthLeadContentInsights,
-  buildExecutiveDayContext,
   buildGrowthLeadsMentorContext,
   buildStrategicMemoryContext,
   getCurrentMonthReference,
@@ -150,34 +149,8 @@ export async function getGrowthExecutiveMentorContext(): Promise<{
   context: string | null;
   error: string | null;
 }> {
-  const ctx = await getOptionalDataContext();
-  if (!ctx) {
-    return { context: null, error: "Usuário não autenticado." };
-  }
-
-  const monthRef = getCurrentMonthReference();
-
-  const [leadsResult, goalResult, missionsResult] = await Promise.all([
-    new GrowthLeadsRepository(ctx.supabase, ctx.userId).findAll(),
-    new GrowthGoalsRepository(ctx.supabase, ctx.userId).findCurrentMonth(monthRef),
-    new GrowthMissionsRepository(ctx.supabase, ctx.userId).findAll("mission_date"),
-  ]);
-
-  if (leadsResult.error) {
-    return { context: null, error: leadsResult.error };
-  }
-  if (missionsResult.error) {
-    return { context: null, error: missionsResult.error };
-  }
-
-  return {
-    context: buildExecutiveDayContext({
-      leads: (leadsResult.data ?? []) as GrowthLead[],
-      goal: (goalResult.data ?? null) as GrowthGoal | null,
-      missions: (missionsResult.data ?? []) as GrowthMission[],
-    }),
-    error: null,
-  };
+  const { getNexusDayMentorContext } = await import("./nexus.service");
+  return getNexusDayMentorContext();
 }
 
 export async function recordContentSuggestion(params: {

@@ -1,10 +1,15 @@
 import OpenAI, { APIError } from "openai";
 import {
-  getGrowthExecutiveMentorContext,
   getGrowthLeadsMentorContext,
   getGrowthStrategicMemoryMentorContext,
   recordContentSuggestion,
 } from "@/lib/supabase/services/growth.service";
+import {
+  getNexusAlveszMentorContext,
+  getNexusCalendarMentorContext,
+  getNexusDayMentorContext,
+  getNexusExecutiveDashboardMentorContext,
+} from "@/lib/supabase/services/nexus.service";
 import {
   GROWTH_MENTOR_EMPTY_LEADS_MESSAGE,
   isGrowthMentorContentAction,
@@ -13,6 +18,11 @@ import {
   isGrowthMentorLeadQuery,
   isGrowthMentorMemoryQuery,
 } from "@/utils/growth";
+import {
+  isNexusAlveszQuery,
+  isNexusCalendarQuery,
+  isNexusDashboardQuery,
+} from "@/utils/nexus";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -74,7 +84,10 @@ Parceiro para captação de clientes em consórcios de imóveis, veículos e inv
 - Para análise de leads, priorização ou diagnóstico de funil, use exclusivamente os dados reais do Supabase fornecidos
 - Para geração de conteúdo e planejamento semanal, use os insights de nicho derivados do CRM (maior demanda, ticket médio, oportunidades abertas)
 - Nunca peça ao usuário para informar nichos ou leads manualmente quando os dados do CRM estiverem disponíveis
-- Para "Meu dia" e resumo executivo, atue como Diretor Executivo: prioridades, meta, alertas, score e recomendações com dados reais do Supabase
+- Para "Meu dia", use tarefas (missões), leads prioritários, reuniões (calendário) e metas com dados reais do Supabase
+- Para "Dashboard executivo", consolide receita potencial, receita fechada, eventos, leads e missões em um único resumo
+- Perguntas sobre Alvesz (orçamentos, clientes, eventos) usam dados do módulo Alvesz Experience
+- Perguntas sobre calendário (compromissos, follow-ups, agenda) usam dados do módulo Calendário
 - Para "Insights do mês", use memória estratégica: fechamentos, padrões de conversão, aprendizado de conteúdo e alertas de desalinhamento`;
 
 type ChatMessage = {
@@ -159,6 +172,9 @@ export async function POST(req: Request) {
     let systemPrompt = SYSTEM_PROMPT;
     const isMemoryQuery = isGrowthMentorMemoryQuery(message, actionId);
     const isExecutiveQuery = isGrowthMentorExecutiveQuery(message, actionId);
+    const isDashboardQuery = isNexusDashboardQuery(message, actionId);
+    const isAlveszQuery = isNexusAlveszQuery(message, actionId);
+    const isCalendarQuery = isNexusCalendarQuery(message, actionId);
     const isCrmQuery = isGrowthMentorCrmQuery(message, actionId);
     const isPipelineQuery = isGrowthMentorLeadQuery(message, actionId);
 
@@ -180,16 +196,67 @@ export async function POST(req: Request) {
 
       systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
     } else if (isExecutiveQuery) {
-      const { context, error } = await getGrowthExecutiveMentorContext();
+      const { context, error } = await getNexusDayMentorContext();
 
       if (error || !context) {
-        console.error("[aura-mentor] Erro ao carregar resumo executivo:", error);
+        console.error("[aura-mentor] Erro ao carregar resumo do dia:", error);
         return Response.json(
           {
             error:
               error === "Usuário não autenticado."
                 ? "Faça login para ver seu resumo do dia."
                 : "Não foi possível carregar a central de comando.",
+          },
+          { status: error === "Usuário não autenticado." ? 401 : 500 }
+        );
+      }
+
+      systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
+    } else if (isDashboardQuery) {
+      const { context, error } = await getNexusExecutiveDashboardMentorContext();
+
+      if (error || !context) {
+        console.error("[aura-mentor] Erro ao carregar dashboard executivo:", error);
+        return Response.json(
+          {
+            error:
+              error === "Usuário não autenticado."
+                ? "Faça login para ver o dashboard executivo."
+                : "Não foi possível carregar o dashboard Nexus.",
+          },
+          { status: error === "Usuário não autenticado." ? 401 : 500 }
+        );
+      }
+
+      systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
+    } else if (isAlveszQuery) {
+      const { context, error } = await getNexusAlveszMentorContext();
+
+      if (error || !context) {
+        console.error("[aura-mentor] Erro ao carregar dados Alvesz:", error);
+        return Response.json(
+          {
+            error:
+              error === "Usuário não autenticado."
+                ? "Faça login para consultar a Alvesz."
+                : "Não foi possível carregar dados da Alvesz Experience.",
+          },
+          { status: error === "Usuário não autenticado." ? 401 : 500 }
+        );
+      }
+
+      systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
+    } else if (isCalendarQuery) {
+      const { context, error } = await getNexusCalendarMentorContext();
+
+      if (error || !context) {
+        console.error("[aura-mentor] Erro ao carregar calendário:", error);
+        return Response.json(
+          {
+            error:
+              error === "Usuário não autenticado."
+                ? "Faça login para consultar sua agenda."
+                : "Não foi possível carregar o calendário.",
           },
           { status: error === "Usuário não autenticado." ? 401 : 500 }
         );
