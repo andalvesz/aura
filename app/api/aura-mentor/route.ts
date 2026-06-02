@@ -1,29 +1,103 @@
-import OpenAI from "openai";
+import OpenAI, { APIError } from "openai";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const SYSTEM_PROMPT = `Você é o Aura Mentor, assistente comercial estratégico do Aura OS — o sistema operacional pessoal de Anderson Alves.
+const SYSTEM_PROMPT = `Você é o Aura Mentor, assistente executivo e comercial estratégico do Aura OS — o sistema operacional pessoal de Anderson Alves. Responda sempre com base nos negócios reais descritos abaixo (memória empresarial permanente).
 
-Contexto fixo do usuário:
+## USUÁRIO
 - Nome: Anderson Alves
 - Cidade: Indaiatuba, SP
-- Negócios: Alvesz Experience (experiências e eventos) e Consórcios
-- Objetivos: aumentar vendas, crescer no Instagram, captar leads e transformar a Aura em assistente comercial
+- Objetivos pessoais e de negócio:
+  - Aumentar faturamento
+  - Aumentar número de eventos
+  - Aumentar vendas de consórcio
+  - Crescer no Instagram
+  - Fortalecer marca pessoal
+  - Transformar a Aura em assistente executivo
 
-Diretrizes:
+## EMPRESA 1 — Alvesz Experience
+Empresa especializada em experiências com drinks e bartender para eventos.
+
+Serviços:
+- Casamentos
+- Aniversários
+- Eventos corporativos
+- Formaturas
+- Festas particulares
+
+Diferenciais:
+- Experiência premium
+- Atendimento personalizado
+- Drinks autorais
+- Foco em experiência do cliente
+
+## EMPRESA 2 — Consórcios
+Objetivo: captação de clientes para consórcios de imóveis, veículos e investimentos.
+
+## REGRAS DE PRIORIZAÇÃO DE CONTEXTO
+- Perguntas sobre eventos, festas, casamentos, formaturas, bartender, drinks, experiências ou Alvesz Experience → priorize contexto e ações da Alvesz Experience.
+- Perguntas sobre crédito, patrimônio, imóveis, veículos, investimentos ou consórcio → priorize contexto e ações de Consórcios.
+- Perguntas sobre Instagram, redes sociais ou conteúdo → gere estratégias para @and.alvesz (marca pessoal de Anderson) e para Alvesz Experience; alinhe conteúdo aos dois negócios quando fizer sentido.
+- Quando o tema misturar negócios, deixe explícito qual empresa cada recomendação atende.
+
+## DIRETRIZES DE RESPOSTA
 - Responda sempre em português do Brasil
 - Seja objetivo, prático e orientado a ação
 - Estruture respostas com passos claros, listas e recomendações aplicáveis
-- Considere o contexto local (Indaiatuba/região) quando relevante
-- Foque em vendas, marketing digital, Instagram, captação de leads e crescimento dos negócios
+- Considere o contexto local (Indaiatuba e região) quando relevante
+- Foque em vendas, marketing digital, captação de leads e crescimento dos negócios acima
 - Quando criar planos, inclua metas, prazos e ações específicas para a semana ou mês`;
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
 };
+
+function logMentorError(error: unknown) {
+  if (error instanceof APIError) {
+    console.error("[aura-mentor] OpenAI API error:", {
+      status: error.status,
+      code: error.code,
+      type: error.type,
+      message: error.message,
+      requestID: error.requestID,
+      error: error.error,
+    });
+    return;
+  }
+
+  console.error("[aura-mentor] Unexpected error:", error);
+}
+
+function resolveMentorErrorMessage(error: unknown): {
+  message: string;
+  status: number;
+} {
+  if (error instanceof APIError) {
+    const code = error.code ?? "";
+
+    if (code === "insufficient_quota") {
+      return {
+        message: "Sua API da OpenAI está sem créditos.",
+        status: error.status ?? 429,
+      };
+    }
+
+    if (code === "invalid_api_key" || error.status === 401) {
+      return {
+        message: "Chave da OpenAI inválida.",
+        status: 401,
+      };
+    }
+  }
+
+  return {
+    message: "Erro ao gerar resposta do Aura Mentor.",
+    status: 500,
+  };
+}
 
 export async function POST(req: Request) {
   try {
@@ -46,6 +120,7 @@ export async function POST(req: Request) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
+      console.error("[aura-mentor] OPENAI_API_KEY não configurada.");
       return Response.json(
         { error: "OPENAI_API_KEY não configurada." },
         { status: 500 }
@@ -68,11 +143,10 @@ export async function POST(req: Request) {
 
     return Response.json({ text });
   } catch (error) {
-    console.error("[aura-mentor]", error);
+    logMentorError(error);
 
-    return Response.json(
-      { error: "Erro ao gerar resposta do Aura Mentor." },
-      { status: 500 }
-    );
+    const { message, status } = resolveMentorErrorMessage(error);
+
+    return Response.json({ error: message }, { status });
   }
 }
