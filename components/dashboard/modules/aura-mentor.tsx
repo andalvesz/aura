@@ -4,6 +4,8 @@ import {
   BarChart3,
   CalendarDays,
   Camera,
+  Filter,
+  ListOrdered,
   Send,
   Sparkles,
   Tag,
@@ -17,7 +19,15 @@ type Message = {
   text: string;
 };
 
-const QUICK_ACTIONS = [
+type QuickAction = {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  prompt: string;
+  usesLeadData?: boolean;
+};
+
+const QUICK_ACTIONS: QuickAction[] = [
   {
     id: "plano-vendas",
     label: "Criar plano de vendas",
@@ -36,8 +46,25 @@ const QUICK_ACTIONS = [
     id: "analisar-leads",
     label: "Analisar leads",
     icon: BarChart3,
+    usesLeadData: true,
     prompt:
-      "Monte uma estratégia para analisar, qualificar e converter leads. Inclua critérios de qualificação, script de abordagem e follow-up para Alvesz e Consórcios.",
+      "Com base nos meus leads reais do CRM, analise o pipeline atual: qualificação, conversão e próximos passos. Cite os leads pelo nome, status e valor.",
+  },
+  {
+    id: "priorizar-oportunidades",
+    label: "Priorizar oportunidades",
+    icon: ListOrdered,
+    usesLeadData: true,
+    prompt:
+      "Com base nos meus leads reais, priorize as oportunidades com maior potencial de fechamento. Ordene por impacto e sugira a próxima ação concreta para cada um.",
+  },
+  {
+    id: "diagnostico-funil",
+    label: "Diagnóstico do funil",
+    icon: Filter,
+    usesLeadData: true,
+    prompt:
+      "Com base nos meus leads reais, faça um diagnóstico completo do funil de vendas: distribuição por etapa, gargalos, taxa de conversão e recomendações práticas.",
   },
   {
     id: "estrategia-instagram",
@@ -53,7 +80,7 @@ const QUICK_ACTIONS = [
     prompt:
       "Monte meu planejamento semanal de crescimento digital com foco em vendas, Instagram e captação de leads. Organize por dias da semana com ações práticas.",
   },
-] as const;
+];
 
 export function AuraMentor() {
   const [input, setInput] = useState("");
@@ -72,7 +99,7 @@ export function AuraMentor() {
     });
   }
 
-  async function sendMessage(text: string) {
+  async function sendMessage(text: string, actionId?: string) {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
@@ -91,16 +118,31 @@ export function AuraMentor() {
       const response = await fetch("/api/aura-mentor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmed, history }),
+        body: JSON.stringify({
+          message: trimmed,
+          history,
+          ...(actionId ? { actionId } : {}),
+        }),
       });
 
       const data = await response.json();
+
+      if (!response.ok) {
+        setMessages((current) => [
+          ...current,
+          {
+            role: "assistant",
+            text: data.error ?? "Não consegui responder agora.",
+          },
+        ]);
+        return;
+      }
 
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
-          text: data.text ?? data.error ?? "Não consegui responder agora.",
+          text: data.text ?? "Não consegui responder agora.",
         },
       ]);
     } catch {
@@ -122,8 +164,8 @@ export function AuraMentor() {
     sendMessage(input);
   }
 
-  function handleQuickAction(prompt: string) {
-    sendMessage(prompt);
+  function handleQuickAction(action: QuickAction) {
+    sendMessage(action.prompt, action.usesLeadData ? action.id : undefined);
   }
 
   return (
@@ -151,7 +193,7 @@ export function AuraMentor() {
                 key={action.id}
                 type="button"
                 disabled={loading}
-                onClick={() => handleQuickAction(action.prompt)}
+                onClick={() => handleQuickAction(action)}
                 className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-zinc-400 transition-colors hover:border-violet-400/20 hover:bg-violet-500/[0.06] hover:text-violet-200 disabled:opacity-50"
               >
                 <Icon className="size-3 shrink-0" />

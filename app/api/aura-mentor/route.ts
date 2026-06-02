@@ -1,4 +1,6 @@
 import OpenAI, { APIError } from "openai";
+import { getGrowthLeadsMentorContext } from "@/lib/supabase/services/growth.service";
+import { isGrowthMentorLeadAction } from "@/utils/growth";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -48,7 +50,8 @@ Objetivo: captação de clientes para consórcios de imóveis, veículos e inves
 - Estruture respostas com passos claros, listas e recomendações aplicáveis
 - Considere o contexto local (Indaiatuba e região) quando relevante
 - Foque em vendas, marketing digital, captação de leads e crescimento dos negócios acima
-- Quando criar planos, inclua metas, prazos e ações específicas para a semana ou mês`;
+- Quando criar planos, inclua metas, prazos e ações específicas para a semana ou mês
+- Quando receber dados de leads do CRM, baseie toda a análise neles — cite nomes, status e valores reais`;
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -103,6 +106,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const message = typeof body.message === "string" ? body.message.trim() : "";
+    const actionId =
+      typeof body.actionId === "string" ? body.actionId.trim() : "";
     const history: ChatMessage[] = Array.isArray(body.history)
       ? body.history.filter(
           (m: unknown): m is ChatMessage =>
@@ -127,8 +132,29 @@ export async function POST(req: Request) {
       );
     }
 
+    let systemPrompt = SYSTEM_PROMPT;
+
+    if (actionId && isGrowthMentorLeadAction(actionId)) {
+      const { context, error } = await getGrowthLeadsMentorContext();
+
+      if (error || !context) {
+        console.error("[aura-mentor] Erro ao carregar leads:", error);
+        return Response.json(
+          {
+            error:
+              error === "Usuário não autenticado."
+                ? "Faça login para analisar seus leads."
+                : "Não foi possível carregar os leads do CRM.",
+          },
+          { status: error === "Usuário não autenticado." ? 401 : 500 }
+        );
+      }
+
+      systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
+    }
+
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: "system", content: SYSTEM_PROMPT },
+      { role: "system", content: systemPrompt },
       ...history.map((m) => ({ role: m.role, content: m.content })),
       { role: "user", content: message },
     ];

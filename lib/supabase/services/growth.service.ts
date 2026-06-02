@@ -7,8 +7,11 @@ import {
   GrowthLeadsRepository,
 } from "@/lib/supabase/repositories/growth.repository";
 import type { TableInsert, TableUpdate } from "@/types/database";
-import { getCurrentMonthReference } from "@/utils/growth";
-import { getDataContext } from "./context";
+import {
+  buildGrowthLeadsMentorContext,
+  getCurrentMonthReference,
+} from "@/utils/growth";
+import { getDataContext, getOptionalDataContext } from "./context";
 
 export async function listGrowthGoals() {
   const { supabase, userId } = await getDataContext();
@@ -102,4 +105,28 @@ export async function updateGrowthLead(
 ) {
   const { supabase, userId } = await getDataContext();
   return new GrowthLeadsRepository(supabase, userId).update(id, payload);
+}
+
+export async function getGrowthLeadsMentorContext(): Promise<{
+  context: string | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { context: null, error: "Usuário não autenticado." };
+  }
+
+  const { data, error } = await new GrowthLeadsRepository(
+    ctx.supabase,
+    ctx.userId
+  ).findAll();
+
+  if (error) {
+    return { context: null, error };
+  }
+
+  return {
+    context: buildGrowthLeadsMentorContext(data ?? []),
+    error: null,
+  };
 }

@@ -193,29 +193,79 @@ export type GrowthLeadMetrics = {
   ativos: number;
   fechados: number;
   receita: number;
+  receitaPotencial: number;
 };
+
+export const GROWTH_MENTOR_LEAD_ACTIONS = [
+  "analisar-leads",
+  "priorizar-oportunidades",
+  "diagnostico-funil",
+] as const;
+
+export type GrowthMentorLeadAction =
+  (typeof GROWTH_MENTOR_LEAD_ACTIONS)[number];
+
+export function isGrowthMentorLeadAction(
+  actionId: string
+): actionId is GrowthMentorLeadAction {
+  return GROWTH_MENTOR_LEAD_ACTIONS.includes(actionId as GrowthMentorLeadAction);
+}
 
 export function getGrowthLeadStatusLabel(status: string): string {
   return GROWTH_LEAD_STATUSES.find((s) => s.value === status)?.label ?? status;
 }
 
 export function computeGrowthLeadMetrics(leads: GrowthLead[]): GrowthLeadMetrics {
-  const ativos = leads.filter((l) =>
+  const activeLeads = leads.filter((l) =>
     GROWTH_LEAD_ACTIVE_STATUSES.includes(
       l.status as (typeof GROWTH_LEAD_ACTIVE_STATUSES)[number]
     )
-  ).length;
+  );
+  const ativos = activeLeads.length;
   const fechados = leads.filter((l) => l.status === "fechado").length;
   const receita = leads
     .filter((l) => l.status === "fechado")
     .reduce((sum, l) => sum + (l.valor_potencial ?? 0), 0);
+  const receitaPotencial = activeLeads.reduce(
+    (sum, l) => sum + (l.valor_potencial ?? 0),
+    0
+  );
 
   return {
     total: leads.length,
     ativos,
     fechados,
     receita,
+    receitaPotencial,
   };
+}
+
+export function buildGrowthLeadsMentorContext(leads: GrowthLead[]): string {
+  const metrics = computeGrowthLeadMetrics(leads);
+
+  const leadLines =
+    leads.length > 0
+      ? leads
+          .map(
+            (lead) =>
+              `* ${lead.nome} | ${getGrowthLeadStatusLabel(lead.status).toLowerCase()} | ${lead.valor_potencial ?? 0}`
+          )
+          .join("\n")
+      : "* Nenhum lead cadastrado";
+
+  return `## LEADS DO CRM (dados reais do Supabase)
+
+Leads:
+${leadLines}
+
+Resumo:
+* Total de leads: ${metrics.total}
+* Em aberto: ${metrics.ativos}
+* Fechados: ${metrics.fechados}
+* Receita potencial: ${metrics.receitaPotencial}
+* Receita fechada: ${metrics.receita}
+
+Responda com base exclusivamente nesses dados reais quando analisar, priorizar ou diagnosticar o funil.`;
 }
 
 export function computeRevenueProgress(goal: GrowthGoal | null): number {
