@@ -5,6 +5,7 @@ import type {
   GrowthMission,
   GrowthVertical,
 } from "@/types/database";
+import { formatBRL } from "@/utils/format";
 
 export type MissionTemplate = {
   key: string;
@@ -192,9 +193,15 @@ export type GrowthLeadMetrics = {
   total: number;
   ativos: number;
   fechados: number;
+  perdidos: number;
   receita: number;
   receitaPotencial: number;
+  maiorOportunidade: GrowthLead | null;
+  porStatus: { status: string; count: number }[];
 };
+
+export const GROWTH_MENTOR_EMPTY_LEADS_MESSAGE =
+  "Você ainda não possui leads cadastrados. Cadastre seus primeiros leads para que eu possa analisar o funil.";
 
 export const GROWTH_MENTOR_LEAD_ACTIONS = [
   "analisar-leads",
@@ -211,6 +218,39 @@ export function isGrowthMentorLeadAction(
   return GROWTH_MENTOR_LEAD_ACTIONS.includes(actionId as GrowthMentorLeadAction);
 }
 
+const GROWTH_MENTOR_LEAD_PHRASES = [
+  "analise meus leads atuais",
+  "analisar leads",
+  "priorizar oportunidades",
+  "diagnostico do funil",
+  "diagnóstico do funil",
+] as const;
+
+function normalizeMentorQuery(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+export function isGrowthMentorLeadQuery(message: string, actionId?: string): boolean {
+  if (actionId && isGrowthMentorLeadAction(actionId)) return true;
+
+  const normalized = normalizeMentorQuery(message);
+
+  if (GROWTH_MENTOR_LEAD_PHRASES.some((phrase) => normalized.includes(normalizeMentorQuery(phrase)))) {
+    return true;
+  }
+
+  const mentionsLeads = /\bleads?\b/.test(normalized);
+  const leadIntent =
+    /analis|pipeline|funil|oportunidad|prioriz|converter|qualific|crm|meus leads/.test(
+      normalized
+    );
+
+  return mentionsLeads && leadIntent;
+}
+
 export function getGrowthLeadStatusLabel(status: string): string {
   return GROWTH_LEAD_STATUSES.find((s) => s.value === status)?.label ?? status;
 }
@@ -223,6 +263,7 @@ export function computeGrowthLeadMetrics(leads: GrowthLead[]): GrowthLeadMetrics
   );
   const ativos = activeLeads.length;
   const fechados = leads.filter((l) => l.status === "fechado").length;
+  const perdidos = leads.filter((l) => l.status === "perdido").length;
   const receita = leads
     .filter((l) => l.status === "fechado")
     .reduce((sum, l) => sum + (l.valor_potencial ?? 0), 0);
@@ -230,42 +271,86 @@ export function computeGrowthLeadMetrics(leads: GrowthLead[]): GrowthLeadMetrics
     (sum, l) => sum + (l.valor_potencial ?? 0),
     0
   );
+  const maiorOportunidade =
+    activeLeads.length > 0
+      ? activeLeads.reduce((best, lead) =>
+          (lead.valor_potencial ?? 0) > (best.valor_potencial ?? 0) ? lead : best
+        )
+      : null;
+  const porStatus = GROWTH_LEAD_STATUSES.map((s) => ({
+    status: s.label,
+    count: leads.filter((l) => l.status === s.value).length,
+  })).filter((entry) => entry.count > 0);
 
   return {
     total: leads.length,
     ativos,
     fechados,
+    perdidos,
     receita,
     receitaPotencial,
+    maiorOportunidade,
+    porStatus,
   };
 }
 
 export function buildGrowthLeadsMentorContext(leads: GrowthLead[]): string {
   const metrics = computeGrowthLeadMetrics(leads);
 
-  const leadLines =
-    leads.length > 0
-      ? leads
-          .map(
-            (lead) =>
-              `* ${lead.nome} | ${getGrowthLeadStatusLabel(lead.status).toLowerCase()} | ${lead.valor_potencial ?? 0}`
-          )
-          .join("\n")
-      : "* Nenhum lead cadastrado";
+  if (leads.length === 0) {
+    return `## LEADS DO CRM (dados reais do Supabase)
 
-  return `## LEADS DO CRM (dados reais do Supabase)
+Nenhum lead cadastrado.
+
+Resumo:
+* Total de leads: 0
+* Leads ativos: 0
+* Leads fechados: 0
+* Leads perdidos: 0
+* Receita potencial: ${formatBRL(0)}
+* Receita fechada: ${formatBRL(0)}
+* Maior oportunidade: nenhuma
+* Leads por status: nenhum
+
+Responda exatamente: "${GROWTH_MENTOR_EMPTY_LEADS_MESSAGE}"`;
+  }
+
+  const leadLines = leads
+    .map(
+      (lead) =>
+        `* ${lead.nome} | ${getGrowthLeadStatusLabel(lead.status).toLowerCase()} | ${formatBRL(lead.valor_potencial ?? 0)}`
+    )
+    .join("\n");
+
+  const statusLines =
+    metrics.porStatus.length > 0
+      ? metrics.porStatus.map((entry) => `* ${entry.status}: ${entry.count}`).join("\n")
+      : "* Nenhum";
+
+  const maiorOportunidadeLine = metrics.maiorOportunidade
+    ? `${metrics.maiorOportunidade.nome}, em ${getGrowthLeadStatusLabel(metrics.maiorOportunidade.status).toLowerCase()}, com valor potencial de ${formatBRL(metrics.maiorOportunidade.valor_potencial ?? 0)}`
+    : "nenhuma oportunidade ativa";
+
+  return `## LEADS DO CRM (dados reais do Supabase — use exclusivamente estes dados)
 
 Leads:
 ${leadLines}
 
 Resumo:
 * Total de leads: ${metrics.total}
-* Em aberto: ${metrics.ativos}
-* Fechados: ${metrics.fechados}
-* Receita potencial: ${metrics.receitaPotencial}
-* Receita fechada: ${metrics.receita}
+* Leads ativos: ${metrics.ativos}
+* Leads fechados: ${metrics.fechados}
+* Leads perdidos: ${metrics.perdidos}
+* Receita potencial: ${formatBRL(metrics.receitaPotencial)}
+* Receita fechada: ${formatBRL(metrics.receita)}
+* Maior oportunidade: ${maiorOportunidadeLine}
+* Leads por status:
+${statusLines}
 
-Responda com base exclusivamente nesses dados reais quando analisar, priorizar ou diagnosticar o funil.`;
+## REGRAS OBRIGATÓRIAS PARA ESTA RESPOSTA
+- Use APENAS os leads listados acima — nunca peça ao usuário para informar leads manualmente.
+- Cite nomes, status e valores reais (ex.: "Você possui ${metrics.ativos} leads ativos, com receita potencial de ${formatBRL(metrics.receitaPotencial)}. A maior oportunidade é ${maiorOportunidadeLine}.").
+- Se o usuário pedir análise, priorização ou diagnóstico do funil, baseie-se somente nestes dados do CRM.`;
 }
 
 export function computeRevenueProgress(goal: GrowthGoal | null): number {

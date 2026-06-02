@@ -110,10 +110,11 @@ export async function updateGrowthLead(
 export async function getGrowthLeadsMentorContext(): Promise<{
   context: string | null;
   error: string | null;
+  leadCount: number;
 }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) {
-    return { context: null, error: "Usuário não autenticado." };
+    return { context: null, error: "Usuário não autenticado.", leadCount: 0 };
   }
 
   const { data, error } = await new GrowthLeadsRepository(
@@ -122,11 +123,14 @@ export async function getGrowthLeadsMentorContext(): Promise<{
   ).findAll();
 
   if (error) {
-    return { context: null, error };
+    return { context: null, error, leadCount: 0 };
   }
 
+  const leads = data ?? [];
+
   return {
-    context: buildGrowthLeadsMentorContext(data ?? []),
+    context: buildGrowthLeadsMentorContext(leads),
     error: null,
+    leadCount: leads.length,
   };
 }

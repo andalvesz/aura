@@ -1,6 +1,9 @@
 import OpenAI, { APIError } from "openai";
 import { getGrowthLeadsMentorContext } from "@/lib/supabase/services/growth.service";
-import { isGrowthMentorLeadAction } from "@/utils/growth";
+import {
+  GROWTH_MENTOR_EMPTY_LEADS_MESSAGE,
+  isGrowthMentorLeadQuery,
+} from "@/utils/growth";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -51,7 +54,9 @@ Objetivo: captação de clientes para consórcios de imóveis, veículos e inves
 - Considere o contexto local (Indaiatuba e região) quando relevante
 - Foque em vendas, marketing digital, captação de leads e crescimento dos negócios acima
 - Quando criar planos, inclua metas, prazos e ações específicas para a semana ou mês
-- Quando receber dados de leads do CRM, baseie toda a análise neles — cite nomes, status e valores reais`;
+- Quando receber dados de leads do CRM, baseie toda a análise neles — cite nomes, status e valores reais
+- NUNCA peça ao usuário para informar leads manualmente quando os dados do CRM já estiverem disponíveis no contexto
+- Para análise de leads, priorização ou diagnóstico de funil, use exclusivamente os dados reais do Supabase fornecidos`;
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -133,9 +138,10 @@ export async function POST(req: Request) {
     }
 
     let systemPrompt = SYSTEM_PROMPT;
+    const isLeadQuery = isGrowthMentorLeadQuery(message, actionId);
 
-    if (actionId && isGrowthMentorLeadAction(actionId)) {
-      const { context, error } = await getGrowthLeadsMentorContext();
+    if (isLeadQuery) {
+      const { context, error, leadCount } = await getGrowthLeadsMentorContext();
 
       if (error || !context) {
         console.error("[aura-mentor] Erro ao carregar leads:", error);
@@ -148,6 +154,10 @@ export async function POST(req: Request) {
           },
           { status: error === "Usuário não autenticado." ? 401 : 500 }
         );
+      }
+
+      if (leadCount === 0) {
+        return Response.json({ text: GROWTH_MENTOR_EMPTY_LEADS_MESSAGE });
       }
 
       systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
