@@ -222,6 +222,15 @@ export type GrowthLead = {
   updated_at: string;
 };
 
+export type GrowthContentMemory = {
+  id: string;
+  user_id: string;
+  action_id: string;
+  nicho: string | null;
+  resumo: string | null;
+  created_at: string;
+};
+
 type TableDef<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -368,6 +377,15 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      growth_content_memory: TableDef<
+        GrowthContentMemory,
+        Omit<GrowthContentMemory, "id" | "created_at"> & {
+          id?: string;
+          nicho?: string | null;
+          resumo?: string | null;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -406,7 +424,8 @@ export type UserScopedTable =
   | "growth_actions"
   | "growth_profiles"
   | "growth_analyses"
-  | "growth_leads";
+  | "growth_leads"
+  | "growth_content_memory";
 
 export type AiModule =
   | "financeiro"

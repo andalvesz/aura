@@ -47,3 +47,9 @@ export class GrowthLeadsRepository extends BaseRepository<"growth_leads"> {
     super(supabase, "growth_leads", userId);
   }
 }
+
+export class GrowthContentMemoryRepository extends BaseRepository<"growth_content_memory"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "growth_content_memory", userId);
+  }
+}

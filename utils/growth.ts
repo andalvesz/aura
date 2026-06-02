@@ -1,5 +1,6 @@
 import type {
   GrowthAction,
+  GrowthContentMemory,
   GrowthGoal,
   GrowthLead,
   GrowthMission,
@@ -241,6 +242,8 @@ export const GROWTH_MENTOR_CONTENT_ACTIONS = [
 
 export const GROWTH_MENTOR_EXECUTIVE_ACTIONS = ["meu-dia"] as const;
 
+export const GROWTH_MENTOR_MEMORY_ACTIONS = ["insights-do-mes"] as const;
+
 export const GROWTH_MENTOR_CRM_ACTIONS = [
   ...GROWTH_MENTOR_LEAD_ACTIONS,
   ...GROWTH_MENTOR_CONTENT_ACTIONS,
@@ -254,6 +257,9 @@ export type GrowthMentorContentAction =
 
 export type GrowthMentorExecutiveAction =
   (typeof GROWTH_MENTOR_EXECUTIVE_ACTIONS)[number];
+
+export type GrowthMentorMemoryAction =
+  (typeof GROWTH_MENTOR_MEMORY_ACTIONS)[number];
 
 export type GrowthMentorCrmAction = (typeof GROWTH_MENTOR_CRM_ACTIONS)[number];
 
@@ -283,6 +289,12 @@ export function isGrowthMentorExecutiveAction(
   actionId: string
 ): actionId is GrowthMentorExecutiveAction {
   return GROWTH_MENTOR_EXECUTIVE_ACTIONS.includes(actionId as GrowthMentorExecutiveAction);
+}
+
+export function isGrowthMentorMemoryAction(
+  actionId: string
+): actionId is GrowthMentorMemoryAction {
+  return GROWTH_MENTOR_MEMORY_ACTIONS.includes(actionId as GrowthMentorMemoryAction);
 }
 
 export function isGrowthMentorCrmAction(
@@ -330,6 +342,15 @@ const GROWTH_MENTOR_EXECUTIVE_PHRASES = [
   "central de comando",
 ] as const;
 
+const GROWTH_MENTOR_MEMORY_PHRASES = [
+  "insights do mes",
+  "insights do mês",
+  "padroes de sucesso",
+  "padrões de sucesso",
+  "memoria estrategica",
+  "memória estratégica",
+] as const;
+
 function normalizeMentorQuery(text: string): string {
   return text
     .toLowerCase()
@@ -371,6 +392,16 @@ export function isGrowthMentorExecutiveQuery(message: string, actionId?: string)
   const normalized = normalizeMentorQuery(message);
 
   return GROWTH_MENTOR_EXECUTIVE_PHRASES.some((phrase) =>
+    normalized.includes(normalizeMentorQuery(phrase))
+  );
+}
+
+export function isGrowthMentorMemoryQuery(message: string, actionId?: string): boolean {
+  if (actionId && isGrowthMentorMemoryAction(actionId)) return true;
+
+  const normalized = normalizeMentorQuery(message);
+
+  return GROWTH_MENTOR_MEMORY_PHRASES.some((phrase) =>
     normalized.includes(normalizeMentorQuery(phrase))
   );
 }
@@ -1078,4 +1109,309 @@ Responda como Diretor Executivo da Aura. Estruture assim:
 5. **Se eu fosse você hoje, faria isso:** — liste exatamente as 3 ações de maior impacto
 
 Seja direto, executivo e orientado a decisão. Use dados reais — nunca peça informações manualmente.`;
+}
+
+export type ClosedLeadInsight = {
+  niche: string;
+  count: number;
+  avgValue: number;
+  avgDaysToClose: number;
+  topOrigin: string | null;
+};
+
+export type NichePerformance = {
+  niche: string;
+  total: number;
+  closed: number;
+  active: number;
+  lost: number;
+  conversionRate: number;
+  avgTicket: number;
+};
+
+export type ContentMemoryInsight = {
+  actionId: string;
+  nicho: string | null;
+  resumo: string | null;
+  createdAt: string;
+  leadsGerados: number;
+  conversoes: number;
+};
+
+function daysBetween(start: string, end: string): number {
+  return Math.max(
+    0,
+    Math.floor((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24))
+  );
+}
+
+function countOrigins(leads: GrowthLead[]): { label: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const lead of leads) {
+    const origin = lead.origem?.trim() || lead.canal || "outro";
+    counts.set(origin, (counts.get(origin) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function analyzeClosedLeads(leads: GrowthLead[]): ClosedLeadInsight[] {
+  const closed = leads.filter((lead) => lead.status === "fechado");
+  const byNiche = new Map<string, GrowthLead[]>();
+
+  for (const lead of closed) {
+    const niche = inferLeadContentNiche(lead);
+    const group = byNiche.get(niche) ?? [];
+    group.push(lead);
+    byNiche.set(niche, group);
+  }
+
+  return [...byNiche.entries()]
+    .map(([niche, nicheLeads]) => {
+      const origins = countOrigins(nicheLeads);
+      return {
+        niche,
+        count: nicheLeads.length,
+        avgValue:
+          nicheLeads.reduce((sum, lead) => sum + (lead.valor_potencial ?? 0), 0) /
+          nicheLeads.length,
+        avgDaysToClose:
+          nicheLeads.reduce(
+            (sum, lead) => sum + daysBetween(lead.created_at, lead.updated_at),
+            0
+          ) / nicheLeads.length,
+        topOrigin: origins[0]?.label ?? null,
+      };
+    })
+    .sort((a, b) => b.count - a.count);
+}
+
+export function analyzeNichePerformance(leads: GrowthLead[]): NichePerformance[] {
+  const byNiche = new Map<string, GrowthLead[]>();
+
+  for (const lead of leads) {
+    const niche = inferLeadContentNiche(lead);
+    const group = byNiche.get(niche) ?? [];
+    group.push(lead);
+    byNiche.set(niche, group);
+  }
+
+  return [...byNiche.entries()]
+    .map(([niche, nicheLeads]) => {
+      const closed = nicheLeads.filter((lead) => lead.status === "fechado");
+      const active = nicheLeads.filter((lead) =>
+        GROWTH_LEAD_ACTIVE_STATUSES.includes(
+          lead.status as (typeof GROWTH_LEAD_ACTIVE_STATUSES)[number]
+        )
+      );
+      const lost = nicheLeads.filter((lead) => lead.status === "perdido");
+
+      return {
+        niche,
+        total: nicheLeads.length,
+        closed: closed.length,
+        active: active.length,
+        lost: lost.length,
+        conversionRate:
+          nicheLeads.length > 0 ? (closed.length / nicheLeads.length) * 100 : 0,
+        avgTicket:
+          closed.length > 0
+            ? closed.reduce((sum, lead) => sum + (lead.valor_potencial ?? 0), 0) /
+              closed.length
+            : 0,
+      };
+    })
+    .sort((a, b) => b.conversionRate - a.conversionRate || b.closed - a.closed);
+}
+
+export function analyzeContentMemoryImpact(
+  memory: GrowthContentMemory[],
+  leads: GrowthLead[]
+): ContentMemoryInsight[] {
+  return memory.map((entry) => {
+    const entryDate = new Date(entry.created_at);
+    const niche = entry.nicho;
+
+    const leadsAfter = leads.filter((lead) => {
+      if (new Date(lead.created_at) < entryDate) return false;
+      if (!niche) return true;
+      return inferLeadContentNiche(lead) === niche;
+    });
+
+    return {
+      actionId: entry.action_id,
+      nicho: entry.nicho,
+      resumo: entry.resumo,
+      createdAt: entry.created_at,
+      leadsGerados: leadsAfter.length,
+      conversoes: leadsAfter.filter((lead) => lead.status === "fechado").length,
+    };
+  });
+}
+
+export function detectStrategicAlerts(
+  closedInsights: ClosedLeadInsight[],
+  nichePerformance: NichePerformance[]
+): string[] {
+  const alerts: string[] = [];
+  const totalClosed = closedInsights.reduce((sum, item) => sum + item.count, 0);
+
+  if (totalClosed > 0 && closedInsights[0]) {
+    const top = closedInsights[0];
+    const share = Math.round((top.count / totalClosed) * 100);
+    if (share >= 50) {
+      alerts.push(
+        `${share}% dos fechamentos vieram de ${top.niche} (ticket médio ${formatBRL(top.avgValue)}).`
+      );
+    }
+
+    const highTicket = closedInsights.filter((item) => item.avgValue >= 10000);
+    if (highTicket.length > 0) {
+      const ticketShare = Math.round(
+        (highTicket.reduce((sum, item) => sum + item.count, 0) / totalClosed) * 100
+      );
+      if (ticketShare >= 50) {
+        alerts.push(
+          `${ticketShare}% dos fechamentos têm ticket acima de R$ 10.000 — priorize oportunidades premium.`
+        );
+      }
+    }
+  }
+
+  const sortedByConversion = [...nichePerformance].filter((item) => item.total >= 2);
+  if (sortedByConversion.length >= 2) {
+    const best = sortedByConversion[0];
+    const mostActive = [...nichePerformance].sort((a, b) => b.active - a.active)[0];
+
+    if (
+      best &&
+      mostActive &&
+      best.niche !== mostActive.niche &&
+      mostActive.active > best.active &&
+      best.conversionRate >= mostActive.conversionRate * 2
+    ) {
+      const multiplier = Math.round(best.conversionRate / Math.max(mostActive.conversionRate, 1));
+      alerts.push(
+        `Você está investindo muito em ${mostActive.niche.toLowerCase()}, mas ${best.niche.toLowerCase()} convertem ${multiplier}x mais.`
+      );
+    }
+  }
+
+  return alerts;
+}
+
+export function buildStrategicMemoryContext(params: {
+  leads: GrowthLead[];
+  contentMemory: GrowthContentMemory[];
+  missions: GrowthMission[];
+}): string {
+  const { leads, contentMemory, missions } = params;
+  const monthPrefix = getMonthPrefix();
+  const monthLeads = leads.filter((lead) => lead.created_at.startsWith(monthPrefix));
+  const closedInsights = analyzeClosedLeads(leads);
+  const monthClosedInsights = analyzeClosedLeads(
+    leads.filter(
+      (lead) =>
+        lead.status === "fechado" && lead.updated_at.startsWith(monthPrefix)
+    )
+  );
+  const nichePerformance = analyzeNichePerformance(leads);
+  const contentImpact = analyzeContentMemoryImpact(contentMemory, leads);
+  const alerts = detectStrategicAlerts(closedInsights, nichePerformance);
+  const metrics = computeGrowthLeadMetrics(leads);
+  const topOpportunity = sortGrowthLeadOpportunities(leads)[0];
+
+  const topNiche =
+    monthClosedInsights[0]?.niche ?? closedInsights[0]?.niche ?? "Sem dados";
+  const winningTicket =
+    monthClosedInsights[0]?.avgValue ?? closedInsights[0]?.avgValue ?? 0;
+  const avgCloseDays =
+    monthClosedInsights.length > 0
+      ? monthClosedInsights.reduce((sum, item) => sum + item.avgDaysToClose, 0) /
+        monthClosedInsights.length
+      : closedInsights.length > 0
+        ? closedInsights.reduce((sum, item) => sum + item.avgDaysToClose, 0) /
+          closedInsights.length
+        : 0;
+
+  const closedHistoryLines =
+    closedInsights.length > 0
+      ? closedInsights
+          .map(
+            (item) =>
+              `* ${item.niche}: ${item.count} fechamento(s) · ticket médio ${formatBRL(item.avgValue)} · ${Math.round(item.avgDaysToClose)} dias para fechar · origem principal: ${item.topOrigin ?? "N/A"}`
+          )
+          .join("\n")
+      : "* Nenhum fechamento registrado ainda";
+
+  const patternLines =
+    nichePerformance.length > 0
+      ? nichePerformance
+          .map(
+            (item) =>
+              `* ${item.niche}: ${item.conversionRate.toFixed(0)}% conversão (${item.closed}/${item.total}) · ticket fechado ${formatBRL(item.avgTicket)} · ${item.active} ativo(s)`
+          )
+          .join("\n")
+      : "* Dados insuficientes para padrões";
+
+  const contentLines =
+    contentImpact.length > 0
+      ? contentImpact
+          .slice(0, 8)
+          .map(
+            (item) =>
+              `* ${item.actionId} (${item.nicho ?? "geral"}) em ${item.createdAt.slice(0, 10)} → ${item.leadsGerados} lead(s) · ${item.conversoes} conversão(ões)`
+          )
+          .join("\n")
+      : "* Nenhum conteúdo registrado ainda — use Gerar Conteúdo ou Planejamento semanal";
+
+  const postarCount = missions.filter(
+    (m) =>
+      m.mission_key === "postar" &&
+      m.status === "completed" &&
+      m.mission_date.startsWith(monthPrefix)
+  ).length;
+
+  const recommendation =
+    closedInsights[0]?.niche ?? analyzeGrowthLeadContentInsights(leads).maiorDemanda;
+
+  return `## MEMÓRIA ESTRATÉGICA — INSIGHTS DO MÊS (${monthPrefix})
+
+### Histórico de fechamentos
+${closedHistoryLines}
+
+### Padrões de sucesso
+${patternLines}
+
+Leads criados no mês: ${monthLeads.length}
+Conteúdos publicados (missões): ${postarCount}
+
+### Aprendizado de conteúdo
+${contentLines}
+
+### Alertas estratégicos
+${alerts.length > 0 ? alerts.map((a) => `⚠ ${a}`).join("\n") : "Nenhum alerta crítico — continue coletando dados."}
+
+### Resumo pré-calculado
+Top nicho: ${topNiche}
+Ticket médio vencedor: ${formatBRL(winningTicket)}
+Tempo médio para fechar: ${Math.round(avgCloseDays)} dias
+Maior oportunidade: ${topOpportunity ? `${topOpportunity.nome} (${formatBRL(topOpportunity.valor_potencial ?? 0)} — ${getGrowthLeadStatusLabel(topOpportunity.status)})` : "Nenhuma ativa"}
+Recomendação: ${recommendation ? `Aumentar produção de conteúdo para ${recommendation.toLowerCase()}.` : "Cadastre leads e registre fechamentos para gerar insights."}
+
+Receita fechada total: ${formatBRL(metrics.receita)}
+
+## INSTRUÇÕES PARA ESTA RESPOSTA
+Responda como analista estratégico da Aura. Use exatamente estes blocos:
+
+1. **Top nicho** — ${topNiche}
+2. **Ticket médio vencedor** — ${formatBRL(winningTicket)}
+3. **Tempo médio para fechar** — ${Math.round(avgCloseDays)} dias
+4. **Maior oportunidade** — cite nome, valor e status reais
+5. **Padrões de sucesso** — percentuais e tickets dos fechamentos
+6. **Alertas** — destaque desalinhamentos (ex.: investimento vs conversão)
+7. **Recomendação** — ação clara baseada nos padrões detectados
+
+Use apenas dados reais do CRM e memória de conteúdo — nunca peça informações manualmente.`;
 }

@@ -13,6 +13,7 @@ import {
   Sun,
   Tag,
   TrendingUp,
+  Brain,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
@@ -29,6 +30,7 @@ type QuickAction = {
   prompt: string;
   usesLeadData?: boolean;
   usesExecutiveData?: boolean;
+  usesMemoryData?: boolean;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
@@ -39,6 +41,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     usesExecutiveData: true,
     prompt:
       "Me dê meu resumo executivo do dia: prioridades, meta mensal, alertas, score do mês e as 3 ações de maior impacto que devo fazer hoje.",
+  },
+  {
+    id: "insights-do-mes",
+    label: "Insights do mês",
+    icon: Brain,
+    usesMemoryData: true,
+    prompt:
+      "Analise minha memória estratégica: padrões de sucesso e fracasso, fechamentos, aprendizado de conteúdo e recomendações para o mês.",
   },
   {
     id: "plano-vendas",
@@ -196,7 +206,9 @@ export function AuraMentor() {
   function handleQuickAction(action: QuickAction) {
     sendMessage(
       action.prompt,
-      action.usesLeadData || action.usesExecutiveData ? action.id : undefined
+      action.usesLeadData || action.usesExecutiveData || action.usesMemoryData
+        ? action.id
+        : undefined
     );
   }
 

@@ -1,18 +1,27 @@
 import {
   GrowthActionsRepository,
   GrowthAnalysesRepository,
+  GrowthContentMemoryRepository,
   GrowthGoalsRepository,
   GrowthMissionsRepository,
   GrowthProfilesRepository,
   GrowthLeadsRepository,
 } from "@/lib/supabase/repositories/growth.repository";
-import type { TableInsert, TableUpdate } from "@/types/database";
+import type {
+  GrowthContentMemory,
+  GrowthGoal,
+  GrowthLead,
+  GrowthMission,
+  TableInsert,
+  TableUpdate,
+} from "@/types/database";
 import {
+  analyzeGrowthLeadContentInsights,
   buildExecutiveDayContext,
   buildGrowthLeadsMentorContext,
+  buildStrategicMemoryContext,
   getCurrentMonthReference,
 } from "@/utils/growth";
-import type { GrowthGoal, GrowthLead, GrowthMission } from "@/types/database";
 import { getDataContext, getOptionalDataContext } from "./context";
 
 export async function listGrowthGoals() {
@@ -165,6 +174,62 @@ export async function getGrowthExecutiveMentorContext(): Promise<{
     context: buildExecutiveDayContext({
       leads: (leadsResult.data ?? []) as GrowthLead[],
       goal: (goalResult.data ?? null) as GrowthGoal | null,
+      missions: (missionsResult.data ?? []) as GrowthMission[],
+    }),
+    error: null,
+  };
+}
+
+export async function recordContentSuggestion(params: {
+  actionId: string;
+  resumo?: string;
+}): Promise<void> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return;
+
+  const { data: leads } = await new GrowthLeadsRepository(
+    ctx.supabase,
+    ctx.userId
+  ).findAll();
+
+  const insights = analyzeGrowthLeadContentInsights((leads ?? []) as GrowthLead[]);
+
+  await new GrowthContentMemoryRepository(ctx.supabase, ctx.userId).create({
+    action_id: params.actionId,
+    nicho: insights.maiorDemanda,
+    resumo: params.resumo?.slice(0, 500) ?? null,
+  });
+}
+
+export async function getGrowthStrategicMemoryMentorContext(): Promise<{
+  context: string | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { context: null, error: "Usuário não autenticado." };
+  }
+
+  const [leadsResult, memoryResult, missionsResult] = await Promise.all([
+    new GrowthLeadsRepository(ctx.supabase, ctx.userId).findAll(),
+    new GrowthContentMemoryRepository(ctx.supabase, ctx.userId).findAll("created_at"),
+    new GrowthMissionsRepository(ctx.supabase, ctx.userId).findAll("mission_date"),
+  ]);
+
+  if (leadsResult.error) {
+    return { context: null, error: leadsResult.error };
+  }
+  if (memoryResult.error) {
+    return { context: null, error: memoryResult.error };
+  }
+  if (missionsResult.error) {
+    return { context: null, error: missionsResult.error };
+  }
+
+  return {
+    context: buildStrategicMemoryContext({
+      leads: (leadsResult.data ?? []) as GrowthLead[],
+      contentMemory: (memoryResult.data ?? []) as GrowthContentMemory[],
       missions: (missionsResult.data ?? []) as GrowthMission[],
     }),
     error: null,

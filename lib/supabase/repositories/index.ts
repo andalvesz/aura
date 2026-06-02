@@ -16,4 +16,5 @@ export {
   GrowthProfilesRepository,
   GrowthAnalysesRepository,
   GrowthLeadsRepository,
+  GrowthContentMemoryRepository,
 } from "./growth.repository";

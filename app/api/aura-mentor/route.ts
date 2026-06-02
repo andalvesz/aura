@@ -1,10 +1,17 @@
 import OpenAI, { APIError } from "openai";
-import { getGrowthExecutiveMentorContext, getGrowthLeadsMentorContext } from "@/lib/supabase/services/growth.service";
+import {
+  getGrowthExecutiveMentorContext,
+  getGrowthLeadsMentorContext,
+  getGrowthStrategicMemoryMentorContext,
+  recordContentSuggestion,
+} from "@/lib/supabase/services/growth.service";
 import {
   GROWTH_MENTOR_EMPTY_LEADS_MESSAGE,
+  isGrowthMentorContentAction,
   isGrowthMentorCrmQuery,
   isGrowthMentorExecutiveQuery,
   isGrowthMentorLeadQuery,
+  isGrowthMentorMemoryQuery,
 } from "@/utils/growth";
 
 const openai = new OpenAI({
@@ -67,7 +74,8 @@ Parceiro para captação de clientes em consórcios de imóveis, veículos e inv
 - Para análise de leads, priorização ou diagnóstico de funil, use exclusivamente os dados reais do Supabase fornecidos
 - Para geração de conteúdo e planejamento semanal, use os insights de nicho derivados do CRM (maior demanda, ticket médio, oportunidades abertas)
 - Nunca peça ao usuário para informar nichos ou leads manualmente quando os dados do CRM estiverem disponíveis
-- Para "Meu dia" e resumo executivo, atue como Diretor Executivo: prioridades, meta, alertas, score e recomendações com dados reais do Supabase`;
+- Para "Meu dia" e resumo executivo, atue como Diretor Executivo: prioridades, meta, alertas, score e recomendações com dados reais do Supabase
+- Para "Insights do mês", use memória estratégica: fechamentos, padrões de conversão, aprendizado de conteúdo e alertas de desalinhamento`;
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -149,11 +157,29 @@ export async function POST(req: Request) {
     }
 
     let systemPrompt = SYSTEM_PROMPT;
+    const isMemoryQuery = isGrowthMentorMemoryQuery(message, actionId);
     const isExecutiveQuery = isGrowthMentorExecutiveQuery(message, actionId);
     const isCrmQuery = isGrowthMentorCrmQuery(message, actionId);
     const isPipelineQuery = isGrowthMentorLeadQuery(message, actionId);
 
-    if (isExecutiveQuery) {
+    if (isMemoryQuery) {
+      const { context, error } = await getGrowthStrategicMemoryMentorContext();
+
+      if (error || !context) {
+        console.error("[aura-mentor] Erro ao carregar memória estratégica:", error);
+        return Response.json(
+          {
+            error:
+              error === "Usuário não autenticado."
+                ? "Faça login para ver os insights do mês."
+                : "Não foi possível carregar a memória estratégica.",
+          },
+          { status: error === "Usuário não autenticado." ? 401 : 500 }
+        );
+      }
+
+      systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
+    } else if (isExecutiveQuery) {
       const { context, error } = await getGrowthExecutiveMentorContext();
 
       if (error || !context) {
@@ -208,6 +234,17 @@ export async function POST(req: Request) {
 
     const text =
       response.choices[0]?.message?.content ?? "Não consegui responder.";
+
+    if (actionId && isGrowthMentorContentAction(actionId)) {
+      try {
+        await recordContentSuggestion({
+          actionId,
+          resumo: message,
+        });
+      } catch (recordError) {
+        console.error("[aura-mentor] Erro ao registrar conteúdo:", recordError);
+      }
+    }
 
     return Response.json({ text });
   } catch (error) {
