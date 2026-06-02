@@ -234,14 +234,63 @@ export const GROWTH_MENTOR_LEAD_ACTIONS = [
   "previsao-receita",
 ] as const;
 
+export const GROWTH_MENTOR_CONTENT_ACTIONS = [
+  "gerar-conteudo",
+  "planejamento-semanal",
+] as const;
+
+export const GROWTH_MENTOR_CRM_ACTIONS = [
+  ...GROWTH_MENTOR_LEAD_ACTIONS,
+  ...GROWTH_MENTOR_CONTENT_ACTIONS,
+] as const;
+
 export type GrowthMentorLeadAction =
   (typeof GROWTH_MENTOR_LEAD_ACTIONS)[number];
+
+export type GrowthMentorContentAction =
+  (typeof GROWTH_MENTOR_CONTENT_ACTIONS)[number];
+
+export type GrowthMentorCrmAction = (typeof GROWTH_MENTOR_CRM_ACTIONS)[number];
+
+export type GrowthContentInsights = {
+  nichos: { label: string; count: number }[];
+  maiorDemanda: string | null;
+  ticketMedio: number;
+  statusPredominante: string | null;
+  oportunidadesAbertas: GrowthLead[];
+  temLeadsConsorcio: boolean;
+  leadsConsorcio: GrowthLead[];
+};
 
 export function isGrowthMentorLeadAction(
   actionId: string
 ): actionId is GrowthMentorLeadAction {
   return GROWTH_MENTOR_LEAD_ACTIONS.includes(actionId as GrowthMentorLeadAction);
 }
+
+export function isGrowthMentorContentAction(
+  actionId: string
+): actionId is GrowthMentorContentAction {
+  return GROWTH_MENTOR_CONTENT_ACTIONS.includes(actionId as GrowthMentorContentAction);
+}
+
+export function isGrowthMentorCrmAction(
+  actionId: string
+): actionId is GrowthMentorCrmAction {
+  return GROWTH_MENTOR_CRM_ACTIONS.includes(actionId as GrowthMentorCrmAction);
+}
+
+const CONTENT_NICHE_PATTERNS: { label: string; patterns: RegExp[] }[] = [
+  { label: "Casamentos", patterns: [/casamento/i, /noiv[oa]/i, /wedding/i] },
+  { label: "Aniversários", patterns: [/anivers[aá]rio/i, /15 anos/i, /debutante/i] },
+  { label: "Corporativo", patterns: [/corporativ/i, /empresa/i, /confraterniza/i] },
+  { label: "Formaturas", patterns: [/formatura/i, /cola[cç][aã]o/i] },
+  {
+    label: "Consórcios",
+    patterns: [/cons[oó]rcio/i, /im[oó]vel/i, /ve[ií]culo/i, /ademicon/i, /investimento/i],
+  },
+  { label: "Festas", patterns: [/festa/i, /evento/i] },
+];
 
 const GROWTH_MENTOR_LEAD_PHRASES = [
   "analise meus leads atuais",
@@ -251,6 +300,16 @@ const GROWTH_MENTOR_LEAD_PHRASES = [
   "diagnóstico do funil",
   "previsao de receita",
   "previsão de receita",
+] as const;
+
+const GROWTH_MENTOR_CONTENT_PHRASES = [
+  "gerar conteudo",
+  "gerar conteúdo",
+  "planejamento semanal",
+  "plano de conteudo",
+  "plano de conteúdo",
+  "ideias de reels",
+  "ideias de posts",
 ] as const;
 
 function normalizeMentorQuery(text: string): string {
@@ -276,6 +335,164 @@ export function isGrowthMentorLeadQuery(message: string, actionId?: string): boo
     );
 
   return mentionsLeads && leadIntent;
+}
+
+export function isGrowthMentorContentQuery(message: string, actionId?: string): boolean {
+  if (actionId && isGrowthMentorContentAction(actionId)) return true;
+
+  const normalized = normalizeMentorQuery(message);
+
+  return GROWTH_MENTOR_CONTENT_PHRASES.some((phrase) =>
+    normalized.includes(normalizeMentorQuery(phrase))
+  );
+}
+
+export function isGrowthMentorCrmQuery(message: string, actionId?: string): boolean {
+  return (
+    isGrowthMentorLeadQuery(message, actionId) ||
+    isGrowthMentorContentQuery(message, actionId)
+  );
+}
+
+function inferLeadContentNiche(lead: GrowthLead): string {
+  if (lead.vertical === "consorcios") return "Consórcios";
+
+  const text = `${lead.nome} ${lead.origem} ${lead.observacoes ?? ""}`;
+  for (const { label, patterns } of CONTENT_NICHE_PATTERNS) {
+    if (label === "Consórcios") continue;
+    if (patterns.some((pattern) => pattern.test(text))) return label;
+  }
+
+  if (lead.vertical === "alvesz") return "Eventos";
+  if (lead.vertical === "marca_pessoal") return "Marca pessoal";
+  return "Outros";
+}
+
+export function analyzeGrowthLeadContentInsights(
+  leads: GrowthLead[]
+): GrowthContentInsights {
+  const metrics = computeGrowthLeadMetrics(leads);
+  const nicheCounts = new Map<string, number>();
+
+  for (const lead of leads) {
+    const niche = inferLeadContentNiche(lead);
+    nicheCounts.set(niche, (nicheCounts.get(niche) ?? 0) + 1);
+  }
+
+  const nichos = [...nicheCounts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+
+  const statusPredominante =
+    metrics.porStatus.length > 0
+      ? [...metrics.porStatus].sort((a, b) => b.count - a.count)[0]?.status ?? null
+      : null;
+
+  const leadsConsorcio = leads.filter(
+    (lead) => lead.vertical === "consorcios" || inferLeadContentNiche(lead) === "Consórcios"
+  );
+
+  return {
+    nichos,
+    maiorDemanda: nichos[0]?.label ?? null,
+    ticketMedio: metrics.ticketMedio,
+    statusPredominante,
+    oportunidadesAbertas: sortGrowthLeadOpportunities(leads),
+    temLeadsConsorcio: leadsConsorcio.length > 0,
+    leadsConsorcio,
+  };
+}
+
+function buildContentInsightsContext(insights: GrowthContentInsights): string {
+  const nicheLines =
+    insights.nichos.length > 0
+      ? insights.nichos.map((n) => `${n.count} ${n.label.toLowerCase()}`).join("\n")
+      : "Nenhum nicho identificado nos leads";
+
+  const oportunidadesLines =
+    insights.oportunidadesAbertas.length > 0
+      ? insights.oportunidadesAbertas
+          .slice(0, 5)
+          .map(
+            (lead) =>
+              `* ${lead.nome} — ${getGrowthLeadStatusLabel(lead.status)} — ${formatBRL(lead.valor_potencial ?? 0)}`
+          )
+          .join("\n")
+      : "* Nenhuma oportunidade aberta";
+
+  return `## INSIGHTS DE CONTEÚDO (derivados do CRM)
+
+Nichos mais frequentes:
+${nicheLines}
+
+Conclusão:
+Maior demanda atual: ${insights.maiorDemanda ?? "Sem dados suficientes"}
+
+Métricas:
+* Ticket médio: ${formatBRL(insights.ticketMedio)}
+* Status predominante: ${insights.statusPredominante ?? "N/A"}
+
+Oportunidades abertas:
+${oportunidadesLines}
+
+Leads de consórcio: ${insights.temLeadsConsorcio ? `${insights.leadsConsorcio.length} lead(s)` : "Nenhum"}`;
+}
+
+function buildContentPlanInstructions(insights: GrowthContentInsights): string {
+  const demandFocus = insights.maiorDemanda ?? "Eventos premium (Alvesz Experience)";
+
+  let instructions = `## PLANO DE CONTEÚDO AUTOMÁTICO
+
+Gere com base na maior demanda (${demandFocus}):
+
+1. **5 ideias de Reels** — títulos/ganchos prontos para gravar
+2. **5 ideias de Stories** — sequências ou enquetes
+3. **5 ideias de Posts** — carrossel ou feed estático
+4. **CTAs para captação** — convites claros para WhatsApp/DM
+
+Exemplos de formato esperado:
+Reel: "Quanto custa um bartender para casamento?"
+Story: "Bastidores da montagem do bar"
+Post: "5 erros ao contratar um bartender"
+
+Priorize o nicho "${demandFocus}" e adapte tom para Indaiatuba/SP.
+Instagram principal: @and.alvesz · Alvesz Experience · bartender premium.`;
+
+  if (insights.temLeadsConsorcio) {
+    instructions += `
+
+## CONTEÚDO PARA CONSÓRCIOS (Ademicon)
+
+Existem ${insights.leadsConsorcio.length} lead(s) de consórcio no CRM. Gere também:
+- 3 ideias de vídeos educativos
+- 3 posts educativos (imóvel, veículo, investimento)
+- 3 perguntas frequentes com respostas curtas
+- CTA de captação para consórcio Ademicon`;
+  }
+
+  return instructions;
+}
+
+function buildWeeklyPlanningInstructions(insights: GrowthContentInsights): string {
+  const demandFocus = insights.maiorDemanda ?? "Eventos e marca pessoal";
+
+  return `## PLANEJAMENTO SEMANAL DE CONTEÚDO
+
+Monte o calendário completo (Segunda a Domingo) com conteúdos sugeridos para cada dia.
+
+Use a demanda atual do CRM (${demandFocus}) para priorizar temas.
+
+Formato obrigatório:
+**Segunda** — [tipo: Reel/Story/Post] + tema + CTA
+**Terça** — ...
+**Quarta** — ...
+**Quinta** — ...
+**Sexta** — ...
+**Sábado** — ...
+**Domingo** — ...
+
+Inclua mix de: vendas, bastidores, educativo e prova social.
+Alinhe Alvesz Experience + @and.alvesz${insights.temLeadsConsorcio ? " + Consórcios Ademicon" : ""}.`;
 }
 
 export function getGrowthLeadStatusLabel(status: string): string {
@@ -425,9 +642,30 @@ export function buildGrowthLeadsMentorContext(
   leads: GrowthLead[],
   actionId?: string
 ): string {
+  const isContentAction =
+    actionId === "gerar-conteudo" || actionId === "planejamento-semanal";
   const metrics = computeGrowthLeadMetrics(leads);
+  const contentInsights = analyzeGrowthLeadContentInsights(leads);
 
   if (leads.length === 0) {
+    if (isContentAction) {
+      return `## LEADS DO CRM (dados reais do Supabase)
+
+Nenhum lead cadastrado ainda.
+
+${buildContentInsightsContext(contentInsights)}
+
+## CONTEXTO DE MARCA
+- Anderson Alves · Indaiatuba, SP
+- Alvesz Experience · bartender premium · casamentos · eventos
+- Consórcios Ademicon
+- Instagram principal: @and.alvesz
+
+${actionId === "planejamento-semanal" ? buildWeeklyPlanningInstructions(contentInsights) : buildContentPlanInstructions(contentInsights)}
+
+Gere conteúdo genérico de alta conversão para Alvesz Experience e @and.alvesz, mencionando que ainda não há leads no CRM para personalizar por nicho.`;
+    }
+
     return `## LEADS DO CRM (dados reais do Supabase)
 
 Nenhum lead cadastrado.
@@ -521,6 +759,30 @@ ${buildRevenueForecastContext(metrics)}
 - Explique brevemente como a receita provável foi estimada (probabilidades por status).
 - Sugira ações para converter receita provável em fechada.
 - Nunca peça leads manualmente — use apenas os dados acima.`;
+  } else if (actionId === "gerar-conteudo") {
+    actionContext = `
+
+${buildContentInsightsContext(contentInsights)}
+
+${buildContentPlanInstructions(contentInsights)}
+
+## INSTRUÇÕES PARA ESTA RESPOSTA
+- Baseie 100% das ideias na maior demanda identificada no CRM.
+- Entregue exatamente: 5 reels, 5 stories, 5 posts e CTAs de captação.
+- Use tom premium, local (Indaiatuba) e orientado a vendas.
+- Nunca peça dados manualmente — use os insights acima.`;
+  } else if (actionId === "planejamento-semanal") {
+    actionContext = `
+
+${buildContentInsightsContext(contentInsights)}
+
+${buildWeeklyPlanningInstructions(contentInsights)}
+
+## INSTRUÇÕES PARA ESTA RESPOSTA
+- Organize Segunda a Domingo com tipo de conteúdo, tema e CTA por dia.
+- Priorize o nicho de maior demanda do CRM.
+- Combine vendas, bastidores, educativo e prova social.
+- Nunca peça dados manualmente — use os insights acima.`;
   } else {
     actionContext = `
 

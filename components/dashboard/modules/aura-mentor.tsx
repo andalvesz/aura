@@ -7,6 +7,7 @@ import {
   Filter,
   LineChart,
   ListOrdered,
+  PenLine,
   Send,
   Sparkles,
   Tag,
@@ -76,6 +77,14 @@ const QUICK_ACTIONS: QuickAction[] = [
       "Com base nos meus leads reais, apresente a previsão de receita: receita potencial, receita provável (ponderada por probabilidade de fechamento) e receita fechada. Explique a estimativa e sugira ações para converter oportunidades.",
   },
   {
+    id: "gerar-conteudo",
+    label: "Gerar Conteúdo",
+    icon: PenLine,
+    usesLeadData: true,
+    prompt:
+      "Com base nos meus leads reais do CRM, analise os nichos mais frequentes e gere um plano de conteúdo: 5 ideias de reels, 5 de stories, 5 de posts e CTAs para captação. Priorize a maior demanda identificada.",
+  },
+  {
     id: "estrategia-instagram",
     label: "Estratégia Instagram",
     icon: Camera,
@@ -86,8 +95,9 @@ const QUICK_ACTIONS: QuickAction[] = [
     id: "planejamento-semanal",
     label: "Planejamento semanal",
     icon: CalendarDays,
+    usesLeadData: true,
     prompt:
-      "Monte meu planejamento semanal de crescimento digital com foco em vendas, Instagram e captação de leads. Organize por dias da semana com ações práticas.",
+      "Com base nos meus leads reais do CRM, monte meu planejamento semanal de conteúdo (Segunda a Domingo) com reels, stories e posts sugeridos por dia. Priorize a maior demanda do funil e inclua CTAs de captação.",
   },
 ];
 

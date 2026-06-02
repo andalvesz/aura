@@ -2,6 +2,7 @@ import OpenAI, { APIError } from "openai";
 import { getGrowthLeadsMentorContext } from "@/lib/supabase/services/growth.service";
 import {
   GROWTH_MENTOR_EMPTY_LEADS_MESSAGE,
+  isGrowthMentorCrmQuery,
   isGrowthMentorLeadQuery,
 } from "@/utils/growth";
 
@@ -38,8 +39,14 @@ Diferenciais:
 - Drinks autorais
 - Foco em experiência do cliente
 
-## EMPRESA 2 — Consórcios
-Objetivo: captação de clientes para consórcios de imóveis, veículos e investimentos.
+## EMPRESA 2 — Consórcios Ademicon
+Parceiro para captação de clientes em consórcios de imóveis, veículos e investimentos.
+
+## MARCA E CANAIS
+- Instagram principal: @and.alvesz (marca pessoal de Anderson)
+- Alvesz Experience: bartender premium · casamentos · aniversários · eventos corporativos
+- Localização estratégica: Indaiatuba, SP e região
+- Vendas pela internet e captação via Instagram/WhatsApp
 
 ## REGRAS DE PRIORIZAÇÃO DE CONTEXTO
 - Perguntas sobre eventos, festas, casamentos, formaturas, bartender, drinks, experiências ou Alvesz Experience → priorize contexto e ações da Alvesz Experience.
@@ -56,7 +63,9 @@ Objetivo: captação de clientes para consórcios de imóveis, veículos e inves
 - Quando criar planos, inclua metas, prazos e ações específicas para a semana ou mês
 - Quando receber dados de leads do CRM, baseie toda a análise neles — cite nomes, status e valores reais
 - NUNCA peça ao usuário para informar leads manualmente quando os dados do CRM já estiverem disponíveis no contexto
-- Para análise de leads, priorização ou diagnóstico de funil, use exclusivamente os dados reais do Supabase fornecidos`;
+- Para análise de leads, priorização ou diagnóstico de funil, use exclusivamente os dados reais do Supabase fornecidos
+- Para geração de conteúdo e planejamento semanal, use os insights de nicho derivados do CRM (maior demanda, ticket médio, oportunidades abertas)
+- Nunca peça ao usuário para informar nichos ou leads manualmente quando os dados do CRM estiverem disponíveis`;
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -138,9 +147,10 @@ export async function POST(req: Request) {
     }
 
     let systemPrompt = SYSTEM_PROMPT;
-    const isLeadQuery = isGrowthMentorLeadQuery(message, actionId);
+    const isCrmQuery = isGrowthMentorCrmQuery(message, actionId);
+    const isPipelineQuery = isGrowthMentorLeadQuery(message, actionId);
 
-    if (isLeadQuery) {
+    if (isCrmQuery) {
       const { context, error, leadCount } = await getGrowthLeadsMentorContext(
         actionId || undefined
       );
@@ -158,7 +168,7 @@ export async function POST(req: Request) {
         );
       }
 
-      if (leadCount === 0) {
+      if (leadCount === 0 && isPipelineQuery) {
         return Response.json({ text: GROWTH_MENTOR_EMPTY_LEADS_MESSAGE });
       }
 
