@@ -12,3 +12,4 @@ export { useGrowthGoals } from "./use-growth-goals";
 export { useGrowthAnalyses } from "./use-growth-analyses";
 export { useGrowthActions } from "./use-growth-actions";
 export { useGrowthLeads } from "./use-growth-leads";
+export { useAlveszEventos } from "./use-alvesz-eventos";

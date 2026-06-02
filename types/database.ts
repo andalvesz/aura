@@ -35,6 +35,7 @@ export type Evento = {
   data_fim: string | null;
   local: string | null;
   tipo: string;
+  growth_lead_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -45,6 +46,7 @@ export type Cliente = {
   nome: string;
   telefone: string | null;
   email: string | null;
+  instagram: string | null;
   tipo: string;
   observacoes: string | null;
   created_at: string;
@@ -60,6 +62,9 @@ export type Orcamento = {
   valor_total: number;
   lucro_estimado: number;
   status: string;
+  data_evento: string | null;
+  local: string | null;
+  growth_lead_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -102,6 +107,23 @@ export type Conteudo = {
   titulo: string;
   status: string;
   data_publicacao: string | null;
+  formato: string | null;
+  objetivo: string | null;
+  observacoes: string | null;
+  roteiro: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AlveszEvento = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  data_evento: string;
+  local: string | null;
+  cliente_id: string | null;
+  valor_fechado: number;
+  evento_calendario_id: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -252,24 +274,38 @@ export type Database = {
       >;
       eventos: TableDef<
         Evento,
-        Omit<Evento, "id" | "created_at" | "updated_at"> & {
+        Omit<
+          Evento,
+          "id" | "created_at" | "updated_at" | "growth_lead_id" | "data_fim" | "local" | "descricao"
+        > & {
           id?: string;
+          descricao?: string | null;
+          data_fim?: string | null;
+          local?: string | null;
+          growth_lead_id?: string | null;
           created_at?: string;
           updated_at?: string;
         }
       >;
       clientes: TableDef<
         Cliente,
-        Omit<Cliente, "id" | "created_at" | "updated_at"> & {
+        Omit<Cliente, "id" | "created_at" | "updated_at" | "instagram"> & {
           id?: string;
+          instagram?: string | null;
           created_at?: string;
           updated_at?: string;
         }
       >;
       orcamentos: TableDef<
         Orcamento,
-        Omit<Orcamento, "id" | "created_at" | "updated_at"> & {
+        Omit<
+          Orcamento,
+          "id" | "created_at" | "updated_at" | "data_evento" | "local" | "growth_lead_id"
+        > & {
           id?: string;
+          data_evento?: string | null;
+          local?: string | null;
+          growth_lead_id?: string | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -300,8 +336,15 @@ export type Database = {
       >;
       conteudos: TableDef<
         Conteudo,
-        Omit<Conteudo, "id" | "created_at" | "updated_at"> & {
+        Omit<
+          Conteudo,
+          "id" | "created_at" | "updated_at" | "formato" | "objetivo" | "observacoes" | "roteiro"
+        > & {
           id?: string;
+          formato?: string | null;
+          objetivo?: string | null;
+          observacoes?: string | null;
+          roteiro?: string | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -386,6 +429,20 @@ export type Database = {
           created_at?: string;
         }
       >;
+      alvesz_eventos: TableDef<
+        AlveszEvento,
+        Omit<
+          AlveszEvento,
+          "id" | "created_at" | "updated_at" | "evento_calendario_id" | "local" | "cliente_id"
+        > & {
+          id?: string;
+          local?: string | null;
+          cliente_id?: string | null;
+          evento_calendario_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -425,7 +482,8 @@ export type UserScopedTable =
   | "growth_profiles"
   | "growth_analyses"
   | "growth_leads"
-  | "growth_content_memory";
+  | "growth_content_memory"
+  | "alvesz_eventos";
 
 export type AiModule =
   | "financeiro"

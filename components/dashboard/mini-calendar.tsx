@@ -3,6 +3,9 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/utils/cn";
+import type { Evento } from "@/types/database";
+import { diasComEventos, eventosNoDia, formatEventoResumo } from "@/utils/calendar";
+import { formatTime } from "@/utils/format";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "./panel";
 
 const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
@@ -30,7 +33,17 @@ const MONTHS = [
   "Dezembro",
 ];
 
-export function MiniCalendar() {
+type MiniCalendarProps = {
+  eventos?: Evento[];
+  selectedDay?: number | null;
+  onSelectDay?: (day: number) => void;
+};
+
+export function MiniCalendar({
+  eventos = [],
+  selectedDay,
+  onSelectDay,
+}: MiniCalendarProps) {
   const today = new Date();
   const [view, setView] = useState({
     year: today.getFullYear(),
@@ -48,7 +61,19 @@ export function MiniCalendar() {
     return items;
   }, [view.year, view.month]);
 
-  const events = [3, 7, 12, 18, 22, 28];
+  const eventDays = useMemo(
+    () => diasComEventos(eventos, view.year, view.month),
+    [eventos, view.year, view.month]
+  );
+
+  const dayEvents = useMemo(() => {
+    const day = selectedDay ?? today.getDate();
+    if (view.month !== today.getMonth() || view.year !== today.getFullYear()) {
+      if (selectedDay == null) return [];
+      return eventosNoDia(eventos, view.year, view.month, selectedDay);
+    }
+    return eventosNoDia(eventos, view.year, view.month, day);
+  }, [eventos, view.year, view.month, selectedDay, today]);
 
   function prevMonth() {
     setView((v) =>
@@ -74,7 +99,9 @@ export function MiniCalendar() {
   return (
     <Panel className="h-full">
       <PanelHeader className="pb-2">
-        <PanelTitle>{MONTHS[view.month]} {view.year}</PanelTitle>
+        <PanelTitle>
+          {MONTHS[view.month]} {view.year}
+        </PanelTitle>
         <div className="flex gap-0.5">
           <button
             type="button"
@@ -96,9 +123,9 @@ export function MiniCalendar() {
       </PanelHeader>
       <PanelContent className="pt-0">
         <div className="grid grid-cols-7 gap-0.5 text-center">
-          {WEEKDAYS.map((d) => (
+          {WEEKDAYS.map((d, i) => (
             <span
-              key={d}
+              key={`${d}-${i}`}
               className="py-1 text-[10px] font-medium uppercase tracking-wider text-zinc-600"
             >
               {d}
@@ -109,13 +136,17 @@ export function MiniCalendar() {
               {day !== null && (
                 <button
                   type="button"
+                  onClick={() => onSelectDay?.(day)}
                   className={cn(
                     "relative flex size-7 items-center justify-center rounded-md text-[11px] transition-colors duration-200",
                     isToday(day)
-                      ? "bg-white text-zinc-950 font-medium"
-                      : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300",
-                    events.includes(day) &&
+                      ? "bg-white font-medium text-zinc-950"
+                      : selectedDay === day
+                        ? "bg-violet-500/20 text-violet-200"
+                        : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300",
+                    eventDays.includes(day) &&
                       !isToday(day) &&
+                      selectedDay !== day &&
                       "after:absolute after:bottom-0.5 after:size-1 after:rounded-full after:bg-violet-400"
                   )}
                 >
@@ -126,18 +157,20 @@ export function MiniCalendar() {
           ))}
         </div>
         <div className="mt-2 space-y-1.5 border-t border-white/[0.06] pt-2">
-          {[
-            { time: "10:00", label: "Review de design" },
-            { time: "14:30", label: "Sync com equipe" },
-          ].map((e) => (
-            <div
-              key={e.label}
-              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-[11px] transition-colors duration-200 hover:bg-white/[0.03]"
-            >
-              <span className="font-mono text-zinc-600">{e.time}</span>
-              <span className="truncate text-zinc-400">{e.label}</span>
-            </div>
-          ))}
+          {dayEvents.length === 0 ? (
+            <p className="px-1.5 text-[11px] text-zinc-600">Sem eventos neste dia</p>
+          ) : (
+            dayEvents.slice(0, 4).map((e) => (
+              <div
+                key={e.id}
+                className="flex items-center gap-2 rounded-md px-1.5 py-1 text-[11px] transition-colors duration-200 hover:bg-white/[0.03]"
+                title={formatEventoResumo(e)}
+              >
+                <span className="font-mono text-zinc-600">{formatTime(e.data_inicio)}</span>
+                <span className="truncate text-zinc-400">{e.titulo}</span>
+              </div>
+            ))
+          )}
         </div>
       </PanelContent>
     </Panel>

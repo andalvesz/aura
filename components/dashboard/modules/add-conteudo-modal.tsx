@@ -1,0 +1,208 @@
+"use client";
+
+import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Modal } from "@/components/ui/modal";
+import type { Conteudo } from "@/types/database";
+import {
+  CONTEUDO_FORMATOS,
+  CONTEUDO_PLATAFORMAS,
+  CONTEUDO_STATUSES,
+} from "@/utils/social";
+
+export type ConteudoFormPayload = {
+  titulo: string;
+  plataforma: string;
+  formato: string | null;
+  data_publicacao: string | null;
+  status: string;
+  objetivo: string | null;
+  observacoes: string | null;
+  roteiro: string | null;
+};
+
+type AddConteudoModalProps = {
+  open: boolean;
+  onClose: () => void;
+  initial?: Conteudo | null;
+  onSubmit: (payload: ConteudoFormPayload) => Promise<{ error: string | null }>;
+};
+
+export function AddConteudoModal({
+  open,
+  onClose,
+  initial,
+  onSubmit,
+}: AddConteudoModalProps) {
+  const [pending, setPending] = useState(false);
+  const isEdit = Boolean(initial);
+
+  useEffect(() => {
+    if (!open) return;
+  }, [open, initial]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const titulo = String(fd.get("titulo")).trim();
+    if (!titulo) {
+      toast.error("Informe o título.");
+      return;
+    }
+
+    const dataRaw = String(fd.get("data_planejada") ?? "");
+    const data_publicacao = dataRaw
+      ? new Date(`${dataRaw}T12:00:00`).toISOString()
+      : null;
+
+    setPending(true);
+    const { error } = await onSubmit({
+      titulo,
+      plataforma: String(fd.get("plataforma")),
+      formato: String(fd.get("formato") || "") || null,
+      data_publicacao,
+      status: String(fd.get("status")),
+      objetivo: String(fd.get("objetivo") ?? "").trim() || null,
+      observacoes: String(fd.get("observacoes") ?? "").trim() || null,
+      roteiro: String(fd.get("roteiro") ?? "").trim() || null,
+    });
+    setPending(false);
+
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    toast.success(isEdit ? "Conteúdo atualizado." : "Conteúdo criado.");
+    onClose();
+  }
+
+  const dataPlanejada = initial?.data_publicacao
+    ? new Date(initial.data_publicacao).toISOString().slice(0, 10)
+    : "";
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={isEdit ? "Editar conteúdo" : "Novo conteúdo"}
+      description="Ideia, roteiro ou post no calendário editorial."
+      className="max-w-lg"
+    >
+      <form onSubmit={handleSubmit} className="space-y-3" key={initial?.id ?? "new"}>
+        <Field
+          label="Título"
+          name="titulo"
+          defaultValue={initial?.titulo}
+          required
+        />
+        <label className="block text-[12px] text-zinc-500">
+          Plataforma
+          <select
+            name="plataforma"
+            defaultValue={initial?.plataforma ?? "instagram"}
+            className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] capitalize text-zinc-200 focus:outline-none"
+          >
+            {CONTEUDO_PLATAFORMAS.map((p) => (
+              <option key={p} value={p} className="bg-zinc-900 capitalize">
+                {p}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-[12px] text-zinc-500">
+          Formato
+          <select
+            name="formato"
+            defaultValue={initial?.formato ?? "reels"}
+            className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
+          >
+            {CONTEUDO_FORMATOS.map((f) => (
+              <option key={f} value={f} className="bg-zinc-900">
+                {f.replace("_", " ")}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <Field
+            label="Data planejada"
+            name="data_planejada"
+            type="date"
+            defaultValue={dataPlanejada}
+          />
+          <label className="block text-[12px] text-zinc-500">
+            Status
+            <select
+              name="status"
+              defaultValue={initial?.status ?? "ideia"}
+              className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
+            >
+              {CONTEUDO_STATUSES.map((s) => (
+                <option key={s.id} value={s.id} className="bg-zinc-900">
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <Field label="Objetivo" name="objetivo" defaultValue={initial?.objetivo ?? ""} />
+        <label className="block text-[12px] text-zinc-500">
+          Observações
+          <textarea
+            name="observacoes"
+            defaultValue={initial?.observacoes ?? ""}
+            rows={2}
+            className="mt-1 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-[13px] text-zinc-200 focus:outline-none"
+          />
+        </label>
+        <label className="block text-[12px] text-zinc-500">
+          Roteiro
+          <textarea
+            name="roteiro"
+            defaultValue={initial?.roteiro ?? ""}
+            rows={4}
+            placeholder="Cole ou gere com IA"
+            className="mt-1 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-[13px] text-zinc-200 focus:outline-none"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={pending}
+          className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-[13px] font-medium transition-colors hover:bg-white/[0.1] disabled:opacity-50"
+        >
+          {pending && <Loader2 className="size-3.5 animate-spin" />}
+          {isEdit ? "Salvar" : "Criar conteúdo"}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+function Field({
+  label,
+  name,
+  defaultValue,
+  required,
+  type = "text",
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string | null;
+  required?: boolean;
+  type?: string;
+}) {
+  return (
+    <label className="block text-[12px] text-zinc-500">
+      {label}
+      <input
+        name={name}
+        type={type}
+        defaultValue={defaultValue ?? ""}
+        required={required}
+        className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
+      />
+    </label>
+  );
+}

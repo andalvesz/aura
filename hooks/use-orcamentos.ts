@@ -36,6 +36,8 @@ export function useOrcamentos() {
       valor_total: number;
       lucro_estimado: number;
       status?: string;
+      data_evento?: string | null;
+      local?: string | null;
     }) => {
       const {
         data: { user },
@@ -44,7 +46,11 @@ export function useOrcamentos() {
 
       const { data: row, error: err } = await supabase
         .from("orcamentos")
-        .insert({ ...payload, user_id: user.id, status: payload.status ?? "rascunho" })
+        .insert({
+          ...payload,
+          user_id: user.id,
+          status: payload.status ?? "rascunho",
+        })
         .select()
         .single();
 
@@ -68,5 +74,15 @@ export function useOrcamentos() {
     [supabase, refresh]
   );
 
-  return { data, loading, error, refresh, create, update };
+  const remove = useCallback(
+    async (id: string) => {
+      const { error: err } = await supabase.from("orcamentos").delete().eq("id", id);
+      if (err) return { error: err.message };
+      setData((prev) => prev.filter((o) => o.id !== id));
+      return { error: null };
+    },
+    [supabase]
+  );
+
+  return { data, loading, error, refresh, create, update, remove };
 }
