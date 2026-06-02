@@ -34,7 +34,6 @@ import type {
 } from "@/types/database";
 import { formatBRL } from "@/utils/format";
 import {
-  AURA_MENTOR_SUGGESTIONS,
   calculateLevel,
   computeGrowthLeadMetrics,
   computeRevenueProgress,
@@ -146,7 +145,6 @@ export function CrescimentoView() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
-  const [mentorPrompt, setMentorPrompt] = useState<string | null>(null);
   const [completingKey, setCompletingKey] = useState<string | null>(null);
 
   const growthDataError =
@@ -721,122 +719,77 @@ export function CrescimentoView() {
         </PanelContent>
       </Panel>
 
-      <div className="grid gap-2 lg:grid-cols-2">
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Análise de perfis</PanelTitle>
-          </PanelHeader>
-          <PanelContent className="pt-0">
-            {profilesLoading ? (
-              <p className="py-6 text-center text-[12px] text-zinc-600">Carregando...</p>
-            ) : profiles.length === 0 ? (
-              <EmptyState
-                title="Nenhum perfil cadastrado"
-                description="Cadastre perfis manualmente. A Instagram API será integrada futuramente."
-                action={
-                  <ActionButton
-                    icon={<Plus className="size-3.5" />}
-                    onClick={() => setProfileModalOpen(true)}
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Análise de perfis</PanelTitle>
+        </PanelHeader>
+        <PanelContent className="pt-0">
+          {profilesLoading ? (
+            <p className="py-6 text-center text-[12px] text-zinc-600">Carregando...</p>
+          ) : profiles.length === 0 ? (
+            <EmptyState
+              title="Nenhum perfil cadastrado"
+              description="Cadastre perfis manualmente. A Instagram API será integrada futuramente."
+              action={
+                <ActionButton
+                  icon={<Plus className="size-3.5" />}
+                  onClick={() => setProfileModalOpen(true)}
+                >
+                  Cadastrar perfil
+                </ActionButton>
+              }
+            />
+          ) : (
+            <div className="space-y-2">
+              {profiles.map((profile) => {
+                const latestAnalysis = getLatestAnalysisForProfile(analyses, profile.id);
+                return (
+                  <div
+                    key={profile.id}
+                    className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
                   >
-                    Cadastrar perfil
-                  </ActionButton>
-                }
-              />
-            ) : (
-              <div className="space-y-2">
-                {profiles.map((profile) => {
-                  const latestAnalysis = getLatestAnalysisForProfile(analyses, profile.id);
-                  return (
-                    <div
-                      key={profile.id}
-                      className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-3"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="break-words text-[13px] font-medium text-zinc-200">
-                            {profile.plataforma} · @{profile.username.replace(/^@/, "")}
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="break-words text-[13px] font-medium text-zinc-200">
+                          {profile.plataforma} · @{profile.username.replace(/^@/, "")}
+                        </p>
+                        {profile.nicho && (
+                          <p className="mt-0.5 text-[11px] text-zinc-500">
+                            Nicho: {profile.nicho}
                           </p>
-                          {profile.nicho && (
-                            <p className="mt-0.5 text-[11px] text-zinc-500">
-                              Nicho: {profile.nicho}
-                            </p>
-                          )}
-                          {profile.objetivo && (
-                            <p className="text-[11px] text-zinc-600">
-                              Objetivo: {profile.objetivo}
-                            </p>
-                          )}
-                          {profile.observacoes && (
-                            <p className="mt-1 break-words text-[11px] text-zinc-600">
-                              {profile.observacoes}
-                            </p>
-                          )}
-                        </div>
-                        {latestAnalysis && (
-                          <AnalysisStatusBadge status={latestAnalysis.status} />
+                        )}
+                        {profile.objetivo && (
+                          <p className="text-[11px] text-zinc-600">
+                            Objetivo: {profile.objetivo}
+                          </p>
+                        )}
+                        {profile.observacoes && (
+                          <p className="mt-1 break-words text-[11px] text-zinc-600">
+                            {profile.observacoes}
+                          </p>
                         )}
                       </div>
-                      <div className="mt-3">
-                        <ActionButton
-                          icon={<Sparkles className="size-3.5" />}
-                          className="w-full sm:w-auto"
-                          disabled={Boolean(growthDataError)}
-                          onClick={() => handleAnalyzeProfile(profile)}
-                        >
-                          Analisar perfil com IA
-                        </ActionButton>
-                      </div>
+                      {latestAnalysis && (
+                        <AnalysisStatusBadge status={latestAnalysis.status} />
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </PanelContent>
-        </Panel>
-
-        <Panel>
-          <PanelHeader>
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-3.5 shrink-0 text-violet-400" />
-              <PanelTitle>Aura Mentor</PanelTitle>
+                    <div className="mt-3">
+                      <ActionButton
+                        icon={<Sparkles className="size-3.5" />}
+                        className="w-full sm:w-auto"
+                        disabled={Boolean(growthDataError)}
+                        onClick={() => handleAnalyzeProfile(profile)}
+                      >
+                        Analisar perfil com IA
+                      </ActionButton>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </PanelHeader>
-          <PanelContent className="pt-0">
-            <p className="mb-3 text-[11px] text-zinc-600">
-              Atalhos preparados para o módulo Crescimento. Conexão com Aura IA em breve.
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {AURA_MENTOR_SUGGESTIONS.map((suggestion) => (
-                <button
-                  key={suggestion.id}
-                  type="button"
-                  onClick={() => setMentorPrompt(suggestion.prompt)}
-                  className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-zinc-400 transition-colors hover:border-white/[0.1] hover:bg-white/[0.04] hover:text-zinc-200"
-                >
-                  {suggestion.label}
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 min-h-[100px] rounded-lg border border-dashed border-white/[0.06] p-3">
-              {mentorPrompt ? (
-                <div>
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-600">
-                    Contexto preparado
-                  </p>
-                  <p className="mt-1 break-words text-[12px] text-zinc-400">{mentorPrompt}</p>
-                  <p className="mt-2 text-[11px] text-zinc-600">
-                    Este prompt será enviado ao Aura IA quando a integração estiver ativa.
-                  </p>
-                </div>
-              ) : (
-                <p className="py-4 text-center text-[12px] text-zinc-600">
-                  Selecione uma sugestão acima para preparar o contexto.
-                </p>
-              )}
-            </div>
-          </PanelContent>
-        </Panel>
-      </div>
+          )}
+        </PanelContent>
+      </Panel>
 
       <AddGrowthLeadModal
         open={leadModalOpen}
