@@ -9,9 +9,9 @@ import {
   useGrowthActions,
   useGrowthAnalyses,
   useGrowthGoals,
+  useGrowthLeads,
   useGrowthMissions,
   useGrowthProfiles,
-  useLeads,
 } from "@/hooks";
 import { buildProfileAnalysisInput, isSupabaseTableMissingError } from "@/lib/growth";
 import type { GrowthProfile } from "@/types/database";
@@ -19,9 +19,9 @@ import { formatBRL } from "@/utils/format";
 import {
   AURA_MENTOR_SUGGESTIONS,
   calculateLevel,
+  computeGrowthLeadMetrics,
   computeRevenueProgress,
   countCompletedToday,
-  countLeadsThisMonth,
   getActionForVertical,
   getCurrentGoal,
   getCurrentMonthReference,
@@ -59,7 +59,7 @@ function GrowthDataError({
           </p>
           <p className="mt-1 text-[11px] text-zinc-500">
             {needsMigration
-              ? "Execute a migration supabase/migrations/20250602120000_growth_module.sql no Supabase para habilitar metas, missões e perfis."
+              ? "Execute a migration supabase/migrations/20250602120000_growth_module.sql no Supabase para habilitar metas, missões, perfis e leads."
               : message}
           </p>
         </div>
@@ -115,7 +115,8 @@ export function CrescimentoView() {
   } = useGrowthProfiles();
   const { data: actions, loading: actionsLoading, error: actionsError } = useGrowthActions();
   const { data: analyses, create: createAnalysis, error: analysesError } = useGrowthAnalyses();
-  const { data: leads, loading: leadsLoading, error: leadsError } = useLeads();
+  const { data: growthLeads, loading: growthLeadsLoading, error: growthLeadsError } =
+    useGrowthLeads();
 
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [goalModalOpen, setGoalModalOpen] = useState(false);
@@ -123,10 +124,19 @@ export function CrescimentoView() {
   const [completingKey, setCompletingKey] = useState<string | null>(null);
 
   const growthDataError =
-    goalsError || missionsError || profilesError || actionsError || analysesError;
+    goalsError ||
+    missionsError ||
+    profilesError ||
+    actionsError ||
+    analysesError ||
+    growthLeadsError;
 
   const loading =
-    goalsLoading || missionsLoading || profilesLoading || actionsLoading || leadsLoading;
+    goalsLoading ||
+    missionsLoading ||
+    profilesLoading ||
+    actionsLoading ||
+    growthLeadsLoading;
 
   const currentGoal = useMemo(() => getCurrentGoal(goals), [goals]);
   const dailyMissions = useMemo(() => mergeDailyMissions(missions), [missions]);
@@ -135,7 +145,10 @@ export function CrescimentoView() {
     () => computeRevenueProgress(currentGoal),
     [currentGoal]
   );
-  const leadsThisMonth = useMemo(() => countLeadsThisMonth(leads), [leads]);
+  const leadMetrics = useMemo(
+    () => computeGrowthLeadMetrics(growthLeads),
+    [growthLeads]
+  );
   const hasXp = (currentGoal?.xp_total ?? 0) > 0;
 
   const xp = currentGoal?.xp_total ?? 0;
@@ -271,9 +284,6 @@ export function CrescimentoView() {
       {growthDataError && !loading && (
         <GrowthDataError message={growthDataError} />
       )}
-      {leadsError && !loading && !growthDataError && (
-        <GrowthDataError message={leadsError} hintMigration={false} />
-      )}
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
         <ActionButton
@@ -293,9 +303,13 @@ export function CrescimentoView() {
       </div>
 
       {loading ? (
-        <MetricsSkeleton count={6} />
+        <>
+          <MetricsSkeleton count={5} />
+          <MetricsSkeleton count={4} />
+        </>
       ) : (
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-6">
+        <>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
           <MetricCard
             label="Meta mensal"
             value={
@@ -342,18 +356,67 @@ export function CrescimentoView() {
                 : "Nenhuma missão concluída hoje"
             }
           />
-          <MetricCard
-            label="Leads gerados"
-            value={leadsError ? "—" : String(leadsThisMonth)}
-            hint={
-              leadsError
-                ? "Indisponível"
-                : leadsThisMonth > 0
-                  ? "Este mês · módulo Consórcios"
-                  : "Nenhum lead este mês"
-            }
-          />
         </div>
+
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Leads e vendas</PanelTitle>
+          </PanelHeader>
+          <PanelContent className="pt-0">
+            <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+              <MetricCard
+                label="Leads gerados"
+                value={growthLeadsError ? "—" : String(leadMetrics.total)}
+                hint={
+                  leadMetrics.total > 0
+                    ? "Total cadastrado"
+                    : "Nenhum lead cadastrado"
+                }
+              />
+              <MetricCard
+                label="Leads ativos"
+                value={growthLeadsError ? "—" : String(leadMetrics.ativos)}
+                hint={
+                  leadMetrics.ativos > 0
+                    ? "Em negociação"
+                    : "Nenhum lead ativo"
+                }
+                hintClassName="text-cyan-400/90"
+              />
+              <MetricCard
+                label="Vendas fechadas"
+                value={growthLeadsError ? "—" : String(leadMetrics.fechados)}
+                hint={
+                  leadMetrics.fechados > 0
+                    ? "Status fechado"
+                    : "Nenhuma venda fechada"
+                }
+              />
+              <MetricCard
+                label="Receita gerada"
+                value={
+                  growthLeadsError
+                    ? "—"
+                    : leadMetrics.receita > 0
+                      ? formatBRL(leadMetrics.receita)
+                      : "—"
+                }
+                hint={
+                  leadMetrics.receita > 0
+                    ? "Soma dos leads fechados"
+                    : "Nenhuma receita registrada"
+                }
+                hintClassName="text-emerald-400/90"
+              />
+            </div>
+            {leadMetrics.total === 0 && !growthLeadsError && (
+              <p className="mt-3 text-center text-[11px] text-zinc-600">
+                Cadastro de leads em breve. Métricas refletem dados reais do Supabase.
+              </p>
+            )}
+          </PanelContent>
+        </Panel>
+        </>
       )}
 
       <Panel>

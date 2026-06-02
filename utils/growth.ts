@@ -1,9 +1,9 @@
 import type {
   GrowthAction,
   GrowthGoal,
+  GrowthLead,
   GrowthMission,
   GrowthVertical,
-  Lead,
 } from "@/types/database";
 
 export type MissionTemplate = {
@@ -163,22 +163,40 @@ export function countCompletedToday(missions: GrowthMission[]): number {
   ).length;
 }
 
+export const GROWTH_LEAD_ACTIVE_STATUSES = ["novo", "contato", "proposta"] as const;
+
+export type GrowthLeadMetrics = {
+  total: number;
+  ativos: number;
+  fechados: number;
+  receita: number;
+};
+
+export function computeGrowthLeadMetrics(leads: GrowthLead[]): GrowthLeadMetrics {
+  const ativos = leads.filter((l) =>
+    GROWTH_LEAD_ACTIVE_STATUSES.includes(
+      l.status as (typeof GROWTH_LEAD_ACTIVE_STATUSES)[number]
+    )
+  ).length;
+  const fechados = leads.filter((l) => l.status === "fechado").length;
+  const receita = leads
+    .filter((l) => l.status === "fechado")
+    .reduce((sum, l) => sum + (l.valor_potencial ?? 0), 0);
+
+  return {
+    total: leads.length,
+    ativos,
+    fechados,
+    receita,
+  };
+}
+
 export function computeRevenueProgress(goal: GrowthGoal | null): number {
   if (!goal || goal.meta_receita_mensal <= 0) return 0;
   return Math.min(
     100,
     Math.round((goal.receita_atual / goal.meta_receita_mensal) * 100)
   );
-}
-
-export function countLeadsThisMonth(leads: Lead[]): number {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  return leads.filter((lead) => {
-    const created = new Date(lead.created_at);
-    return created.getFullYear() === year && created.getMonth() === month;
-  }).length;
 }
 
 export function getActionForVertical(

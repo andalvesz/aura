@@ -4,6 +4,7 @@ import {
   GrowthGoalsRepository,
   GrowthMissionsRepository,
   GrowthProfilesRepository,
+  GrowthLeadsRepository,
 } from "@/lib/supabase/repositories/growth.repository";
 import type { TableInsert, TableUpdate } from "@/types/database";
 import { getCurrentMonthReference } from "@/utils/growth";
@@ -81,4 +82,16 @@ export async function createGrowthAnalysis(
 ) {
   const { supabase, userId } = await getDataContext();
   return new GrowthAnalysesRepository(supabase, userId).create(payload);
+}
+
+export async function listGrowthLeads() {
+  const { supabase, userId } = await getDataContext();
+  return new GrowthLeadsRepository(supabase, userId).findAll();
+}
+
+export async function createGrowthLead(
+  payload: Omit<TableInsert<"growth_leads">, "user_id">
+) {
+  const { supabase, userId } = await getDataContext();
+  return new GrowthLeadsRepository(supabase, userId).create(payload);
 }

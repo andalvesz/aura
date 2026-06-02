@@ -196,6 +196,20 @@ export type GrowthAnalysis = {
   updated_at: string;
 };
 
+export type GrowthLeadStatus = "novo" | "contato" | "proposta" | "fechado" | "perdido";
+
+export type GrowthLead = {
+  id: string;
+  user_id: string;
+  origem: string;
+  nome: string;
+  contato: string | null;
+  status: GrowthLeadStatus;
+  valor_potencial: number;
+  created_at: string;
+  updated_at: string;
+};
+
 type TableDef<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -327,6 +341,14 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      growth_leads: TableDef<
+        GrowthLead,
+        Omit<GrowthLead, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -364,7 +386,8 @@ export type UserScopedTable =
   | "growth_missions"
   | "growth_actions"
   | "growth_profiles"
-  | "growth_analyses";
+  | "growth_analyses"
+  | "growth_leads";
 
 export type AiModule =
   | "financeiro"

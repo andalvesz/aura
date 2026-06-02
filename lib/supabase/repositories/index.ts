@@ -15,4 +15,5 @@ export {
   GrowthActionsRepository,
   GrowthProfilesRepository,
   GrowthAnalysesRepository,
+  GrowthLeadsRepository,
 } from "./growth.repository";

@@ -1,5 +1,5 @@
 -- Crescimento Digital — tabelas, RLS e triggers
--- Execute após 20250528120000_aura_modules.sql
+-- Execute após 20250528120000_aura_modules.sql (requer public.set_updated_at)
 
 -- ---------------------------------------------------------------------------
 -- 1. Metas e progresso (growth_goals)
@@ -121,11 +121,11 @@ create table if not exists public.growth_profiles (
   objetivo text,
   observacoes text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (user_id, plataforma)
 );
 
 create index if not exists growth_profiles_user_id_idx on public.growth_profiles (user_id);
-create index if not exists growth_profiles_plataforma_idx on public.growth_profiles (user_id, plataforma);
 
 alter table public.growth_profiles enable row level security;
 
@@ -173,4 +173,39 @@ create policy "growth_analyses_delete_own"
 drop trigger if exists growth_analyses_updated_at on public.growth_analyses;
 create trigger growth_analyses_updated_at
   before update on public.growth_analyses
+  for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- 6. Leads e vendas (growth_leads)
+-- ---------------------------------------------------------------------------
+create table if not exists public.growth_leads (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  origem text not null default 'outro',
+  nome text not null,
+  contato text,
+  status text not null default 'novo' check (status in ('novo', 'contato', 'proposta', 'fechado', 'perdido')),
+  valor_potencial numeric(12, 2) not null default 0 check (valor_potencial >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists growth_leads_user_id_idx on public.growth_leads (user_id);
+create index if not exists growth_leads_status_idx on public.growth_leads (user_id, status);
+create index if not exists growth_leads_created_idx on public.growth_leads (user_id, created_at desc);
+
+alter table public.growth_leads enable row level security;
+
+create policy "growth_leads_select_own"
+  on public.growth_leads for select using (auth.uid() = user_id);
+create policy "growth_leads_insert_own"
+  on public.growth_leads for insert with check (auth.uid() = user_id);
+create policy "growth_leads_update_own"
+  on public.growth_leads for update using (auth.uid() = user_id);
+create policy "growth_leads_delete_own"
+  on public.growth_leads for delete using (auth.uid() = user_id);
+
+drop trigger if exists growth_leads_updated_at on public.growth_leads;
+create trigger growth_leads_updated_at
+  before update on public.growth_leads
   for each row execute function public.set_updated_at();

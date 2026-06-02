@@ -41,3 +41,9 @@ export class GrowthAnalysesRepository extends BaseRepository<"growth_analyses"> 
     super(supabase, "growth_analyses", userId);
   }
 }
+
+export class GrowthLeadsRepository extends BaseRepository<"growth_leads"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "growth_leads", userId);
+  }
+}

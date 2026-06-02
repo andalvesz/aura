@@ -27,7 +27,8 @@ export function AddGrowthProfileModal({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const username = String(fd.get("username")).trim();
     if (!username) {
       toast.error("Informe o username do perfil.");
@@ -50,8 +51,8 @@ export function AddGrowthProfileModal({
     }
 
     toast.success("Perfil cadastrado.");
+    form.reset();
     onClose();
-    e.currentTarget.reset();
   }
 
   return (
