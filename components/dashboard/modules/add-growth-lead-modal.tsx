@@ -33,7 +33,8 @@ export function AddGrowthLeadModal({ open, onClose, onSubmit }: AddGrowthLeadMod
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const nome = String(fd.get("nome")).trim();
     if (!nome) {
       toast.error("Informe o nome do lead.");
@@ -70,8 +71,8 @@ export function AddGrowthLeadModal({ open, onClose, onSubmit }: AddGrowthLeadMod
     }
 
     toast.success("Lead cadastrado.");
+    form.reset();
     onClose();
-    e.currentTarget.reset();
   }
 
   return (
