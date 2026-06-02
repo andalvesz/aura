@@ -2,13 +2,37 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Evento, Orcamento } from "../types/database";
 import {
+  buildNexusAlveszUnavailableContext,
   computeAlveszMetrics,
   filterAlveszEventos,
   filterFollowUpEventos,
   isNexusAlveszQuery,
   isNexusCalendarQuery,
   isNexusDashboardQuery,
+  NEXUS_ALVESZ_UNAVAILABLE_MESSAGE,
 } from "./nexus";
+import { isMissingSupabaseTableError } from "./supabase-errors";
+
+describe("supabase table errors", () => {
+  it("detects missing english and portuguese table names", () => {
+    assert.equal(
+      isMissingSupabaseTableError(
+        "Could not find the table 'public.clients' in the schema cache"
+      ),
+      true
+    );
+    assert.equal(
+      isMissingSupabaseTableError("relation \"public.clientes\" does not exist"),
+      true
+    );
+  });
+});
+
+describe("nexus unavailable context", () => {
+  it("returns alvesz unavailable message", () => {
+    assert.match(buildNexusAlveszUnavailableContext(), new RegExp(NEXUS_ALVESZ_UNAVAILABLE_MESSAGE));
+  });
+});
 
 describe("nexus query detection", () => {
   it("detects alvesz queries", () => {

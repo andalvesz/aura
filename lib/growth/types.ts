@@ -77,7 +77,11 @@ export function isSupabaseTableMissingError(message: string | null): boolean {
   return (
     lower.includes("could not find the table") ||
     lower.includes("schema cache") ||
-    /relation\s+["']?public\.growth_/.test(lower) ||
-    /table\s+["']?public\.growth_/.test(lower)
+    /relation\s+["']?public\.(growth_|clientes|orcamentos|eventos|estoque|clients|events|budgets)/.test(
+      lower
+    ) ||
+    /table\s+["']?public\.(growth_|clientes|orcamentos|eventos|clients|events|budgets)/.test(
+      lower
+    )
   );
 }

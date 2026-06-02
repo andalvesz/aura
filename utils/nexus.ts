@@ -27,7 +27,17 @@ export type NexusModuleData = {
   leads: GrowthLead[];
   goal: GrowthGoal | null;
   missions: GrowthMission[];
+  /** Tabelas Alvesz (clientes/orçamentos) existem no Supabase */
+  alveszAvailable: boolean;
+  /** Tabela eventos (calendário) existe no Supabase */
+  calendarAvailable: boolean;
 };
+
+export const NEXUS_ALVESZ_UNAVAILABLE_MESSAGE =
+  "Nenhum dado da Alvesz disponível.";
+
+export const NEXUS_CALENDAR_UNAVAILABLE_MESSAGE =
+  "Nenhum dado de calendário disponível.";
 
 export const NEXUS_MENTOR_ALVESZ_ACTIONS = [
   "alvesz-resumo",
@@ -194,10 +204,53 @@ export function computeAlveszMetrics(orcamentos: OrcamentoWithCliente[]) {
   };
 }
 
+export function buildNexusAlveszUnavailableContext(): string {
+  return `## ALVESZ EXPERIENCE
+
+${NEXUS_ALVESZ_UNAVAILABLE_MESSAGE}
+
+As tabelas \`public.clientes\` e \`public.orcamentos\` (mesmas da página Alvesz) não estão disponíveis neste projeto Supabase ou ainda não foram migradas.
+
+## INSTRUÇÕES
+- Informe ao usuário que não há dados da Alvesz no momento.
+- Não invente clientes, orçamentos ou valores.
+- Se o usuário perguntar sobre CRM, leads ou metas, use apenas dados do módulo Crescimento quando disponíveis.`;
+}
+
+export function buildNexusCalendarUnavailableContext(): string {
+  return `## CALENDÁRIO
+
+${NEXUS_CALENDAR_UNAVAILABLE_MESSAGE}
+
+A tabela \`public.eventos\` (mesma do módulo Calendário) não está disponível neste projeto Supabase.
+
+## INSTRUÇÕES
+- Informe que a agenda não está conectada.
+- Não invente compromissos ou horários.`;
+}
+
+function buildOrcamentoEventoLines(orcamentos: OrcamentoWithCliente[]): string {
+  if (orcamentos.length === 0) {
+    return "* Nenhum tipo de evento nos orçamentos";
+  }
+
+  return orcamentos
+    .slice(0, 12)
+    .map((o) => {
+      const cliente = o.clientes?.nome ?? "Sem cliente";
+      return `* ${o.tipo_evento} — ${cliente} · ${o.convidados} convidados · ${o.status}`;
+    })
+    .join("\n");
+}
+
 export function buildNexusAlveszContext(data: NexusModuleData): string {
+  if (!data.alveszAvailable && !data.clientes.length && !data.orcamentos.length) {
+    return buildNexusAlveszUnavailableContext();
+  }
+
   const { clientes, orcamentos, eventos } = data;
   const metrics = computeAlveszMetrics(orcamentos);
-  const alveszEventos = filterAlveszEventos(eventos);
+  const alveszEventos = data.calendarAvailable ? filterAlveszEventos(eventos) : [];
 
   const clienteLines =
     clientes.length > 0
@@ -221,15 +274,19 @@ export function buildNexusAlveszContext(data: NexusModuleData): string {
           .join("\n")
       : "* Nenhum orçamento cadastrado";
 
-  const eventoLines =
+  const agendaEventoLines =
     alveszEventos.length > 0
       ? filterUpcomingEventos(alveszEventos, 30)
           .slice(0, 8)
           .map(formatEventoLine)
           .join("\n")
-      : "* Nenhum evento Alvesz na agenda";
+      : data.calendarAvailable
+        ? "* Nenhum evento Alvesz na agenda"
+        : "* Calendário indisponível — use os tipos de evento nos orçamentos abaixo";
 
-  return `## ALVESZ EXPERIENCE (dados reais do Supabase)
+  const orcamentoEventoLines = buildOrcamentoEventoLines(orcamentos);
+
+  return `## ALVESZ EXPERIENCE (dados reais — tabelas clientes e orcamentos, como na página Alvesz)
 
 ### Clientes (${clientes.length})
 ${clienteLines}
@@ -242,8 +299,11 @@ ${orcamentoLines}
 * Receita aprovada: ${formatBRL(metrics.receitaAprovada)} (${metrics.aprovados} aprovados)
 * Lucro estimado pendente: ${formatBRL(metrics.lucroPendente)}
 
-### Eventos Alvesz na agenda
-${eventoLines}
+### Eventos na agenda (tabela eventos / calendário)
+${agendaEventoLines}
+
+### Eventos nos orçamentos (tipo_evento)
+${orcamentoEventoLines}
 
 ## INSTRUÇÕES
 - Use apenas os dados acima para orçamentos, clientes e eventos Alvesz.
@@ -252,6 +312,10 @@ ${eventoLines}
 }
 
 export function buildNexusCalendarContext(data: NexusModuleData): string {
+  if (!data.calendarAvailable && data.eventos.length === 0) {
+    return buildNexusCalendarUnavailableContext();
+  }
+
   const compromissos = filterCompromissos(data.eventos);
   const followUps = filterFollowUpEventos(data.eventos);
   const reunioes = filterReunioes(data.eventos);
@@ -262,7 +326,7 @@ export function buildNexusCalendarContext(data: NexusModuleData): string {
       ? items.map(formatEventoLine).join("\n")
       : `* Nenhum ${title.toLowerCase()} agendado`;
 
-  return `## CALENDÁRIO (dados reais do Supabase — ${getTodayDate()})
+  return `## CALENDÁRIO (dados reais — tabela eventos, como na página Calendário — ${getTodayDate()})
 
 ### Compromissos (próximos 14 dias)
 ${section("compromisso", compromissos)}
@@ -310,21 +374,28 @@ export function buildNexusExecutiveDashboardContext(data: NexusModuleData): stri
       : "* Nenhum evento próximo";
 
   const metaMensal = data.goal?.meta_receita_mensal ?? 0;
+  const alveszSection = data.alveszAvailable
+    ? `* Pipeline Alvesz pendente: ${formatBRL(alveszMetrics.pipelinePendente)}
+* Orçamentos Alvesz aprovados: ${formatBRL(alveszMetrics.receitaAprovada)}`
+    : `* Alvesz: ${NEXUS_ALVESZ_UNAVAILABLE_MESSAGE}`;
+
+  const eventoSection = data.calendarAvailable
+    ? eventoLines
+    : `* ${NEXUS_CALENDAR_UNAVAILABLE_MESSAGE}`;
 
   return `## DASHBOARD EXECUTIVO NEXUS (dados reais — ${getTodayDate()})
 
 ### Receita
 * Receita potencial (CRM): ${formatBRL(leadMetrics.receitaPotencial)}
 * Receita fechada (CRM): ${formatBRL(leadMetrics.receita)}
-* Pipeline Alvesz pendente: ${formatBRL(alveszMetrics.pipelinePendente)}
-* Orçamentos Alvesz aprovados: ${formatBRL(alveszMetrics.receitaAprovada)}
+${alveszSection}
 * Meta mensal: ${formatBRL(metaMensal)}
 
 ### Leads prioritários
 ${leadLines}
 
 ### Eventos
-${eventoLines}
+${eventoSection}
 
 ### Missões de hoje
 * Concluídas: ${completedMissions}/${todayMissions.length}
@@ -333,7 +404,7 @@ ${todayMissions.map((m) => `* ${m.titulo}: ${m.status === "completed" ? "conclu�
 
 ### Resumo numérico
 * Leads ativos: ${leadMetrics.ativos}
-* Orçamentos Alvesz: ${alveszMetrics.total} (${alveszMetrics.pendentes} pendentes)
+* Orçamentos Alvesz: ${data.alveszAvailable ? `${alveszMetrics.total} (${alveszMetrics.pendentes} pendentes)` : "indisponível"}
 * Eventos próximos (30 dias): ${upcomingEventos.length}
 * Taxa de conversão CRM: ${leadMetrics.taxaConversao.toFixed(1)}%
 
@@ -376,12 +447,17 @@ export function buildNexusDayContext(data: NexusModuleData): string {
           .join("\n")
       : "* Nenhum lead prioritário";
 
-  const reunioesLines =
-    reunioes.length > 0
+  const reunioesLines = !data.calendarAvailable
+    ? `* ${NEXUS_CALENDAR_UNAVAILABLE_MESSAGE}`
+    : reunioes.length > 0
       ? reunioes.map(formatEventoLine).join("\n")
       : "* Nenhuma reunião agendada para os próximos dias";
 
-  return `${base}
+  const alveszNote = !data.alveszAvailable
+    ? `\n### Alvesz\n* ${NEXUS_ALVESZ_UNAVAILABLE_MESSAGE}\n`
+    : "";
+
+  return `${base}${alveszNote}
 
 ## MEU DIA — MÓDULOS NEXUS (${getTodayDate()})
 
