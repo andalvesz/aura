@@ -107,7 +107,7 @@ export async function updateGrowthLead(
   return new GrowthLeadsRepository(supabase, userId).update(id, payload);
 }
 
-export async function getGrowthLeadsMentorContext(): Promise<{
+export async function getGrowthLeadsMentorContext(actionId?: string): Promise<{
   context: string | null;
   error: string | null;
   leadCount: number;
@@ -129,7 +129,7 @@ export async function getGrowthLeadsMentorContext(): Promise<{
   const leads = data ?? [];
 
   return {
-    context: buildGrowthLeadsMentorContext(leads),
+    context: buildGrowthLeadsMentorContext(leads, actionId),
     error: null,
     leadCount: leads.length,
   };

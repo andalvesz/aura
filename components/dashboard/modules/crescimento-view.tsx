@@ -442,7 +442,7 @@ export function CrescimentoView() {
                 value={growthLeadsError ? "—" : String(leadMetrics.ativos)}
                 hint={
                   leadMetrics.ativos > 0
-                    ? "Em negociação"
+                    ? "Em pipeline"
                     : "Nenhum lead ativo"
                 }
                 hintClassName="text-cyan-400/90"
@@ -457,7 +457,42 @@ export function CrescimentoView() {
                 }
               />
               <MetricCard
-                label="Receita gerada"
+                label="Leads perdidos"
+                value={growthLeadsError ? "—" : String(leadMetrics.perdidos)}
+                hint={
+                  leadMetrics.perdidos > 0
+                    ? "Status perdido"
+                    : "Nenhum lead perdido"
+                }
+              />
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-5">
+              <MetricCard
+                label="Receita Potencial"
+                value={
+                  growthLeadsError
+                    ? "—"
+                    : leadMetrics.receitaPotencial > 0
+                      ? formatBRL(leadMetrics.receitaPotencial)
+                      : "—"
+                }
+                hint="Leads não perdidos"
+                hintClassName="text-violet-400/90"
+              />
+              <MetricCard
+                label="Receita em Negociação"
+                value={
+                  growthLeadsError
+                    ? "—"
+                    : leadMetrics.receitaEmNegociacao > 0
+                      ? formatBRL(leadMetrics.receitaEmNegociacao)
+                      : "—"
+                }
+                hint="Status negociação"
+                hintClassName="text-amber-400/90"
+              />
+              <MetricCard
+                label="Receita Fechada"
                 value={
                   growthLeadsError
                     ? "—"
@@ -465,12 +500,31 @@ export function CrescimentoView() {
                       ? formatBRL(leadMetrics.receita)
                       : "—"
                 }
-                hint={
-                  leadMetrics.receita > 0
-                    ? "Soma dos leads fechados"
-                    : "Nenhuma receita registrada"
-                }
+                hint="Vendas confirmadas"
                 hintClassName="text-emerald-400/90"
+              />
+              <MetricCard
+                label="Ticket Médio"
+                value={
+                  growthLeadsError
+                    ? "—"
+                    : leadMetrics.ticketMedio > 0
+                      ? formatBRL(leadMetrics.ticketMedio)
+                      : "—"
+                }
+                hint="Potencial ÷ total de leads"
+              />
+              <MetricCard
+                label="Taxa de Conversão"
+                value={
+                  growthLeadsError
+                    ? "—"
+                    : leadMetrics.total > 0
+                      ? `${leadMetrics.taxaConversao.toFixed(1)}%`
+                      : "—"
+                }
+                hint="Fechados ÷ total de leads"
+                hintClassName="text-cyan-400/90"
               />
             </div>
             <div className="mt-4 border-t border-white/[0.06] pt-4">

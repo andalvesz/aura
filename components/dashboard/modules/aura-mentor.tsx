@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Camera,
   Filter,
+  LineChart,
   ListOrdered,
   Send,
   Sparkles,
@@ -56,7 +57,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: ListOrdered,
     usesLeadData: true,
     prompt:
-      "Com base nos meus leads reais, priorize as oportunidades com maior potencial de fechamento. Ordene por impacto e sugira a próxima ação concreta para cada um.",
+      "Com base nos meus leads reais, priorize as oportunidades ordenando por valor e status. Destaque oportunidades quentes (Negociação = ALTA, Proposta = MÉDIA). Para cada lead, informe valor, status, prioridade e uma ação sugerida.",
   },
   {
     id: "diagnostico-funil",
@@ -64,7 +65,15 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: Filter,
     usesLeadData: true,
     prompt:
-      "Com base nos meus leads reais, faça um diagnóstico completo do funil de vendas: distribuição por etapa, gargalos, taxa de conversão e recomendações práticas.",
+      "Com base nos meus leads reais, faça um diagnóstico completo do funil: distribuição por etapa (Novo, Contato, Proposta, Negociação, Fechado, Perdido), percentuais, gargalos e recomendações práticas para destravar conversões.",
+  },
+  {
+    id: "previsao-receita",
+    label: "Previsão de receita",
+    icon: LineChart,
+    usesLeadData: true,
+    prompt:
+      "Com base nos meus leads reais, apresente a previsão de receita: receita potencial, receita provável (ponderada por probabilidade de fechamento) e receita fechada. Explique a estimativa e sugira ações para converter oportunidades.",
   },
   {
     id: "estrategia-instagram",

@@ -141,7 +141,9 @@ export async function POST(req: Request) {
     const isLeadQuery = isGrowthMentorLeadQuery(message, actionId);
 
     if (isLeadQuery) {
-      const { context, error, leadCount } = await getGrowthLeadsMentorContext();
+      const { context, error, leadCount } = await getGrowthLeadsMentorContext(
+        actionId || undefined
+      );
 
       if (error || !context) {
         console.error("[aura-mentor] Erro ao carregar leads:", error);
