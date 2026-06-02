@@ -21,7 +21,12 @@ import { useGrowthLeads } from "@/hooks/use-growth-leads";
 import { parseJsonResponse } from "@/utils/safe-json";
 import type { Evento } from "@/types/database";
 import type { ParsedEventoSuggestion } from "@/utils/calendar";
-import { getEventoTipoLabel, proximosEventos } from "@/utils/calendar";
+import {
+  eventoPayloadFromSuggestion,
+  getEventoTipoLabel,
+  isEventoConfirmationMessage,
+  proximosEventos,
+} from "@/utils/calendar";
 import { formatDate, formatTime } from "@/utils/format";
 import { AddEventoModal } from "./add-evento-modal";
 
@@ -74,6 +79,38 @@ export function CalendarioView() {
 
     setMessages((m) => [...m, { role: "user", text }]);
     setInput("");
+
+    if (suggestion && isEventoConfirmationMessage(text)) {
+      setAiLoading(true);
+      try {
+        const result = await create(eventoPayloadFromSuggestion(suggestion));
+        if (result.error) {
+          setMessages((m) => [
+            ...m,
+            { role: "assistant", text: result.error },
+          ]);
+          return;
+        }
+        setSuggestion(null);
+        setMessages((m) => [
+          ...m,
+          { role: "assistant", text: "Evento criado com sucesso" },
+        ]);
+        toast.success("Evento criado com sucesso");
+      } catch {
+        setMessages((m) => [
+          ...m,
+          {
+            role: "assistant",
+            text: "Erro ao salvar o evento. Tente novamente ou use Novo evento.",
+          },
+        ]);
+      } finally {
+        setAiLoading(false);
+      }
+      return;
+    }
+
     setAiLoading(true);
 
     try {

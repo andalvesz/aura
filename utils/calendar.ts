@@ -19,6 +19,50 @@ export type ParsedEventoSuggestion = {
   tipo: string;
 };
 
+export type EventoCreatePayload = {
+  titulo: string;
+  descricao: string | null;
+  data_inicio: string;
+  local: string | null;
+  tipo: string;
+  growth_lead_id: string | null;
+};
+
+const EVENTO_CONFIRMATION_PHRASES = new Set([
+  "confirmado",
+  "confirmar",
+  "sim",
+  "ok",
+  "salvar",
+]);
+
+export function normalizeAgendaMessage(message: string): string {
+  return message
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[!?.。,;:]+$/g, "")
+    .trim();
+}
+
+export function isEventoConfirmationMessage(message: string): boolean {
+  return EVENTO_CONFIRMATION_PHRASES.has(normalizeAgendaMessage(message));
+}
+
+export function eventoPayloadFromSuggestion(
+  suggestion: ParsedEventoSuggestion
+): EventoCreatePayload {
+  return {
+    titulo: suggestion.titulo,
+    descricao: suggestion.descricao,
+    data_inicio: buildEventoDateTime(suggestion.data, suggestion.hora),
+    local: null,
+    tipo: suggestion.tipo,
+    growth_lead_id: null,
+  };
+}
+
 export function buildEventoDateTime(data: string, hora: string): string {
   const [h, m] = hora.split(":").map(Number);
   const base = new Date(`${data}T12:00:00`);
