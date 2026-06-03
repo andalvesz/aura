@@ -91,8 +91,34 @@ export type GoogleCalendarConnection = {
   google_email: string | null;
   calendar_id: string;
   sync_token: string | null;
+  gmail_enabled: boolean;
   connected_at: string;
   updated_at: string;
+};
+
+export type CommunicationChannel = "email" | "whatsapp" | "instagram";
+export type CommunicationDirection = "outbound" | "inbound";
+export type CommunicationStatus = "pending" | "sent" | "opened" | "failed";
+
+export type CommunicationLog = {
+  id: string;
+  user_id: string;
+  channel: CommunicationChannel;
+  direction: CommunicationDirection;
+  status: CommunicationStatus;
+  subject: string | null;
+  body_preview: string | null;
+  recipient: string | null;
+  cliente_id: string | null;
+  orcamento_id: string | null;
+  lead_id: string | null;
+  proposta_id: string | null;
+  gmail_message_id: string | null;
+  gmail_thread_id: string | null;
+  tracking_token: string | null;
+  opened_at: string | null;
+  metadata: Json;
+  created_at: string;
 };
 
 export type Cliente = {
@@ -486,11 +512,50 @@ export type Database = {
       >;
       google_calendar_connections: TableDef<
         GoogleCalendarConnection,
-        Omit<GoogleCalendarConnection, "connected_at" | "updated_at" | "sync_token" | "google_email"> & {
+        Omit<
+          GoogleCalendarConnection,
+          "connected_at" | "updated_at" | "sync_token" | "google_email" | "gmail_enabled"
+        > & {
           sync_token?: string | null;
           google_email?: string | null;
+          gmail_enabled?: boolean;
           connected_at?: string;
           updated_at?: string;
+        }
+      >;
+      communication_logs: TableDef<
+        CommunicationLog,
+        Omit<
+          CommunicationLog,
+          | "id"
+          | "created_at"
+          | "subject"
+          | "body_preview"
+          | "recipient"
+          | "cliente_id"
+          | "orcamento_id"
+          | "lead_id"
+          | "proposta_id"
+          | "gmail_message_id"
+          | "gmail_thread_id"
+          | "tracking_token"
+          | "opened_at"
+          | "metadata"
+        > & {
+          id?: string;
+          subject?: string | null;
+          body_preview?: string | null;
+          recipient?: string | null;
+          cliente_id?: string | null;
+          orcamento_id?: string | null;
+          lead_id?: string | null;
+          proposta_id?: string | null;
+          gmail_message_id?: string | null;
+          gmail_thread_id?: string | null;
+          tracking_token?: string | null;
+          opened_at?: string | null;
+          metadata?: Json;
+          created_at?: string;
         }
       >;
       clientes: TableDef<
@@ -787,7 +852,8 @@ export type UserScopedTable =
   | "health_meals"
   | "health_sessions"
   | "notifications"
-  | "aura_command_history";
+  | "aura_command_history"
+  | "communication_logs";
 
 export type AiModule =
   | "aura_central"

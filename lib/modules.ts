@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Dumbbell,
   Home,
+  Mail,
   Rocket,
   Share2,
   Target,
@@ -17,7 +18,8 @@ export type ModuleId =
   | "saude"
   | "social-media"
   | "consorcios"
-  | "crescimento";
+  | "crescimento"
+  | "comunicacao";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -132,6 +134,20 @@ export const MODULES: ModuleConfig[] = [
       metric: "XP",
       value: "—",
       hint: "Nenhuma meta ou missão registrada",
+    },
+  },
+  {
+    id: "comunicacao",
+    href: "/dashboard/comunicacao",
+    label: "Centro de Comunicação",
+    shortLabel: "Comunicação",
+    description: "Gmail, propostas Alvesz, follow-up e mensagens.",
+    icon: Mail,
+    accent: "text-indigo-400",
+    overview: {
+      metric: "E-mails",
+      value: "0",
+      hint: "Conecte o Gmail para começar",
     },
   },
 ];

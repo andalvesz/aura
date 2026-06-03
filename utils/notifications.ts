@@ -54,6 +54,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   "social-media": "/dashboard/social-media",
   consorcios: "/dashboard/consorcios",
   crescimento: "/dashboard/crescimento",
+  comunicacao: "/dashboard/comunicacao",
 };
 
 export function getNotificationHref(notification: Notification): string {

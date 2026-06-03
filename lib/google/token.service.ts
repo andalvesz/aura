@@ -1,0 +1,84 @@
+import type { GoogleCalendarConnection } from "@/types/database";
+import { getDataContext, getOptionalDataContext } from "@/lib/supabase/services/context";
+import { getGoogleOAuthConfig } from "@/lib/google-calendar/config";
+import { refreshGoogleAccessToken, tokenExpiresAt } from "@/lib/google-calendar/oauth";
+
+export async function getGoogleAccountConnection(): Promise<{
+  connection: GoogleCalendarConnection | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { connection: null, error: "Usuário não autenticado." };
+  }
+
+  const { data, error } = await ctx.supabase
+    .from("google_calendar_connections")
+    .select("*")
+    .eq("user_id", ctx.userId)
+    .maybeSingle();
+
+  if (error) {
+    return { connection: null, error: error.message };
+  }
+
+  return { connection: (data as GoogleCalendarConnection) ?? null, error: null };
+}
+
+export async function getValidGoogleAccessToken(): Promise<{
+  accessToken: string | null;
+  error: string | null;
+  gmailEnabled: boolean;
+}> {
+  const oauth = getGoogleOAuthConfig();
+  if (!oauth) {
+    return { accessToken: null, error: "Google não configurado no servidor.", gmailEnabled: false };
+  }
+
+  const { connection, error } = await getGoogleAccountConnection();
+  if (error || !connection) {
+    return { accessToken: null, error: error ?? null, gmailEnabled: false };
+  }
+
+  const expiresAt = new Date(connection.token_expires_at).getTime();
+  const needsRefresh = expiresAt - Date.now() < 60_000;
+
+  if (!needsRefresh) {
+    return {
+      accessToken: connection.access_token,
+      error: null,
+      gmailEnabled: Boolean(connection.gmail_enabled),
+    };
+  }
+
+  try {
+    const refreshed = await refreshGoogleAccessToken(
+      connection.refresh_token,
+      oauth.clientId,
+      oauth.clientSecret
+    );
+
+    const { supabase, userId } = await getDataContext();
+    const { error: updateError } = await supabase
+      .from("google_calendar_connections")
+      .update({
+        access_token: refreshed.access_token,
+        token_expires_at: tokenExpiresAt(refreshed.expires_in),
+        ...(refreshed.refresh_token ? { refresh_token: refreshed.refresh_token } : {}),
+      })
+      .eq("user_id", userId);
+
+    if (updateError) {
+      return { accessToken: null, error: updateError.message, gmailEnabled: false };
+    }
+
+    return {
+      accessToken: refreshed.access_token,
+      error: null,
+      gmailEnabled: Boolean(connection.gmail_enabled),
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro ao renovar token Google.";
+    return { accessToken: null, error: message, gmailEnabled: false };
+  }
+}

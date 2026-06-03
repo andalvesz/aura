@@ -69,6 +69,16 @@ import {
   isAuraCommandConfirmation,
   type PendingAuraCommand,
 } from "@/utils/aura-commands";
+import { listCommunicationLogs } from "@/lib/comms";
+import { countRecentInboundHint } from "@/lib/comms/gmail.service";
+import { listClientes } from "@/lib/supabase/services/alvesz.service";
+import { listGrowthLeads } from "@/lib/supabase/services/growth.service";
+import { OrcamentosRepository } from "@/lib/supabase/repositories";
+import {
+  buildCommsCentralReply,
+  detectCommsCentralQuery,
+} from "@/utils/comms-central";
+import { getGmailPublicStatus } from "@/lib/comms/gmail.service";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -387,6 +397,43 @@ export async function POST(req: Request) {
         searchResults: results,
         searchQuery,
         total,
+      });
+    }
+
+    const commsQuery = detectCommsCentralQuery(message);
+    if (commsQuery) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Central." }, { status: 401 });
+      }
+
+      const [leadsRes, orcRes, clientesRes, logsRes, gmailStatus, inboundCount] =
+        await Promise.all([
+          listGrowthLeads(),
+          new OrcamentosRepository(ctx.supabase, ctx.userId).findAll(),
+          listClientes(),
+          listCommunicationLogs(100),
+          getGmailPublicStatus(),
+          countRecentInboundHint().catch(() => 0),
+        ]);
+
+      const text = buildCommsCentralReply({
+        query: commsQuery,
+        logs: logsRes.data ?? [],
+        leads: leadsRes.data ?? [],
+        orcamentos: orcRes.data ?? [],
+        clientes: clientesRes.data ?? [],
+        gmailConnected: gmailStatus.connected,
+        recentInboundCount: inboundCount,
+      });
+
+      await persistAiTurn("aura_central", message, text, { kind: "comms", commsQuery });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "comms",
+        commsQuery,
       });
     }
 

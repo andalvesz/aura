@@ -68,13 +68,16 @@ export async function saveGoogleCalendarConnection(params: {
   const email =
     params.email ?? (await fetchGoogleUserEmail(params.accessToken));
 
+  const { connection: existing } = await getGoogleCalendarConnection();
+
   const row = {
     user_id: userId,
     access_token: params.accessToken,
     refresh_token: params.refreshToken,
     token_expires_at: tokenExpiresAt(params.expiresIn),
     google_email: email,
-    calendar_id: "primary",
+    calendar_id: existing?.calendar_id ?? "primary",
+    gmail_enabled: existing?.gmail_enabled ?? false,
   };
 
   const { error } = await supabase.from("google_calendar_connections").upsert(row, {
