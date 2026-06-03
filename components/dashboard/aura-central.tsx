@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { GlobalSearchResult } from "@/utils/global-search";
 import { formatResultDateLabel } from "@/utils/global-search";
 import { useDashboardUser } from "@/components/dashboard/dashboard-user-context";
@@ -11,21 +11,27 @@ import type {
   ExecutiveReportType,
 } from "@/utils/executive-reports";
 import {
+  AURA_COMMAND_LABELS,
+  AURA_COMMAND_MODULE_LABELS,
+  type AuraCommandHistoryEntry,
+  type PendingAuraCommand,
+} from "@/utils/aura-commands";
+import {
   Building2,
   CalendarDays,
+  Check,
   Dumbbell,
+  History,
   Loader2,
   Rocket,
   Send,
   Share2,
   Sparkles,
   Wallet,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useEventos } from "@/hooks/use-eventos";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
-import type { ParsedEventoSuggestion } from "@/utils/calendar";
-import { eventoPayloadFromSuggestion } from "@/utils/calendar";
 import {
   AURA_CENTRAL_MODULE_LABELS,
   AURA_CENTRAL_QUICK_ACTIONS,
@@ -37,7 +43,6 @@ type Message = {
   role: "user" | "assistant";
   text: string;
   module?: AuraCentralModule;
-  suggestion?: ParsedEventoSuggestion;
   kind?: string;
   coachMode?: string;
   searchResults?: GlobalSearchResult[];
@@ -58,37 +63,68 @@ const MODULE_ICONS: Record<AuraCentralModule, React.ComponentType<{ className?: 
   financeiro: Wallet,
 };
 
+function formatHistoryTime(iso: string) {
+  try {
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return "";
+  }
+}
+
 export function AuraCentral() {
   const { displayName } = useDashboardUser();
-  const { create: createEvento } = useEventos();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [pendingEvent, setPendingEvent] = useState<ParsedEventoSuggestion | null>(null);
+  const [pendingCommand, setPendingCommand] = useState<PendingAuraCommand | null>(null);
+  const [commandHistory, setCommandHistory] = useState<AuraCommandHistoryEntry[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const loadCommandHistory = useCallback(async () => {
+    try {
+      const response = await fetch("/api/aura-central?history=1");
+      const { data, error: parseError } = await parseJsonResponse<{
+        entries?: AuraCommandHistoryEntry[];
+        error?: string;
+      }>(response);
+      if (parseError || !response.ok) return;
+      setCommandHistory(data?.entries ?? []);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadSummary() {
       try {
-        const response = await fetch("/api/aura-central");
+        const [summaryRes] = await Promise.all([
+          fetch("/api/aura-central"),
+          loadCommandHistory(),
+        ]);
         const { data, error: parseError } = await parseJsonResponse<{
           text?: string;
           error?: string;
-        }>(response);
+        }>(summaryRes);
 
         if (cancelled) return;
 
-        if (parseError || !response.ok) {
+        if (parseError || !summaryRes.ok) {
           setMessages([
             {
               role: "assistant",
               text:
                 parseError ??
                 data?.error ??
-                `Olá, ${displayName}. Sou a Aura Central — sua interface única de IA. Pergunte o que fazer hoje, crie treinos, marque reuniões ou analise vendas.`,
+                `Olá, ${displayName}. Sou a Aura Central — converse naturalmente e eu executo ações nos módulos (calendário, vendas, financeiro, saúde, Alvesz).`,
               module: "global",
             },
           ]);
@@ -100,7 +136,7 @@ export function AuraCentral() {
             role: "assistant",
             text:
               data?.text ??
-              `Olá, ${displayName}. Sou a Aura Central — coordeno Calendário, Crescimento, Alvesz, Saúde, Social Media e Financeiro.`,
+              `Olá, ${displayName}. Central de Comandos ativa — peça para registrar despesas, criar eventos, leads, treinos e mais.`,
             module: "global",
           },
         ]);
@@ -123,7 +159,7 @@ export function AuraCentral() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [displayName, loadCommandHistory]);
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -131,20 +167,26 @@ export function AuraCentral() {
     });
   }
 
-  async function sendMessage(text: string, actionId?: string) {
+  async function sendMessage(text: string, actionId?: string, options?: { confirm?: boolean }) {
     const trimmed = text.trim();
-    if (!trimmed || loading) return;
+    if (!trimmed && !options?.confirm) return;
+    if (loading) return;
 
     setInput("");
     setLoading(true);
-    setPendingEvent(null);
+
+    if (!options?.confirm) {
+      setPendingCommand(null);
+    }
 
     const history = messages.map((m) => ({
       role: m.role,
       content: m.text,
     }));
 
-    setMessages((current) => [...current, { role: "user", text: trimmed }]);
+    if (!options?.confirm) {
+      setMessages((current) => [...current, { role: "user", text: trimmed || "Confirmar" }]);
+    }
     scrollToBottom();
 
     try {
@@ -152,9 +194,12 @@ export function AuraCentral() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: trimmed,
+          message: trimmed || "confirmar",
           history,
           ...(actionId ? { actionId } : {}),
+          ...(pendingCommand && options?.confirm
+            ? { pendingCommand, confirm: true }
+            : {}),
         }),
       });
 
@@ -162,7 +207,6 @@ export function AuraCentral() {
         text?: string;
         error?: string;
         module?: AuraCentralModule;
-        suggestion?: ParsedEventoSuggestion;
         kind?: string;
         coachMode?: string;
         searchResults?: GlobalSearchResult[];
@@ -171,6 +215,8 @@ export function AuraCentral() {
         reportType?: ExecutiveReportType;
         report?: ExecutiveReportPayload;
         analysis?: ExecutiveReportAnalysis;
+        pendingCommand?: PendingAuraCommand | null;
+        executed?: boolean;
       }>(response);
 
       if (parseError || !response.ok) {
@@ -185,8 +231,14 @@ export function AuraCentral() {
         return;
       }
 
-      if (data?.kind === "evento" && data.suggestion) {
-        setPendingEvent(data.suggestion);
+      if (data?.kind === "command") {
+        if (data.executed) {
+          setPendingCommand(null);
+          toast.success("Ação executada");
+          await loadCommandHistory();
+        } else if (data.pendingCommand) {
+          setPendingCommand(data.pendingCommand);
+        }
       }
 
       setMessages((current) => [
@@ -195,7 +247,6 @@ export function AuraCentral() {
           role: "assistant",
           text: data?.text ?? "Não consegui responder agora.",
           module: data?.module ?? "global",
-          suggestion: data?.suggestion,
           kind: data?.kind,
           coachMode: data?.coachMode,
           searchResults: data?.searchResults,
@@ -221,36 +272,32 @@ export function AuraCentral() {
     }
   }
 
-  async function confirmEvent() {
-    if (!pendingEvent) return;
+  function confirmPendingCommand() {
+    if (!pendingCommand) return;
+    void sendMessage("confirmar", undefined, { confirm: true });
+  }
 
-    setLoading(true);
-    try {
-      const result = await createEvento(eventoPayloadFromSuggestion(pendingEvent));
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      setPendingEvent(null);
-      toast.success("Evento criado no Calendário");
-      setMessages((current) => [
-        ...current,
-        {
-          role: "assistant",
-          text: "Evento salvo no Calendário. Veja em Aura Agenda ou no módulo Calendário.",
-          module: "calendario",
-        },
-      ]);
-    } catch {
-      toast.error("Erro ao salvar evento");
-    } finally {
-      setLoading(false);
-      scrollToBottom();
-    }
+  function cancelPendingCommand() {
+    setPendingCommand(null);
+    setMessages((current) => [
+      ...current,
+      {
+        role: "assistant",
+        text: "Ação cancelada. Pode pedir outra coisa.",
+        module: "global",
+      },
+    ]);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (pendingCommand && !loading) {
+      const lower = input.trim().toLowerCase();
+      if (["sim", "confirmar", "ok", "salvar"].includes(lower)) {
+        confirmPendingCommand();
+        return;
+      }
+    }
     sendMessage(input);
   }
 
@@ -265,20 +312,65 @@ export function AuraCentral() {
             <div className="min-w-0">
               <PanelTitle>Aura Central</PanelTitle>
               <p className="truncate text-[10px] text-zinc-600 sm:whitespace-normal">
-                IA única · Calendário · Crescimento · Alvesz · Saúde · Social · Financeiro
+                Central de Comandos · ações reais no Supabase
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-1 text-[10px] text-zinc-600">
-            <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Coach</span>
-            <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Mentor</span>
-            <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Agenda</span>
-            <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Saúde</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            className="inline-flex min-h-9 items-center gap-1 rounded-md border border-white/[0.06] px-2 py-1 text-[11px] text-zinc-500 hover:border-cyan-400/20 hover:text-cyan-300"
+          >
+            <History className="size-3.5" />
+            Histórico ({commandHistory.length})
+          </button>
         </div>
       </PanelHeader>
 
       <PanelContent className="px-3 pt-0 sm:px-4">
+        {historyOpen && (
+          <div className="mb-3 max-h-40 overflow-y-auto rounded-lg border border-white/[0.06] bg-zinc-950/50 p-2">
+            {commandHistory.length === 0 ? (
+              <p className="px-2 py-1 text-[12px] text-zinc-600">
+                Nenhuma ação executada ainda.
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {commandHistory.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="rounded-md bg-white/[0.02] px-2 py-1.5 text-[11px]"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-zinc-300">
+                        {AURA_COMMAND_LABELS[
+                          entry.command_id as keyof typeof AURA_COMMAND_LABELS
+                        ] ?? entry.command_id}
+                      </span>
+                      <span
+                        className={
+                          entry.status === "success"
+                            ? "text-emerald-400"
+                            : "text-red-400"
+                        }
+                      >
+                        {entry.status === "success" ? "OK" : "Erro"}
+                      </span>
+                    </div>
+                    <p className="text-zinc-500">
+                      {AURA_COMMAND_MODULE_LABELS[
+                        entry.module as keyof typeof AURA_COMMAND_MODULE_LABELS
+                      ] ?? entry.module}{" "}
+                      · {formatHistoryTime(entry.created_at)}
+                    </p>
+                    <p className="truncate text-zinc-600">{entry.summary}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
           {AURA_CENTRAL_QUICK_ACTIONS.map((action) => (
             <button
@@ -321,7 +413,9 @@ export function AuraCentral() {
                     {ModuleIcon && <ModuleIcon className="size-3" />}
                     {message.kind === "coach"
                       ? "Aura Coach"
-                      : AURA_CENTRAL_MODULE_LABELS[message.module]}
+                      : message.kind === "command"
+                        ? "Comando"
+                        : AURA_CENTRAL_MODULE_LABELS[message.module]}
                   </div>
                 )}
                 <p className="whitespace-pre-wrap">{message.text}</p>
@@ -384,36 +478,41 @@ export function AuraCentral() {
           {loading && (
             <div className="mr-6 flex items-center gap-2 rounded-lg bg-cyan-500/10 px-3 py-2 text-[13px] text-cyan-300">
               <Loader2 className="size-3.5 animate-spin" />
-              Orquestrando módulos...
+              {pendingCommand ? "Executando ação..." : "Orquestrando módulos..."}
             </div>
           )}
 
           <div ref={messagesEndRef} />
         </div>
 
-        {pendingEvent && (
-          <div className="mb-3 flex flex-col gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="flex min-w-0 items-start gap-2">
-              <CalendarDays className="mt-0.5 size-4 shrink-0 text-sky-400" />
-              <span className="text-[13px] text-zinc-300">
-                {pendingEvent.titulo} — {pendingEvent.data} às {pendingEvent.hora}
-              </span>
+        {pendingCommand && (
+          <div className="mb-3 flex flex-col gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-amber-400/90">
+                Confirmar ação ·{" "}
+                {AURA_COMMAND_LABELS[pendingCommand.commandId]}
+              </p>
+              <p className="mt-1 text-[13px] text-zinc-300">{pendingCommand.confirmText}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={loading}
-                onClick={confirmEvent}
-                className="min-h-11 flex-1 rounded-md bg-sky-500 px-3 py-2 text-[12px] font-medium text-white hover:bg-sky-400 disabled:opacity-50 sm:min-h-0 sm:flex-none sm:px-2.5 sm:py-1 sm:text-[11px]"
+                onClick={confirmPendingCommand}
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md bg-emerald-600 px-3 py-2 text-[12px] font-medium text-white hover:bg-emerald-500 disabled:opacity-50 sm:min-h-0 sm:flex-none"
               >
-                Confirmar evento
+                <Check className="size-3.5" />
+                Confirmar
               </button>
-              <Link
-                href="/dashboard/calendario"
-                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md border border-sky-500/20 px-3 text-[12px] text-sky-400 hover:bg-sky-500/10 sm:min-h-0 sm:flex-none sm:border-0 sm:px-0 sm:text-[11px] sm:hover:bg-transparent sm:hover:underline"
+              <button
+                type="button"
+                disabled={loading}
+                onClick={cancelPendingCommand}
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-md border border-white/[0.08] px-3 py-2 text-[12px] text-zinc-400 hover:bg-white/[0.04] disabled:opacity-50 sm:min-h-0 sm:flex-none"
               >
-                Aura Agenda
-              </Link>
+                <X className="size-3.5" />
+                Cancelar
+              </button>
             </div>
           </div>
         )}
@@ -422,14 +521,18 @@ export function AuraCentral() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="O que devo fazer hoje?"
+            placeholder={
+              pendingCommand
+                ? 'Digite "sim" ou use Confirmar'
+                : "Ex.: Adicionar despesa de R$ 50 com gasolina"
+            }
             disabled={loading || summaryLoading}
             className="h-11 min-h-11 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 placeholder:text-zinc-600 focus:border-cyan-400/40 focus:outline-none disabled:opacity-50 sm:h-10 sm:text-[13px]"
           />
 
           <button
             type="submit"
-            disabled={loading || summaryLoading || !input.trim()}
+            disabled={loading || summaryLoading || (!input.trim() && !pendingCommand)}
             className="flex size-11 shrink-0 items-center justify-center rounded-md bg-cyan-500 text-white transition hover:bg-cyan-400 disabled:opacity-50"
           >
             <Send className="size-4" />

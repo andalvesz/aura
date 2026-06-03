@@ -54,9 +54,21 @@ import {
   detectAuraCentralIntent,
   type AuraCentralModule,
 } from "@/utils/orchestrator";
-import type { ParsedEventoSuggestion } from "@/utils/calendar";
 import { SOCIAL_AI_CONTEXT } from "@/utils/social";
-import { parseRequestJson, safeJsonParse } from "@/utils/safe-json";
+import { parseRequestJson } from "@/utils/safe-json";
+import {
+  executeAuraCommand,
+  listAuraCommandHistory,
+  loadAuraCommandParseContext,
+  logAuraCommandHistory,
+  parseAuraCommand,
+} from "@/lib/aura-commands";
+import {
+  detectAuraCommand,
+  formatCommandSuccessMessage,
+  isAuraCommandConfirmation,
+  type PendingAuraCommand,
+} from "@/utils/aura-commands";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -148,83 +160,52 @@ async function loadContextForModule(
   }
 }
 
-async function parseCalendarEvent(message: string): Promise<{
-  suggestion: ParsedEventoSuggestion | null;
-  error: string | null;
-}> {
-  const hoje = new Date().toISOString().slice(0, 10);
+async function handleCommandExecution(
+  pending: PendingAuraCommand,
+  userMessage: string
+) {
+  const { result, error: execError } = await executeAuraCommand(pending);
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: `Você interpreta pedidos de agenda em português do Brasil.
-Responda APENAS JSON:
-{"titulo":"string","descricao":"string|null","data":"YYYY-MM-DD","hora":"HH:MM","tipo":"geral|reuniao|evento|followup|social"}
-Data de hoje: ${hoje}. Hora padrão 09:00 se não informada.`,
-      },
-      { role: "user", content: message },
-    ],
+  await logAuraCommandHistory({
+    pending,
+    result: execError ? null : result,
+    status: execError ? "error" : "success",
+    errorMessage: execError,
   });
 
-  const raw = response.choices[0]?.message?.content ?? "";
-  const parsed = safeJsonParse<Partial<ParsedEventoSuggestion>>(raw, {});
-
-  if (!parsed.titulo || !parsed.data) {
-    return {
-      suggestion: null,
-      error: "Não entendi o compromisso. Tente reformular ou cadastre manualmente.",
-    };
+  if (execError) {
+    return Response.json({ error: execError }, { status: 422 });
   }
 
-  return {
-    suggestion: {
-      titulo: String(parsed.titulo).trim(),
-      descricao: parsed.descricao ? String(parsed.descricao).trim() : null,
-      data: String(parsed.data).slice(0, 10),
-      hora: parsed.hora ? String(parsed.hora).slice(0, 5) : "09:00",
-      tipo: parsed.tipo ?? "reuniao",
-    },
-    error: null,
-  };
-}
-
-async function generateTreinoSuggestion(
-  systemPrompt: string,
-  message: string
-): Promise<{ suggestion: Record<string, unknown> | null; error: string | null }> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: `${systemPrompt}
-Responda APENAS JSON:
-{"nome":"string","grupo_muscular":"string","duracao_min":number,"exercicios":[{"nome":"string","series":"string","reps":"string","observacao":"string"}],"observacoes":"string|null"}
-Evite exercícios que sobrecarreguem o ombro direito lesionado. Considere ginástica e dança.`,
-      },
-      { role: "user", content: message },
-    ],
+  const text = formatCommandSuccessMessage(pending.commandId, result);
+  await persistAiTurn("aura_central", userMessage, text, {
+    kind: "command",
+    commandId: pending.commandId,
+    executed: true,
   });
 
-  const raw = response.choices[0]?.message?.content ?? "{}";
-  const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
-
-  if (!parsed.nome) {
-    return {
-      suggestion: null,
-      error: "Não foi possível montar o treino. Tente reformular.",
-    };
-  }
-
-  return { suggestion: parsed, error: null };
+  return Response.json({
+    text,
+    module: pending.module,
+    kind: "command",
+    executed: true,
+    result,
+    pendingCommand: null,
+  });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    if (url.searchParams.get("history") === "1") {
+      const { entries, error } = await listAuraCommandHistory(15);
+      if (error) {
+        const status = error === "Usuário não autenticado." ? 401 : 500;
+        return Response.json({ error }, { status });
+      }
+      return Response.json({ entries });
+    }
+
     const { summary, error } = await getAuraCentralOpeningSummary();
 
     if (error || !summary) {
@@ -252,6 +233,8 @@ export async function POST(req: Request) {
       message?: string;
       actionId?: string;
       history?: unknown;
+      pendingCommand?: PendingAuraCommand;
+      confirm?: boolean;
     }>(req);
 
     if (bodyError || !body) {
@@ -272,6 +255,12 @@ export async function POST(req: Request) {
             typeof m.content === "string"
         )
       : [];
+
+    const pendingCommand = body.pendingCommand;
+
+    if (pendingCommand && (body.confirm === true || (message && isAuraCommandConfirmation(message)))) {
+      return handleCommandExecution(pendingCommand, message || pendingCommand.summary);
+    }
 
     if (!message) {
       return Response.json({ error: "Mensagem não enviada." }, { status: 400 });
@@ -408,27 +397,57 @@ export async function POST(req: Request) {
       );
     }
 
-    const intent = detectAuraCentralIntent(message, actionId);
-    const { module, mode } = intent;
+    const commandId =
+      actionId === "marcar-reuniao"
+        ? ("calendario.criar-evento" as const)
+        : actionId === "treino-hoje"
+          ? ("saude.criar-treino" as const)
+          : detectAuraCommand(message);
 
-    if (module === "calendario" && mode === "criar-evento") {
-      const { suggestion, error: parseError } = await parseCalendarEvent(message);
+    if (commandId) {
+      const { context: parseContext, error: ctxError } =
+        await loadAuraCommandParseContext();
 
-      if (parseError || !suggestion) {
-        return Response.json({ error: parseError ?? "Erro ao interpretar evento." }, { status: 422 });
+      if (ctxError === "Usuário não autenticado.") {
+        return Response.json({ error: "Faça login para usar comandos." }, { status: 401 });
+      }
+      if (ctxError || !parseContext) {
+        return Response.json(
+          { error: ctxError ?? "Não foi possível carregar contexto." },
+          { status: 500 }
+        );
       }
 
-      const text = `Entendi! Sugiro este evento:\n\n📅 **${suggestion.titulo}**\n${suggestion.data} às ${suggestion.hora}${suggestion.descricao ? `\n${suggestion.descricao}` : ""}\n\nConfirme para salvar no Calendário ou acesse Aura Agenda para ajustar.`;
+      const { pending, error: parseError } = await parseAuraCommand(
+        commandId,
+        message,
+        parseContext
+      );
 
-      await persistAiTurn("aura_central", message, text, { kind: "evento", suggestion });
+      if (parseError || !pending) {
+        return Response.json(
+          { error: parseError ?? "Não entendi o comando." },
+          { status: 422 }
+        );
+      }
+
+      await persistAiTurn("aura_central", message, pending.confirmText, {
+        kind: "command",
+        commandId: pending.commandId,
+        pending: true,
+      });
 
       return Response.json({
-        text,
-        module,
-        kind: "evento",
-        suggestion,
+        text: pending.confirmText,
+        module: pending.module,
+        kind: "command",
+        pendingCommand: pending,
+        executed: false,
       });
     }
+
+    const intent = detectAuraCentralIntent(message, actionId);
+    const { module, mode } = intent;
 
     const mergedHistory = await resolveMergedHistory("aura_central", history);
 
@@ -473,29 +492,6 @@ ${MODULE_INSTRUCTIONS[module]}
 ${dataContext ?? "## DADOS\nNenhum dado cadastrado ainda para este módulo."}`;
 
     const extraSections = evolutionContext ? [evolutionContext] : [];
-
-    if (module === "saude" && mode === "treino") {
-      const { suggestion, error: treinoError } = await generateTreinoSuggestion(
-        systemPrompt,
-        message
-      );
-
-      if (treinoError || !suggestion) {
-        return Response.json({ error: treinoError ?? "Erro ao gerar treino." }, { status: 422 });
-      }
-
-      const nome = String(suggestion.nome);
-      const text = `Treino pronto: **${nome}** (${suggestion.grupo_muscular}, ${suggestion.duracao_min} min).\n\nRevise os exercícios e salve em Saúde → Treinos, ou peça ajustes.`;
-
-      await persistAiTurn("aura_central", message, text, { kind: "treino", suggestion });
-
-      return Response.json({
-        text,
-        module,
-        kind: "treino",
-        suggestion,
-      });
-    }
 
     const messages = await buildOpenAiMessagesWithMemory({
       module: "aura_central",

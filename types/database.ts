@@ -383,6 +383,21 @@ export type Notification = {
   read_at: string | null;
 };
 
+export type AuraCommandHistoryStatus = "success" | "error";
+
+export type AuraCommandHistory = {
+  id: string;
+  user_id: string;
+  command_id: string;
+  module: string;
+  summary: string;
+  payload: Json;
+  result: Json | null;
+  status: AuraCommandHistoryStatus;
+  error_message: string | null;
+  created_at: string;
+};
+
 type TableDef<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -678,6 +693,15 @@ export type Database = {
           created_at?: string;
         }
       >;
+      aura_command_history: TableDef<
+        AuraCommandHistory,
+        Omit<AuraCommandHistory, "id" | "created_at"> & {
+          id?: string;
+          result?: Json | null;
+          error_message?: string | null;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -727,7 +751,8 @@ export type UserScopedTable =
   | "health_workouts"
   | "health_meals"
   | "health_sessions"
-  | "notifications";
+  | "notifications"
+  | "aura_command_history";
 
 export type AiModule =
   | "aura_central"
