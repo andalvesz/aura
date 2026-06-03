@@ -1,5 +1,10 @@
 import OpenAI, { APIError } from "openai";
+import {
+  buildOpenAiMessagesWithMemory,
+  persistAiTurn,
+} from "@/lib/ai/memory-runtime";
 import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
+import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import type { GrowthLead } from "@/types/database";
 import {
   isSocialAiAction,
@@ -164,6 +169,8 @@ export async function POST(req: Request) {
 
 ${dataContext ?? "## DADOS\nNenhum dado disponível."}${leadSection}`;
 
+    const mergedHistory = await resolveMergedHistory("social", history);
+
     if (mode === "calendario") {
       const dates = weekDates();
       const response = await openai.chat.completions.create({
@@ -196,11 +203,15 @@ Use estas datas da semana atual: ${dates.join(", ")}. Gere 7 conteúdos (um por 
 
       const raw = response.choices[0]?.message?.content ?? "{}";
       const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
+      const text =
+        typeof parsed.resumo === "string" ? parsed.resumo : "Calendário gerado.";
+
+      await persistAiTurn("social", message, text, { kind: "calendario" });
 
       return Response.json({
         kind: "calendario",
         suggestion: parsed,
-        text: typeof parsed.resumo === "string" ? parsed.resumo : "Calendário gerado.",
+        text,
       });
     }
 
@@ -235,11 +246,15 @@ Gere entre 5 e 7 ideias práticas.`,
 
       const raw = response.choices[0]?.message?.content ?? "{}";
       const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
+      const text =
+        typeof parsed.resumo === "string" ? parsed.resumo : "Ideias geradas.";
+
+      await persistAiTurn("social", message, text, { kind: "ideias" });
 
       return Response.json({
         kind: "ideias",
         suggestion: parsed,
-        text: typeof parsed.resumo === "string" ? parsed.resumo : "Ideias geradas.",
+        text,
       });
     }
 
@@ -267,28 +282,37 @@ Responda APENAS JSON:
 
       const raw = response.choices[0]?.message?.content ?? "{}";
       const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
+      const text =
+        typeof parsed.roteiro === "string"
+          ? parsed.roteiro
+          : "Roteiro gerado.";
+
+      await persistAiTurn("social", message, text, { kind: "roteiro" });
 
       return Response.json({
         kind: "roteiro",
         suggestion: parsed,
-        text:
-          typeof parsed.roteiro === "string"
-            ? parsed.roteiro
-            : "Roteiro gerado.",
+        text,
       });
     }
 
+    const messages = await buildOpenAiMessagesWithMemory({
+      module: "social",
+      userMessage: message,
+      systemPrompt,
+      clientHistory: history,
+      mergedHistory,
+    });
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...history.slice(-8),
-        { role: "user", content: message },
-      ],
+      messages,
     });
 
     const text =
       response.choices[0]?.message?.content ?? "Não consegui responder agora.";
+
+    await persistAiTurn("social", message, text, { kind: "chat" });
 
     return Response.json({ kind: "chat", text });
   } catch (error) {

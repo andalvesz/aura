@@ -59,6 +59,7 @@ import { AddEventoModal } from "./modules/add-evento-modal";
 import { AddGrowthLeadModal } from "./modules/add-growth-lead-modal";
 import { AddHealthWorkoutModal } from "./modules/add-health-workout-modal";
 import { SetGrowthGoalModal } from "./modules/set-growth-goal-modal";
+import { RecentMemoriesCard } from "./recent-memories-card";
 
 function PriorityBadge({ status }: { status: string }) {
   const priority = getGrowthLeadPriority(
@@ -364,6 +365,8 @@ export function ExecutiveDashboardView() {
           </div>
         </PanelContent>
       </Panel>
+
+      <RecentMemoriesCard />
 
       {/* Seção 2 — KPIs */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">

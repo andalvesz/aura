@@ -1,4 +1,5 @@
 import OpenAI, { APIError } from "openai";
+import { persistAiTurn } from "@/lib/ai/memory-runtime";
 import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
 import { SOCIAL_ROTEIRO_CONTEXT } from "@/utils/social";
 import { parseRequestJson } from "@/utils/safe-json";
@@ -75,6 +76,9 @@ Objetivo: ${objetivo || "Engajamento e conversão"}`,
 
     const roteiro =
       response.choices[0]?.message?.content ?? "Não foi possível gerar o roteiro.";
+
+    const userMessage = `Roteiro: ${titulo} (${plataforma}/${formato})`;
+    await persistAiTurn("social", userMessage, roteiro, { kind: "roteiro" });
 
     return Response.json({ roteiro });
   } catch (error) {

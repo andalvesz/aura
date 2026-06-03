@@ -1,5 +1,10 @@
 import OpenAI, { APIError } from "openai";
+import {
+  buildOpenAiMessagesWithMemory,
+  persistAiTurn,
+} from "@/lib/ai/memory-runtime";
 import { getHealthCoachMentorContext } from "@/lib/supabase/services/health-coach.service";
+import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import {
   HEALTH_COACH_CONTEXT,
   isHealthCoachAction,
@@ -135,6 +140,7 @@ export async function POST(req: Request) {
     }
 
     const systemPrompt = buildSystemPrompt(dataContext);
+    const mergedHistory = await resolveMergedHistory("saude", history);
 
     if (mode === "treino") {
       const response = await openai.chat.completions.create({
@@ -167,6 +173,9 @@ Evite exercícios que sobrecarreguem o ombro direito lesionado.`,
           { status: 422 }
         );
       }
+
+      const treinoSummary = `Treino: ${String(parsed.nome)} (${String(parsed.grupo_muscular)}, ${parsed.duracao_min} min)`;
+      await persistAiTurn("saude", message, treinoSummary, { kind: "treino", suggestion: parsed });
 
       return Response.json({ suggestion: parsed, kind: "treino", text: null });
     }
@@ -201,6 +210,12 @@ Sugestões alimentares gerais para ${todayIsoDate()}, sem prescrição médica.`
           { status: 422 }
         );
       }
+
+      const dietaSummary =
+        typeof parsed.resumo === "string"
+          ? String(parsed.resumo)
+          : "Dieta sugerida para hoje.";
+      await persistAiTurn("saude", message, dietaSummary, { kind: "dieta" });
 
       return Response.json({ suggestion: parsed, kind: "dieta", text: null });
     }
@@ -239,26 +254,35 @@ Use datas a partir de ${todayIsoDate()} para a semana atual.`,
         );
       }
 
+      const habitosSummary =
+        typeof parsed.resumo === "string"
+          ? String(parsed.resumo)
+          : "Hábitos organizados para a semana.";
+      await persistAiTurn("saude", message, habitosSummary, { kind: "habitos" });
+
       return Response.json({ suggestion: parsed, kind: "habitos", text: null });
     }
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `${systemPrompt}
+    const messages = await buildOpenAiMessagesWithMemory({
+      module: "saude",
+      userMessage: message,
+      systemPrompt: `${systemPrompt}
 Você é a Aura Saúde, assistente central do módulo Saúde. Responda em português do Brasil, com plano prático e seguro.
 Para lesão no ombro: cuidado, progressão leve, encaminhar a profissional se houver dor.`,
-        },
-        ...history.map((m) => ({ role: m.role, content: m.content })),
-        { role: "user", content: message },
-      ],
+      clientHistory: history,
+      mergedHistory,
+    });
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages,
     });
 
     const text =
       response.choices[0]?.message?.content ??
       "Não consegui responder. Tente cadastrar manualmente.";
+
+    await persistAiTurn("saude", message, text, { kind: "chat", mode });
 
     return Response.json({ text, kind: "chat" });
   } catch (error) {

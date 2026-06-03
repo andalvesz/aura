@@ -1,4 +1,5 @@
 import OpenAI, { APIError } from "openai";
+import { persistAiTurn } from "@/lib/ai/memory-runtime";
 import type { ParsedEventoSuggestion } from "@/utils/calendar";
 import { parseRequestJson, safeJsonParse } from "@/utils/safe-json";
 
@@ -82,6 +83,9 @@ export async function POST(req: Request) {
       hora: parsed.hora ? String(parsed.hora).slice(0, 5) : "09:00",
       tipo: parsed.tipo ?? "geral",
     };
+
+    const assistantText = `Evento sugerido: ${suggestion.titulo} em ${suggestion.data} às ${suggestion.hora}`;
+    await persistAiTurn("agenda", message, assistantText, { suggestion });
 
     return Response.json({ suggestion });
   } catch (error) {

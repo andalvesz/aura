@@ -1,8 +1,16 @@
 import OpenAI, { APIError } from "openai";
 import {
+  buildOpenAiMessagesWithMemory,
+  persistAiTurn,
+} from "@/lib/ai/memory-runtime";
+import {
   getAuraCentralFinanceContext,
   getAuraCentralOpeningSummary,
 } from "@/lib/supabase/services/central.service";
+import {
+  getAuraEvolutionContext,
+  resolveMergedHistory,
+} from "@/lib/supabase/services/memory.service";
 import {
   getGrowthLeadsMentorContext,
   getGrowthStrategicMemoryMentorContext,
@@ -269,8 +277,10 @@ export async function POST(req: Request) {
           clientes: summaryData.clientes,
         });
         if (staleTop) {
+          const text = formatAuraCentralFollowUpReply(staleTop);
+          await persistAiTurn("aura_central", message, text, { kind: "follow-up" });
           return Response.json({
-            text: formatAuraCentralFollowUpReply(staleTop),
+            text,
             module: "global",
             kind: "chat",
           });
@@ -287,6 +297,8 @@ export async function POST(req: Request) {
 
       const text = `Entendi! Sugiro este evento:\n\n📅 **${suggestion.titulo}**\n${suggestion.data} às ${suggestion.hora}${suggestion.descricao ? `\n${suggestion.descricao}` : ""}\n\nConfirme para salvar no Calendário ou acesse Aura Agenda para ajustar.`;
 
+      await persistAiTurn("aura_central", message, text, { kind: "evento", suggestion });
+
       return Response.json({
         text,
         module,
@@ -294,6 +306,8 @@ export async function POST(req: Request) {
         suggestion,
       });
     }
+
+    const mergedHistory = await resolveMergedHistory("aura_central", history);
 
     const { context, error: contextError, leadCount } = await loadContextForModule(
       module,
@@ -309,6 +323,9 @@ export async function POST(req: Request) {
       leadCount === 0 &&
       (actionId === "analisar-vendas" || message.toLowerCase().includes("vendas"))
     ) {
+      await persistAiTurn("aura_central", message, GROWTH_MENTOR_EMPTY_LEADS_MESSAGE, {
+        module,
+      });
       return Response.json({
         text: GROWTH_MENTOR_EMPTY_LEADS_MESSAGE,
         module,
@@ -322,12 +339,17 @@ export async function POST(req: Request) {
       dataContext = memory.context;
     }
 
+    const evolutionContext =
+      actionId === "evolucao" ? await getAuraEvolutionContext() : null;
+
     const systemPrompt = `${AURA_CENTRAL_CONTEXT}
 
 ## MÓDULO ATIVO: ${module.toUpperCase()}
 ${MODULE_INSTRUCTIONS[module]}
 
 ${dataContext ?? "## DADOS\nNenhum dado cadastrado ainda para este módulo."}`;
+
+    const extraSections = evolutionContext ? [evolutionContext] : [];
 
     if (module === "saude" && mode === "treino") {
       const { suggestion, error: treinoError } = await generateTreinoSuggestion(
@@ -342,6 +364,8 @@ ${dataContext ?? "## DADOS\nNenhum dado cadastrado ainda para este módulo."}`;
       const nome = String(suggestion.nome);
       const text = `Treino pronto: **${nome}** (${suggestion.grupo_muscular}, ${suggestion.duracao_min} min).\n\nRevise os exercícios e salve em Saúde → Treinos, ou peça ajustes.`;
 
+      await persistAiTurn("aura_central", message, text, { kind: "treino", suggestion });
+
       return Response.json({
         text,
         module,
@@ -350,21 +374,25 @@ ${dataContext ?? "## DADOS\nNenhum dado cadastrado ainda para este módulo."}`;
       });
     }
 
+    const messages = await buildOpenAiMessagesWithMemory({
+      module: "aura_central",
+      userMessage: message,
+      systemPrompt: `${systemPrompt}
+Responda como Aura Central coordenando o módulo ${module}. Data de hoje: ${todayIsoDate()}.`,
+      clientHistory: history,
+      mergedHistory,
+      extraSections,
+    });
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `${systemPrompt}
-Responda como Aura Central coordenando o módulo ${module}. Data de hoje: ${todayIsoDate()}.`,
-        },
-        ...history.map((m) => ({ role: m.role, content: m.content })),
-        { role: "user", content: message },
-      ],
+      messages,
     });
 
     const text =
       response.choices[0]?.message?.content ?? "Não consegui responder agora.";
+
+    await persistAiTurn("aura_central", message, text, { module, kind: "chat" });
 
     return Response.json({
       text,

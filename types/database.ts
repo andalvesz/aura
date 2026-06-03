@@ -713,10 +713,8 @@ export type UserScopedTable =
   | "notifications";
 
 export type AiModule =
-  | "financeiro"
-  | "calendario"
-  | "alvesz"
+  | "aura_central"
+  | "mentor"
+  | "agenda"
   | "saude"
-  | "social-media"
-  | "consorcios"
-  | "crescimento";
+  | "social";

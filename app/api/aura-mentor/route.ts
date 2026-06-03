@@ -1,5 +1,9 @@
 import OpenAI, { APIError } from "openai";
 import {
+  buildOpenAiMessagesWithMemory,
+  persistAiTurn,
+} from "@/lib/ai/memory-runtime";
+import {
   getGrowthLeadsMentorContext,
   getGrowthStrategicMemoryMentorContext,
   recordContentSuggestion,
@@ -25,6 +29,7 @@ import {
   isNexusCalendarQuery,
   isNexusDashboardQuery,
 } from "@/utils/nexus";
+import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import { parseRequestJson } from "@/utils/safe-json";
 
 const openai = new OpenAI({
@@ -314,17 +319,22 @@ export async function POST(req: Request) {
       }
 
       if (leadCount === 0 && isPipelineQuery) {
+        await persistAiTurn("mentor", message, GROWTH_MENTOR_EMPTY_LEADS_MESSAGE);
         return Response.json({ text: GROWTH_MENTOR_EMPTY_LEADS_MESSAGE });
       }
 
       systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
     }
 
-    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: "system", content: systemPrompt },
-      ...history.map((m) => ({ role: m.role, content: m.content })),
-      { role: "user", content: message },
-    ];
+    const mergedHistory = await resolveMergedHistory("mentor", history);
+
+    const messages = await buildOpenAiMessagesWithMemory({
+      module: "mentor",
+      userMessage: message,
+      systemPrompt,
+      clientHistory: history,
+      mergedHistory,
+    });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -333,6 +343,8 @@ export async function POST(req: Request) {
 
     const text =
       response.choices[0]?.message?.content ?? "Não consegui responder.";
+
+    await persistAiTurn("mentor", message, text, { actionId: actionId || null });
 
     if (actionId && isGrowthMentorContentAction(actionId)) {
       try {

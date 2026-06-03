@@ -21,6 +21,7 @@ import {
 } from "@/utils/nexus";
 import { normalizeConteudoStatus } from "@/utils/social";
 import { todayIsoDate, workoutForToday } from "@/utils/health";
+import { isAuraEvolutionQuery } from "@/utils/memory";
 
 export type AuraCentralModule =
   | "global"
@@ -281,6 +282,10 @@ export function detectAuraCentralIntent(
 
   if (actionId === "marcar-reuniao" || isAuraCentralCalendarCreateQuery(message)) {
     return { module: "calendario", mode: "criar-evento", actionId };
+  }
+
+  if (isAuraEvolutionQuery(message)) {
+    return { module: "global", mode: "chat", actionId: "evolucao" };
   }
 
   if (
