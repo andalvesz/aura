@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
+import { resetHtmlForm } from "@/utils/html-form";
 
 type AddMetaFinanceiraModalProps = {
   open: boolean;
@@ -32,7 +33,8 @@ export function AddMetaFinanceiraModal({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const titulo = String(fd.get("titulo")).trim();
     const valor_meta = Number(fd.get("valor_meta"));
     const data_inicio = String(fd.get("data_inicio"));
@@ -63,8 +65,8 @@ export function AddMetaFinanceiraModal({
     }
 
     toast.success("Meta criada.");
+    resetHtmlForm(form);
     onClose();
-    e.currentTarget.reset();
   }
 
   return (

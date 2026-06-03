@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import { INCOME_ORIGENS } from "@/utils/finance";
+import { resetHtmlForm } from "@/utils/html-form";
 
 type AddReceitaModalProps = {
   open: boolean;
@@ -29,7 +30,8 @@ export function AddReceitaModal({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const descricao = String(fd.get("descricao")).trim();
     const valor = Number(fd.get("valor"));
     const origem = String(fd.get("origem"));
@@ -50,8 +52,8 @@ export function AddReceitaModal({
     }
 
     toast.success("Receita registrada.");
+    resetHtmlForm(form);
     onClose();
-    e.currentTarget.reset();
   }
 
   return (

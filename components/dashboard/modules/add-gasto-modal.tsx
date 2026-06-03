@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import { GASTO_CATEGORIAS } from "@/utils/finance";
+import { resetHtmlForm } from "@/utils/html-form";
 
 type AddGastoModalProps = {
   open: boolean;
@@ -23,7 +24,8 @@ export function AddGastoModal({ open, onClose, onSubmit }: AddGastoModalProps) {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const titulo = String(fd.get("titulo")).trim();
     const valor = Number(fd.get("valor"));
     const categoria = String(fd.get("categoria"));
@@ -44,8 +46,8 @@ export function AddGastoModal({ open, onClose, onSubmit }: AddGastoModalProps) {
     }
 
     toast.success("Gasto adicionado.");
+    resetHtmlForm(form);
     onClose();
-    e.currentTarget.reset();
   }
 
   return (

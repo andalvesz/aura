@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import { formatBRL } from "@/utils/format";
+import { resetHtmlForm } from "@/utils/html-form";
 
 type SetSaldoInicialModalProps = {
   open: boolean;
@@ -23,7 +24,8 @@ export function SetSaldoInicialModal({
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const valor = Number(fd.get("valor_atual"));
 
     if (!valor || valor < 0) {
@@ -41,8 +43,8 @@ export function SetSaldoInicialModal({
     }
 
     toast.success("Saldo inicial salvo.");
+    resetHtmlForm(form);
     onClose();
-    e.currentTarget.reset();
   }
 
   return (

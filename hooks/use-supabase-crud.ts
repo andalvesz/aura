@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { OFFLINE_SYNC_EVENT } from "@/lib/offline/constants";
 import {
@@ -77,6 +77,10 @@ export function useSupabaseCrud<T extends UserScopedTable>({
 }: UseSupabaseCrudOptions<T>) {
   const supabase = useMemo(() => createClient(), []);
   const isOnline = useOnlineStatus();
+  const isOnlineRef = useRef(isOnline);
+  useEffect(() => {
+    isOnlineRef.current = isOnline;
+  }, [isOnline]);
   const offlineTable = toOfflineTable(table);
   const [data, setData] = useState<TableRow<T>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,35 +112,63 @@ export function useSupabaseCrud<T extends UserScopedTable>({
 
   const refresh = useCallback(
     async (options?: { silent?: boolean }) => {
-      if (!enabled) return;
-      if (!options?.silent) setLoading(true);
+      const silent = options?.silent ?? false;
+
+      if (!enabled) {
+        if (!silent) setLoading(false);
+        return;
+      }
+
+      if (!silent) setLoading(true);
       setError(null);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (offlineTable && user) {
-        const hasPending = getOfflineSyncQueue(user.id).some(
-          (op) => op.table === offlineTable
-        );
-        if (!isOnline || hasPending) {
-          setData(loadOfflineCache(user.id));
-          setError(null);
-          if (!options?.silent) setLoading(false);
+        if (!user) {
+          setData([]);
+          setError("Sessão expirada. Faça login novamente.");
           return;
         }
-      }
 
-      const { data: rows, error: err } = await getQuery(supabase, table)
-        .select("*")
-        .order(orderBy, { ascending });
-      setData((rows ?? []) as TableRow<T>[]);
-      setError(err?.message ?? null);
-      if (!err && user && offlineTable) {
-        persistOfflineCache((rows ?? []) as TableRow<T>[], user.id);
+        if (offlineTable) {
+          const hasPending = getOfflineSyncQueue(user.id).some(
+            (op) => op.table === offlineTable
+          );
+          if (!isOnlineRef.current || hasPending) {
+            setData(loadOfflineCache(user.id));
+            setError(null);
+            return;
+          }
+        }
+
+        const { data: rows, error: err } = await getQuery(supabase, table)
+          .select("*")
+          .order(orderBy, { ascending });
+
+        if (err) {
+          setData([]);
+          setError(err.message);
+          return;
+        }
+
+        const list = (rows ?? []) as TableRow<T>[];
+        setData(list);
+        setError(null);
+        if (offlineTable) {
+          persistOfflineCache(list, user.id);
+        }
+      } catch (cause) {
+        console.error(`[useSupabaseCrud] ${table}`, cause);
+        setData([]);
+        setError(
+          cause instanceof Error ? cause.message : "Erro ao carregar dados."
+        );
+      } finally {
+        if (!silent) setLoading(false);
       }
-      if (!options?.silent) setLoading(false);
     },
     [
       supabase,
@@ -144,7 +176,6 @@ export function useSupabaseCrud<T extends UserScopedTable>({
       orderBy,
       ascending,
       enabled,
-      isOnline,
       offlineTable,
       loadOfflineCache,
       persistOfflineCache,

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import { LEAD_STATUSES } from "@/utils/consorcios";
+import { resetHtmlForm } from "@/utils/html-form";
 
 type AddLeadModalProps = {
   open: boolean;
@@ -23,7 +24,8 @@ export function AddLeadModal({ open, onClose, onSubmit }: AddLeadModalProps) {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData(form);
     const nome = String(fd.get("nome")).trim();
     if (!nome) {
       toast.error("Informe o nome do lead.");
@@ -46,8 +48,8 @@ export function AddLeadModal({ open, onClose, onSubmit }: AddLeadModalProps) {
     }
 
     toast.success("Lead adicionado.");
+    resetHtmlForm(form);
     onClose();
-    e.currentTarget.reset();
   }
 
   return (

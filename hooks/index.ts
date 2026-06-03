@@ -3,6 +3,7 @@ export { useGastos } from "./use-gastos";
 export { useFinancialIncome } from "./use-financial-income";
 export { useFinancialGoals } from "./use-financial-goals";
 export { useFinancialBalance } from "./use-financial-balance";
+export { useFinanceiro } from "./use-financeiro";
 export { useEventos } from "./use-eventos";
 export { useLeads } from "./use-leads";
 export { useConteudos } from "./use-conteudos";

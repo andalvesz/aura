@@ -1,22 +1,18 @@
 "use client";
 
 import { AlertTriangle, Plus, Target, TrendingUp, Wallet } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import {
   ListSkeleton,
   MetricsSkeleton,
 } from "@/components/dashboard/loading-skeleton";
-import { useFinancialBalance } from "@/hooks/use-financial-balance";
-import { useFinancialGoals } from "@/hooks/use-financial-goals";
-import { useFinancialIncome } from "@/hooks/use-financial-income";
-import { useGastos } from "@/hooks/use-gastos";
+import { useFinanceiro } from "@/hooks/use-financeiro";
 import { createClient } from "@/lib/supabase/client";
 import { formatBRL, formatDate } from "@/utils/format";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import {
-  computeSmartFinanceStats,
   getCategoryLabel,
   getIncomeOrigemLabel,
 } from "@/utils/finance";
@@ -30,90 +26,80 @@ import { SetSaldoInicialModal } from "./set-saldo-inicial-modal";
 
 async function syncGoalsProgress() {
   const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
 
-  const { data: goals } = await supabase
-    .from("financial_goals")
-    .select("id, data_inicio, data_fim, valor_atual")
-    .eq("user_id", user.id);
+    const { data: goals } = await supabase
+      .from("financial_goals")
+      .select("id, data_inicio, data_fim, valor_atual")
+      .eq("user_id", user.id);
 
-  if (!goals?.length) return;
+    if (!goals?.length) return;
 
-  for (const goal of goals) {
-    const { data: incomes } = await supabase
-      .from("financial_income")
-      .select("valor")
-      .eq("user_id", user.id)
-      .gte("data", goal.data_inicio)
-      .lte("data", goal.data_fim);
+    for (const goal of goals) {
+      const { data: incomes } = await supabase
+        .from("financial_income")
+        .select("valor")
+        .eq("user_id", user.id)
+        .gte("data", goal.data_inicio)
+        .lte("data", goal.data_fim);
 
-    const total = (incomes ?? []).reduce((s, row) => s + Number(row.valor), 0);
-    if (total !== Number(goal.valor_atual)) {
-      await supabase
-        .from("financial_goals")
-        .update({ valor_atual: total })
-        .eq("id", goal.id)
-        .eq("user_id", user.id);
+      const total = (incomes ?? []).reduce((s, row) => s + Number(row.valor), 0);
+      if (total !== Number(goal.valor_atual)) {
+        await supabase
+          .from("financial_goals")
+          .update({ valor_atual: total })
+          .eq("id", goal.id)
+          .eq("user_id", user.id);
+      }
     }
+  } catch (error) {
+    console.error("[FinanceiroView] syncGoalsProgress", error);
   }
 }
 
 export function FinanceiroView() {
-  const { data: gastos, loading: loadingGastos, error: gastosError, create: createGasto } =
-    useGastos();
   const {
-    data: income,
-    loading: loadingIncome,
-    error: incomeError,
-    create: createIncome,
-    refresh: refreshIncome,
-  } = useFinancialIncome();
-  const {
-    data: goals,
-    loading: loadingGoals,
-    error: goalsError,
-    create: createGoal,
-    refresh: refreshGoals,
-  } = useFinancialGoals();
-  const {
-    data: balances,
-    loading: loadingBalance,
-    error: balanceError,
-    create: createBalance,
-    update: updateBalance,
-    refresh: refreshBalance,
-  } = useFinancialBalance();
+    stats,
+    currentBalance,
+    showSkeleton,
+    initialLoadComplete,
+    financeDataError,
+    errors,
+    createGasto,
+    createIncome,
+    createGoal,
+    createBalance,
+    updateBalance,
+    refreshIncome,
+    refreshGoals,
+    refreshBalance,
+  } = useFinanceiro();
 
   const [gastoModalOpen, setGastoModalOpen] = useState(false);
   const [receitaModalOpen, setReceitaModalOpen] = useState(false);
   const [metaModalOpen, setMetaModalOpen] = useState(false);
   const [saldoModalOpen, setSaldoModalOpen] = useState(false);
 
-  const currentBalance = balances[0] ?? null;
-  const loading = loadingGastos || loadingIncome || loadingGoals || loadingBalance;
-
-  const financeDataError =
-    gastosError || incomeError || goalsError || balanceError;
   const needsFinanceMigration =
     financeDataError != null && isMissingSupabaseTableError(financeDataError);
 
-  const stats = useMemo(
-    () =>
-      computeSmartFinanceStats({
-        gastos,
-        income,
-        goals,
-        initialBalance: currentBalance?.valor_atual ?? null,
-      }),
-    [gastos, income, goals, currentBalance?.valor_atual]
-  );
+  const toastedErrors = useRef<Set<string>>(new Set());
 
   const refreshFinance = useCallback(async () => {
-    await syncGoalsProgress();
-    await Promise.all([refreshIncome(), refreshGoals(), refreshBalance()]);
+    try {
+      await syncGoalsProgress();
+      await Promise.all([
+        refreshIncome({ silent: true }),
+        refreshGoals({ silent: true }),
+        refreshBalance({ silent: true }),
+      ]);
+    } catch (error) {
+      console.error("[FinanceiroView] refreshFinance", error);
+    }
   }, [refreshIncome, refreshGoals, refreshBalance]);
 
   async function handleSetInitialBalance(valor: number) {
@@ -124,22 +110,39 @@ export function FinanceiroView() {
   }
 
   useEffect(() => {
-    if (!loadingIncome && !loadingGoals && !loadingBalance) {
-      void refreshFinance();
-    }
-  }, [loadingIncome, loadingGoals, loadingBalance, refreshFinance]);
+    if (needsFinanceMigration || !initialLoadComplete) return;
 
-  useEffect(() => {
-    if (needsFinanceMigration) return;
-    if (gastosError) toast.error(gastosError);
-    if (incomeError) toast.error(incomeError);
-    if (goalsError) toast.error(goalsError);
-    if (balanceError) toast.error(balanceError);
-  }, [gastosError, incomeError, goalsError, balanceError, needsFinanceMigration]);
+    const entries: [string, string | null][] = [
+      ["gastos", errors.gastos],
+      ["income", errors.income],
+      ["goals", errors.goals],
+      ["balance", errors.balance],
+    ];
+
+    for (const [key, message] of entries) {
+      if (!message) {
+        toastedErrors.current.delete(key);
+        continue;
+      }
+      if (toastedErrors.current.has(key)) continue;
+      toastedErrors.current.add(key);
+      toast.error(message);
+    }
+  }, [
+    errors.gastos,
+    errors.income,
+    errors.goals,
+    errors.balance,
+    needsFinanceMigration,
+    initialLoadComplete,
+  ]);
+
+  const showEmptySaldoHint =
+    initialLoadComplete && !needsFinanceMigration && !stats.hasInitialBalance;
 
   return (
     <div className="space-y-3">
-      {needsFinanceMigration && !loading && (
+      {needsFinanceMigration && initialLoadComplete && (
         <Panel className="border-amber-500/20 bg-amber-500/[0.04]">
           <PanelContent className="flex gap-3 py-3">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
@@ -151,8 +154,7 @@ export function FinanceiroView() {
                 Execute no SQL Editor o arquivo{" "}
                 <code className="text-zinc-400">
                   supabase/migrations/20250603170000_financial_module_complete.sql
-                </code>{" "}
-                (cria gastos, financial_goals, financial_income e financial_balance com RLS).
+                </code>
               </p>
             </div>
           </PanelContent>
@@ -163,84 +165,101 @@ export function FinanceiroView() {
         <ActionButton
           icon={<Wallet className="size-3.5" />}
           onClick={() => setSaldoModalOpen(true)}
-          disabled={needsFinanceMigration}
+          disabled={needsFinanceMigration || showSkeleton}
         >
           Definir saldo inicial
         </ActionButton>
         <ActionButton
           icon={<TrendingUp className="size-3.5" />}
           onClick={() => setReceitaModalOpen(true)}
-          disabled={needsFinanceMigration}
+          disabled={needsFinanceMigration || showSkeleton}
         >
           Receita
         </ActionButton>
         <ActionButton
           icon={<Target className="size-3.5" />}
           onClick={() => setMetaModalOpen(true)}
-          disabled={needsFinanceMigration}
+          disabled={needsFinanceMigration || showSkeleton}
         >
           Meta
         </ActionButton>
         <ActionButton
           icon={<Plus className="size-3.5" />}
           onClick={() => setGastoModalOpen(true)}
-          disabled={needsFinanceMigration}
+          disabled={needsFinanceMigration || showSkeleton}
         >
           Despesa
         </ActionButton>
       </div>
 
-      {loading ? (
+      {showSkeleton ? (
         <MetricsSkeleton />
       ) : (
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-          <MetricCard
-            label="Saldo atual"
-            value={
-              stats.hasInitialBalance
-                ? formatBRL(stats.saldoAtual ?? 0)
-                : "Defina seu saldo inicial"
-            }
-            hint={
-              stats.hasInitialBalance
-                ? `Base ${formatBRL(stats.initialBalance ?? 0)} + movimentação do mês`
-                : "Informe quanto você tem hoje"
-            }
-            hintClassName={
-              stats.hasInitialBalance
-                ? (stats.saldoAtual ?? 0) >= 0
-                  ? "text-emerald-400/90"
-                  : "text-red-400/90"
-                : undefined
-            }
-          />
-          <MetricCard
-            label="Gastos do mês"
-            value={formatBRL(stats.totalMonth)}
-            hint={`Dia ${stats.dayOfMonth} de ${stats.daysInMonth}`}
-          />
-          <MetricCard
-            label="Receitas do mês"
-            value={formatBRL(stats.totalIncomeMonth)}
-            hintClassName="text-emerald-400/90"
-          />
-          <MetricCard
-            label="Previsão do mês"
-            value={
-              stats.hasInitialBalance
-                ? formatBRL(stats.projectedSaldo ?? 0)
-                : "Defina seu saldo inicial"
-            }
-            hint={
-              stats.hasInitialBalance
-                ? "Saldo estimado no fim do mês"
-                : "Disponível após definir o saldo"
-            }
-          />
-        </div>
+        <>
+          {showEmptySaldoHint && (
+            <EmptyState
+              title="Comece definindo seu saldo inicial"
+              description="Informe quanto você tem disponível hoje para calcular saldo atual e previsão do mês."
+              action={
+                <ActionButton
+                  icon={<Wallet className="size-3.5" />}
+                  onClick={() => setSaldoModalOpen(true)}
+                >
+                  Definir saldo inicial
+                </ActionButton>
+              }
+            />
+          )}
+
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+            <MetricCard
+              label="Saldo atual"
+              value={
+                stats.hasInitialBalance
+                  ? formatBRL(stats.saldoAtual ?? 0)
+                  : "—"
+              }
+              hint={
+                stats.hasInitialBalance
+                  ? `Base ${formatBRL(stats.initialBalance ?? 0)} + movimentação do mês`
+                  : "Comece definindo seu saldo inicial"
+              }
+              hintClassName={
+                stats.hasInitialBalance
+                  ? (stats.saldoAtual ?? 0) >= 0
+                    ? "text-emerald-400/90"
+                    : "text-red-400/90"
+                  : undefined
+              }
+            />
+            <MetricCard
+              label="Gastos do mês"
+              value={formatBRL(stats.totalMonth)}
+              hint={`Dia ${stats.dayOfMonth} de ${stats.daysInMonth}`}
+            />
+            <MetricCard
+              label="Receitas do mês"
+              value={formatBRL(stats.totalIncomeMonth)}
+              hintClassName="text-emerald-400/90"
+            />
+            <MetricCard
+              label="Previsão do mês"
+              value={
+                stats.hasInitialBalance
+                  ? formatBRL(stats.projectedSaldo ?? 0)
+                  : "—"
+              }
+              hint={
+                stats.hasInitialBalance
+                  ? "Saldo estimado no fim do mês"
+                  : "Comece definindo seu saldo inicial"
+              }
+            />
+          </div>
+        </>
       )}
 
-      {stats.activeGoal && !loading && (
+      {stats.activeGoal && !showSkeleton && (
         <Panel>
           <PanelHeader>
             <PanelTitle>{stats.activeGoal.titulo}</PanelTitle>
@@ -273,7 +292,7 @@ export function FinanceiroView() {
             <PanelTitle>Receitas recentes</PanelTitle>
           </PanelHeader>
           <PanelContent className="pt-0">
-            {loading ? (
+            {showSkeleton ? (
               <ListSkeleton />
             ) : stats.monthIncome.length === 0 ? (
               <EmptyState
@@ -318,7 +337,7 @@ export function FinanceiroView() {
             <PanelTitle>Despesas recentes</PanelTitle>
           </PanelHeader>
           <PanelContent className="pt-0">
-            {loading ? (
+            {showSkeleton ? (
               <ListSkeleton />
             ) : stats.monthGastos.length === 0 ? (
               <EmptyState
@@ -364,7 +383,7 @@ export function FinanceiroView() {
           <PanelTitle>Por categoria (despesas)</PanelTitle>
         </PanelHeader>
         <PanelContent className="space-y-2.5 pt-0">
-          {loading ? (
+          {showSkeleton ? (
             <ListSkeleton rows={6} />
           ) : stats.categories.length === 0 ? (
             <EmptyState title="Sem categorias" description="Adicione despesas para ver o gráfico." />
@@ -419,7 +438,7 @@ export function FinanceiroView() {
         currentValue={currentBalance?.valor_atual}
         onSubmit={async (valor) => {
           const { error } = await handleSetInitialBalance(valor);
-          if (!error) await refreshBalance();
+          if (!error) await refreshBalance({ silent: true });
           return { error };
         }}
       />

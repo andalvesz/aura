@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import type { GrowthLeadCanal, GrowthLeadStatus, GrowthVertical } from "@/types/database";
+import { resetHtmlForm } from "@/utils/html-form";
 import {
   GROWTH_LEAD_CANAIS,
   GROWTH_LEAD_STATUSES,
@@ -71,7 +72,7 @@ export function AddGrowthLeadModal({ open, onClose, onSubmit }: AddGrowthLeadMod
     }
 
     toast.success("Lead cadastrado.");
-    form.reset();
+    resetHtmlForm(form);
     onClose();
   }
 

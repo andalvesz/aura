@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
+import { resetHtmlForm } from "@/utils/html-form";
 import { GROWTH_PLATFORMS } from "@/utils/growth";
 
 type AddGrowthProfileModalProps = {
@@ -51,7 +52,7 @@ export function AddGrowthProfileModal({
     }
 
     toast.success("Perfil cadastrado.");
-    form.reset();
+    resetHtmlForm(form);
     onClose();
   }
 
