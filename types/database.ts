@@ -65,6 +65,8 @@ export type FinancialBalance = {
   updated_at: string;
 };
 
+export type GoogleSyncStatus = "synced" | "pending" | "error";
+
 export type Evento = {
   id: string;
   user_id: string;
@@ -75,7 +77,21 @@ export type Evento = {
   local: string | null;
   tipo: string;
   growth_lead_id: string | null;
+  google_event_id: string | null;
+  google_sync_status: GoogleSyncStatus | null;
   created_at: string;
+  updated_at: string;
+};
+
+export type GoogleCalendarConnection = {
+  user_id: string;
+  access_token: string;
+  refresh_token: string;
+  token_expires_at: string;
+  google_email: string | null;
+  calendar_id: string;
+  sync_token: string | null;
+  connected_at: string;
   updated_at: string;
 };
 
@@ -447,14 +463,33 @@ export type Database = {
         Evento,
         Omit<
           Evento,
-          "id" | "created_at" | "updated_at" | "growth_lead_id" | "data_fim" | "local" | "descricao"
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "growth_lead_id"
+          | "data_fim"
+          | "local"
+          | "descricao"
+          | "google_event_id"
+          | "google_sync_status"
         > & {
           id?: string;
           descricao?: string | null;
           data_fim?: string | null;
           local?: string | null;
           growth_lead_id?: string | null;
+          google_event_id?: string | null;
+          google_sync_status?: GoogleSyncStatus | null;
           created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      google_calendar_connections: TableDef<
+        GoogleCalendarConnection,
+        Omit<GoogleCalendarConnection, "connected_at" | "updated_at" | "sync_token" | "google_email"> & {
+          sync_token?: string | null;
+          google_email?: string | null;
+          connected_at?: string;
           updated_at?: string;
         }
       >;

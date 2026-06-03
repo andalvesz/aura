@@ -29,6 +29,8 @@ import {
   isEventoConfirmationMessage,
   proximosEventos,
 } from "@/utils/calendar";
+import { GoogleCalendarPanel } from "@/components/dashboard/google-calendar-panel";
+import { GoogleSyncBadge } from "@/components/dashboard/google-sync-badge";
 import { AddEventoModal } from "./add-evento-modal";
 
 export function CalendarioView() {
@@ -238,6 +240,8 @@ export function CalendarioView() {
         </div>
       )}
 
+      <GoogleCalendarPanel onImported={() => void refresh()} />
+
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-[1fr_minmax(0,280px)]">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <MiniCalendar
@@ -271,9 +275,12 @@ export function CalendarioView() {
                       className="flex items-start justify-between gap-2 rounded-md border border-white/[0.04] p-2"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-[13px] font-medium text-zinc-200">
-                          {ev.titulo}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="truncate text-[13px] font-medium text-zinc-200">
+                            {ev.titulo}
+                          </p>
+                          <GoogleSyncBadge evento={ev} />
+                        </div>
                         <p className="text-[11px] text-zinc-500">
                           {formatEventoDateDisplay(ev.data_inicio)} ·{" "}
                           {formatEventoTimeDisplay(ev.data_inicio)} ·{" "}
