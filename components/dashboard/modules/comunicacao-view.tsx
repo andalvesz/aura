@@ -30,7 +30,7 @@ import {
   type FollowUpChannel,
   type FollowUpContext,
 } from "@/utils/follow-up";
-import { formatBRL } from "@/utils/format";
+import { formatBRL, formatSafeDate } from "@/utils/format";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { openWhatsAppLink } from "@/utils/whatsapp";
 
@@ -312,7 +312,7 @@ export function ComunicacaoView() {
                               {m.subject}
                             </p>
                             <p className="text-[10px] text-zinc-600">
-                              {formatGmailFrom(m.from)} · {new Date(m.date).toLocaleDateString("pt-BR")}
+                              {formatGmailFrom(m.from)} · {formatSafeDate(m.date)}
                             </p>
                             <p className="line-clamp-1 text-[10px] text-zinc-500">{m.snippet}</p>
                           </button>

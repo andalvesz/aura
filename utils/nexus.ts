@@ -6,7 +6,13 @@ import type {
   GrowthMission,
   Orcamento,
 } from "@/types/database";
-import { formatBRL, formatDate, formatTime, isToday } from "@/utils/format";
+import {
+  formatBRL,
+  formatDate,
+  formatTime,
+  isToday,
+  isValidDate,
+} from "@/utils/format";
 import {
   buildExecutiveDayContext,
   computeGrowthLeadMetrics,
@@ -146,6 +152,7 @@ export function filterUpcomingEventos(eventos: Evento[], daysAhead = 14): Evento
 
   return [...eventos]
     .filter((evento) => {
+      if (!isValidDate(evento.data_inicio)) return false;
       const start = new Date(evento.data_inicio);
       return start >= now && start <= limit;
     })

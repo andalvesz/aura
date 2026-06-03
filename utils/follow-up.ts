@@ -1,7 +1,7 @@
 import type { Cliente, GrowthLead, Orcamento } from "@/types/database";
 import { getOrcamentoStatusLabel, normalizeOrcamentoStatus } from "@/utils/alvesz-integration";
 import { buildEventoDateTime } from "@/utils/calendar";
-import { formatBRL, formatDate } from "@/utils/format";
+import { formatBRL, formatDate, isValidDate } from "@/utils/format";
 import {
   GROWTH_LEAD_ACTIVE_STATUSES,
   getGrowthLeadStatusLabel,
@@ -35,6 +35,7 @@ export type StaleOpportunity = {
 };
 
 export function daysSinceContact(dateStr: string): number {
+  if (!isValidDate(dateStr)) return 0;
   const then = new Date(dateStr);
   const now = new Date();
   return Math.max(

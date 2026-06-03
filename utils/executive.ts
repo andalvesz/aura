@@ -10,7 +10,7 @@ import type {
   Orcamento,
 } from "@/types/database";
 import { getEventoTipoLabel } from "@/utils/calendar";
-import { formatBRL, formatTime, isToday } from "@/utils/format";
+import { formatBRL, formatTime, isToday, isValidDate } from "@/utils/format";
 import { computeFinanceStats } from "@/utils/finance";
 import {
   analyzeGrowthLeadContentInsights,
@@ -86,12 +86,16 @@ export function getExecutiveGreeting(name = "Anderson"): string {
 }
 
 export function formatExecutiveDateLabel(): string {
-  const formatted = new Intl.DateTimeFormat("pt-BR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date());
-  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  try {
+    const formatted = new Intl.DateTimeFormat("pt-BR", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(new Date());
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+  } catch {
+    return "Hoje";
+  }
 }
 
 function pluralize(count: number, singular: string, plural: string) {
@@ -108,7 +112,9 @@ export function buildExecutiveDaySummary(params: {
 }): ExecutiveDaySummary {
   const { eventos, leads, conteudos, missions, habits, workouts } = params;
   const today = todayIsoDate();
-  const todayEvents = eventos.filter((e) => e.data_inicio.slice(0, 10) === today);
+  const todayEvents = eventos.filter(
+    (e) => isValidDate(e.data_inicio) && e.data_inicio.slice(0, 10) === today
+  );
   const upcomingToday = todayEvents
     .filter((e) => new Date(e.data_inicio) >= new Date())
     .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
@@ -273,8 +279,11 @@ export function buildExecutivePriorityItems(params: {
   for (const c of conteudos) {
     const status = normalizeConteudoStatus(c.status);
     if (status === "publicado") continue;
-    const planned = c.data_publicacao ? new Date(c.data_publicacao) : null;
-    const isLate = planned && planned < now;
+    const planned =
+      c.data_publicacao && isValidDate(c.data_publicacao)
+        ? new Date(c.data_publicacao)
+        : null;
+    const isLate = planned != null && planned < now;
     if (!isLate && status === "ideia") continue;
     items.push({
       id: `content-${c.id}`,
@@ -307,13 +316,23 @@ export function buildExecutiveAgenda(eventos: Evento[]): ExecutiveAgendaItem[] {
 
   return upcoming.map((evento) => ({
     id: evento.id,
-    time: isToday(evento.data_inicio.slice(0, 10))
-      ? formatTime(evento.data_inicio)
-      : `${evento.data_inicio.slice(8, 10)}/${evento.data_inicio.slice(5, 7)} ${formatTime(evento.data_inicio)}`,
+    time: formatExecutiveAgendaTime(evento.data_inicio),
     title: evento.titulo,
     origem: getEventoTipoLabel(evento.tipo),
     href: "/dashboard/calendario",
   }));
+}
+
+function formatExecutiveAgendaTime(dataInicio: string): string {
+  if (!isValidDate(dataInicio)) return "Horário não definido";
+  const datePart = dataInicio.slice(0, 10);
+  if (isToday(datePart)) return formatTime(dataInicio);
+  const day = dataInicio.slice(8, 10);
+  const month = dataInicio.slice(5, 7);
+  if (!/^\d{2}$/.test(day) || !/^\d{2}$/.test(month)) {
+    return formatTime(dataInicio);
+  }
+  return `${day}/${month} ${formatTime(dataInicio)}`;
 }
 
 export function buildExecutiveFeedFallback(params: {

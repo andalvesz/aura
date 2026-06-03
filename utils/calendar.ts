@@ -1,33 +1,22 @@
 import type { Evento } from "@/types/database";
+import {
+  formatDate,
+  formatSafeTime,
+  isValidDate,
+} from "@/utils/format";
 
-export function isValidEventoDate(value: string | null | undefined): value is string {
-  if (!value || typeof value !== "string") return false;
-  const time = new Date(value).getTime();
-  return Number.isFinite(time);
+export function isValidEventoDate(
+  value: string | null | undefined
+): value is string {
+  return isValidDate(value);
 }
 
 export function formatEventoDateDisplay(iso: string): string {
-  if (!isValidEventoDate(iso)) return "Data não definida";
-  try {
-    return new Intl.DateTimeFormat("pt-BR", {
-      day: "2-digit",
-      month: "short",
-    }).format(new Date(iso));
-  } catch {
-    return "Data não definida";
-  }
+  return formatDate(iso, "Data não definida");
 }
 
 export function formatEventoTimeDisplay(iso: string): string {
-  if (!isValidEventoDate(iso)) return "--:--";
-  try {
-    return new Intl.DateTimeFormat("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
-  } catch {
-    return "--:--";
-  }
+  return formatSafeTime(iso, "--:--");
 }
 
 function safeEventosList(eventos: Evento[] | null | undefined): Evento[] {

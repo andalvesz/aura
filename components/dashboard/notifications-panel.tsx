@@ -18,24 +18,22 @@ import {
   NOTIFICATION_TYPE_LABELS,
 } from "@/utils/notifications";
 import { cn } from "@/utils/cn";
+import { formatDate, formatSafeTime, isValidDate } from "@/utils/format";
 
 function formatWhen(iso: string | null) {
-  if (!iso) return "";
+  if (!iso || !isValidDate(iso)) return "";
   const date = new Date(iso);
   const now = new Date();
-  const isToday =
+  const isTodayDate =
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
 
-  if (isToday) {
-    return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  if (isTodayDate) {
+    return formatSafeTime(iso, "");
   }
 
-  return date.toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-  });
+  return formatDate(iso, "");
 }
 
 function NotificationItem({

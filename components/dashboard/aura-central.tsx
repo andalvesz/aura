@@ -38,6 +38,7 @@ import {
   type AuraCentralModule,
 } from "@/utils/orchestrator";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { isValidDate } from "@/utils/format";
 
 type Message = {
   role: "user" | "assistant";
@@ -64,6 +65,7 @@ const MODULE_ICONS: Record<AuraCentralModule, React.ComponentType<{ className?: 
 };
 
 function formatHistoryTime(iso: string) {
+  if (!isValidDate(iso)) return "Data não definida";
   try {
     return new Intl.DateTimeFormat("pt-BR", {
       day: "2-digit",
@@ -72,7 +74,7 @@ function formatHistoryTime(iso: string) {
       minute: "2-digit",
     }).format(new Date(iso));
   } catch {
-    return "";
+    return "Data não definida";
   }
 }
 
