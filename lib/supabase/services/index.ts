@@ -9,6 +9,7 @@ export * from "./ai.service";
 export * from "./growth.service";
 export * from "./nexus.service";
 export * from "./mentor.service";
+export * from "./central.service";
 export * from "./health-coach.service";
 export * from "./social-ia.service";
 export * from "./seed.service";

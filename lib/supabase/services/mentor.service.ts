@@ -79,7 +79,7 @@ function attachClientesToOrcamentos(
   }));
 }
 
-async function loadAuraGlobalSummaryData(): Promise<{
+export async function loadAuraGlobalSummaryData(): Promise<{
   data: AuraGlobalSummaryData | null;
   error: string | null;
 }> {
