@@ -161,9 +161,10 @@ export function FinanceiroView() {
         </Panel>
       )}
 
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
         <ActionButton
           icon={<Wallet className="size-3.5" />}
+          className="w-full sm:w-auto"
           onClick={() => setSaldoModalOpen(true)}
           disabled={needsFinanceMigration || showSkeleton}
         >
@@ -171,6 +172,7 @@ export function FinanceiroView() {
         </ActionButton>
         <ActionButton
           icon={<TrendingUp className="size-3.5" />}
+          className="w-full sm:w-auto"
           onClick={() => setReceitaModalOpen(true)}
           disabled={needsFinanceMigration || showSkeleton}
         >
@@ -178,6 +180,7 @@ export function FinanceiroView() {
         </ActionButton>
         <ActionButton
           icon={<Target className="size-3.5" />}
+          className="w-full sm:w-auto"
           onClick={() => setMetaModalOpen(true)}
           disabled={needsFinanceMigration || showSkeleton}
         >
@@ -185,6 +188,7 @@ export function FinanceiroView() {
         </ActionButton>
         <ActionButton
           icon={<Plus className="size-3.5" />}
+          className="w-full sm:w-auto"
           onClick={() => setGastoModalOpen(true)}
           disabled={needsFinanceMigration || showSkeleton}
         >
@@ -211,7 +215,7 @@ export function FinanceiroView() {
             />
           )}
 
-          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard
               label="Saldo atual"
               value={

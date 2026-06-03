@@ -435,7 +435,7 @@ export function CrescimentoView() {
         </>
       ) : (
         <>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           <MetricCard
             label="Meta mensal"
             value={
@@ -495,7 +495,7 @@ export function CrescimentoView() {
             <PanelTitle>Leads e vendas</PanelTitle>
           </PanelHeader>
           <PanelContent className="pt-0">
-            <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard
                 label="Leads gerados"
                 value={growthLeadsError ? "—" : String(leadMetrics.total)}
@@ -534,7 +534,7 @@ export function CrescimentoView() {
                 }
               />
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-5">
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
               <MetricCard
                 label="Receita Potencial"
                 value={
@@ -615,7 +615,7 @@ export function CrescimentoView() {
                       {item.lead && (
                         <ActionButton
                           variant="ghost"
-                          className="h-7 px-2 text-[10px]"
+                          className="w-full sm:w-auto sm:px-2 sm:text-[10px]"
                           icon={<MessageCircle className="size-3" />}
                           onClick={() => setFollowUpLead(item.lead)}
                         >
@@ -633,7 +633,7 @@ export function CrescimentoView() {
                 <ActionButton
                   icon={<Plus className="size-3.5" />}
                   variant="ghost"
-                  className="h-7 px-2 text-[11px]"
+                  className="w-full sm:w-auto sm:px-2 sm:text-[11px]"
                   disabled={Boolean(growthDataError)}
                   onClick={() => setLeadModalOpen(true)}
                 >
@@ -687,7 +687,7 @@ export function CrescimentoView() {
                       <div className="flex flex-wrap items-center gap-2">
                       <ActionButton
                         variant="ghost"
-                        className="h-8 px-2 text-[10px]"
+                        className="w-full px-2 text-[11px] sm:w-auto sm:text-[10px]"
                         icon={<Phone className="size-3" />}
                         onClick={() => setWhatsAppLead(lead)}
                       >
@@ -696,7 +696,7 @@ export function CrescimentoView() {
                       {idleTier && (
                         <ActionButton
                           variant="ghost"
-                          className="h-8 px-2 text-[10px]"
+                          className="w-full px-2 text-[11px] sm:w-auto sm:text-[10px]"
                           icon={<MessageCircle className="size-3" />}
                           onClick={() => setFollowUpLead(lead)}
                         >
@@ -709,7 +709,7 @@ export function CrescimentoView() {
                           moveGrowthLead(lead.id, e.target.value as GrowthLeadStatus)
                         }
                         disabled={Boolean(growthDataError)}
-                        className="h-8 w-full shrink-0 rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[12px] text-zinc-300 sm:w-40"
+                        className="min-h-11 w-full shrink-0 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-300 sm:min-h-8 sm:h-8 sm:w-40 sm:px-2 sm:text-[12px]"
                       >
                         {GROWTH_LEAD_STATUSES.map((s) => (
                           <option key={s.value} value={s.value} className="bg-zinc-900">
@@ -719,7 +719,7 @@ export function CrescimentoView() {
                       </select>
                       <ActionButton
                         variant="ghost"
-                        className="h-8 px-2 text-[10px] text-red-400/90 hover:text-red-400"
+                        className="w-full px-2 text-[11px] text-red-400/90 hover:text-red-400 sm:w-auto sm:text-[10px]"
                         icon={<Trash2 className="size-3" />}
                         disabled={Boolean(growthDataError)}
                         onClick={() => handleDeleteGrowthLead(lead)}
@@ -786,7 +786,7 @@ export function CrescimentoView() {
                     {!isCompleted && (
                       <ActionButton
                         variant="ghost"
-                        className="h-7 w-full px-2 text-[11px] sm:w-auto"
+                        className="w-full px-2 text-[11px] sm:w-auto"
                         disabled={isSaving || Boolean(growthDataError)}
                         onClick={() =>
                           handleCompleteMission(

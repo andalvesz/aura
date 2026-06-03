@@ -319,7 +319,7 @@ export function AuraCentral() {
           <button
             type="button"
             onClick={() => setHistoryOpen((v) => !v)}
-            className="inline-flex min-h-9 items-center gap-1 rounded-md border border-white/[0.06] px-2 py-1 text-[11px] text-zinc-500 hover:border-cyan-400/20 hover:text-cyan-300"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-white/[0.06] px-3 py-2 text-[12px] text-zinc-500 hover:border-cyan-400/20 hover:text-cyan-300 sm:min-h-9 sm:w-auto sm:px-2 sm:py-1 sm:text-[11px]"
           >
             <History className="size-3.5" />
             Histórico ({commandHistory.length})

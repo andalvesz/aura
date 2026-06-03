@@ -19,6 +19,12 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashb
 import { useEventos } from "@/hooks/use-eventos";
 import { useGrowthLeads } from "@/hooks/use-growth-leads";
 import { parseJsonResponse } from "@/utils/safe-json";
+import {
+  CHAT_INPUT_CLASS,
+  CHAT_SEND_CLASS,
+  ICON_BTN_CLASS,
+  ICON_BTN_DANGER_CLASS,
+} from "@/utils/dashboard-mobile";
 import type { Evento } from "@/types/database";
 import type { ParsedEventoSuggestion } from "@/utils/calendar";
 import {
@@ -213,9 +219,10 @@ export function CalendarioView() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
         <ActionButton
           icon={<CalendarPlus className="size-3.5" />}
+          className="w-full sm:w-auto"
           onClick={() => openCreate(suggestion)}
         >
           Novo evento
@@ -233,7 +240,7 @@ export function CalendarioView() {
           <button
             type="button"
             onClick={() => void refresh()}
-            className="rounded px-2 py-1 text-[11px] font-medium text-amber-200 hover:bg-amber-500/15"
+            className="inline-flex min-h-11 items-center rounded-md px-3 py-2 text-[12px] font-medium text-amber-200 hover:bg-amber-500/15 md:min-h-0 md:px-2 md:py-1 md:text-[11px]"
           >
             Tentar novamente
           </button>
@@ -296,18 +303,18 @@ export function CalendarioView() {
                         <button
                           type="button"
                           onClick={() => openCreate(ev)}
-                          className="rounded p-1 text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-300"
+                          className={ICON_BTN_CLASS}
                           aria-label="Editar"
                         >
-                          <Pencil className="size-3.5" />
+                          <Pencil className="size-4 md:size-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(ev.id)}
-                          className="rounded p-1 text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+                          className={ICON_BTN_DANGER_CLASS}
                           aria-label="Excluir"
                         >
-                          <Trash2 className="size-3.5" />
+                          <Trash2 className="size-4 md:size-3.5" />
                         </button>
                       </div>
                     </li>
@@ -318,7 +325,7 @@ export function CalendarioView() {
           </Panel>
         </div>
 
-        <Panel className="flex min-h-[320px] flex-col xl:min-h-[420px]">
+        <Panel className="flex min-h-[280px] flex-col sm:min-h-[320px] xl:min-h-[420px]">
           <PanelHeader>
             <div className="flex items-center gap-2">
               <div className="flex size-7 items-center justify-center rounded-md bg-violet-500/15">
@@ -349,21 +356,21 @@ export function CalendarioView() {
                 </div>
               )}
             </div>
-            <form onSubmit={handleAiSend} className="mt-auto flex gap-1.5">
+            <form onSubmit={handleAiSend} className="mt-auto flex gap-2">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Marcar reunião com João amanhã às 15h..."
                 disabled={aiLoading}
-                className="h-9 flex-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:border-white/[0.12] focus:outline-none disabled:opacity-50"
+                className={CHAT_INPUT_CLASS}
               />
               <button
                 type="submit"
                 disabled={aiLoading}
-                className="flex size-9 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-zinc-300 transition-colors hover:bg-white/[0.06] disabled:opacity-50"
+                className={CHAT_SEND_CLASS}
                 aria-label="Enviar"
               >
-                <Send className="size-3.5" />
+                <Send className="size-4 md:size-3.5" />
               </button>
             </form>
           </PanelContent>

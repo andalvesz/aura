@@ -110,18 +110,18 @@ export function MiniCalendar({
           <button
             type="button"
             onClick={prevMonth}
-            className="rounded p-1 text-zinc-500 transition-colors duration-200 hover:bg-white/[0.04] hover:text-zinc-300"
+            className="flex size-11 items-center justify-center rounded-md text-zinc-500 transition-colors duration-200 hover:bg-white/[0.04] hover:text-zinc-300 md:size-8 md:p-1"
             aria-label="Mês anterior"
           >
-            <ChevronLeft className="size-3.5" />
+            <ChevronLeft className="size-4 md:size-3.5" />
           </button>
           <button
             type="button"
             onClick={nextMonth}
-            className="rounded p-1 text-zinc-500 transition-colors duration-200 hover:bg-white/[0.04] hover:text-zinc-300"
+            className="flex size-11 items-center justify-center rounded-md text-zinc-500 transition-colors duration-200 hover:bg-white/[0.04] hover:text-zinc-300 md:size-8 md:p-1"
             aria-label="Próximo mês"
           >
-            <ChevronRight className="size-3.5" />
+            <ChevronRight className="size-4 md:size-3.5" />
           </button>
         </div>
       </PanelHeader>
@@ -142,7 +142,7 @@ export function MiniCalendar({
                   type="button"
                   onClick={() => onSelectDay?.(day)}
                   className={cn(
-                    "relative flex size-7 items-center justify-center rounded-md text-[11px] transition-colors duration-200",
+                    "relative flex size-9 items-center justify-center rounded-md text-[12px] transition-colors duration-200 sm:size-7 sm:text-[11px]",
                     isToday(day)
                       ? "bg-white font-medium text-zinc-950"
                       : selectedDay === day

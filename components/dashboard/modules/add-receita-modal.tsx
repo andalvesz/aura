@@ -80,7 +80,7 @@ export function AddReceitaModal({
             name="origem"
             required
             defaultValue={defaultOrigem}
-            className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:border-white/[0.15] focus:outline-none"
+            className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
           >
             {INCOME_ORIGENS.map((o) => (
               <option key={o.value} value={o.value} className="bg-zinc-900">
@@ -93,7 +93,7 @@ export function AddReceitaModal({
         <button
           type="submit"
           disabled={pending}
-          className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-[13px] font-medium text-zinc-100 transition-colors hover:bg-white/[0.1] disabled:opacity-50"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-white/[0.1] bg-white/[0.06] text-base font-medium text-zinc-100 transition-colors hover:bg-white/[0.1] disabled:opacity-50 md:min-h-9 md:h-9 md:text-[13px]"
         >
           {pending && <Loader2 className="size-3.5 animate-spin" />}
           Salvar receita
@@ -115,7 +115,7 @@ function Field({
       <input
         name={name}
         type={type}
-        className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:border-white/[0.15] focus:outline-none"
+        className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 placeholder:text-zinc-600 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
         {...props}
       />
     </label>

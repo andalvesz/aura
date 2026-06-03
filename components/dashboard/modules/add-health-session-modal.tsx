@@ -71,7 +71,7 @@ export function AddHealthSessionModal({
             placeholder={
               defaultTipo === "meditacao" ? "Meditação guiada 10 min" : "Capítulo do livro X"
             }
-            className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200"
+            className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
           />
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -82,7 +82,7 @@ export function AddHealthSessionModal({
               type="number"
               min={0}
               defaultValue={defaultTipo === "meditacao" ? 10 : 20}
-              className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200"
+              className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
             />
           </label>
           <label className="block text-[12px] text-zinc-500">
@@ -91,7 +91,7 @@ export function AddHealthSessionModal({
               name="data"
               type="date"
               defaultValue={todayIsoDate()}
-              className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200"
+              className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
             />
           </label>
         </div>

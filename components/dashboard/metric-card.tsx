@@ -23,7 +23,7 @@ export function MetricCard({
         className
       )}
     >
-      <PanelContent className="py-2.5">
+      <PanelContent className="py-3 sm:py-2.5">
         <p className="text-[11px] font-medium text-zinc-500">{label}</p>
         <p className="mt-1 text-lg font-semibold tracking-tight text-zinc-100">
           {value}

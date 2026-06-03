@@ -133,7 +133,7 @@ export function AddEventoModal({
               value={data}
               onChange={(e) => setData(e.target.value)}
               required
-              className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
+              className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
             />
           </label>
           <label className="block text-[12px] text-zinc-500">
@@ -143,7 +143,7 @@ export function AddEventoModal({
               value={hora}
               onChange={(e) => setHora(e.target.value)}
               required
-              className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
+              className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
             />
           </label>
         </div>
@@ -152,7 +152,7 @@ export function AddEventoModal({
           <select
             value={tipo}
             onChange={(e) => setTipo(e.target.value)}
-            className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
+            className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
           >
             {EVENTO_TIPOS.map((t) => (
               <option key={t.id} value={t.id} className="bg-zinc-900">
@@ -167,7 +167,7 @@ export function AddEventoModal({
             <select
               value={leadId}
               onChange={(e) => setLeadId(e.target.value)}
-              className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
+              className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
             >
               <option value="">Nenhum</option>
               {leads.map((l) => (
@@ -212,7 +212,7 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         required={required}
         placeholder={placeholder}
-        className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
+        className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
       />
     </label>
   );

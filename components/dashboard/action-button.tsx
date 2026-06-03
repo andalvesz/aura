@@ -17,7 +17,7 @@ export function ActionButton({
     <button
       type="button"
       className={cn(
-        "flex min-h-11 items-center gap-1.5 rounded-md px-3 py-2 text-[12px] font-medium transition-colors duration-200 md:h-8 md:min-h-0 md:py-0",
+        "flex min-h-11 items-center gap-1.5 rounded-md px-3 py-2.5 text-[13px] font-medium transition-colors duration-200 md:h-8 md:min-h-8 md:px-3 md:py-0 md:text-[12px]",
         variant === "primary" &&
           "border border-white/[0.08] bg-white/[0.04] text-zinc-200 hover:border-white/[0.12] hover:bg-white/[0.06]",
         variant === "ghost" &&

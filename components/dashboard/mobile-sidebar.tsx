@@ -48,7 +48,7 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-12 items-center justify-between gap-2 border-b border-white/[0.06] px-3">
+        <div className="flex min-h-14 items-center justify-between gap-2 border-b border-white/[0.06] px-3">
           <div>
             <Link
               href="/dashboard"

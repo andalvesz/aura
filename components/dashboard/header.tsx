@@ -23,7 +23,7 @@ export function DashboardHeader({
   const displayName = fullName?.trim() || email.split("@")[0] || "Usuário";
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] bg-zinc-950/90 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-md max-md:flex-wrap md:h-11 md:gap-3 md:px-4 md:pt-0">
+    <header className="sticky top-0 z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] bg-zinc-950/90 px-3 pt-[env(safe-area-inset-top)] backdrop-blur-md max-md:flex-wrap md:h-11 md:min-h-0 md:gap-3 md:px-4 md:pt-0">
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"

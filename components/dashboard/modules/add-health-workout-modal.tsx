@@ -113,7 +113,7 @@ export function AddHealthWorkoutModal({
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             required
-            className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200"
+            className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
           />
         </label>
         <label className="block text-[12px] text-zinc-500">
@@ -121,7 +121,7 @@ export function AddHealthWorkoutModal({
           <select
             value={grupo}
             onChange={(e) => setGrupo(e.target.value)}
-            className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200"
+            className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
           >
             {HEALTH_GRUPOS_MUSCULARES.map((g) => (
               <option key={g} value={g} className="bg-zinc-900 capitalize">
@@ -137,7 +137,7 @@ export function AddHealthWorkoutModal({
             min={0}
             value={duracao}
             onChange={(e) => setDuracao(Number(e.target.value) || 0)}
-            className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200"
+            className="mt-1 min-h-11 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 focus:border-white/[0.15] focus:outline-none md:min-h-9 md:h-9 md:px-2 md:text-[13px]"
           />
         </label>
         <label className="block text-[12px] text-zinc-500">

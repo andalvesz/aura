@@ -7,7 +7,7 @@ export function Panel({ className, ...props }: PanelProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-white/[0.06] bg-zinc-900/40 text-zinc-100",
+        "min-w-0 rounded-lg border border-white/[0.06] bg-zinc-900/40 text-zinc-100",
         className
       )}
       {...props}
