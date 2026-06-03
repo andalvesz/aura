@@ -38,8 +38,8 @@ const emptyData = {
 
 describe("executive-reports", () => {
   it("formata saudação diária", () => {
-    const g = formatReportGreeting("Anderson");
-    assert.match(g, /Anderson/);
+    const g = formatReportGreeting("Maria");
+    assert.match(g, /Maria/);
   });
 
   it("monta relatório diário com seções obrigatórias", () => {

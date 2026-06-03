@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { GlobalSearchResult } from "@/utils/global-search";
 import { formatResultDateLabel } from "@/utils/global-search";
+import { useDashboardUser } from "@/components/dashboard/dashboard-user-context";
 import type {
   ExecutiveReportAnalysis,
   ExecutiveReportPayload,
@@ -57,6 +58,7 @@ const MODULE_ICONS: Record<AuraCentralModule, React.ComponentType<{ className?: 
 };
 
 export function AuraCentral() {
+  const { displayName } = useDashboardUser();
   const { create: createEvento } = useEventos();
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -85,7 +87,7 @@ export function AuraCentral() {
               text:
                 parseError ??
                 data?.error ??
-                "Olá, Anderson. Sou a Aura Central — sua interface única de IA. Pergunte o que fazer hoje, crie treinos, marque reuniões ou analise vendas.",
+                `Olá, ${displayName}. Sou a Aura Central — sua interface única de IA. Pergunte o que fazer hoje, crie treinos, marque reuniões ou analise vendas.`,
               module: "global",
             },
           ]);
@@ -97,7 +99,7 @@ export function AuraCentral() {
             role: "assistant",
             text:
               data?.text ??
-              "Olá, Anderson. Sou a Aura Central — coordeno Calendário, Crescimento, Alvesz, Saúde, Social Media e Financeiro.",
+              `Olá, ${displayName}. Sou a Aura Central — coordeno Calendário, Crescimento, Alvesz, Saúde, Social Media e Financeiro.`,
             module: "global",
           },
         ]);
@@ -106,7 +108,7 @@ export function AuraCentral() {
           setMessages([
             {
               role: "assistant",
-              text: "Olá, Anderson. Sou a Aura Central — coordeno todos os módulos da Aura OS.",
+              text: `Olá, ${displayName}. Sou a Aura Central — coordeno todos os módulos da Aura OS.`,
               module: "global",
             },
           ]);

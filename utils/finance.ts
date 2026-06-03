@@ -1,7 +1,5 @@
 import type { FinancialGoal, FinancialIncome, Gasto } from "@/types/database";
 
-export const ORCAMENTO_MENSAL = 6000;
-
 export const GASTO_CATEGORIAS = [
   { value: "alimentacao", label: "Alimentação", color: "bg-emerald-500" },
   { value: "transporte", label: "Transporte", color: "bg-sky-500" },
@@ -127,7 +125,6 @@ export function computeFinanceStats(gastos: Gasto[]) {
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const dailyAvg = dayOfMonth > 0 ? totalMonth / dayOfMonth : 0;
   const forecast = dailyAvg * daysInMonth;
-  const saldo = ORCAMENTO_MENSAL - totalMonth;
 
   return {
     monthGastos,
@@ -135,7 +132,6 @@ export function computeFinanceStats(gastos: Gasto[]) {
     categories,
     topCategory,
     forecast,
-    saldo,
     dayOfMonth,
     daysInMonth,
   };

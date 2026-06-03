@@ -64,7 +64,7 @@ export type ExecutiveReportData = AuraGlobalSummaryData & {
   alveszEventos: AlveszEvento[];
 };
 
-export function formatReportGreeting(name = "Anderson"): string {
+export function formatReportGreeting(name = "você"): string {
   const hour = new Date().getHours();
   if (hour < 12) return `Bom dia ${name}.`;
   if (hour < 18) return `Boa tarde ${name}.`;
@@ -134,7 +134,10 @@ function formatFinancialGoalLine(
   return "Nenhuma meta financeira ativa — defina em Financeiro ou Crescimento.";
 }
 
-export function buildDailyExecutiveReport(data: ExecutiveReportData): ExecutiveReportPayload {
+export function buildDailyExecutiveReport(
+  data: ExecutiveReportData,
+  displayName?: string
+): ExecutiveReportPayload {
   const today = todayIsoDate();
   const priorityLeads = sortGrowthLeadOpportunities(
     data.leads.filter((l) => l.status !== "fechado" && l.status !== "perdido")
@@ -194,7 +197,7 @@ export function buildDailyExecutiveReport(data: ExecutiveReportData): ExecutiveR
     .map((s) => `${s.label}:\n${s.lines.map((l) => `- ${l}`).join("\n")}`)
     .join("\n\n");
 
-  const text = `${formatReportGreeting()}\n\nHoje:\n\n${body}`;
+  const text = `${formatReportGreeting(displayName)}\n\nHoje:\n\n${body}`;
 
   return {
     type: "daily",
@@ -356,7 +359,8 @@ export function buildMonthlyExecutiveReport(data: ExecutiveReportData): Executiv
 
 export function buildExecutiveReport(
   type: ExecutiveReportType,
-  data: ExecutiveReportData
+  data: ExecutiveReportData,
+  displayName?: string
 ): ExecutiveReportPayload {
   switch (type) {
     case "weekly":
@@ -364,7 +368,7 @@ export function buildExecutiveReport(
     case "monthly":
       return buildMonthlyExecutiveReport(data);
     default:
-      return buildDailyExecutiveReport(data);
+      return buildDailyExecutiveReport(data, displayName);
   }
 }
 

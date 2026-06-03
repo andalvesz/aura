@@ -6,7 +6,7 @@ import type {
   HealthSession,
   HealthWorkout,
 } from "@/types/database";
-import { ORCAMENTO_MENSAL, computeFinanceStats, getCategoryLabel } from "@/utils/finance";
+import { computeFinanceStats, getCategoryLabel } from "@/utils/finance";
 import { formatBRL, formatDate, formatTime, isToday } from "@/utils/format";
 import {
   analyzeGrowthLeadContentInsights,
@@ -155,10 +155,9 @@ function buildFinanceSection(gastos: Gasto[], available: boolean): string {
 
 ### Resumo do mês
 * Total gasto: ${formatBRL(stats.totalMonth)}
-* Orçamento mensal: ${formatBRL(ORCAMENTO_MENSAL)}
-* Saldo restante: ${formatBRL(stats.saldo)}
-* Previsão do mês: ${formatBRL(stats.forecast)}
+* Previsão de despesas no mês: ${formatBRL(stats.forecast)}
 * Maior categoria: ${stats.topCategory?.label ?? "N/A"} (${stats.topCategory?.pct ?? 0}%)
+* Saldo real: registre receitas no módulo Financeiro para calcular entradas − despesas
 
 ### Gastos recentes
 ${recentLines}

@@ -28,6 +28,7 @@ import {
   getTopStaleOpportunity,
 } from "@/utils/follow-up";
 import { todayIsoDate, workoutsThisWeek } from "@/utils/health";
+import { normalizeOrcamentoStatus } from "@/utils/alvesz-integration";
 import { computeAlveszMetrics, filterUpcomingEventos } from "@/utils/nexus";
 import {
   getConteudoStatusLabel,
@@ -254,9 +255,10 @@ export function buildExecutivePriorityItems(params: {
     });
   }
 
-  for (const orc of orcamentos.filter(
-    (o) => o.status === "pendente" || o.status === "rascunho"
-  )) {
+  for (const orc of orcamentos.filter((o) => {
+    const s = normalizeOrcamentoStatus(o.status);
+    return s === "rascunho" || s === "enviado" || s === "negociacao";
+  })) {
     items.push({
       id: `orc-${orc.id}`,
       title: orc.clientes?.nome ?? orc.tipo_evento,

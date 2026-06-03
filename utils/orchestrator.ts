@@ -355,7 +355,8 @@ export type AuraCentralOpeningSummary = {
 };
 
 export function buildAuraCentralOpeningSummary(
-  data: AuraGlobalSummaryData | ExecutiveReportData
+  data: AuraGlobalSummaryData | ExecutiveReportData,
+  displayName?: string
 ): AuraCentralOpeningSummary {
   const reportData: ExecutiveReportData = {
     ...data,
@@ -369,13 +370,14 @@ export function buildAuraCentralOpeningSummary(
       "alveszEventos" in data && data.alveszEventos ? data.alveszEventos : [],
   };
 
-  const daily = buildDailyExecutiveReport(reportData);
+  const name = displayName?.trim() || "você";
+  const daily = buildDailyExecutiveReport(reportData, name);
   const bullets = daily.sections.flatMap((s) =>
     s.lines.slice(0, 1).map((line) => `${s.label}: ${line}`)
   );
 
   return {
-    greeting: formatReportGreeting("Anderson"),
+    greeting: formatReportGreeting(name),
     bullets,
     text: daily.text,
   };

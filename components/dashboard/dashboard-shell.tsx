@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import { DashboardOffline } from "@/components/dashboard/dashboard-offline";
+import {
+  DashboardUserProvider,
+  resolveDashboardDisplayName,
+} from "@/components/dashboard/dashboard-user-context";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { MobileSidebar } from "@/components/dashboard/mobile-sidebar";
 import { Sidebar } from "@/components/dashboard/sidebar";
@@ -20,8 +24,10 @@ export function DashboardShell({
   showResetTestData,
 }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const displayName = resolveDashboardDisplayName(fullName, email);
 
   return (
+    <DashboardUserProvider displayName={displayName}>
     <div className="flex min-h-[100dvh]">
       <DashboardOffline />
       <Sidebar />
@@ -42,5 +48,6 @@ export function DashboardShell({
         </main>
       </div>
     </div>
+    </DashboardUserProvider>
   );
 }

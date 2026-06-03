@@ -14,8 +14,9 @@ import {
   type ExecutiveReportPayload,
   type ExecutiveReportType,
 } from "@/utils/executive-reports";
+import { safeJsonParse } from "@/utils/safe-json";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
-import { getOptionalDataContext } from "./context";
+import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -83,11 +84,18 @@ export async function getExecutiveReport(
   report: ExecutiveReportPayload | null;
   error: string | null;
 }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { report: null, error: "Usuário não autenticado." };
+  }
+
   const { data, error } = await loadExecutiveReportData();
   if (error || !data) {
     return { report: null, error };
   }
-  return { report: buildExecutiveReport(type, data), error: null };
+
+  const displayName = await resolveUserDisplayName(ctx);
+  return { report: buildExecutiveReport(type, data, displayName), error: null };
 }
 
 function resolveAnalysisError(error: unknown): string {
@@ -152,7 +160,7 @@ Responda APENAS JSON:
     });
 
     const raw = response.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw) as Partial<ExecutiveReportAnalysis>;
+    const parsed = safeJsonParse<Partial<ExecutiveReportAnalysis>>(raw, {});
 
     const analysis: ExecutiveReportAnalysis = {
       funcionou: String(parsed.funcionou ?? fallback().funcionou),

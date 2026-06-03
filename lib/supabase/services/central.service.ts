@@ -13,7 +13,7 @@ import {
 import { formatBRL } from "@/utils/format";
 import { buildAuraCentralOpeningSummary } from "@/utils/orchestrator";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
-import { getOptionalDataContext } from "./context";
+import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 import { loadExecutiveReportData } from "./reports.service";
 
 function buildFinanceMentorContext(
@@ -78,13 +78,16 @@ export async function getAuraCentralOpeningSummary(): Promise<{
   summary: ReturnType<typeof buildAuraCentralOpeningSummary> | null;
   error: string | null;
 }> {
+  const ctx = await getOptionalDataContext();
   const { data, error } = await loadExecutiveReportData();
   if (error || !data) {
     return { summary: null, error };
   }
 
+  const displayName = ctx ? await resolveUserDisplayName(ctx) : "você";
+
   return {
-    summary: buildAuraCentralOpeningSummary(data),
+    summary: buildAuraCentralOpeningSummary(data, displayName),
     error: null,
   };
 }
