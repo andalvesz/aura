@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Target, TrendingUp, Wallet } from "lucide-react";
+import { AlertTriangle, Plus, Target, TrendingUp, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -14,6 +14,7 @@ import { useFinancialIncome } from "@/hooks/use-financial-income";
 import { useGastos } from "@/hooks/use-gastos";
 import { createClient } from "@/lib/supabase/client";
 import { formatBRL, formatDate } from "@/utils/format";
+import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import {
   computeSmartFinanceStats,
   getCategoryLabel,
@@ -94,6 +95,11 @@ export function FinanceiroView() {
   const currentBalance = balances[0] ?? null;
   const loading = loadingGastos || loadingIncome || loadingGoals || loadingBalance;
 
+  const financeDataError =
+    gastosError || incomeError || goalsError || balanceError;
+  const needsFinanceMigration =
+    financeDataError != null && isMissingSupabaseTableError(financeDataError);
+
   const stats = useMemo(
     () =>
       computeSmartFinanceStats({
@@ -124,36 +130,61 @@ export function FinanceiroView() {
   }, [loadingIncome, loadingGoals, loadingBalance, refreshFinance]);
 
   useEffect(() => {
+    if (needsFinanceMigration) return;
     if (gastosError) toast.error(gastosError);
     if (incomeError) toast.error(incomeError);
     if (goalsError) toast.error(goalsError);
     if (balanceError) toast.error(balanceError);
-  }, [gastosError, incomeError, goalsError, balanceError]);
+  }, [gastosError, incomeError, goalsError, balanceError, needsFinanceMigration]);
 
   return (
     <div className="space-y-3">
+      {needsFinanceMigration && !loading && (
+        <Panel className="border-amber-500/20 bg-amber-500/[0.04]">
+          <PanelContent className="flex gap-3 py-3">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-zinc-200">
+                Tabelas financeiras ainda não existem no Supabase
+              </p>
+              <p className="mt-1 text-[11px] text-zinc-500">
+                Execute no SQL Editor o arquivo{" "}
+                <code className="text-zinc-400">
+                  supabase/migrations/20250603170000_financial_module_complete.sql
+                </code>{" "}
+                (cria gastos, financial_goals, financial_income e financial_balance com RLS).
+              </p>
+            </div>
+          </PanelContent>
+        </Panel>
+      )}
+
       <div className="flex flex-wrap justify-end gap-2">
         <ActionButton
           icon={<Wallet className="size-3.5" />}
           onClick={() => setSaldoModalOpen(true)}
+          disabled={needsFinanceMigration}
         >
           Definir saldo inicial
         </ActionButton>
         <ActionButton
           icon={<TrendingUp className="size-3.5" />}
           onClick={() => setReceitaModalOpen(true)}
+          disabled={needsFinanceMigration}
         >
           Receita
         </ActionButton>
         <ActionButton
           icon={<Target className="size-3.5" />}
           onClick={() => setMetaModalOpen(true)}
+          disabled={needsFinanceMigration}
         >
           Meta
         </ActionButton>
         <ActionButton
           icon={<Plus className="size-3.5" />}
           onClick={() => setGastoModalOpen(true)}
+          disabled={needsFinanceMigration}
         >
           Despesa
         </ActionButton>

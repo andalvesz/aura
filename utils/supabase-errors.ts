@@ -12,7 +12,7 @@ export function isMissingSupabaseTableError(message: string | null | undefined):
     return true;
   }
 
-  return /public\.(clients|events|budgets|clientes|eventos|orcamentos|estoque)\b/.test(
+  return /public\.(clients|events|budgets|clientes|eventos|orcamentos|estoque|gastos|financial_goals|financial_income|financial_balance)\b/.test(
     lower
   );
 }
