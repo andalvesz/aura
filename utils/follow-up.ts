@@ -24,6 +24,7 @@ export type FollowUpContext = {
   leadId: string | null;
   orcamentoId: string | null;
   canal: GrowthLead["canal"] | null;
+  telefone: string | null;
 };
 
 export type StaleOpportunity = {
@@ -106,6 +107,7 @@ export function buildFollowUpContextFromLead(
     leadId: lead.id,
     orcamentoId: orcamento?.id ?? null,
     canal: lead.canal,
+    telefone: lead.contato,
   };
 }
 
@@ -137,6 +139,7 @@ export function buildFollowUpContextFromOrcamento(
     leadId: null,
     orcamentoId: orcamento.id,
     canal: cliente?.instagram ? "instagram" : "whatsapp",
+    telefone: cliente?.telefone ?? null,
   };
 }
 

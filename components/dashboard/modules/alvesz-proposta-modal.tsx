@@ -3,6 +3,7 @@
 import {
   Copy,
   Download,
+  ExternalLink,
   FileText,
   Loader2,
   MessageCircle,
@@ -26,6 +27,10 @@ import {
   type AlveszPropostaPdfMeta,
 } from "@/utils/alvesz-proposta";
 import { ActionButton } from "../action-button";
+import {
+  openWhatsAppLink,
+  WHATSAPP_NO_PHONE_MESSAGE,
+} from "@/utils/whatsapp";
 
 type AlveszPropostaModalProps = {
   open: boolean;
@@ -179,6 +184,16 @@ export function AlveszPropostaModal({
     }
   }
 
+  async function handleEnviarWhatsApp() {
+    const texto = formatPropostaWhatsApp(conteudo, pdfUrl);
+    const result = openWhatsAppLink(cliente?.telefone, texto);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("WhatsApp aberto com a proposta pronta.");
+  }
+
   async function handleCompartilhar() {
     const texto = formatPropostaWhatsApp(conteudo, pdfUrl);
     try {
@@ -242,6 +257,12 @@ export function AlveszPropostaModal({
           </p>
         )}
 
+        {!cliente?.telefone?.trim() && (
+          <p className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100/90">
+            {WHATSAPP_NO_PHONE_MESSAGE}
+          </p>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <ActionButton
             icon={
@@ -268,6 +289,13 @@ export function AlveszPropostaModal({
             disabled={iaPending || !conteudo.trim()}
           >
             Melhorar proposta
+          </ActionButton>
+          <ActionButton
+            icon={<ExternalLink className="size-3.5" />}
+            onClick={handleEnviarWhatsApp}
+            disabled={!conteudo.trim() || !cliente?.telefone?.trim()}
+          >
+            Enviar proposta no WhatsApp
           </ActionButton>
           <ActionButton
             icon={<MessageCircle className="size-3.5" />}

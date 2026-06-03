@@ -35,6 +35,7 @@ describe("follow-up", () => {
 
   it("gera mensagem whatsapp com nome do cliente", () => {
     const ctx = buildFollowUpContextFromLead(lead, null);
+    assert.equal(ctx.telefone, "11999999999");
     const msg = buildDefaultFollowUpMessages(ctx).whatsapp;
     assert.match(msg, /João/);
     assert.match(msg, /proposta/i);

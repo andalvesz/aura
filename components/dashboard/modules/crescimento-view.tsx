@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Circle,
   MessageCircle,
+  Phone,
   Plus,
   Sparkles,
   Target,
@@ -64,6 +65,7 @@ import { AddGrowthLeadModal } from "./add-growth-lead-modal";
 import { AddGrowthProfileModal } from "./add-growth-profile-modal";
 import { SetGrowthGoalModal } from "./set-growth-goal-modal";
 import { FollowUpModal } from "./follow-up-modal";
+import { WhatsAppAssistidoModal } from "./whatsapp-assistido-modal";
 import {
   buildFollowUpContextFromLead,
   findOrcamentoForLead,
@@ -72,6 +74,9 @@ import {
   getFollowUpTierLabel,
   listStaleOpportunities,
 } from "@/utils/follow-up";
+import {
+  buildWhatsAppLeadContext,
+} from "@/utils/whatsapp-ia";
 
 function GrowthDataError({
   message,
@@ -162,6 +167,7 @@ export function CrescimentoView() {
   const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [followUpLead, setFollowUpLead] = useState<GrowthLead | null>(null);
+  const [whatsAppLead, setWhatsAppLead] = useState<GrowthLead | null>(null);
   const { data: orcamentos } = useOrcamentos();
   const { create: createEvento } = useEventos();
   const [completingKey, setCompletingKey] = useState<string | null>(null);
@@ -203,6 +209,12 @@ export function CrescimentoView() {
     const orcamento = findOrcamentoForLead(followUpLead, orcamentos);
     return buildFollowUpContextFromLead(followUpLead, orcamento);
   }, [followUpLead, orcamentos]);
+
+  const whatsAppLeadContext = useMemo(() => {
+    if (!whatsAppLead) return null;
+    const orcamento = findOrcamentoForLead(whatsAppLead, orcamentos);
+    return buildWhatsAppLeadContext(whatsAppLead, orcamento);
+  }, [whatsAppLead, orcamentos]);
   const executiveScore = useMemo(
     () => computeMonthlyExecutiveScore(missions, growthLeads),
     [missions, growthLeads]
@@ -673,6 +685,14 @@ export function CrescimentoView() {
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
+                      <ActionButton
+                        variant="ghost"
+                        className="h-8 px-2 text-[10px]"
+                        icon={<Phone className="size-3" />}
+                        onClick={() => setWhatsAppLead(lead)}
+                      >
+                        Mensagem WhatsApp
+                      </ActionButton>
                       {idleTier && (
                         <ActionButton
                           variant="ghost"
@@ -989,6 +1009,24 @@ export function CrescimentoView() {
             : undefined
         }
       />
+
+      {whatsAppLead && whatsAppLeadContext && (
+        <WhatsAppAssistidoModal
+          open
+          onClose={() => setWhatsAppLead(null)}
+          title="Mensagem WhatsApp"
+          description="Gere uma mensagem com dados reais do lead."
+          telefone={whatsAppLead.contato}
+          intent="lead"
+          context={whatsAppLeadContext}
+          onMarkContacted={async () => {
+            const { error } = await updateGrowthLead(whatsAppLead.id, {
+              observacoes: whatsAppLead.observacoes,
+            });
+            return { error };
+          }}
+        />
+      )}
 
       <AddGrowthProfileModal
         open={profileModalOpen}

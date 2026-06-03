@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, FileText, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { Download, ExternalLink, FileText, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -43,11 +43,13 @@ import { AddEstoqueModal } from "./add-estoque-modal";
 import { AddAlveszEventoModal } from "./add-alvesz-evento-modal";
 import { AlveszPropostaModal } from "./alvesz-proposta-modal";
 import { FollowUpModal } from "./follow-up-modal";
+import { WhatsAppAssistidoModal } from "./whatsapp-assistido-modal";
 import {
   buildFollowUpContextFromOrcamento,
   daysSinceContact,
   getFollowUpIdleTier,
 } from "@/utils/follow-up";
+import { buildWhatsAppPropostaContext } from "@/utils/whatsapp-ia";
 
 export function AlveszView() {
   const supabase = useMemo(() => createClient(), []);
@@ -72,6 +74,7 @@ export function AlveszView() {
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [propostaOrcamento, setPropostaOrcamento] = useState<Orcamento | null>(null);
   const [followUpOrcamento, setFollowUpOrcamento] = useState<Orcamento | null>(null);
+  const [whatsAppOrcamento, setWhatsAppOrcamento] = useState<Orcamento | null>(null);
   const { create: createEventoCalendario } = useEventos();
   const [clienteModal, setClienteModal] = useState(false);
   const [estoqueModal, setEstoqueModal] = useState(false);
@@ -117,6 +120,19 @@ export function AlveszView() {
       : null;
     return buildFollowUpContextFromOrcamento(followUpOrcamento, cliente);
   }, [followUpOrcamento, clientes]);
+
+  const whatsAppOrcamentoContext = useMemo(() => {
+    if (!whatsAppOrcamento) return null;
+    const cliente = whatsAppOrcamento.cliente_id
+      ? clientes.find((c) => c.id === whatsAppOrcamento.cliente_id) ?? null
+      : null;
+    return buildWhatsAppPropostaContext(whatsAppOrcamento, cliente);
+  }, [whatsAppOrcamento, clientes]);
+
+  const whatsAppOrcamentoCliente = useMemo(() => {
+    if (!whatsAppOrcamento?.cliente_id) return null;
+    return clientes.find((c) => c.id === whatsAppOrcamento.cliente_id) ?? null;
+  }, [whatsAppOrcamento, clientes]);
 
   async function handleCreateOrcamento(payload: {
     cliente_id: string | null;
@@ -469,6 +485,12 @@ export function AlveszView() {
                     </ActionButton>
                   )}
                   <ActionButton
+                    icon={<ExternalLink className="size-3.5" />}
+                    onClick={() => setWhatsAppOrcamento(o)}
+                  >
+                    Enviar proposta no WhatsApp
+                  </ActionButton>
+                  <ActionButton
                     icon={<FileText className="size-3.5" />}
                     onClick={() => setPropostaOrcamento(o)}
                   >
@@ -617,6 +639,23 @@ export function AlveszView() {
             : undefined
         }
       />
+      {whatsAppOrcamento && whatsAppOrcamentoContext && (
+        <WhatsAppAssistidoModal
+          open
+          onClose={() => setWhatsAppOrcamento(null)}
+          title="Enviar proposta no WhatsApp"
+          description="Texto profissional com dados do orçamento Alvesz."
+          telefone={whatsAppOrcamentoCliente?.telefone}
+          intent="proposta"
+          context={whatsAppOrcamentoContext}
+          onMarkContacted={async () => {
+            const { error } = await updateOrcamento(whatsAppOrcamento.id, {
+              local: whatsAppOrcamento.local,
+            });
+            return { error };
+          }}
+        />
+      )}
       <AlveszPropostaModal
         open={propostaOrcamento !== null}
         onClose={() => setPropostaOrcamento(null)}

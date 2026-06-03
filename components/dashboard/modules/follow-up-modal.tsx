@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, Copy, Loader2, MessageCircle, Sparkles } from "lucide-react";
+import { CalendarPlus, Copy, ExternalLink, Loader2, MessageCircle, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
@@ -12,6 +12,7 @@ import {
   getFollowUpTierLabel,
 } from "@/utils/follow-up";
 import { formatBRL } from "@/utils/format";
+import { openWhatsAppLink, WHATSAPP_NO_PHONE_MESSAGE } from "@/utils/whatsapp";
 import { ActionButton } from "../action-button";
 
 const CHANNELS: { id: FollowUpChannel; label: string }[] = [
@@ -94,6 +95,20 @@ export function FollowUpModal({
     }
   }
 
+  async function handleAbrirWhatsApp() {
+    if (!context) return;
+    const result = openWhatsAppLink(context.telefone, message);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("WhatsApp aberto com a mensagem pronta.");
+    if (onMarkContacted) {
+      const { error } = await onMarkContacted();
+      if (error) toast.info(`WhatsApp aberto, mas não atualizou lead: ${error}`);
+    }
+  }
+
   async function handleCopiar() {
     try {
       await navigator.clipboard.writeText(message);
@@ -170,6 +185,12 @@ export function FollowUpModal({
           className="w-full resize-y rounded-md border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-[12px] leading-relaxed text-zinc-300 focus:outline-none"
         />
 
+        {channel === "whatsapp" && !context.telefone?.trim() && (
+          <p className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100/90">
+            {WHATSAPP_NO_PHONE_MESSAGE}
+          </p>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <ActionButton
             icon={
@@ -191,6 +212,15 @@ export function FollowUpModal({
           >
             Copiar mensagem
           </ActionButton>
+          {channel === "whatsapp" && (
+            <ActionButton
+              icon={<ExternalLink className="size-3.5" />}
+              onClick={handleAbrirWhatsApp}
+              disabled={!message.trim() || !context.telefone?.trim()}
+            >
+              Abrir WhatsApp
+            </ActionButton>
+          )}
           <ActionButton
             icon={
               schedulePending ? (
@@ -208,7 +238,7 @@ export function FollowUpModal({
 
         <p className="flex items-center gap-1.5 text-[10px] text-zinc-600">
           <MessageCircle className="size-3" />
-          Ao copiar, a Aura atualiza a data de contato do lead.
+          Ao copiar ou abrir WhatsApp, a Aura atualiza a data de contato do lead.
         </p>
       </div>
     </Modal>
