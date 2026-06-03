@@ -38,6 +38,7 @@ export function useOrcamentos() {
       status?: string;
       data_evento?: string | null;
       local?: string | null;
+      observacoes?: string | null;
     }) => {
       const {
         data: { user },

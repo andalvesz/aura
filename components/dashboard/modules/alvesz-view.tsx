@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { FileText, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +11,7 @@ import {
 } from "@/components/dashboard/loading-skeleton";
 import {
   useAlveszEventos,
+  useAlveszPropostas,
   useClientes,
   useEstoque,
   useOrcamentos,
@@ -21,6 +22,7 @@ import {
   ESTOQUE_STATUS_STYLE,
   estoqueStatus,
 } from "@/utils/alvesz";
+import { DEFAULT_ALVESZ_PROPOSTA_PDF_META } from "@/utils/alvesz-proposta";
 import {
   createCalendarFromAlveszEvento,
   createGrowthLeadFromOrcamento,
@@ -38,6 +40,7 @@ import { AddOrcamentoModal } from "./add-orcamento-modal";
 import { AddClienteModal } from "./add-cliente-modal";
 import { AddEstoqueModal } from "./add-estoque-modal";
 import { AddAlveszEventoModal } from "./add-alvesz-evento-modal";
+import { AlveszPropostaModal } from "./alvesz-proposta-modal";
 
 export function AlveszView() {
   const supabase = useMemo(() => createClient(), []);
@@ -57,8 +60,10 @@ export function AlveszView() {
     update: updateEventoAlvesz,
     remove: removeEventoAlvesz,
   } = useAlveszEventos();
+  const { create: createProposta } = useAlveszPropostas();
 
   const [orcamentoModal, setOrcamentoModal] = useState(false);
+  const [propostaOrcamento, setPropostaOrcamento] = useState<Orcamento | null>(null);
   const [clienteModal, setClienteModal] = useState(false);
   const [estoqueModal, setEstoqueModal] = useState(false);
   const [eventoModal, setEventoModal] = useState(false);
@@ -105,6 +110,7 @@ export function AlveszView() {
     status: string;
     data_evento: string | null;
     local: string | null;
+    observacoes: string | null;
     criarLead: boolean;
   }) {
     const result = await createOrcamento({
@@ -116,6 +122,7 @@ export function AlveszView() {
       status: payload.status,
       data_evento: payload.data_evento,
       local: payload.local,
+      observacoes: payload.observacoes,
     });
 
     if (result.error) return { error: result.error };
@@ -433,7 +440,13 @@ export function AlveszView() {
                     {o.local ? ` · ${o.local}` : ""}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <ActionButton
+                    icon={<FileText className="size-3.5" />}
+                    onClick={() => setPropostaOrcamento(o)}
+                  >
+                    Gerar proposta
+                  </ActionButton>
                   <select
                     value={normalizeOrcamentoStatus(o.status)}
                     onChange={(e) =>
@@ -550,6 +563,25 @@ export function AlveszView() {
         syncCalendar={syncCalendar}
         onSyncCalendarChange={setSyncCalendar}
         onSubmit={handleCreateEvento}
+      />
+      <AlveszPropostaModal
+        open={propostaOrcamento !== null}
+        onClose={() => setPropostaOrcamento(null)}
+        orcamento={propostaOrcamento}
+        cliente={
+          propostaOrcamento?.cliente_id
+            ? clientes.find((c) => c.id === propostaOrcamento.cliente_id) ?? null
+            : null
+        }
+        onSave={async (payload) => {
+          const result = await createProposta({
+            orcamento_id: payload.orcamento_id,
+            conteudo: payload.conteudo,
+            melhorada_ia: payload.melhorada_ia,
+            pdf_meta: DEFAULT_ALVESZ_PROPOSTA_PDF_META,
+          });
+          return { error: result.error };
+        }}
       />
     </div>
   );

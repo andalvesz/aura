@@ -22,6 +22,7 @@ type AddOrcamentoModalProps = {
     status: string;
     data_evento: string | null;
     local: string | null;
+    observacoes: string | null;
     criarLead: boolean;
   }) => Promise<{ error: string | null }>;
 };
@@ -68,6 +69,7 @@ export function AddOrcamentoModal({
       status: String(fd.get("status") ?? "rascunho"),
       data_evento: dataRaw || null,
       local: String(fd.get("local") ?? "").trim() || null,
+      observacoes: String(fd.get("observacoes") ?? "").trim() || null,
       criarLead,
     });
     setPending(false);
@@ -136,6 +138,15 @@ export function AddOrcamentoModal({
           </label>
         </div>
         <Field label="Local" name="local" placeholder="Salão, chácara..." />
+        <label className="block text-[12px] text-zinc-500">
+          Observações
+          <textarea
+            name="observacoes"
+            rows={2}
+            placeholder="Preferências, cardápio, restrições..."
+            className="mt-1 w-full resize-y rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-1.5 text-[13px] text-zinc-200 focus:outline-none"
+          />
+        </label>
         <div className="rounded-md bg-violet-500/10 px-3 py-2 text-[12px]">
           <span className="text-zinc-500">Lucro estimado: </span>
           <span className="font-medium text-violet-200">{formatBRL(lucro)}</span>

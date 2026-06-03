@@ -64,7 +64,19 @@ export type Orcamento = {
   status: string;
   data_evento: string | null;
   local: string | null;
+  observacoes: string | null;
   growth_lead_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AlveszProposta = {
+  id: string;
+  user_id: string;
+  orcamento_id: string;
+  conteudo: string;
+  melhorada_ia: boolean;
+  pdf_meta: Json;
   created_at: string;
   updated_at: string;
 };
@@ -376,12 +388,32 @@ export type Database = {
         Orcamento,
         Omit<
           Orcamento,
-          "id" | "created_at" | "updated_at" | "data_evento" | "local" | "growth_lead_id"
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "data_evento"
+          | "local"
+          | "observacoes"
+          | "growth_lead_id"
         > & {
           id?: string;
           data_evento?: string | null;
           local?: string | null;
+          observacoes?: string | null;
           growth_lead_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      alvesz_propostas: TableDef<
+        AlveszProposta,
+        Omit<
+          AlveszProposta,
+          "id" | "created_at" | "updated_at" | "melhorada_ia" | "pdf_meta"
+        > & {
+          id?: string;
+          melhorada_ia?: boolean;
+          pdf_meta?: Json;
           created_at?: string;
           updated_at?: string;
         }
@@ -605,6 +637,7 @@ export type UserScopedTable =
   | "eventos"
   | "clientes"
   | "orcamentos"
+  | "alvesz_propostas"
   | "estoque"
   | "treinos"
   | "dieta"
