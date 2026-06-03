@@ -9,6 +9,9 @@ import {
   CONTEUDO_FORMATOS,
   CONTEUDO_PLATAFORMAS,
   CONTEUDO_STATUSES,
+  getFormatoLabel,
+  getPlataformaLabel,
+  normalizeConteudoFormato,
 } from "@/utils/social";
 
 export type ConteudoFormPayload = {
@@ -105,8 +108,8 @@ export function AddConteudoModal({
             className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] capitalize text-zinc-200 focus:outline-none"
           >
             {CONTEUDO_PLATAFORMAS.map((p) => (
-              <option key={p} value={p} className="bg-zinc-900 capitalize">
-                {p}
+              <option key={p} value={p} className="bg-zinc-900">
+                {getPlataformaLabel(p)}
               </option>
             ))}
           </select>
@@ -115,12 +118,12 @@ export function AddConteudoModal({
           Formato
           <select
             name="formato"
-            defaultValue={initial?.formato ?? "reels"}
+            defaultValue={normalizeConteudoFormato(initial?.formato ?? null)}
             className="mt-1 h-9 w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2 text-[13px] text-zinc-200 focus:outline-none"
           >
             {CONTEUDO_FORMATOS.map((f) => (
               <option key={f} value={f} className="bg-zinc-900">
-                {f.replace("_", " ")}
+                {getFormatoLabel(f)}
               </option>
             ))}
           </select>

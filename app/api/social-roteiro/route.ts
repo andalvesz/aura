@@ -1,4 +1,5 @@
 import OpenAI, { APIError } from "openai";
+import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
 import { SOCIAL_ROTEIRO_CONTEXT } from "@/utils/social";
 import { parseRequestJson } from "@/utils/safe-json";
 
@@ -47,13 +48,18 @@ export async function POST(req: Request) {
       );
     }
 
+    const { context: dataContext } = await getSocialIaMentorContext();
+    const dataSection = dataContext
+      ? `\n\n${dataContext}`
+      : "\n\n## DADOS\nNenhum dado disponível.";
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `Você cria roteiros de conteúdo para redes sociais.
-${SOCIAL_ROTEIRO_CONTEXT}
+${SOCIAL_ROTEIRO_CONTEXT}${dataSection}
 Estruture: gancho, desenvolvimento, CTA, hashtags sugeridas. Seja prático e em português do Brasil.`,
         },
         {
