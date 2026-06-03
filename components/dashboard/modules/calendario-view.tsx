@@ -23,22 +23,28 @@ import type { Evento } from "@/types/database";
 import type { ParsedEventoSuggestion } from "@/utils/calendar";
 import {
   eventoPayloadFromSuggestion,
+  formatEventoDateDisplay,
+  formatEventoTimeDisplay,
   getEventoTipoLabel,
   isEventoConfirmationMessage,
   proximosEventos,
 } from "@/utils/calendar";
-import { formatDate, formatTime } from "@/utils/format";
 import { AddEventoModal } from "./add-evento-modal";
 
 export function CalendarioView() {
   const {
     data: eventos,
     loading,
+    error: eventosError,
+    refresh,
     create,
     update,
     remove,
   } = useEventos();
   const { data: leads } = useGrowthLeads();
+
+  const safeEventos = eventos ?? [];
+  const safeLeads = leads ?? [];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Evento | null>(null);
@@ -56,7 +62,7 @@ export function CalendarioView() {
     },
   ]);
 
-  const upcoming = useMemo(() => proximosEventos(eventos), [eventos]);
+  const upcoming = useMemo(() => proximosEventos(safeEventos), [safeEventos]);
 
   function openCreate(initial?: Evento | ParsedEventoSuggestion | null) {
     if (initial && "id" in initial) {
@@ -219,10 +225,23 @@ export function CalendarioView() {
         )}
       </div>
 
+      {eventosError && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100/90">
+          <span>{eventosError}</span>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="rounded px-2 py-1 text-[11px] font-medium text-amber-200 hover:bg-amber-500/15"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-[1fr_minmax(0,280px)]">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <MiniCalendar
-            eventos={eventos}
+            eventos={safeEventos}
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
           />
@@ -256,7 +275,8 @@ export function CalendarioView() {
                           {ev.titulo}
                         </p>
                         <p className="text-[11px] text-zinc-500">
-                          {formatDate(ev.data_inicio)} · {formatTime(ev.data_inicio)} ·{" "}
+                          {formatEventoDateDisplay(ev.data_inicio)} ·{" "}
+                          {formatEventoTimeDisplay(ev.data_inicio)} ·{" "}
                           {getEventoTipoLabel(ev.tipo)}
                         </p>
                         {ev.descricao && (
@@ -349,7 +369,7 @@ export function CalendarioView() {
           setModalOpen(false);
           setEditing(null);
         }}
-        leads={leads}
+        leads={safeLeads}
         initial={editing ?? suggestion}
         onSubmit={handleEventoSubmit}
       />

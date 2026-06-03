@@ -4,8 +4,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { cn } from "@/utils/cn";
 import type { Evento } from "@/types/database";
-import { diasComEventos, eventosNoDia, formatEventoResumo } from "@/utils/calendar";
-import { formatTime } from "@/utils/format";
+import {
+  diasComEventos,
+  eventosNoDia,
+  formatEventoResumo,
+  formatEventoTimeDisplay,
+} from "@/utils/calendar";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "./panel";
 
 const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
@@ -166,7 +170,9 @@ export function MiniCalendar({
                 className="flex items-center gap-2 rounded-md px-1.5 py-1 text-[11px] transition-colors duration-200 hover:bg-white/[0.03]"
                 title={formatEventoResumo(e)}
               >
-                <span className="font-mono text-zinc-600">{formatTime(e.data_inicio)}</span>
+                <span className="font-mono text-zinc-600">
+                  {formatEventoTimeDisplay(e.data_inicio)}
+                </span>
                 <span className="truncate text-zinc-400">{e.titulo}</span>
               </div>
             ))

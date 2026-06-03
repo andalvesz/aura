@@ -1,5 +1,38 @@
 import type { Evento } from "@/types/database";
-import { formatTime } from "@/utils/format";
+
+export function isValidEventoDate(value: string | null | undefined): value is string {
+  if (!value || typeof value !== "string") return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time);
+}
+
+export function formatEventoDateDisplay(iso: string): string {
+  if (!isValidEventoDate(iso)) return "Data não definida";
+  try {
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit",
+      month: "short",
+    }).format(new Date(iso));
+  } catch {
+    return "Data não definida";
+  }
+}
+
+export function formatEventoTimeDisplay(iso: string): string {
+  if (!isValidEventoDate(iso)) return "--:--";
+  try {
+    return new Intl.DateTimeFormat("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return "--:--";
+  }
+}
+
+function safeEventosList(eventos: Evento[] | null | undefined): Evento[] {
+  return Array.isArray(eventos) ? eventos : [];
+}
 
 export const EVENTO_TIPOS = [
   { id: "geral", label: "Geral" },
@@ -71,14 +104,30 @@ export function buildEventoDateTime(data: string, hora: string): string {
 }
 
 export function splitEventoDateTime(iso: string): { data: string; hora: string } {
+  const fallback = {
+    data: new Date().toISOString().slice(0, 10),
+    hora: "09:00",
+  };
+  if (!isValidEventoDate(iso)) return fallback;
+
   const d = new Date(iso);
-  const data = d.toISOString().slice(0, 10);
-  const hora = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return { data, hora };
+  try {
+    const data = d.toISOString().slice(0, 10);
+    const hora = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return { data, hora };
+  } catch {
+    return fallback;
+  }
 }
 
-export function eventosNoDia(eventos: Evento[], year: number, month: number, day: number) {
-  return eventos.filter((e) => {
+export function eventosNoDia(
+  eventos: Evento[] | null | undefined,
+  year: number,
+  month: number,
+  day: number
+) {
+  return safeEventosList(eventos).filter((e) => {
+    if (!isValidEventoDate(e.data_inicio)) return false;
     const d = new Date(e.data_inicio);
     return (
       d.getFullYear() === year &&
@@ -88,9 +137,14 @@ export function eventosNoDia(eventos: Evento[], year: number, month: number, day
   });
 }
 
-export function diasComEventos(eventos: Evento[], year: number, month: number): number[] {
+export function diasComEventos(
+  eventos: Evento[] | null | undefined,
+  year: number,
+  month: number
+): number[] {
   const days = new Set<number>();
-  for (const e of eventos) {
+  for (const e of safeEventosList(eventos)) {
+    if (!isValidEventoDate(e.data_inicio)) continue;
     const d = new Date(e.data_inicio);
     if (d.getFullYear() === year && d.getMonth() === month) {
       days.add(d.getDate());
@@ -99,16 +153,25 @@ export function diasComEventos(eventos: Evento[], year: number, month: number): 
   return [...days];
 }
 
-export function proximosEventos(eventos: Evento[], limit = 8): Evento[] {
+export function proximosEventos(
+  eventos: Evento[] | null | undefined,
+  limit = 8
+): Evento[] {
   const now = Date.now();
-  return [...eventos]
-    .filter((e) => new Date(e.data_inicio).getTime() >= now - 60_000)
-    .sort((a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime())
+  return safeEventosList(eventos)
+    .filter((e) => {
+      if (!isValidEventoDate(e.data_inicio)) return false;
+      return new Date(e.data_inicio).getTime() >= now - 60_000;
+    })
+    .sort(
+      (a, b) =>
+        new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime()
+    )
     .slice(0, limit);
 }
 
 export function formatEventoResumo(evento: Evento) {
-  return `${formatTime(evento.data_inicio)} · ${evento.titulo}`;
+  return `${formatEventoTimeDisplay(evento.data_inicio)} · ${evento.titulo ?? "Sem título"}`;
 }
 
 export function getEventoTipoLabel(tipo: string) {
