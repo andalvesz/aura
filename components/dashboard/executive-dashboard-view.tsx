@@ -298,16 +298,16 @@ export function ExecutiveDashboardView() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <LayoutDashboard className="size-5 text-violet-400" />
-            <h1 className="text-2xl font-semibold text-zinc-100">Visão Geral</h1>
+            <LayoutDashboard className="size-5 shrink-0 text-violet-400" />
+            <h1 className="text-xl font-semibold text-zinc-100 sm:text-2xl">Visão Geral</h1>
           </div>
           <p className="mt-0.5 text-sm text-zinc-500">Centro de comando · Aura OS</p>
         </div>
         <Link
           href="/dashboard/crescimento"
-          className="inline-flex items-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-[12px] font-medium text-violet-300 transition-colors hover:border-violet-500/30 hover:bg-violet-500/15"
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2.5 text-[12px] font-medium text-violet-300 transition-colors hover:border-violet-500/30 hover:bg-violet-500/15 sm:w-auto sm:min-h-0 sm:py-2"
         >
           <Sparkles className="size-3.5" />
           Aura Mentor
@@ -366,7 +366,7 @@ export function ExecutiveDashboardView() {
       </Panel>
 
       {/* Seção 2 — KPIs */}
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <MetricCard
           label="Receita do mês"
           value={formatBRL(kpis.receitaMes)}

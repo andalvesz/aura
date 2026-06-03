@@ -226,20 +226,20 @@ export function AuraCentral() {
 
   return (
     <Panel className="border-cyan-500/10 bg-cyan-500/[0.02]">
-      <PanelHeader>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <div className="flex size-7 items-center justify-center rounded-md bg-cyan-500/15">
-              <Sparkles className="size-3.5 text-cyan-400" />
+      <PanelHeader className="px-3 sm:px-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-cyan-500/15 sm:size-7">
+              <Sparkles className="size-4 text-cyan-400 sm:size-3.5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <PanelTitle>Aura Central</PanelTitle>
-              <p className="text-[10px] text-zinc-600">
+              <p className="truncate text-[10px] text-zinc-600 sm:whitespace-normal">
                 IA única · Calendário · Crescimento · Alvesz · Saúde · Social · Financeiro
               </p>
             </div>
           </div>
-          <div className="hidden items-center gap-1 text-[10px] text-zinc-600 sm:flex">
+          <div className="flex flex-wrap items-center gap-1 text-[10px] text-zinc-600">
             <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Mentor</span>
             <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Agenda</span>
             <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Saúde</span>
@@ -247,22 +247,22 @@ export function AuraCentral() {
         </div>
       </PanelHeader>
 
-      <PanelContent className="pt-0">
-        <div className="mb-3 flex flex-wrap gap-1.5">
+      <PanelContent className="px-3 pt-0 sm:px-4">
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:pb-0 [&::-webkit-scrollbar]:hidden">
           {AURA_CENTRAL_QUICK_ACTIONS.map((action) => (
             <button
               key={action.id}
               type="button"
               disabled={loading || summaryLoading}
               onClick={() => sendMessage(action.prompt, action.id)}
-              className="inline-flex items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-zinc-400 transition-colors hover:border-cyan-400/20 hover:bg-cyan-500/[0.06] hover:text-cyan-200 disabled:opacity-50"
+              className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[12px] text-zinc-400 transition-colors hover:border-cyan-400/20 hover:bg-cyan-500/[0.06] hover:text-cyan-200 disabled:opacity-50 sm:min-h-0 sm:px-2.5 sm:py-1.5 sm:text-[11px]"
             >
               {action.label}
             </button>
           ))}
         </div>
 
-        <div className="mb-3 max-h-[380px] space-y-2 overflow-y-auto rounded-lg border border-white/[0.06] bg-zinc-950/40 p-2">
+        <div className="mb-3 max-h-[min(52vh,420px)] space-y-2 overflow-y-auto rounded-lg border border-white/[0.06] bg-zinc-950/40 p-2 sm:max-h-[380px]">
           {summaryLoading && messages.length === 0 && (
             <div className="flex items-center gap-2 px-3 py-2 text-[13px] text-zinc-500">
               <Loader2 className="size-3.5 animate-spin" />
@@ -279,10 +279,10 @@ export function AuraCentral() {
             return (
               <div
                 key={index}
-                className={`rounded-lg px-3 py-2 text-[13px] leading-relaxed ${
+                className={`rounded-lg px-3 py-2.5 text-[13px] leading-relaxed sm:py-2 ${
                   message.role === "user"
-                    ? "ml-6 bg-white/[0.06] text-zinc-200"
-                    : "mr-6 bg-cyan-500/10 text-cyan-50"
+                    ? "ml-0 bg-white/[0.06] text-zinc-200 sm:ml-6"
+                    : "mr-0 bg-cyan-500/10 text-cyan-50 sm:mr-6"
                 }`}
               >
                 {message.role === "assistant" && message.module && (
@@ -307,25 +307,29 @@ export function AuraCentral() {
         </div>
 
         {pendingEvent && (
-          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2">
-            <CalendarDays className="size-4 shrink-0 text-sky-400" />
-            <span className="flex-1 text-[12px] text-zinc-300">
-              {pendingEvent.titulo} — {pendingEvent.data} às {pendingEvent.hora}
-            </span>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={confirmEvent}
-              className="rounded-md bg-sky-500 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-sky-400 disabled:opacity-50"
-            >
-              Confirmar evento
-            </button>
-            <Link
-              href="/dashboard/calendario"
-              className="text-[11px] text-sky-400 hover:underline"
-            >
-              Aura Agenda
-            </Link>
+          <div className="mb-3 flex flex-col gap-2 rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex min-w-0 items-start gap-2">
+              <CalendarDays className="mt-0.5 size-4 shrink-0 text-sky-400" />
+              <span className="text-[13px] text-zinc-300">
+                {pendingEvent.titulo} — {pendingEvent.data} às {pendingEvent.hora}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={confirmEvent}
+                className="min-h-11 flex-1 rounded-md bg-sky-500 px-3 py-2 text-[12px] font-medium text-white hover:bg-sky-400 disabled:opacity-50 sm:min-h-0 sm:flex-none sm:px-2.5 sm:py-1 sm:text-[11px]"
+              >
+                Confirmar evento
+              </button>
+              <Link
+                href="/dashboard/calendario"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md border border-sky-500/20 px-3 text-[12px] text-sky-400 hover:bg-sky-500/10 sm:min-h-0 sm:flex-none sm:border-0 sm:px-0 sm:text-[11px] sm:hover:bg-transparent sm:hover:underline"
+              >
+                Aura Agenda
+              </Link>
+            </div>
           </div>
         )}
 
@@ -333,15 +337,15 @@ export function AuraCentral() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="O que devo fazer hoje? Crie treino, marque reunião, analise vendas..."
+            placeholder="O que devo fazer hoje?"
             disabled={loading || summaryLoading}
-            className="h-10 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:border-cyan-400/40 focus:outline-none disabled:opacity-50"
+            className="h-11 min-h-11 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-base text-zinc-200 placeholder:text-zinc-600 focus:border-cyan-400/40 focus:outline-none disabled:opacity-50 sm:h-10 sm:text-[13px]"
           />
 
           <button
             type="submit"
             disabled={loading || summaryLoading || !input.trim()}
-            className="flex size-10 shrink-0 items-center justify-center rounded-md bg-cyan-500 text-white transition hover:bg-cyan-400 disabled:opacity-50"
+            className="flex size-11 shrink-0 items-center justify-center rounded-md bg-cyan-500 text-white transition hover:bg-cyan-400 disabled:opacity-50"
           >
             <Send className="size-4" />
           </button>

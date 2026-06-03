@@ -1,10 +1,7 @@
 import { requireUser } from "@/lib/auth";
 import { isDevelopmentEnv } from "@/lib/dev/is-development";
 import { createClient } from "@/lib/supabase/server";
-import { DashboardOffline } from "@/components/dashboard/dashboard-offline";
-import { DashboardHeader } from "@/components/dashboard/header";
-import { MobileNav } from "@/components/dashboard/mobile-nav";
-import { Sidebar } from "@/components/dashboard/sidebar";
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
 export default async function DashboardLayout({
   children,
@@ -26,20 +23,12 @@ export default async function DashboardLayout({
     null;
 
   return (
-    <div className="flex min-h-screen">
-      <DashboardOffline />
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <DashboardHeader
-          email={user.email ?? ""}
-          fullName={fullName}
-          showResetTestData={isDevelopmentEnv()}
-        />
-        <MobileNav />
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 md:p-4">
-          {children}
-        </main>
-      </div>
-    </div>
+    <DashboardShell
+      email={user.email ?? ""}
+      fullName={fullName}
+      showResetTestData={isDevelopmentEnv()}
+    >
+      {children}
+    </DashboardShell>
   );
 }

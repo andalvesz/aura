@@ -25,7 +25,7 @@ export function DashboardHeaderToolbar({
       <AvatarStack max={3} size="sm" className="hidden lg:flex" />
       <button
         type="button"
-        className="flex size-8 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors duration-200 hover:bg-white/[0.04] hover:text-zinc-300"
+        className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors duration-200 hover:bg-white/[0.04] hover:text-zinc-300 md:size-8"
         aria-label="Notificações"
       >
         <Bell className="size-3.5" />
@@ -36,14 +36,14 @@ export function DashboardHeaderToolbar({
         </p>
         <p className="truncate text-[10px] text-zinc-600">{email}</p>
       </div>
-      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/90 to-violet-600/90 text-[11px] font-medium text-white">
+      <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500/90 to-violet-600/90 text-[11px] font-medium text-white md:size-7">
         {initial}
       </div>
       <ResetTestDataButton visible={showResetTestData} />
       <form action={logout} className="shrink-0">
         <button
           type="submit"
-          className="h-8 rounded-md border border-white/[0.08] px-2 text-[11px] text-zinc-400 transition-colors duration-200 hover:border-white/[0.12] hover:bg-white/[0.04] hover:text-zinc-200 sm:px-2.5 sm:text-[12px]"
+          className="min-h-11 rounded-md border border-white/[0.08] px-3 text-[12px] text-zinc-400 transition-colors duration-200 hover:border-white/[0.12] hover:bg-white/[0.04] hover:text-zinc-200 md:h-8 md:min-h-0 md:px-2.5"
         >
           Sair
         </button>
