@@ -1,4 +1,5 @@
 import type {
+  Cliente,
   Conteudo,
   Evento,
   GrowthLead,
@@ -8,11 +9,8 @@ import type {
   NotificationType,
   Orcamento,
 } from "@/types/database";
-import {
-  GROWTH_LEAD_ACTIVE_STATUSES,
-  mergeDailyMissions,
-  getTodayDate,
-} from "@/utils/growth";
+import { getFollowUpTierLabel, listStaleOpportunities } from "@/utils/follow-up";
+import { mergeDailyMissions, getTodayDate } from "@/utils/growth";
 import { todayIsoDate, workoutForToday } from "@/utils/health";
 import { normalizeConteudoStatus } from "@/utils/social";
 import { formatBRL, formatTime } from "@/utils/format";
@@ -46,15 +44,6 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   crescimento: "/dashboard/crescimento",
 };
 
-function daysSince(dateStr: string): number {
-  const then = new Date(dateStr);
-  const now = new Date();
-  return Math.max(
-    0,
-    Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24))
-  );
-}
-
 export function getNotificationHref(notification: Notification): string {
   if (notification.related_module) {
     return NOTIFICATION_MODULE_HREFS[notification.related_module as ModuleId];
@@ -69,34 +58,32 @@ export function buildNotificationCandidates(params: {
   conteudos: Conteudo[];
   workouts: HealthWorkout[];
   orcamentos: Orcamento[];
+  clientes?: Cliente[];
 }): NotificationCandidate[] {
-  const { leads, eventos, missions, conteudos, workouts, orcamentos } = params;
+  const { leads, eventos, missions, conteudos, workouts, orcamentos, clientes } =
+    params;
   const candidates: NotificationCandidate[] = [];
   const today = todayIsoDate();
   const nowIso = new Date().toISOString();
 
-  for (const lead of leads) {
-    if (
-      !GROWTH_LEAD_ACTIVE_STATUSES.includes(
-        lead.status as (typeof GROWTH_LEAD_ACTIVE_STATUSES)[number]
-      )
-    ) {
-      continue;
-    }
+  for (const item of listStaleOpportunities({
+    leads,
+    orcamentos,
+    clientes,
+  })) {
+    const ctx = item.context;
+    const tier = ctx.idleTier;
+    if (!tier) continue;
 
-    const idleDays = daysSince(lead.updated_at);
-    const needsFollowUp =
-      (lead.status === "proposta" && idleDays >= 5) ||
-      (lead.status !== "proposta" && idleDays >= 7);
-
-    if (!needsFollowUp) continue;
+    const relatedId = item.lead?.id ?? item.orcamento?.id ?? null;
+    const module = item.lead ? "crescimento" : "alvesz";
 
     candidates.push({
       type: "lead_followup",
-      title: "Lead sem follow-up",
-      message: `${lead.nome} está há ${idleDays} dias sem interação (${formatBRL(lead.valor_potencial ?? 0)} em pipeline).`,
-      related_module: "crescimento",
-      related_id: lead.id,
+      title: `Lead parado — ${getFollowUpTierLabel(tier)}`,
+      message: `${ctx.nome}: ${ctx.tipoEvento} · ${formatBRL(ctx.valor)} · ${ctx.statusLabel} (${ctx.idleDays} dias sem contato).`,
+      related_module: module,
+      related_id: relatedId,
       scheduled_for: nowIso,
     });
   }

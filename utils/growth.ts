@@ -5,8 +5,14 @@ import type {
   GrowthLead,
   GrowthMission,
   GrowthVertical,
+  Orcamento,
 } from "@/types/database";
 import { formatBRL } from "@/utils/format";
+import {
+  getFollowUpIdleTier,
+  getFollowUpTierLabel,
+  getTopStaleOpportunity,
+} from "@/utils/follow-up";
 
 export type MissionTemplate = {
   key: string;
@@ -955,11 +961,12 @@ export function detectExecutiveAlerts(
     }
 
     const idleDays = daysSince(lead.updated_at);
+    const tier = getFollowUpIdleTier(idleDays);
 
-    if (lead.status === "proposta" && idleDays >= 5) {
-      alerts.push(`⚠ Proposta de ${lead.nome} sem retorno há ${idleDays} dias.`);
-    } else if (idleDays >= 7) {
-      alerts.push(`⚠ ${lead.nome} está há ${idleDays} dias sem interação.`);
+    if (tier) {
+      alerts.push(
+        `⚠ ${lead.nome} — ${getFollowUpTierLabel(tier)} (${formatBRL(lead.valor_potencial ?? 0)}).`
+      );
     }
   }
 
@@ -994,14 +1001,24 @@ export function detectExecutiveAlerts(
 export function buildExecutivePriorities(
   leads: GrowthLead[],
   missions: GrowthMission[],
-  contentInsights: GrowthContentInsights
+  contentInsights: GrowthContentInsights,
+  orcamentos: Orcamento[] = []
 ): string[] {
   const priorities: string[] = [];
   const today = getTodayDate();
   const dailyMissions = mergeDailyMissions(missions, today);
+  const staleTop = getTopStaleOpportunity({ leads, orcamentos });
+
+  if (staleTop) {
+    const ctx = staleTop.context;
+    priorities.push(
+      `Fazer follow-up com ${ctx.nome} (${formatBRL(ctx.valor)} · ${ctx.tipoEvento})`
+    );
+  }
+
   const topLead = sortGrowthLeadOpportunities(leads)[0];
 
-  if (topLead) {
+  if (topLead && topLead.nome !== staleTop?.context.nome) {
     const valor = formatBRL(topLead.valor_potencial ?? 0);
     const status = getGrowthLeadStatusLabel(topLead.status).toLowerCase();
     if (topLead.status === "negociacao" || topLead.status === "proposta") {

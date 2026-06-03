@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Circle,
+  MessageCircle,
   Plus,
   Sparkles,
   Target,
@@ -21,12 +22,15 @@ import {
   useGrowthActions,
   useGrowthAnalyses,
   useGrowthGoals,
+  useEventos,
   useGrowthLeads,
   useGrowthMissions,
   useGrowthProfiles,
+  useOrcamentos,
 } from "@/hooks";
 import { buildProfileAnalysisInput, isSupabaseTableMissingError } from "@/lib/growth";
 import type {
+  GrowthLead,
   GrowthLeadCanal,
   GrowthLeadStatus,
   GrowthProfile,
@@ -58,6 +62,15 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 import { AddGrowthLeadModal } from "./add-growth-lead-modal";
 import { AddGrowthProfileModal } from "./add-growth-profile-modal";
 import { SetGrowthGoalModal } from "./set-growth-goal-modal";
+import { FollowUpModal } from "./follow-up-modal";
+import {
+  buildFollowUpContextFromLead,
+  findOrcamentoForLead,
+  daysSinceContact,
+  getFollowUpIdleTier,
+  getFollowUpTierLabel,
+  listStaleOpportunities,
+} from "@/utils/follow-up";
 
 function GrowthDataError({
   message,
@@ -146,6 +159,9 @@ export function CrescimentoView() {
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [goalModalOpen, setGoalModalOpen] = useState(false);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const [followUpLead, setFollowUpLead] = useState<GrowthLead | null>(null);
+  const { data: orcamentos } = useOrcamentos();
+  const { create: createEvento } = useEventos();
   const [completingKey, setCompletingKey] = useState<string | null>(null);
 
   const growthDataError =
@@ -174,6 +190,17 @@ export function CrescimentoView() {
     () => computeGrowthLeadMetrics(growthLeads),
     [growthLeads]
   );
+
+  const staleOpportunities = useMemo(
+    () => listStaleOpportunities({ leads: growthLeads, orcamentos }),
+    [growthLeads, orcamentos]
+  );
+
+  const followUpContext = useMemo(() => {
+    if (!followUpLead) return null;
+    const orcamento = findOrcamentoForLead(followUpLead, orcamentos);
+    return buildFollowUpContextFromLead(followUpLead, orcamento);
+  }, [followUpLead, orcamentos]);
   const executiveScore = useMemo(
     () => computeMonthlyExecutiveScore(missions, growthLeads),
     [missions, growthLeads]
@@ -538,6 +565,38 @@ export function CrescimentoView() {
                 hintClassName="text-cyan-400/90"
               />
             </div>
+            {staleOpportunities.length > 0 && (
+              <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3">
+                <p className="text-[12px] font-medium text-amber-200/90">
+                  Follow-ups pendentes ({staleOpportunities.length})
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {staleOpportunities.slice(0, 4).map((item) => (
+                    <li
+                      key={item.lead?.id ?? item.orcamento?.id}
+                      className="flex flex-wrap items-center justify-between gap-2 text-[11px]"
+                    >
+                      <span className="text-zinc-400">
+                        {item.context.nome} ·{" "}
+                        {item.context.idleTier
+                          ? getFollowUpTierLabel(item.context.idleTier)
+                          : ""}
+                      </span>
+                      {item.lead && (
+                        <ActionButton
+                          variant="ghost"
+                          className="h-7 px-2 text-[10px]"
+                          icon={<MessageCircle className="size-3" />}
+                          onClick={() => setFollowUpLead(item.lead)}
+                        >
+                          Gerar follow-up
+                        </ActionButton>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="mt-4 border-t border-white/[0.06] pt-4">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[12px] font-medium text-zinc-300">Lista de leads</p>
@@ -569,7 +628,11 @@ export function CrescimentoView() {
                 />
               ) : (
                 <ul className="space-y-2">
-                  {growthLeads.map((lead) => (
+                  {growthLeads.map((lead) => {
+                    const idleTier = getFollowUpIdleTier(
+                      daysSinceContact(lead.updated_at)
+                    );
+                    return (
                     <li
                       key={lead.id}
                       className="flex flex-col gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3 sm:flex-row sm:items-center sm:justify-between"
@@ -580,12 +643,28 @@ export function CrescimentoView() {
                           {[lead.origem, lead.contato].filter(Boolean).join(" · ") ||
                             "Sem contato"}
                         </p>
+                        {idleTier && (
+                          <p className="mt-0.5 text-[10px] text-amber-400/90">
+                            {getFollowUpTierLabel(idleTier)}
+                          </p>
+                        )}
                         {lead.valor_potencial > 0 && (
                           <p className="mt-0.5 text-[11px] text-cyan-400/90">
                             {formatBRL(lead.valor_potencial)}
                           </p>
                         )}
                       </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                      {idleTier && (
+                        <ActionButton
+                          variant="ghost"
+                          className="h-8 px-2 text-[10px]"
+                          icon={<MessageCircle className="size-3" />}
+                          onClick={() => setFollowUpLead(lead)}
+                        >
+                          Gerar follow-up
+                        </ActionButton>
+                      )}
                       <select
                         value={lead.status}
                         onChange={(e) =>
@@ -600,8 +679,10 @@ export function CrescimentoView() {
                           </option>
                         ))}
                       </select>
+                      </div>
                     </li>
-                  ))}
+                  );
+                  })}
                 </ul>
               )}
             </div>
@@ -860,6 +941,26 @@ export function CrescimentoView() {
         open={leadModalOpen}
         onClose={() => setLeadModalOpen(false)}
         onSubmit={handleCreateGrowthLead}
+      />
+
+      <FollowUpModal
+        open={followUpLead !== null}
+        onClose={() => setFollowUpLead(null)}
+        context={followUpContext}
+        onScheduleFollowUp={async (payload) => {
+          const result = await createEvento(payload);
+          return { error: result.error };
+        }}
+        onMarkContacted={
+          followUpLead
+            ? async () => {
+                const { error } = await updateGrowthLead(followUpLead.id, {
+                  observacoes: followUpLead.observacoes,
+                });
+                return { error };
+              }
+            : undefined
+        }
       />
 
       <AddGrowthProfileModal

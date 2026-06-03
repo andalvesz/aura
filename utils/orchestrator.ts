@@ -10,6 +10,10 @@ import {
   sortGrowthLeadOpportunities,
 } from "@/utils/growth";
 import { getExecutiveGreeting } from "@/utils/executive";
+import {
+  formatAuraCentralFollowUpReply,
+  getTopStaleOpportunity,
+} from "@/utils/follow-up";
 import { formatTime } from "@/utils/format";
 import {
   isNexusAlveszQuery,
@@ -337,6 +341,11 @@ export function buildAuraCentralOpeningSummary(
   data: AuraGlobalSummaryData
 ): AuraCentralOpeningSummary {
   const today = todayIsoDate();
+  const staleTop = getTopStaleOpportunity({
+    leads: data.leads,
+    orcamentos: data.orcamentos,
+    clientes: data.clientes,
+  });
   const priorityLeads = sortGrowthLeadOpportunities(
     data.leads.filter((l) => l.status !== "fechado" && l.status !== "perdido")
   );
@@ -349,6 +358,10 @@ export function buildAuraCentralOpeningSummary(
   const treinoHoje = workoutForToday(data.healthWorkouts);
 
   const bullets: string[] = [];
+
+  if (staleTop) {
+    bullets.push(`follow-up com ${staleTop.context.nome}`);
+  }
 
   if (priorityLeads.length > 0) {
     bullets.push(
@@ -375,7 +388,11 @@ export function buildAuraCentralOpeningSummary(
 
   const greeting = getExecutiveGreeting("Anderson").replace(",", ",");
   const bulletLines = bullets.map((b) => `- ${b}`).join("\n");
-  const text = `${greeting}\n\nHoje:\n${bulletLines}`;
+  let text = `${greeting}\n\nHoje:\n${bulletLines}`;
+
+  if (staleTop) {
+    text = `${greeting}\n\n${formatAuraCentralFollowUpReply(staleTop)}\n\nTambém hoje:\n${bulletLines}`;
+  }
 
   if (todayEvents.length > 0) {
     const upcomingToday = todayEvents

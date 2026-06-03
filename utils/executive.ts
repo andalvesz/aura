@@ -22,6 +22,11 @@ import {
   mergeDailyMissions,
   sortGrowthLeadOpportunities,
 } from "@/utils/growth";
+import {
+  daysSinceContact,
+  getFollowUpIdleTier,
+  getTopStaleOpportunity,
+} from "@/utils/follow-up";
 import { todayIsoDate, workoutsThisWeek } from "@/utils/health";
 import { computeAlveszMetrics, filterUpcomingEventos } from "@/utils/nexus";
 import {
@@ -226,13 +231,24 @@ export function buildExecutivePriorityItems(params: {
   const today = todayIsoDate();
   const items: ExecutivePriorityItem[] = [];
 
+  const staleTop = getTopStaleOpportunity({ leads, orcamentos });
+
   for (const lead of sortGrowthLeadOpportunities(leads).slice(0, 5)) {
     if (lead.status === "fechado" || lead.status === "perdido") continue;
+    const idleDays = daysSinceContact(lead.updated_at);
+    const tier = getFollowUpIdleTier(idleDays);
+    const staleBoost = tier ? tier * 15 : 0;
     items.push({
       id: `lead-${lead.id}`,
       title: lead.nome,
-      subtitle: `${getGrowthLeadStatusLabel(lead.status)} · ${formatBRL(lead.valor_potencial ?? 0)}`,
-      priority: priorityScore(lead.status) + (lead.valor_potencial ?? 0) / 1000,
+      subtitle: tier
+        ? `Follow-up · ${idleDays}d sem contato · ${formatBRL(lead.valor_potencial ?? 0)}`
+        : `${getGrowthLeadStatusLabel(lead.status)} · ${formatBRL(lead.valor_potencial ?? 0)}`,
+      priority:
+        priorityScore(lead.status) +
+        (lead.valor_potencial ?? 0) / 1000 +
+        staleBoost +
+        (staleTop?.lead?.id === lead.id ? 50 : 0),
       href: "/dashboard/crescimento",
       kind: "lead",
     });

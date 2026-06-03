@@ -20,6 +20,7 @@ import {
   mergeDailyMissions,
   sortGrowthLeadOpportunities,
 } from "@/utils/growth";
+import { buildFollowUpMentorSection } from "@/utils/follow-up";
 import {
   computeHealthMetrics,
   mealsForToday,
@@ -266,7 +267,13 @@ function buildGrowthSection(data: AuraGlobalSummaryData): string {
   const priorities = buildExecutivePriorities(
     data.leads,
     data.missions,
-    contentInsights
+    contentInsights,
+    data.orcamentos
+  );
+  const followUpSection = buildFollowUpMentorSection(
+    data.leads,
+    data.orcamentos,
+    data.clientes
   );
   const alerts = detectExecutiveAlerts(data.leads, data.missions, leadMetrics);
   const score = computeMonthlyExecutiveScore(data.missions, data.leads);
@@ -302,6 +309,8 @@ function buildGrowthSection(data: AuraGlobalSummaryData): string {
     alerts.length > 0 ? alerts.join("\n") : "Nenhum alerta crítico no momento.";
 
   return `## CRESCIMENTO (dados reais — growth_leads, growth_missions, growth_goals)
+
+${followUpSection}
 
 ### Meta mensal
 * Meta: ${formatBRL(metaMensal)}

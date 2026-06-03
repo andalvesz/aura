@@ -5,6 +5,7 @@ import {
   OrcamentosRepository,
 } from "@/lib/supabase/repositories";
 import { GrowthLeadsRepository, GrowthMissionsRepository } from "@/lib/supabase/repositories/growth.repository";
+import { listClientes } from "@/lib/supabase/services/alvesz.service";
 import { listEventos } from "@/lib/supabase/services/eventos.service";
 import type {
   Conteudo,
@@ -72,7 +73,7 @@ export async function syncNotifications(): Promise<{
   const { supabase, userId } = ctx;
   const notificationsRepo = new NotificationsRepository(supabase, userId);
 
-  const [leads, eventos, missions, conteudos, workouts, orcamentos, existing] =
+  const [leads, eventos, missions, conteudos, workouts, orcamentos, clientes, existing] =
     await Promise.all([
       safeLoad(
         () => new GrowthLeadsRepository(supabase, userId).findAll(),
@@ -96,6 +97,10 @@ export async function syncNotifications(): Promise<{
         () => new OrcamentosRepository(supabase, userId).findAll(),
         [] as Orcamento[]
       ),
+      safeLoad(async () => {
+        const { data, error } = await listClientes();
+        return { data: data ?? [], error };
+      }, []),
       notificationsRepo.findAllOrdered(),
     ]);
 
@@ -110,6 +115,7 @@ export async function syncNotifications(): Promise<{
     conteudos,
     workouts,
     orcamentos,
+    clientes,
   });
 
   const unreadExisting = (existing.data ?? []).filter((n) => n.status === "unread");

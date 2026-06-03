@@ -14,8 +14,14 @@ import {
   getNexusCalendarMentorContext,
 } from "@/lib/supabase/services/nexus.service";
 import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
+import { loadAuraGlobalSummaryData } from "@/lib/supabase/services/mentor.service";
 import { GROWTH_MENTOR_EMPTY_LEADS_MESSAGE } from "@/utils/growth";
 import { todayIsoDate } from "@/utils/health";
+import {
+  formatAuraCentralFollowUpReply,
+  getTopStaleOpportunity,
+  isTodayPlanningQuery,
+} from "@/utils/follow-up";
 import {
   AURA_CENTRAL_CONTEXT,
   detectAuraCentralIntent,
@@ -253,6 +259,24 @@ export async function POST(req: Request) {
 
     const intent = detectAuraCentralIntent(message, actionId);
     const { module, mode } = intent;
+
+    if (isTodayPlanningQuery(message, actionId)) {
+      const { data: summaryData } = await loadAuraGlobalSummaryData();
+      if (summaryData) {
+        const staleTop = getTopStaleOpportunity({
+          leads: summaryData.leads,
+          orcamentos: summaryData.orcamentos,
+          clientes: summaryData.clientes,
+        });
+        if (staleTop) {
+          return Response.json({
+            text: formatAuraCentralFollowUpReply(staleTop),
+            module: "global",
+            kind: "chat",
+          });
+        }
+      }
+    }
 
     if (module === "calendario" && mode === "criar-evento") {
       const { suggestion, error: parseError } = await parseCalendarEvent(message);

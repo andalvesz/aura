@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { FileText, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -14,6 +14,7 @@ import {
   useAlveszPropostas,
   useClientes,
   useEstoque,
+  useEventos,
   useOrcamentos,
 } from "@/hooks";
 import type { AlveszEvento, Cliente, EstoqueItem, Orcamento } from "@/types/database";
@@ -41,6 +42,12 @@ import { AddClienteModal } from "./add-cliente-modal";
 import { AddEstoqueModal } from "./add-estoque-modal";
 import { AddAlveszEventoModal } from "./add-alvesz-evento-modal";
 import { AlveszPropostaModal } from "./alvesz-proposta-modal";
+import { FollowUpModal } from "./follow-up-modal";
+import {
+  buildFollowUpContextFromOrcamento,
+  daysSinceContact,
+  getFollowUpIdleTier,
+} from "@/utils/follow-up";
 
 export function AlveszView() {
   const supabase = useMemo(() => createClient(), []);
@@ -64,6 +71,8 @@ export function AlveszView() {
 
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [propostaOrcamento, setPropostaOrcamento] = useState<Orcamento | null>(null);
+  const [followUpOrcamento, setFollowUpOrcamento] = useState<Orcamento | null>(null);
+  const { create: createEventoCalendario } = useEventos();
   const [clienteModal, setClienteModal] = useState(false);
   const [estoqueModal, setEstoqueModal] = useState(false);
   const [eventoModal, setEventoModal] = useState(false);
@@ -100,6 +109,14 @@ export function AlveszView() {
 
   const precoSugerido =
     convidados > 0 && horas > 0 ? calcPrecoSugerido(convidados, horas) : 0;
+
+  const followUpOrcamentoContext = useMemo(() => {
+    if (!followUpOrcamento) return null;
+    const cliente = followUpOrcamento.cliente_id
+      ? clientes.find((c) => c.id === followUpOrcamento.cliente_id) ?? null
+      : null;
+    return buildFollowUpContextFromOrcamento(followUpOrcamento, cliente);
+  }, [followUpOrcamento, clientes]);
 
   async function handleCreateOrcamento(payload: {
     cliente_id: string | null;
@@ -419,7 +436,9 @@ export function AlveszView() {
               }
             />
           ) : (
-            orcamentos.map((o) => (
+            orcamentos.map((o) => {
+              const idleTier = getFollowUpIdleTier(daysSinceContact(o.updated_at));
+              return (
               <div
                 key={o.id}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-white/[0.04] p-2.5"
@@ -441,6 +460,14 @@ export function AlveszView() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {idleTier && (
+                    <ActionButton
+                      icon={<MessageCircle className="size-3.5" />}
+                      onClick={() => setFollowUpOrcamento(o)}
+                    >
+                      Gerar follow-up
+                    </ActionButton>
+                  )}
                   <ActionButton
                     icon={<FileText className="size-3.5" />}
                     onClick={() => setPropostaOrcamento(o)}
@@ -476,7 +503,8 @@ export function AlveszView() {
                   </button>
                 </div>
               </div>
-            ))
+            );
+            })
           )}
         </PanelContent>
       </Panel>
@@ -563,6 +591,25 @@ export function AlveszView() {
         syncCalendar={syncCalendar}
         onSyncCalendarChange={setSyncCalendar}
         onSubmit={handleCreateEvento}
+      />
+      <FollowUpModal
+        open={followUpOrcamento !== null}
+        onClose={() => setFollowUpOrcamento(null)}
+        context={followUpOrcamentoContext}
+        onScheduleFollowUp={async (payload) => {
+          const result = await createEventoCalendario(payload);
+          return { error: result.error };
+        }}
+        onMarkContacted={
+          followUpOrcamento
+            ? async () => {
+                const { error } = await updateOrcamento(followUpOrcamento.id, {
+                  local: followUpOrcamento.local,
+                });
+                return { error };
+              }
+            : undefined
+        }
       />
       <AlveszPropostaModal
         open={propostaOrcamento !== null}

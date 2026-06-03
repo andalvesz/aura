@@ -3,6 +3,40 @@ import { describe, it } from "node:test";
 import { buildNotificationCandidates } from "./notifications";
 
 describe("notifications generator", () => {
+  it("creates lead follow-up at 3 days idle", () => {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+    const candidates = buildNotificationCandidates({
+      leads: [
+        {
+          id: "lead-2",
+          user_id: "u",
+          nome: "Pedro",
+          status: "negociacao",
+          valor_potencial: 2000,
+          updated_at: threeDaysAgo.toISOString(),
+          created_at: threeDaysAgo.toISOString(),
+          origem: "whatsapp",
+          contato: null,
+          vertical: "alvesz",
+          observacoes: null,
+          canal: "whatsapp",
+          external_id: null,
+        },
+      ],
+      eventos: [],
+      missions: [],
+      conteudos: [],
+      workouts: [],
+      orcamentos: [],
+    });
+
+    const followUp = candidates.find((c) => c.type === "lead_followup");
+    assert.ok(followUp);
+    assert.match(followUp!.title, /3\+ dias/);
+  });
+
   it("creates lead follow-up for idle leads", () => {
     const eightDaysAgo = new Date();
     eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
