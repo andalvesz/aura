@@ -22,14 +22,18 @@ import {
   getNexusCalendarMentorContext,
 } from "@/lib/supabase/services/nexus.service";
 import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
-import { loadAuraGlobalSummaryData } from "@/lib/supabase/services/mentor.service";
+import { loadExecutiveReportData } from "@/lib/supabase/services/reports.service";
+import {
+  getOptionalDataContext,
+  resolveUserDisplayName,
+} from "@/lib/supabase/services/context";
 import { GROWTH_MENTOR_EMPTY_LEADS_MESSAGE } from "@/utils/growth";
 import { todayIsoDate } from "@/utils/health";
 import {
-  formatAuraCentralFollowUpReply,
-  getTopStaleOpportunity,
-  isTodayPlanningQuery,
-} from "@/utils/follow-up";
+  AURA_COACH_ACTION_ID,
+  detectCoachMode,
+  resolveCoachResponse,
+} from "@/utils/coach";
 import { runGlobalSearch } from "@/lib/supabase/services/global-search.service";
 import {
   generateExecutiveReportAnalysis,
@@ -273,6 +277,63 @@ export async function POST(req: Request) {
       return Response.json({ error: "Mensagem não enviada." }, { status: 400 });
     }
 
+    const coachMode = detectCoachMode(message, actionId);
+    if (coachMode) {
+      if (coachMode === "intro") {
+        const ctx = await getOptionalDataContext();
+        const displayName = ctx ? await resolveUserDisplayName(ctx) : "Anderson";
+        const { text } = resolveCoachResponse("intro", {
+          clientes: [],
+          orcamentos: [],
+          eventos: [],
+          leads: [],
+          goal: null,
+          missions: [],
+          alveszAvailable: true,
+          calendarAvailable: true,
+          conteudos: [],
+          gastos: [],
+          healthHabits: [],
+          healthWorkouts: [],
+          healthMeals: [],
+          healthSessions: [],
+          socialAvailable: true,
+          financeAvailable: true,
+          healthAvailable: true,
+          financialIncome: [],
+          financialGoals: [],
+          financialBalance: null,
+          alveszEventos: [],
+        }, displayName);
+        await persistAiTurn("aura_central", message, text, { kind: "coach", coachMode });
+        return Response.json({ text, module: "global", kind: "coach", coachMode });
+      }
+
+      const { data: coachData, error: coachError } = await loadExecutiveReportData();
+      if (coachError === "Usuário não autenticado.") {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+      if (coachError || !coachData) {
+        return Response.json(
+          { error: coachError ?? "Não foi possível carregar dados para a Aura Coach." },
+          { status: 500 }
+        );
+      }
+
+      const ctx = await getOptionalDataContext();
+      const displayName = ctx ? await resolveUserDisplayName(ctx) : "Anderson";
+      const { text, mode } = resolveCoachResponse(coachMode, coachData, displayName);
+
+      await persistAiTurn("aura_central", message, text, { kind: "coach", coachMode: mode });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: mode,
+      });
+    }
+
     const reportType = isExecutiveReportQuery(message);
     if (reportType) {
       const { report, error: reportError } = await getExecutiveReport(reportType);
@@ -349,26 +410,6 @@ export async function POST(req: Request) {
 
     const intent = detectAuraCentralIntent(message, actionId);
     const { module, mode } = intent;
-
-    if (isTodayPlanningQuery(message, actionId)) {
-      const { data: summaryData } = await loadAuraGlobalSummaryData();
-      if (summaryData) {
-        const staleTop = getTopStaleOpportunity({
-          leads: summaryData.leads,
-          orcamentos: summaryData.orcamentos,
-          clientes: summaryData.clientes,
-        });
-        if (staleTop) {
-          const text = formatAuraCentralFollowUpReply(staleTop);
-          await persistAiTurn("aura_central", message, text, { kind: "follow-up" });
-          return Response.json({
-            text,
-            module: "global",
-            kind: "chat",
-          });
-        }
-      }
-    }
 
     if (module === "calendario" && mode === "criar-evento") {
       const { suggestion, error: parseError } = await parseCalendarEvent(message);

@@ -39,6 +39,7 @@ type Message = {
   module?: AuraCentralModule;
   suggestion?: ParsedEventoSuggestion;
   kind?: string;
+  coachMode?: string;
   searchResults?: GlobalSearchResult[];
   searchQuery?: string;
   searchTotal?: number;
@@ -163,6 +164,7 @@ export function AuraCentral() {
         module?: AuraCentralModule;
         suggestion?: ParsedEventoSuggestion;
         kind?: string;
+        coachMode?: string;
         searchResults?: GlobalSearchResult[];
         searchQuery?: string;
         total?: number;
@@ -195,6 +197,7 @@ export function AuraCentral() {
           module: data?.module ?? "global",
           suggestion: data?.suggestion,
           kind: data?.kind,
+          coachMode: data?.coachMode,
           searchResults: data?.searchResults,
           searchQuery: data?.searchQuery,
           searchTotal: data?.total,
@@ -267,6 +270,7 @@ export function AuraCentral() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1 text-[10px] text-zinc-600">
+            <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Coach</span>
             <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Mentor</span>
             <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Agenda</span>
             <span className="rounded border border-white/[0.06] px-1.5 py-0.5">Aura Saúde</span>
@@ -315,7 +319,9 @@ export function AuraCentral() {
                 {message.role === "assistant" && message.module && (
                   <div className="mb-1 flex items-center gap-1 text-[10px] text-cyan-400/80">
                     {ModuleIcon && <ModuleIcon className="size-3" />}
-                    {AURA_CENTRAL_MODULE_LABELS[message.module]}
+                    {message.kind === "coach"
+                      ? "Aura Coach"
+                      : AURA_CENTRAL_MODULE_LABELS[message.module]}
                   </div>
                 )}
                 <p className="whitespace-pre-wrap">{message.text}</p>

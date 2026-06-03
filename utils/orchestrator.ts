@@ -20,6 +20,7 @@ import {
   type ExecutiveReportData,
 } from "@/utils/executive-reports";
 import { isAuraGlobalSearchQuery } from "@/utils/global-search";
+import { AURA_COACH_ACTION_ID } from "@/utils/coach";
 
 export type AuraCentralModule =
   | "global"
@@ -44,6 +45,12 @@ export type AuraCentralIntent = {
 };
 
 export const AURA_CENTRAL_QUICK_ACTIONS = [
+  {
+    id: AURA_COACH_ACTION_ID,
+    label: "Aura Coach",
+    module: "global" as const,
+    prompt: "O que devo fazer hoje?",
+  },
   {
     id: "o-que-fazer",
     label: "O que fazer hoje?",
