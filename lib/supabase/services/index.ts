@@ -8,4 +8,5 @@ export * from "./consorcios.service";
 export * from "./ai.service";
 export * from "./growth.service";
 export * from "./nexus.service";
+export * from "./mentor.service";
 export * from "./seed.service";

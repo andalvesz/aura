@@ -35,25 +35,46 @@ type QuickAction = {
   usesExecutiveData?: boolean;
   usesMemoryData?: boolean;
   usesNexusData?: boolean;
+  usesGlobalData?: boolean;
 };
 
 const QUICK_ACTIONS: QuickAction[] = [
   {
-    id: "meu-dia",
-    label: "Meu dia",
-    icon: Sun,
-    usesExecutiveData: true,
-    usesNexusData: true,
+    id: "resumo-global",
+    label: "Resumo global",
+    icon: LayoutDashboard,
+    usesGlobalData: true,
     prompt:
-      "Meu dia: liste minhas tarefas (missões), leads prioritários, reuniões da agenda e metas. Inclua prioridades, alertas, score do mês e as 3 ações de maior impacto para hoje.",
+      "Resumo global da Aura: consolide em uma única resposta minhas prioridades, agenda, missões, leads, Alvesz, conteúdos pendentes, saúde e financeiro de hoje.",
+  },
+  {
+    id: "meu-dia",
+    label: "O que fazer hoje?",
+    icon: Sun,
+    usesGlobalData: true,
+    prompt: "O que fazer hoje?",
+  },
+  {
+    id: "prioridades-hoje",
+    label: "Prioridades",
+    icon: ListOrdered,
+    usesGlobalData: true,
+    prompt: "Quais são minhas prioridades de hoje?",
+  },
+  {
+    id: "calendario-hoje",
+    label: "Minha agenda",
+    icon: CalendarDays,
+    usesGlobalData: true,
+    prompt: "Minha agenda: o que tenho hoje e nos próximos dias?",
   },
   {
     id: "dashboard-executivo",
     label: "Dashboard executivo",
     icon: LayoutDashboard,
-    usesNexusData: true,
+    usesGlobalData: true,
     prompt:
-      "Dashboard executivo Nexus: resumo único com receita potencial, receita fechada, eventos, leads prioritários e missões de hoje. Destaque 3 ações imediatas.",
+      "Resumo do dia: dashboard executivo com receita, eventos, leads, missões, conteúdos, saúde e financeiro.",
   },
   {
     id: "alvesz-resumo",
@@ -62,14 +83,6 @@ const QUICK_ACTIONS: QuickAction[] = [
     usesNexusData: true,
     prompt:
       "Resumo da Alvesz Experience: orçamentos, clientes e eventos cadastrados. Indique pipeline, oportunidades e próximos passos comerciais.",
-  },
-  {
-    id: "calendario-hoje",
-    label: "Agenda",
-    icon: CalendarDays,
-    usesNexusData: true,
-    prompt:
-      "O que tenho na agenda? Liste compromissos, follow-ups e eventos dos próximos dias com horários e prioridade.",
   },
   {
     id: "insights-do-mes",
@@ -156,7 +169,7 @@ export function AuraMentor() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Olá, Anderson. Sou o Aura Mentor — seu assistente comercial estratégico. Use os atalhos abaixo ou escreva sua pergunta para começarmos.",
+      text: "Olá, Anderson. Sou o Aura Mentor — assistente central da Aura OS. Pergunte o que fazer hoje, peça seu resumo do dia, prioridades ou agenda. Integro automaticamente Calendário, Crescimento, Alvesz, Saúde, Social Media e Financeiro com seus dados reais.",
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -240,7 +253,8 @@ export function AuraMentor() {
       action.usesLeadData ||
       action.usesExecutiveData ||
       action.usesMemoryData ||
-      action.usesNexusData;
+      action.usesNexusData ||
+      action.usesGlobalData;
 
     sendMessage(action.prompt, passesActionId ? action.id : undefined);
   }
@@ -255,7 +269,7 @@ export function AuraMentor() {
           <div>
             <PanelTitle>Aura Mentor</PanelTitle>
             <p className="text-[10px] text-zinc-600">
-              Assistente comercial · Alvesz · Consórcios · Indaiatuba
+              Assistente central · Calendário · Crescimento · Alvesz · Saúde · Social · Financeiro
             </p>
           </div>
         </div>
@@ -307,7 +321,7 @@ export function AuraMentor() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Pergunte sobre vendas, Instagram, leads ou estratégia..."
+            placeholder="O que fazer hoje? Resumo do dia, prioridades, agenda..."
             disabled={loading}
             className="h-10 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:border-violet-400/40 focus:outline-none disabled:opacity-50"
           />

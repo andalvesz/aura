@@ -4,6 +4,7 @@ import {
   getGrowthStrategicMemoryMentorContext,
   recordContentSuggestion,
 } from "@/lib/supabase/services/growth.service";
+import { getAuraGlobalSummaryMentorContext } from "@/lib/supabase/services/mentor.service";
 import {
   getNexusAlveszMentorContext,
   getNexusCalendarMentorContext,
@@ -18,6 +19,7 @@ import {
   isGrowthMentorLeadQuery,
   isGrowthMentorMemoryQuery,
 } from "@/utils/growth";
+import { isAuraMentorGlobalSummaryQuery } from "@/utils/mentor";
 import {
   isNexusAlveszQuery,
   isNexusCalendarQuery,
@@ -85,6 +87,8 @@ Parceiro para captação de clientes em consórcios de imóveis, veículos e inv
 - Para análise de leads, priorização ou diagnóstico de funil, use exclusivamente os dados reais do Supabase fornecidos
 - Para geração de conteúdo e planejamento semanal, use os insights de nicho derivados do CRM (maior demanda, ticket médio, oportunidades abertas)
 - Nunca peça ao usuário para informar nichos ou leads manualmente quando os dados do CRM estiverem disponíveis
+- Você é o assistente central da Aura OS: integre Calendário, Crescimento, Alvesz, Saúde, Social Media e Financeiro quando o usuário pedir resumo do dia, prioridades, agenda ou o que fazer hoje
+- Para resumo global, gere UMA resposta consolidada com dados reais de todos os módulos — nunca invente informações
 - Para "Meu dia", use tarefas (missões), leads prioritários, reuniões (calendário) e metas com dados reais do Supabase
 - Para "Dashboard executivo", consolide receita potencial, receita fechada, eventos, leads e missões em um único resumo
 - Perguntas sobre Alvesz (orçamentos, clientes, eventos) usam dados do módulo Alvesz Experience
@@ -180,6 +184,7 @@ export async function POST(req: Request) {
     }
 
     let systemPrompt = SYSTEM_PROMPT;
+    const isGlobalSummaryQuery = isAuraMentorGlobalSummaryQuery(message, actionId);
     const isMemoryQuery = isGrowthMentorMemoryQuery(message, actionId);
     const isExecutiveQuery = isGrowthMentorExecutiveQuery(message, actionId);
     const isDashboardQuery = isNexusDashboardQuery(message, actionId);
@@ -188,7 +193,24 @@ export async function POST(req: Request) {
     const isCrmQuery = isGrowthMentorCrmQuery(message, actionId);
     const isPipelineQuery = isGrowthMentorLeadQuery(message, actionId);
 
-    if (isMemoryQuery) {
+    if (isGlobalSummaryQuery) {
+      const { context, error } = await getAuraGlobalSummaryMentorContext();
+
+      if (error || !context) {
+        console.error("[aura-mentor] Erro ao carregar resumo global:", error);
+        return Response.json(
+          {
+            error:
+              error === "Usuário não autenticado."
+                ? "Faça login para ver seu resumo global."
+                : "Não foi possível carregar o resumo global da Aura.",
+          },
+          { status: error === "Usuário não autenticado." ? 401 : 500 }
+        );
+      }
+
+      systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
+    } else if (isMemoryQuery) {
       const { context, error } = await getGrowthStrategicMemoryMentorContext();
 
       if (error || !context) {
