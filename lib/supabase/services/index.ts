@@ -1,5 +1,6 @@
 export * from "./context";
 export * from "./gastos.service";
+export * from "./finance.service";
 export * from "./eventos.service";
 export * from "./alvesz.service";
 export * from "./saude.service";

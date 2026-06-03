@@ -1,8 +1,9 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Banknote, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useFinancialIncome } from "@/hooks/use-financial-income";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import {
   ListSkeleton,
@@ -21,12 +22,15 @@ import { ActionButton } from "../action-button";
 import { MetricCard } from "../metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 import { AddLeadModal } from "./add-lead-modal";
+import { AddReceitaModal } from "./add-receita-modal";
 
 const SCRIPT = `Olá, [nome]! Sou Anderson da Alvesz. Vi seu interesse em consórcio — posso te mostrar uma simulação personalizada em 2 minutos? Temos condições especiais para contemplação rápida.`;
 
 export function ConsorciosView() {
   const { data: leads, loading, create, update } = useLeads();
+  const { create: createIncome } = useFinancialIncome();
   const [modalOpen, setModalOpen] = useState(false);
+  const [comissaoModalOpen, setComissaoModalOpen] = useState(false);
 
   const funnel = useMemo(() => computeLeadFunnel(leads), [leads]);
   const leadsToday = useMemo(() => filterLeadsToday(leads), [leads]);
@@ -46,6 +50,12 @@ export function ConsorciosView() {
   return (
     <div className="space-y-3">
       <div className="flex justify-end gap-2">
+        <ActionButton
+          icon={<Banknote className="size-3.5" />}
+          onClick={() => setComissaoModalOpen(true)}
+        >
+          Comissão recebida
+        </ActionButton>
         <ActionButton
           icon={<Plus className="size-3.5" />}
           onClick={() => setModalOpen(true)}
@@ -212,6 +222,18 @@ export function ConsorciosView() {
         onSubmit={async (payload) => {
           const result = await create(payload);
           return { error: result.error };
+        }}
+      />
+      <AddReceitaModal
+        open={comissaoModalOpen}
+        onClose={() => setComissaoModalOpen(false)}
+        defaultOrigem="consorcios"
+        onSubmit={async (payload) => {
+          const { error } = await createIncome({
+            ...payload,
+            orcamento_id: null,
+          });
+          return { error };
         }}
       />
     </div>

@@ -1,9 +1,14 @@
-import { GastosRepository } from "@/lib/supabase/repositories";
-import type { Gasto } from "@/types/database";
 import {
-  ORCAMENTO_MENSAL,
-  computeFinanceStats,
+  FinancialGoalsRepository,
+  FinancialIncomeRepository,
+  GastosRepository,
+} from "@/lib/supabase/repositories";
+import type { FinancialGoal, FinancialIncome, Gasto } from "@/types/database";
+import {
+  buildFinanceNextActions,
+  computeSmartFinanceStats,
   getCategoryLabel,
+  getIncomeOrigemLabel,
 } from "@/utils/finance";
 import { formatBRL } from "@/utils/format";
 import { buildAuraCentralOpeningSummary } from "@/utils/orchestrator";
@@ -11,32 +16,62 @@ import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { getOptionalDataContext } from "./context";
 import { loadAuraGlobalSummaryData } from "./mentor.service";
 
-function buildFinanceMentorContext(gastos: Gasto[]): string {
-  const stats = computeFinanceStats(gastos);
-  const recentLines =
+function buildFinanceMentorContext(
+  gastos: Gasto[],
+  income: FinancialIncome[],
+  goals: FinancialGoal[]
+): string {
+  const stats = computeSmartFinanceStats({ gastos, income, goals });
+  const actions = buildFinanceNextActions(stats);
+
+  const recentExpenseLines =
     stats.monthGastos.length > 0
       ? stats.monthGastos
-          .slice(0, 8)
+          .slice(0, 6)
           .map(
             (g) =>
-              `* ${g.titulo} — ${formatBRL(Number(g.valor))} (${getCategoryLabel(g.categoria)}) — ${g.data}`
+              `* ${g.titulo} — ${formatBRL(Number(g.valor))} (${getCategoryLabel(g.categoria)})`
           )
           .join("\n")
-      : "* Nenhum gasto registrado no mês";
+      : "* Nenhuma despesa no mês";
+
+  const recentIncomeLines =
+    stats.monthIncome.length > 0
+      ? stats.monthIncome
+          .slice(0, 6)
+          .map(
+            (i) =>
+              `* ${i.descricao} — ${formatBRL(Number(i.valor))} (${getIncomeOrigemLabel(i.origem)})`
+          )
+          .join("\n")
+      : "* Nenhuma receita no mês";
+
+  const metaBlock = stats.activeGoal
+    ? `* Meta: ${stats.activeGoal.titulo}
+* Progresso: ${stats.goalProgress?.pct ?? 0}% (${formatBRL(stats.goalProgress?.atual ?? 0)} de ${formatBRL(stats.goalProgress?.meta ?? 0)})`
+    : "* Meta: nenhuma meta ativa no período";
 
   return `## FINANCEIRO — CONTEXTO PARA AURA CENTRAL
 
 ### Resumo do mês
-* Total gasto: ${formatBRL(stats.totalMonth)}
-* Orçamento mensal: ${formatBRL(ORCAMENTO_MENSAL)}
-* Saldo restante: ${formatBRL(stats.saldo)}
-* Previsão do mês: ${formatBRL(stats.forecast)}
-* Maior categoria: ${stats.topCategory?.label ?? "N/A"} (${stats.topCategory?.pct ?? 0}%)
+* Receitas: ${formatBRL(stats.totalIncomeMonth)}
+* Despesas: ${formatBRL(stats.totalMonth)}
+* Saldo: ${formatBRL(stats.saldo)}
+* Projeção saldo fim do mês: ${formatBRL(stats.projectedSaldo)}
 
-### Gastos recentes
-${recentLines}
+### Meta
+${metaBlock}
 
-Analise os gastos, identifique padrões e sugira ações práticas para Anderson Alves.`;
+### Receitas recentes
+${recentIncomeLines}
+
+### Despesas recentes
+${recentExpenseLines}
+
+### Próximas ações sugeridas
+${actions.map((a) => `* ${a}`).join("\n")}
+
+Responda com receitas, despesas, saldo, meta e próximas ações práticas para Anderson Alves.`;
 }
 
 export async function getAuraCentralOpeningSummary(): Promise<{
@@ -64,17 +99,23 @@ export async function getAuraCentralFinanceContext(): Promise<{
   }
 
   try {
-    const { data, error } = await new GastosRepository(
-      ctx.supabase,
-      ctx.userId
-    ).findAll("data");
+    const [gastosRes, incomeRes, goalsRes] = await Promise.all([
+      new GastosRepository(ctx.supabase, ctx.userId).findAll("data"),
+      new FinancialIncomeRepository(ctx.supabase, ctx.userId).findAll("data"),
+      new FinancialGoalsRepository(ctx.supabase, ctx.userId).findAll("data_fim"),
+    ]);
 
+    const error = gastosRes.error ?? incomeRes.error ?? goalsRes.error;
     if (error && !isMissingSupabaseTableError(error)) {
       return { context: null, error };
     }
 
     return {
-      context: buildFinanceMentorContext((data ?? []) as Gasto[]),
+      context: buildFinanceMentorContext(
+        (gastosRes.data ?? []) as Gasto[],
+        (incomeRes.data ?? []) as FinancialIncome[],
+        (goalsRes.data ?? []) as FinancialGoal[]
+      ),
       error: null,
     };
   } catch (err) {

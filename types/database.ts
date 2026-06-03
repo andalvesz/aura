@@ -26,6 +26,37 @@ export type Gasto = {
   updated_at: string;
 };
 
+export type FinancialIncomeOrigem =
+  | "alvesz"
+  | "consorcios"
+  | "salario"
+  | "freelance"
+  | "outros";
+
+export type FinancialGoal = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  valor_meta: number;
+  valor_atual: number;
+  data_inicio: string;
+  data_fim: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FinancialIncome = {
+  id: string;
+  user_id: string;
+  descricao: string;
+  valor: number;
+  origem: FinancialIncomeOrigem | string;
+  data: string;
+  orcamento_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Evento = {
   id: string;
   user_id: string;
@@ -323,7 +354,10 @@ export type NotificationType =
   | "mission_pending"
   | "content_overdue"
   | "workout_planned"
-  | "budget_negotiation";
+  | "budget_negotiation"
+  | "financial_goal_behind"
+  | "financial_expense_spike"
+  | "financial_goal_reached";
 
 export type NotificationStatus = "unread" | "read";
 
@@ -356,6 +390,24 @@ export type Database = {
         Gasto,
         Omit<Gasto, "id" | "created_at" | "updated_at"> & {
           id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      financial_goals: TableDef<
+        FinancialGoal,
+        Omit<FinancialGoal, "id" | "created_at" | "updated_at" | "valor_atual"> & {
+          id?: string;
+          valor_atual?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      financial_income: TableDef<
+        FinancialIncome,
+        Omit<FinancialIncome, "id" | "created_at" | "updated_at" | "orcamento_id"> & {
+          id?: string;
+          orcamento_id?: string | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -634,6 +686,8 @@ export type TableUpdate<T extends TableName> =
 /** Tabelas com user_id para RLS */
 export type UserScopedTable =
   | "gastos"
+  | "financial_goals"
+  | "financial_income"
   | "eventos"
   | "clientes"
   | "orcamentos"

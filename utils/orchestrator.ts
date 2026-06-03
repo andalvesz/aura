@@ -180,13 +180,22 @@ const SOCIAL_PHRASES = [
 
 const FINANCE_PHRASES = [
   "financeiro",
+  "financas",
+  "finanças",
   "gastos",
   "gasto ",
   "despesas",
+  "receitas",
   "saldo",
   "orcamento pessoal",
   "quanto gastei",
   "controle financeiro",
+  "como estao minhas financas",
+  "como estão minhas finanças",
+  "como esta meu financeiro",
+  "como está meu financeiro",
+  "minhas financas",
+  "minhas finanças",
 ] as const;
 
 const META_PHRASES = [

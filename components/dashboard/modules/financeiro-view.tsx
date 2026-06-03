@@ -1,91 +1,261 @@
 "use client";
 
-import { Plus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Plus, Target, TrendingUp } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import {
   ListSkeleton,
   MetricsSkeleton,
 } from "@/components/dashboard/loading-skeleton";
+import { useFinancialGoals } from "@/hooks/use-financial-goals";
+import { useFinancialIncome } from "@/hooks/use-financial-income";
 import { useGastos } from "@/hooks/use-gastos";
+import { createClient } from "@/lib/supabase/client";
 import { formatBRL, formatDate } from "@/utils/format";
-import { computeFinanceStats, getCategoryLabel, ORCAMENTO_MENSAL } from "@/utils/finance";
+import {
+  computeSmartFinanceStats,
+  getCategoryLabel,
+  getIncomeOrigemLabel,
+} from "@/utils/finance";
 import { ActionButton } from "../action-button";
 import { MetricCard } from "../metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 import { AddGastoModal } from "./add-gasto-modal";
+import { AddMetaFinanceiraModal } from "./add-meta-financeira-modal";
+import { AddReceitaModal } from "./add-receita-modal";
+
+async function syncGoalsProgress() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: goals } = await supabase
+    .from("financial_goals")
+    .select("id, data_inicio, data_fim, valor_atual")
+    .eq("user_id", user.id);
+
+  if (!goals?.length) return;
+
+  for (const goal of goals) {
+    const { data: incomes } = await supabase
+      .from("financial_income")
+      .select("valor")
+      .eq("user_id", user.id)
+      .gte("data", goal.data_inicio)
+      .lte("data", goal.data_fim);
+
+    const total = (incomes ?? []).reduce((s, row) => s + Number(row.valor), 0);
+    if (total !== Number(goal.valor_atual)) {
+      await supabase
+        .from("financial_goals")
+        .update({ valor_atual: total })
+        .eq("id", goal.id)
+        .eq("user_id", user.id);
+    }
+  }
+}
 
 export function FinanceiroView() {
-  const { data: gastos, loading, error, create } = useGastos();
-  const [modalOpen, setModalOpen] = useState(false);
+  const { data: gastos, loading: loadingGastos, error: gastosError, create: createGasto } =
+    useGastos();
+  const {
+    data: income,
+    loading: loadingIncome,
+    error: incomeError,
+    create: createIncome,
+    refresh: refreshIncome,
+  } = useFinancialIncome();
+  const {
+    data: goals,
+    loading: loadingGoals,
+    error: goalsError,
+    create: createGoal,
+    refresh: refreshGoals,
+  } = useFinancialGoals();
 
-  const stats = useMemo(() => computeFinanceStats(gastos), [gastos]);
+  const [gastoModalOpen, setGastoModalOpen] = useState(false);
+  const [receitaModalOpen, setReceitaModalOpen] = useState(false);
+  const [metaModalOpen, setMetaModalOpen] = useState(false);
+
+  const loading = loadingGastos || loadingIncome || loadingGoals;
+
+  const stats = useMemo(
+    () => computeSmartFinanceStats({ gastos, income, goals }),
+    [gastos, income, goals]
+  );
+
+  const refreshFinance = useCallback(async () => {
+    await syncGoalsProgress();
+    await Promise.all([refreshIncome(), refreshGoals()]);
+  }, [refreshIncome, refreshGoals]);
 
   useEffect(() => {
-    if (error) toast.error(error);
-  }, [error]);
+    if (!loadingIncome && !loadingGoals) {
+      void refreshFinance();
+    }
+  }, [loadingIncome, loadingGoals, refreshFinance]);
+
+  useEffect(() => {
+    if (gastosError) toast.error(gastosError);
+    if (incomeError) toast.error(incomeError);
+    if (goalsError) toast.error(goalsError);
+  }, [gastosError, incomeError, goalsError]);
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <ActionButton
+          icon={<TrendingUp className="size-3.5" />}
+          onClick={() => setReceitaModalOpen(true)}
+        >
+          Receita
+        </ActionButton>
+        <ActionButton
+          icon={<Target className="size-3.5" />}
+          onClick={() => setMetaModalOpen(true)}
+        >
+          Meta
+        </ActionButton>
         <ActionButton
           icon={<Plus className="size-3.5" />}
-          onClick={() => setModalOpen(true)}
+          onClick={() => setGastoModalOpen(true)}
         >
-          Adicionar gasto
+          Despesa
         </ActionButton>
       </div>
 
       {loading ? (
         <MetricsSkeleton />
       ) : (
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
           <MetricCard
-            label="Gasto do mês"
+            label="Receitas do mês"
+            value={formatBRL(stats.totalIncomeMonth)}
+            hintClassName="text-emerald-400/90"
+          />
+          <MetricCard
+            label="Despesas do mês"
             value={formatBRL(stats.totalMonth)}
             hint={`Dia ${stats.dayOfMonth} de ${stats.daysInMonth}`}
           />
           <MetricCard
-            label="Maior categoria"
-            value={stats.topCategory?.label ?? "—"}
-            hint={
-              stats.topCategory
-                ? `${stats.topCategory.pct}% do total`
-                : "Sem gastos"
-            }
-          />
-          <MetricCard
-            label="Saldo estimado"
+            label="Saldo"
             value={formatBRL(stats.saldo)}
-            hint={`Orçamento ${formatBRL(ORCAMENTO_MENSAL)}`}
             hintClassName={
               stats.saldo >= 0 ? "text-emerald-400/90" : "text-red-400/90"
             }
           />
           <MetricCard
-            label="Previsão fim do mês"
-            value={formatBRL(stats.forecast)}
-            hint="Projeção linear"
+            label="Meta"
+            value={
+              stats.activeGoal
+                ? `${stats.goalProgress?.pct ?? 0}%`
+                : "—"
+            }
+            hint={
+              stats.activeGoal
+                ? `${formatBRL(stats.goalProgress?.atual ?? 0)} / ${formatBRL(stats.goalProgress?.meta ?? 0)}`
+                : "Crie uma meta"
+            }
+          />
+          <MetricCard
+            label="Projeção"
+            value={formatBRL(stats.projectedSaldo)}
+            hint="Saldo estimado fim do mês"
           />
         </div>
+      )}
+
+      {stats.activeGoal && !loading && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>{stats.activeGoal.titulo}</PanelTitle>
+          </PanelHeader>
+          <PanelContent className="space-y-2 pt-0">
+            <div className="flex justify-between text-[11px] text-zinc-500">
+              <span>
+                {formatBRL(stats.goalProgress?.atual ?? 0)} de{" "}
+                {formatBRL(stats.goalProgress?.meta ?? 0)}
+              </span>
+              <span>{stats.goalProgress?.pct ?? 0}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-white/[0.06]">
+              <div
+                className="h-full rounded-full bg-emerald-500/70 transition-all duration-500"
+                style={{ width: `${stats.goalProgress?.pct ?? 0}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-zinc-600">
+              {formatDate(stats.activeGoal.data_inicio)} —{" "}
+              {formatDate(stats.activeGoal.data_fim)}
+            </p>
+          </PanelContent>
+        </Panel>
       )}
 
       <div className="grid gap-2 lg:grid-cols-2">
         <Panel>
           <PanelHeader>
-            <PanelTitle>Gastos recentes</PanelTitle>
+            <PanelTitle>Receitas recentes</PanelTitle>
+          </PanelHeader>
+          <PanelContent className="pt-0">
+            {loading ? (
+              <ListSkeleton />
+            ) : stats.monthIncome.length === 0 ? (
+              <EmptyState
+                title="Nenhuma receita este mês"
+                description="Registre entradas de Alvesz, consórcios, salário ou freelance."
+                action={
+                  <ActionButton onClick={() => setReceitaModalOpen(true)}>
+                    Registrar receita
+                  </ActionButton>
+                }
+              />
+            ) : (
+              <ul className="space-y-0.5">
+                {stats.monthIncome.map((i) => (
+                  <li
+                    key={i.id}
+                    className="flex items-center justify-between rounded-md px-2 py-2 transition-colors hover:bg-white/[0.03]"
+                  >
+                    <div>
+                      <p className="text-[13px] text-zinc-200">{i.descricao}</p>
+                      <p className="text-[11px] text-zinc-600">
+                        {getIncomeOrigemLabel(i.origem)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[13px] font-medium text-emerald-300/90">
+                        {formatBRL(Number(i.valor))}
+                      </p>
+                      <p className="text-[10px] text-zinc-600">
+                        {formatDate(i.data)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PanelContent>
+        </Panel>
+
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Despesas recentes</PanelTitle>
           </PanelHeader>
           <PanelContent className="pt-0">
             {loading ? (
               <ListSkeleton />
             ) : stats.monthGastos.length === 0 ? (
               <EmptyState
-                title="Nenhum gasto este mês"
-                description="Adicione seu primeiro gasto para acompanhar o orçamento."
+                title="Nenhuma despesa este mês"
+                description="Adicione gastos para acompanhar o fluxo de caixa."
                 action={
-                  <ActionButton onClick={() => setModalOpen(true)}>
-                    Adicionar gasto
+                  <ActionButton onClick={() => setGastoModalOpen(true)}>
+                    Adicionar despesa
                   </ActionButton>
                 }
               />
@@ -116,41 +286,59 @@ export function FinanceiroView() {
             )}
           </PanelContent>
         </Panel>
-
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Por categoria</PanelTitle>
-          </PanelHeader>
-          <PanelContent className="space-y-2.5 pt-0">
-            {loading ? (
-              <ListSkeleton rows={6} />
-            ) : stats.categories.length === 0 ? (
-              <EmptyState title="Sem categorias" description="Adicione gastos para ver o gráfico." />
-            ) : (
-              stats.categories.map((c) => (
-                <div key={c.key}>
-                  <div className="mb-1 flex justify-between text-[11px]">
-                    <span className="text-zinc-400">{c.label}</span>
-                    <span className="text-zinc-600">{c.pct}%</span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-                    <div
-                      className={`h-full rounded-full ${c.color}/70 transition-all duration-500`}
-                      style={{ width: `${c.pct}%` }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </PanelContent>
-        </Panel>
       </div>
 
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Por categoria (despesas)</PanelTitle>
+        </PanelHeader>
+        <PanelContent className="space-y-2.5 pt-0">
+          {loading ? (
+            <ListSkeleton rows={6} />
+          ) : stats.categories.length === 0 ? (
+            <EmptyState title="Sem categorias" description="Adicione despesas para ver o gráfico." />
+          ) : (
+            stats.categories.map((c) => (
+              <div key={c.key}>
+                <div className="mb-1 flex justify-between text-[11px]">
+                  <span className="text-zinc-400">{c.label}</span>
+                  <span className="text-zinc-600">{c.pct}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                  <div
+                    className={`h-full rounded-full ${c.color}/70 transition-all duration-500`}
+                    style={{ width: `${c.pct}%` }}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </PanelContent>
+      </Panel>
+
       <AddGastoModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        open={gastoModalOpen}
+        onClose={() => setGastoModalOpen(false)}
         onSubmit={async (payload) => {
-          const { error } = await create(payload);
+          const { error } = await createGasto(payload);
+          return { error };
+        }}
+      />
+      <AddReceitaModal
+        open={receitaModalOpen}
+        onClose={() => setReceitaModalOpen(false)}
+        onSubmit={async (payload) => {
+          const { error } = await createIncome(payload);
+          if (!error) await refreshFinance();
+          return { error };
+        }}
+      />
+      <AddMetaFinanceiraModal
+        open={metaModalOpen}
+        onClose={() => setMetaModalOpen(false)}
+        onSubmit={async (payload) => {
+          const { error } = await createGoal({ ...payload, valor_atual: 0 });
+          if (!error) await refreshFinance();
           return { error };
         }}
       />

@@ -3,8 +3,10 @@ import {
   EstoqueRepository,
   OrcamentosRepository,
 } from "@/lib/supabase/repositories";
-import type { TableInsert, TableUpdate } from "@/types/database";
+import type { Orcamento, TableInsert, TableUpdate } from "@/types/database";
+import { normalizeOrcamentoStatus } from "@/utils/alvesz-integration";
 import { getDataContext } from "./context";
+import { syncAlveszIncomeFromOrcamento } from "./finance.service";
 
 export async function listClientes() {
   const { supabase, userId } = await getDataContext();
@@ -33,7 +35,19 @@ export async function updateOrcamento(
   payload: TableUpdate<"orcamentos">
 ) {
   const { supabase, userId } = await getDataContext();
-  return new OrcamentosRepository(supabase, userId).update(id, payload);
+  const result = await new OrcamentosRepository(supabase, userId).update(id, payload);
+
+  if (!result.error && result.data) {
+    const orcamento = result.data as Orcamento;
+    const status = normalizeOrcamentoStatus(
+      payload.status ?? orcamento.status
+    );
+    if (status === "fechado") {
+      await syncAlveszIncomeFromOrcamento({ ...orcamento, status: "fechado" });
+    }
+  }
+
+  return result;
 }
 
 export async function listEstoque() {

@@ -10,6 +10,8 @@ import { listEventos } from "@/lib/supabase/services/eventos.service";
 import type {
   Conteudo,
   Evento,
+  FinancialGoal,
+  Gasto,
   GrowthLead,
   GrowthMission,
   HealthWorkout,
@@ -73,8 +75,18 @@ export async function syncNotifications(): Promise<{
   const { supabase, userId } = ctx;
   const notificationsRepo = new NotificationsRepository(supabase, userId);
 
-  const [leads, eventos, missions, conteudos, workouts, orcamentos, clientes, existing] =
-    await Promise.all([
+  const [
+    leads,
+    eventos,
+    missions,
+    conteudos,
+    workouts,
+    orcamentos,
+    clientes,
+    gastos,
+    financialGoals,
+    existing,
+  ] = await Promise.all([
       safeLoad(
         () => new GrowthLeadsRepository(supabase, userId).findAll(),
         [] as GrowthLead[]
@@ -101,6 +113,14 @@ export async function syncNotifications(): Promise<{
         const { data, error } = await listClientes();
         return { data: data ?? [], error };
       }, []),
+      safeLoad(
+        () => new BaseRepository(supabase, "gastos", userId).findAll("data"),
+        [] as Gasto[]
+      ),
+      safeLoad(
+        () => new BaseRepository(supabase, "financial_goals", userId).findAll("data_fim"),
+        [] as FinancialGoal[]
+      ),
       notificationsRepo.findAllOrdered(),
     ]);
 
@@ -116,6 +136,8 @@ export async function syncNotifications(): Promise<{
     workouts,
     orcamentos,
     clientes,
+    gastos,
+    financialGoals,
   });
 
   const unreadExisting = (existing.data ?? []).filter((n) => n.status === "unread");

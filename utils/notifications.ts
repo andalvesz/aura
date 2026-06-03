@@ -2,6 +2,8 @@ import type {
   Cliente,
   Conteudo,
   Evento,
+  FinancialGoal,
+  Gasto,
   GrowthLead,
   GrowthMission,
   HealthWorkout,
@@ -9,6 +11,13 @@ import type {
   NotificationType,
   Orcamento,
 } from "@/types/database";
+import {
+  detectUnusualExpense,
+  filterGastosCurrentMonth,
+  getActiveFinancialGoal,
+  isGoalBehind,
+  isGoalReached,
+} from "@/utils/finance";
 import { getFollowUpTierLabel, listStaleOpportunities } from "@/utils/follow-up";
 import { mergeDailyMissions, getTodayDate } from "@/utils/growth";
 import { todayIsoDate, workoutForToday } from "@/utils/health";
@@ -32,6 +41,9 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   content_overdue: "Conteúdo atrasado",
   workout_planned: "Treino planejado",
   budget_negotiation: "Orçamento em negociação",
+  financial_goal_behind: "Meta financeira atrasada",
+  financial_expense_spike: "Despesa acima do normal",
+  financial_goal_reached: "Meta financeira atingida",
 };
 
 export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
@@ -59,9 +71,20 @@ export function buildNotificationCandidates(params: {
   workouts: HealthWorkout[];
   orcamentos: Orcamento[];
   clientes?: Cliente[];
+  gastos?: Gasto[];
+  financialGoals?: FinancialGoal[];
 }): NotificationCandidate[] {
-  const { leads, eventos, missions, conteudos, workouts, orcamentos, clientes } =
-    params;
+  const {
+    leads,
+    eventos,
+    missions,
+    conteudos,
+    workouts,
+    orcamentos,
+    clientes,
+    gastos = [],
+    financialGoals = [],
+  } = params;
   const candidates: NotificationCandidate[] = [];
   const today = todayIsoDate();
   const nowIso = new Date().toISOString();
@@ -156,6 +179,43 @@ export function buildNotificationCandidates(params: {
       message: `${orcamento.tipo_evento} — ${formatBRL(Number(orcamento.valor_total))} aguardando fechamento.`,
       related_module: "alvesz",
       related_id: orcamento.id,
+      scheduled_for: nowIso,
+    });
+  }
+
+  const activeGoal = getActiveFinancialGoal(financialGoals, today);
+  if (activeGoal) {
+    if (isGoalReached(activeGoal)) {
+      candidates.push({
+        type: "financial_goal_reached",
+        title: "Meta financeira atingida",
+        message: `"${activeGoal.titulo}" — ${formatBRL(Number(activeGoal.valor_atual))} de ${formatBRL(Number(activeGoal.valor_meta))}.`,
+        related_module: "financeiro",
+        related_id: activeGoal.id,
+        scheduled_for: nowIso,
+      });
+    } else if (isGoalBehind(activeGoal)) {
+      candidates.push({
+        type: "financial_goal_behind",
+        title: "Meta financeira atrasada",
+        message: `"${activeGoal.titulo}" — ${formatBRL(Number(activeGoal.valor_atual))} de ${formatBRL(Number(activeGoal.valor_meta))}. Acelere receitas ou ajuste a meta.`,
+        related_module: "financeiro",
+        related_id: activeGoal.id,
+        scheduled_for: nowIso,
+      });
+    }
+  }
+
+  const monthGastos = filterGastosCurrentMonth(gastos);
+  const totalMonth = monthGastos.reduce((s, g) => s + Number(g.valor), 0);
+  const { unusual, avgPrevious } = detectUnusualExpense(gastos, totalMonth);
+  if (unusual && totalMonth > 0) {
+    candidates.push({
+      type: "financial_expense_spike",
+      title: "Despesa acima do normal",
+      message: `Gastos do mês: ${formatBRL(totalMonth)} (média recente: ${formatBRL(avgPrevious)}). Revise o Financeiro.`,
+      related_module: "financeiro",
+      related_id: null,
       scheduled_for: nowIso,
     });
   }

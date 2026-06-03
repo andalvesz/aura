@@ -54,7 +54,7 @@ const MODULE_INSTRUCTIONS: Record<AuraCentralModule, string> = {
   "social-media":
     "Foque em conteúdo para @and.alvesz, Alvesz Experience e Consórcios. Ganchos fortes e CTAs.",
   financeiro:
-    "Foque em gastos, saldo e orçamento pessoal. Sugira ações práticas de controle financeiro.",
+    "Foque em receitas, despesas, saldo, meta financeira e projeção. Liste próximas ações práticas com base nos dados reais.",
 };
 
 function logCentralError(error: unknown) {
