@@ -3,15 +3,12 @@
 import { useMemo, useState } from "react";
 import {
   BookOpen,
-  Bot,
   Brain,
   Check,
   Dumbbell,
-  Loader2,
   Plus,
-  Send,
-  Sparkles,
   Trash2,
+  TrendingUp,
   Utensils,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,21 +26,31 @@ import {
 import { ActionButton } from "../action-button";
 import { MetricCard } from "../metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
-import {
-  computeHealthMetrics,
-  mealsForToday,
-  parseExercicios,
-  todayIsoDate,
-  workoutForToday,
-  type ParsedMealPlanSuggestion,
-  type ParsedWorkoutSuggestion,
-  type WorkoutExercise,
-} from "@/utils/health";
-import { parseJsonResponse } from "@/utils/safe-json";
+import { AuraSaude } from "./aura-saude";
 import { AddHealthHabitModal } from "./add-health-habit-modal";
 import { AddHealthWorkoutModal } from "./add-health-workout-modal";
 import { AddHealthMealModal } from "./add-health-meal-modal";
 import { AddHealthSessionModal } from "./add-health-session-modal";
+import { HealthSuggestionPreview } from "./health-suggestion-preview";
+import {
+  computeHealthMetrics,
+  computeWeeklyProgress,
+  exerciciosToJson,
+  mealsForToday,
+  parseExercicios,
+  sessionsThisWeek,
+  todayIsoDate,
+  workoutForToday,
+  workoutsThisWeek,
+  type ParsedHabitsPlanSuggestion,
+  type ParsedMealPlanSuggestion,
+  type ParsedWorkoutSuggestion,
+} from "@/utils/health";
+
+type ActiveSuggestion =
+  | { type: "treino"; data: ParsedWorkoutSuggestion }
+  | { type: "dieta"; data: ParsedMealPlanSuggestion }
+  | { type: "habitos"; data: ParsedHabitsPlanSuggestion };
 
 export function SaudeView() {
   const { data: habits, loading: loadingHabits, create: createHabit, remove: removeHabit } =
@@ -69,18 +76,10 @@ export function SaudeView() {
   const [workoutSuggestion, setWorkoutSuggestion] = useState<ParsedWorkoutSuggestion | null>(
     null
   );
-  const [mealSuggestion, setMealSuggestion] = useState<ParsedMealPlanSuggestion["refeicoes"][0] | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [genLoading, setGenLoading] = useState<"treino" | "dieta" | null>(null);
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<
-    { role: "user" | "assistant"; text: string }[]
-  >([
-    {
-      role: "assistant",
-      text: "Olá, Anderson. Sou a Aura Saúde. Posso sugerir treinos leves (ombro em recuperação), refeições e hábitos — sempre com cuidado e sem substituir um profissional.",
-    },
-  ]);
+  const [mealSuggestion, setMealSuggestion] = useState<
+    ParsedMealPlanSuggestion["refeicoes"][0] | null
+  >(null);
+  const [activeSuggestion, setActiveSuggestion] = useState<ActiveSuggestion | null>(null);
 
   const loading =
     loadingHabits || loadingWorkouts || loadingMeals || loadingSessions;
@@ -90,12 +89,19 @@ export function SaudeView() {
     [habits, workouts, sessions]
   );
 
+  const weeklyProgress = useMemo(
+    () => computeWeeklyProgress(habits, workouts, sessions, meals),
+    [habits, workouts, sessions, meals]
+  );
+
   const treinoHoje = useMemo(() => workoutForToday(workouts), [workouts]);
+  const treinosSemana = useMemo(() => workoutsThisWeek(workouts), [workouts]);
   const refeicoesHoje = useMemo(() => mealsForToday(meals), [meals]);
   const habitsHoje = useMemo(
     () => habits.filter((h) => h.data === todayIsoDate()),
     [habits]
   );
+  const sessoesSemana = useMemo(() => sessionsThisWeek(sessions), [sessions]);
   const leituras = useMemo(
     () => sessions.filter((s) => s.tipo === "leitura").slice(0, 5),
     [sessions]
@@ -105,128 +111,67 @@ export function SaudeView() {
     [sessions]
   );
 
-  async function callHealthCoach(message: string, mode: "chat" | "treino" | "dieta") {
-    const res = await fetch("/api/health-coach", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, mode }),
+  async function handleSaveWorkoutSuggestion(workout: ParsedWorkoutSuggestion) {
+    if (!confirm(`Salvar treino "${workout.nome}" para hoje?`)) return;
+
+    const { error } = await createWorkout({
+      nome: workout.nome,
+      grupo_muscular: workout.grupo_muscular,
+      exercicios: exerciciosToJson(workout.exercicios),
+      duracao_min: workout.duracao_min,
+      observacoes: workout.observacoes,
+      data: todayIsoDate(),
     });
-    return parseJsonResponse<{
-      text?: string;
-      error?: string;
-      suggestion?: Record<string, unknown>;
-      kind?: string;
-    }>(res);
-  }
 
-  async function handleAiSend(e: React.FormEvent) {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text) return;
-
-    setMessages((m) => [...m, { role: "user", text }]);
-    setInput("");
-    setAiLoading(true);
-
-    try {
-      const { data, error } = await callHealthCoach(text, "chat");
-      if (error || !data) {
-        setMessages((m) => [
-          ...m,
-          {
-            role: "assistant",
-            text: data?.error ?? error ?? "Erro de conexão. Cadastre manualmente.",
-          },
-        ]);
-        return;
-      }
-      if (data.error) {
-        setMessages((m) => [...m, { role: "assistant", text: data.error! }]);
-        return;
-      }
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", text: data.text ?? "Sem resposta." },
-      ]);
-    } catch {
-      setMessages((m) => [
-        ...m,
-        {
-          role: "assistant",
-          text: "Erro de conexão. Use os botões de cadastro manual.",
-        },
-      ]);
-    } finally {
-      setAiLoading(false);
+    if (error) {
+      toast.error(error);
+      return;
     }
+
+    toast.success("Treino salvo.");
+    setActiveSuggestion(null);
   }
 
-  async function handleGerarTreino() {
-    setGenLoading("treino");
-    try {
-      const { data, error } = await callHealthCoach(
-        "Crie um treino seguro para hoje, considerando lesão no ombro. Inclua dança/ginástica leve se fizer sentido.",
-        "treino"
-      );
-      if (error || data?.error) {
-        toast.error(data?.error ?? error ?? "Erro ao gerar treino.");
-        return;
-      }
-      const s = data?.suggestion;
-      if (!s?.nome) {
-        toast.error("Sugestão inválida. Cadastre manualmente.");
-        return;
-      }
-      const exercicios = Array.isArray(s.exercicios)
-        ? (s.exercicios as WorkoutExercise[])
-        : [];
-      setWorkoutSuggestion({
-        nome: String(s.nome),
-        grupo_muscular: String(s.grupo_muscular ?? "geral"),
-        duracao_min: Number(s.duracao_min) || 45,
-        exercicios,
-        observacoes: s.observacoes ? String(s.observacoes) : null,
+  async function handleSaveMealPlan(plan: ParsedMealPlanSuggestion) {
+    if (!confirm(`Salvar ${plan.refeicoes.length} refeições para hoje?`)) return;
+
+    for (const refeicao of plan.refeicoes) {
+      const { error } = await createMeal({
+        nome: refeicao.nome,
+        horario: refeicao.horario.length === 5 ? `${refeicao.horario}:00` : refeicao.horario,
+        alimentos: refeicao.alimentos || null,
+        calorias: refeicao.calorias ?? null,
+        observacoes: refeicao.observacoes ?? null,
+        data: todayIsoDate(),
       });
-      setWorkoutModal(true);
-      toast.success("Treino sugerido — revise e salve.");
-    } catch {
-      toast.error("Erro de conexão ao gerar treino.");
-    } finally {
-      setGenLoading(null);
+      if (error) {
+        toast.error(error);
+        return;
+      }
     }
+
+    toast.success("Plano alimentar salvo.");
+    setActiveSuggestion(null);
   }
 
-  async function handleGerarDieta() {
-    setGenLoading("dieta");
-    try {
-      const { data, error } = await callHealthCoach(
-        "Monte uma dieta simples e prática para ganho de massa muscular, refeições do dia.",
-        "dieta"
-      );
-      if (error || data?.error) {
-        toast.error(data?.error ?? error ?? "Erro ao gerar dieta.");
-        return;
-      }
-      const refeicoes = data?.suggestion?.refeicoes;
-      if (!Array.isArray(refeicoes) || refeicoes.length === 0) {
-        toast.error("Sugestão inválida. Cadastre manualmente.");
-        return;
-      }
-      const first = refeicoes[0] as Record<string, unknown>;
-      setMealSuggestion({
-        nome: String(first.nome ?? "Refeição"),
-        horario: String(first.horario ?? "12:00").slice(0, 5),
-        alimentos: String(first.alimentos ?? ""),
-        calorias: first.calorias != null ? Number(first.calorias) : null,
-        observacoes: first.observacoes ? String(first.observacoes) : null,
+  async function handleSaveHabitsPlan(plan: ParsedHabitsPlanSuggestion) {
+    if (!confirm(`Salvar ${plan.habitos.length} hábitos sugeridos?`)) return;
+
+    for (const habit of plan.habitos) {
+      const { error } = await createHabit({
+        titulo: habit.titulo,
+        frequencia: habit.frequencia,
+        status: "ativo",
+        data: habit.data,
       });
-      setMealModal(true);
-      toast.success("Primeira refeição sugerida — salve e cadastre as demais se quiser.");
-    } catch {
-      toast.error("Erro de conexão ao gerar dieta.");
-    } finally {
-      setGenLoading(null);
+      if (error) {
+        toast.error(error);
+        return;
+      }
     }
+
+    toast.success("Hábitos salvos.");
+    setActiveSuggestion(null);
   }
 
   return (
@@ -235,137 +180,113 @@ export function SaudeView() {
         <ActionButton icon={<Plus className="size-3.5" />} onClick={() => setHabitModal(true)}>
           Novo hábito
         </ActionButton>
-        <ActionButton onClick={() => { setWorkoutSuggestion(null); setWorkoutModal(true); }}>
+        <ActionButton
+          icon={<Dumbbell className="size-3.5" />}
+          onClick={() => {
+            setWorkoutSuggestion(null);
+            setWorkoutModal(true);
+          }}
+        >
           Novo treino
         </ActionButton>
-        <ActionButton onClick={() => { setMealSuggestion(null); setMealModal(true); }}>
+        <ActionButton
+          icon={<Utensils className="size-3.5" />}
+          onClick={() => {
+            setMealSuggestion(null);
+            setMealModal(true);
+          }}
+        >
           Nova refeição
         </ActionButton>
         <ActionButton
-          icon={
-            genLoading === "treino" ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="size-3.5" />
-            )
-          }
-          onClick={handleGerarTreino}
-          disabled={genLoading !== null}
+          icon={<BookOpen className="size-3.5" />}
+          onClick={() => setSessionModal("leitura")}
         >
-          Gerar treino com IA
+          Nova leitura
         </ActionButton>
         <ActionButton
-          icon={
-            genLoading === "dieta" ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Sparkles className="size-3.5" />
-            )
-          }
-          onClick={handleGerarDieta}
-          disabled={genLoading !== null}
+          icon={<Brain className="size-3.5" />}
+          onClick={() => setSessionModal("meditacao")}
         >
-          Gerar dieta com IA
+          Nova meditação
         </ActionButton>
       </div>
 
       {loading ? (
-        <MetricsSkeleton />
+        <MetricsSkeleton count={5} />
       ) : (
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
           <MetricCard
             label="Hábitos hoje"
-            value={`${metrics.habitsHoje}/${habits.length || 0}`}
-            hint={`${metrics.habitsAtivos} ativos`}
+            value={String(metrics.habitsHoje)}
+            hint={`${metrics.habitsAtivos} ativos no total`}
           />
           <MetricCard
             label="Treinos/semana"
             value={String(metrics.treinosSemana)}
             hint="Últimos 7 dias"
           />
-          <MetricCard label="Leituras" value={String(metrics.leituras)} />
-          <MetricCard label="Meditações" value={String(metrics.meditacoes)} />
+          <MetricCard
+            label="Refeições hoje"
+            value={String(refeicoesHoje.length)}
+            hint="Plano alimentar do dia"
+          />
+          <MetricCard
+            label="Leitura · Meditação"
+            value={`${metrics.leituras} · ${metrics.meditacoes}`}
+            hint={`${sessoesSemana.length} sessões na semana`}
+          />
+          <MetricCard
+            label="Progresso semanal"
+            value={`${weeklyProgress.score}%`}
+            hint={`${weeklyProgress.workoutsWeek} treinos · ${weeklyProgress.habitsWeek} hábitos`}
+            hintClassName={
+              weeklyProgress.score >= 60 ? "text-emerald-500/80" : undefined
+            }
+          />
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 xl:grid-cols-[1fr_minmax(0,280px)]">
-        <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
-          <Panel>
-            <PanelHeader className="gap-2">
-              <Dumbbell className="size-4 text-rose-400" />
-              <PanelTitle>Treino do dia</PanelTitle>
-            </PanelHeader>
-            <PanelContent className="pt-0">
-              {loadingWorkouts ? (
-                <ListSkeleton rows={3} />
-              ) : !treinoHoje ? (
-                <EmptyState
-                  title="Nenhum treino cadastrado"
-                  description="Crie ou gere um treino com IA."
-                />
-              ) : (
-                <div>
-                  <p className="text-[13px] font-medium text-zinc-200">{treinoHoje.nome}</p>
-                  <p className="text-[11px] capitalize text-zinc-500">
-                    {treinoHoje.grupo_muscular} · {treinoHoje.duracao_min} min
-                  </p>
-                  <ul className="mt-2 space-y-0.5 text-[11px] text-zinc-400">
-                    {parseExercicios(treinoHoje.exercicios)
-                      .slice(0, 6)
-                      .map((ex, i) => (
-                        <li key={i}>· {ex.nome}</li>
-                      ))}
-                  </ul>
-                </div>
-              )}
-            </PanelContent>
-          </Panel>
+      {activeSuggestion?.type === "treino" && (
+        <HealthSuggestionPreview
+          type="treino"
+          workout={activeSuggestion.data}
+          onSave={() => handleSaveWorkoutSuggestion(activeSuggestion.data)}
+          onDismiss={() => setActiveSuggestion(null)}
+        />
+      )}
+      {activeSuggestion?.type === "dieta" && (
+        <HealthSuggestionPreview
+          type="dieta"
+          mealPlan={activeSuggestion.data}
+          onSave={() => handleSaveMealPlan(activeSuggestion.data)}
+          onDismiss={() => setActiveSuggestion(null)}
+        />
+      )}
+      {activeSuggestion?.type === "habitos" && (
+        <HealthSuggestionPreview
+          type="habitos"
+          habitsPlan={activeSuggestion.data}
+          onSave={() => handleSaveHabitsPlan(activeSuggestion.data)}
+          onDismiss={() => setActiveSuggestion(null)}
+        />
+      )}
 
-          <Panel>
-            <PanelHeader className="gap-2">
-              <Utensils className="size-4 text-emerald-400" />
-              <PanelTitle>Plano alimentar</PanelTitle>
-            </PanelHeader>
-            <PanelContent className="pt-0">
-              {loadingMeals ? (
-                <ListSkeleton rows={3} />
-              ) : refeicoesHoje.length === 0 ? (
-                <EmptyState title="Nenhuma refeição hoje" description="Cadastre refeições do dia." />
-              ) : (
-                <ul className="space-y-2">
-                  {refeicoesHoje.map((m) => (
-                    <li key={m.id} className="flex justify-between gap-2 text-[12px]">
-                      <span className="text-zinc-300">
-                        {m.horario.slice(0, 5)} — {m.nome}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!confirm("Excluir refeição?")) return;
-                          const { error } = await removeMeal(m.id);
-                          if (error) toast.error(error);
-                        }}
-                        className="text-zinc-600 hover:text-red-400"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </PanelContent>
-          </Panel>
-
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_360px]">
+        <div className="grid gap-2 lg:grid-cols-2">
           <Panel>
             <PanelHeader className="gap-2">
               <Check className="size-4 text-sky-400" />
-              <PanelTitle>Hábitos</PanelTitle>
+              <PanelTitle>Hábitos de hoje</PanelTitle>
             </PanelHeader>
             <PanelContent className="pt-0">
               {loadingHabits ? (
                 <ListSkeleton rows={4} />
               ) : habitsHoje.length === 0 ? (
-                <EmptyState title="Nenhum hábito hoje" description="Cadastre hábitos da rotina." />
+                <EmptyState
+                  title="Nenhum hábito hoje"
+                  description="Cadastre hábitos ou peça à Aura Saúde para organizar a semana."
+                />
               ) : (
                 <ul className="space-y-1.5">
                   {habitsHoje.map((h) => (
@@ -393,12 +314,105 @@ export function SaudeView() {
 
           <Panel>
             <PanelHeader className="gap-2">
+              <Dumbbell className="size-4 text-rose-400" />
+              <PanelTitle>Treino do dia</PanelTitle>
+            </PanelHeader>
+            <PanelContent className="pt-0">
+              {loadingWorkouts ? (
+                <ListSkeleton rows={3} />
+              ) : !treinoHoje ? (
+                <EmptyState
+                  title="Nenhum treino hoje"
+                  description="Crie manualmente ou use o atalho Treino de hoje na Aura Saúde."
+                />
+              ) : (
+                <div>
+                  <p className="text-[13px] font-medium text-zinc-200">{treinoHoje.nome}</p>
+                  <p className="text-[11px] capitalize text-zinc-500">
+                    {treinoHoje.grupo_muscular.replace("_", " ")} · {treinoHoje.duracao_min}{" "}
+                    min
+                  </p>
+                  <ul className="mt-2 space-y-0.5 text-[11px] text-zinc-400">
+                    {parseExercicios(treinoHoje.exercicios)
+                      .slice(0, 6)
+                      .map((ex, i) => (
+                        <li key={i}>· {ex.nome}</li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+            </PanelContent>
+          </Panel>
+
+          <Panel>
+            <PanelHeader className="gap-2">
+              <Utensils className="size-4 text-emerald-400" />
+              <PanelTitle>Refeições planejadas</PanelTitle>
+            </PanelHeader>
+            <PanelContent className="pt-0">
+              {loadingMeals ? (
+                <ListSkeleton rows={3} />
+              ) : refeicoesHoje.length === 0 ? (
+                <EmptyState
+                  title="Nenhuma refeição hoje"
+                  description="Cadastre refeições ou peça uma dieta simples à Aura Saúde."
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {refeicoesHoje.map((m) => (
+                    <li key={m.id} className="flex justify-between gap-2 text-[12px]">
+                      <span className="text-zinc-300">
+                        {m.horario.slice(0, 5)} — {m.nome}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm("Excluir refeição?")) return;
+                          const { error } = await removeMeal(m.id);
+                          if (error) toast.error(error);
+                        }}
+                        className="text-zinc-600 hover:text-red-400"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </PanelContent>
+          </Panel>
+
+          <Panel>
+            <PanelHeader className="gap-2">
+              <TrendingUp className="size-4 text-violet-400" />
+              <PanelTitle>Treinos da semana</PanelTitle>
+            </PanelHeader>
+            <PanelContent className="pt-0">
+              {loadingWorkouts ? (
+                <ListSkeleton rows={4} />
+              ) : treinosSemana.length === 0 ? (
+                <EmptyState title="Nenhum treino na semana" description="Registre seus treinos." />
+              ) : (
+                <ul className="space-y-1.5 text-[12px]">
+                  {treinosSemana.map((w) => (
+                    <li key={w.id} className="text-zinc-300">
+                      <span className="text-zinc-500">{w.data.slice(5)}</span> — {w.nome}
+                      <span className="text-zinc-600"> · {w.duracao_min} min</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </PanelContent>
+          </Panel>
+
+          <Panel>
+            <PanelHeader className="gap-2">
               <BookOpen className="size-4 text-amber-400" />
               <PanelTitle>Leitura</PanelTitle>
             </PanelHeader>
             <PanelContent className="space-y-2 pt-0">
               {leituras.length === 0 ? (
-                <p className="text-[13px] text-zinc-400">Nenhuma leitura cadastrada</p>
+                <EmptyState title="Nenhuma leitura" description="Registre sessões de leitura." />
               ) : (
                 leituras.map((s) => (
                   <SessionRow
@@ -412,13 +426,6 @@ export function SaudeView() {
                   />
                 ))
               )}
-              <button
-                type="button"
-                onClick={() => setSessionModal("leitura")}
-                className="text-[11px] text-violet-400 hover:text-violet-300"
-              >
-                + Nova leitura
-              </button>
             </PanelContent>
           </Panel>
 
@@ -429,7 +436,7 @@ export function SaudeView() {
             </PanelHeader>
             <PanelContent className="space-y-2 pt-0">
               {meditacoes.length === 0 ? (
-                <p className="text-[13px] text-zinc-400">Nenhuma sessão configurada</p>
+                <EmptyState title="Nenhuma meditação" description="Registre sessões de meditação." />
               ) : (
                 meditacoes.map((s) => (
                   <SessionRow
@@ -443,66 +450,21 @@ export function SaudeView() {
                   />
                 ))
               )}
-              <button
-                type="button"
-                onClick={() => setSessionModal("meditacao")}
-                className="w-full rounded-md border border-white/[0.08] py-2 text-[12px] text-zinc-300 hover:bg-white/[0.04]"
-              >
-                Nova meditação
-              </button>
             </PanelContent>
           </Panel>
         </div>
 
-        <Panel className="flex min-h-[320px] flex-col">
-          <PanelHeader>
-            <div className="flex items-center gap-2">
-              <div className="flex size-7 items-center justify-center rounded-md bg-rose-500/15">
-                <Sparkles className="size-3.5 text-rose-400" />
-              </div>
-              <PanelTitle>Aura Saúde</PanelTitle>
-            </div>
-            <Bot className="size-4 text-zinc-600" />
-          </PanelHeader>
-          <PanelContent className="flex flex-1 flex-col pt-0">
-            <div className="mb-2 max-h-[280px] flex-1 space-y-2 overflow-y-auto">
-              {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`rounded-md px-2.5 py-2 text-[12px] ${
-                    msg.role === "user"
-                      ? "ml-4 bg-white/[0.06] text-zinc-200"
-                      : "mr-4 bg-rose-500/10 text-rose-100/90"
-                  }`}
-                >
-                  {msg.text}
-                </div>
-              ))}
-              {aiLoading && (
-                <div className="mr-4 flex items-center gap-2 rounded-md bg-rose-500/10 px-2.5 py-2 text-[12px] text-rose-200/80">
-                  <Loader2 className="size-3 animate-spin" />
-                  Pensando...
-                </div>
-              )}
-            </div>
-            <form onSubmit={handleAiSend} className="mt-auto flex gap-1.5">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ex: plano para voltar aos treinos com ombro lesionado..."
-                disabled={aiLoading}
-                className="h-9 flex-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={aiLoading}
-                className="flex size-9 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] text-zinc-300 hover:bg-white/[0.06] disabled:opacity-50"
-              >
-                <Send className="size-3.5" />
-              </button>
-            </form>
-          </PanelContent>
-        </Panel>
+        <AuraSaude
+          onWorkoutSuggestion={(suggestion) =>
+            setActiveSuggestion({ type: "treino", data: suggestion })
+          }
+          onMealPlanSuggestion={(suggestion) =>
+            setActiveSuggestion({ type: "dieta", data: suggestion })
+          }
+          onHabitsSuggestion={(suggestion) =>
+            setActiveSuggestion({ type: "habitos", data: suggestion })
+          }
+        />
       </div>
 
       <AddHealthHabitModal
