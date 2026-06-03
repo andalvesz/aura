@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { GlobalSearchResult } from "@/utils/global-search";
 import { formatResultDateLabel } from "@/utils/global-search";
+import type {
+  ExecutiveReportAnalysis,
+  ExecutiveReportPayload,
+  ExecutiveReportType,
+} from "@/utils/executive-reports";
 import {
   Building2,
   CalendarDays,
@@ -36,6 +41,9 @@ type Message = {
   searchResults?: GlobalSearchResult[];
   searchQuery?: string;
   searchTotal?: number;
+  reportType?: ExecutiveReportType;
+  report?: ExecutiveReportPayload;
+  analysis?: ExecutiveReportAnalysis;
 };
 
 const MODULE_ICONS: Record<AuraCentralModule, React.ComponentType<{ className?: string }>> = {
@@ -156,6 +164,9 @@ export function AuraCentral() {
         searchResults?: GlobalSearchResult[];
         searchQuery?: string;
         total?: number;
+        reportType?: ExecutiveReportType;
+        report?: ExecutiveReportPayload;
+        analysis?: ExecutiveReportAnalysis;
       }>(response);
 
       if (parseError || !response.ok) {
@@ -185,6 +196,9 @@ export function AuraCentral() {
           searchResults: data?.searchResults,
           searchQuery: data?.searchQuery,
           searchTotal: data?.total,
+          reportType: data?.reportType,
+          report: data?.report,
+          analysis: data?.analysis,
         },
       ]);
     } catch {
@@ -303,6 +317,22 @@ export function AuraCentral() {
                   </div>
                 )}
                 <p className="whitespace-pre-wrap">{message.text}</p>
+                {message.kind === "report" && message.analysis && (
+                  <div className="mt-2 space-y-1.5 border-t border-white/[0.06] pt-2 text-[12px] text-zinc-300">
+                    <p>
+                      <span className="text-cyan-400/80">Funcionou:</span>{" "}
+                      {message.analysis.funcionou}
+                    </p>
+                    <p>
+                      <span className="text-cyan-400/80">Ajustar:</span>{" "}
+                      {message.analysis.naoFuncionou}
+                    </p>
+                    <p>
+                      <span className="text-cyan-400/80">Prioridade:</span>{" "}
+                      {message.analysis.proximaPrioridade}
+                    </p>
+                  </div>
+                )}
                 {message.kind === "search" && message.searchResults && (
                   <ul className="mt-2 space-y-2 border-t border-white/[0.06] pt-2">
                     {message.searchResults.length === 0 ? (

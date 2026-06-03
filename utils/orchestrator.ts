@@ -7,21 +7,18 @@ import {
   isGrowthMentorCrmQuery,
   isGrowthMentorExecutiveQuery,
   isGrowthMentorMemoryQuery,
-  sortGrowthLeadOpportunities,
 } from "@/utils/growth";
-import { getExecutiveGreeting } from "@/utils/executive";
-import {
-  formatAuraCentralFollowUpReply,
-  getTopStaleOpportunity,
-} from "@/utils/follow-up";
-import { formatTime } from "@/utils/format";
 import {
   isNexusAlveszQuery,
   isNexusCalendarQuery,
 } from "@/utils/nexus";
-import { normalizeConteudoStatus } from "@/utils/social";
-import { todayIsoDate, workoutForToday } from "@/utils/health";
 import { isAuraEvolutionQuery } from "@/utils/memory";
+import {
+  buildDailyExecutiveReport,
+  formatReportGreeting,
+  isExecutiveReportQuery,
+  type ExecutiveReportData,
+} from "@/utils/executive-reports";
 import { isAuraGlobalSearchQuery } from "@/utils/global-search";
 
 export type AuraCentralModule =
@@ -281,6 +278,11 @@ export function detectAuraCentralIntent(
     return { module: "global", mode: "chat", actionId: "buscar" };
   }
 
+  const reportType = isExecutiveReportQuery(message);
+  if (reportType) {
+    return { module: "global", mode: "chat", actionId: `relatorio-${reportType}` };
+  }
+
   if (actionId === "treino-hoje" || isAuraCentralHealthTreinoQuery(message)) {
     return { module: "saude", mode: "treino", actionId };
   }
@@ -346,10 +348,6 @@ export function detectAuraCentralIntent(
   return { module: "global", mode: "chat", actionId };
 }
 
-function plural(count: number, singular: string, pluralForm: string): string {
-  return count === 1 ? `1 ${singular}` : `${count} ${pluralForm}`;
-}
-
 export type AuraCentralOpeningSummary = {
   greeting: string;
   bullets: string[];
@@ -357,73 +355,28 @@ export type AuraCentralOpeningSummary = {
 };
 
 export function buildAuraCentralOpeningSummary(
-  data: AuraGlobalSummaryData
+  data: AuraGlobalSummaryData | ExecutiveReportData
 ): AuraCentralOpeningSummary {
-  const today = todayIsoDate();
-  const staleTop = getTopStaleOpportunity({
-    leads: data.leads,
-    orcamentos: data.orcamentos,
-    clientes: data.clientes,
-  });
-  const priorityLeads = sortGrowthLeadOpportunities(
-    data.leads.filter((l) => l.status !== "fechado" && l.status !== "perdido")
+  const reportData: ExecutiveReportData = {
+    ...data,
+    financialIncome:
+      "financialIncome" in data && data.financialIncome
+        ? data.financialIncome
+        : [],
+    financialGoals:
+      "financialGoals" in data && data.financialGoals ? data.financialGoals : [],
+    alveszEventos:
+      "alveszEventos" in data && data.alveszEventos ? data.alveszEventos : [],
+  };
+
+  const daily = buildDailyExecutiveReport(reportData);
+  const bullets = daily.sections.flatMap((s) =>
+    s.lines.slice(0, 1).map((line) => `${s.label}: ${line}`)
   );
-  const todayEvents = data.eventos.filter(
-    (e) => e.data_inicio.slice(0, 10) === today
-  );
-  const pendingContent = data.conteudos.filter(
-    (c) => normalizeConteudoStatus(c.status) !== "publicado"
-  );
-  const treinoHoje = workoutForToday(data.healthWorkouts);
 
-  const bullets: string[] = [];
-
-  if (staleTop) {
-    bullets.push(`follow-up com ${staleTop.context.nome}`);
-  }
-
-  if (priorityLeads.length > 0) {
-    bullets.push(
-      plural(priorityLeads.length, "lead prioritário", "leads prioritários")
-    );
-  }
-  if (treinoHoje) {
-    bullets.push(`1 treino (${treinoHoje.nome})`);
-  } else if (data.healthWorkouts.length === 0) {
-    bullets.push("nenhum treino cadastrado");
-  }
-  if (pendingContent.length > 0) {
-    bullets.push(
-      plural(pendingContent.length, "conteúdo pendente", "conteúdos pendentes")
-    );
-  }
-  if (todayEvents.length > 0) {
-    bullets.push(plural(todayEvents.length, "reunião/evento", "reuniões/eventos"));
-  }
-
-  if (bullets.length === 0) {
-    bullets.push("agenda livre — hora de prospectar e criar conteúdo");
-  }
-
-  const greeting = getExecutiveGreeting("Anderson").replace(",", ",");
-  const bulletLines = bullets.map((b) => `- ${b}`).join("\n");
-  let text = `${greeting}\n\nHoje:\n${bulletLines}`;
-
-  if (staleTop) {
-    text = `${greeting}\n\n${formatAuraCentralFollowUpReply(staleTop)}\n\nTambém hoje:\n${bulletLines}`;
-  }
-
-  if (todayEvents.length > 0) {
-    const upcomingToday = todayEvents
-      .filter((e) => new Date(e.data_inicio) >= new Date())
-      .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio));
-    const nextEvent = upcomingToday[0] ?? todayEvents[0];
-    return {
-      greeting,
-      bullets,
-      text: `${text}\n\nPróximo: ${formatTime(nextEvent.data_inicio)} — ${nextEvent.titulo}`,
-    };
-  }
-
-  return { greeting, bullets, text };
+  return {
+    greeting: formatReportGreeting("Anderson"),
+    bullets,
+    text: daily.text,
+  };
 }

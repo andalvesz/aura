@@ -14,7 +14,7 @@ import { formatBRL } from "@/utils/format";
 import { buildAuraCentralOpeningSummary } from "@/utils/orchestrator";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { getOptionalDataContext } from "./context";
-import { loadAuraGlobalSummaryData } from "./mentor.service";
+import { loadExecutiveReportData } from "./reports.service";
 
 function buildFinanceMentorContext(
   gastos: Gasto[],
@@ -78,7 +78,7 @@ export async function getAuraCentralOpeningSummary(): Promise<{
   summary: ReturnType<typeof buildAuraCentralOpeningSummary> | null;
   error: string | null;
 }> {
-  const { data, error } = await loadAuraGlobalSummaryData();
+  const { data, error } = await loadExecutiveReportData();
   if (error || !data) {
     return { summary: null, error };
   }

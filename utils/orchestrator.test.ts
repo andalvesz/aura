@@ -103,8 +103,8 @@ describe("aura central orchestrator", () => {
     });
 
     assert.ok(summary.text.includes("Hoje:"));
-    assert.ok(summary.bullets.some((b) => b.includes("lead")));
-    assert.ok(summary.bullets.some((b) => b.includes("conteúdo")));
-    assert.ok(summary.bullets.some((b) => b.includes("reunião") || b.includes("evento")));
+    assert.ok(summary.bullets.some((b) => b.includes("Leads prioritários")));
+    assert.ok(summary.bullets.some((b) => b.includes("Conteúdos pendentes")));
+    assert.ok(summary.bullets.some((b) => b.includes("Próximos eventos")));
   });
 });

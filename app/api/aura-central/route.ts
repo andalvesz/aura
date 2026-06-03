@@ -32,11 +32,19 @@ import {
 } from "@/utils/follow-up";
 import { runGlobalSearch } from "@/lib/supabase/services/global-search.service";
 import {
+  generateExecutiveReportAnalysis,
+  getExecutiveReport,
+} from "@/lib/supabase/services/reports.service";
+import {
   extractAuraSearchQuery,
   formatGlobalSearchReply,
   GLOBAL_SEARCH_INITIAL_LIMIT,
   isAuraGlobalSearchQuery,
 } from "@/utils/global-search";
+import {
+  formatReportWithAnalysis,
+  isExecutiveReportQuery,
+} from "@/utils/executive-reports";
 import {
   AURA_CENTRAL_CONTEXT,
   detectAuraCentralIntent,
@@ -263,6 +271,32 @@ export async function POST(req: Request) {
 
     if (!message) {
       return Response.json({ error: "Mensagem não enviada." }, { status: 400 });
+    }
+
+    const reportType = isExecutiveReportQuery(message);
+    if (reportType) {
+      const { report, error: reportError } = await getExecutiveReport(reportType);
+      if (reportError || !report) {
+        const status = reportError === "Usuário não autenticado." ? 401 : 500;
+        return Response.json({ error: reportError ?? "Erro ao gerar relatório." }, { status });
+      }
+
+      const { analysis } = await generateExecutiveReportAnalysis(reportType, report);
+      const text = formatReportWithAnalysis(report, analysis);
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "report",
+        reportType,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "report",
+        reportType,
+        report,
+        analysis,
+      });
     }
 
     if (isAuraGlobalSearchQuery(message)) {
