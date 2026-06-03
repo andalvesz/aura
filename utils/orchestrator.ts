@@ -22,6 +22,7 @@ import {
 import { normalizeConteudoStatus } from "@/utils/social";
 import { todayIsoDate, workoutForToday } from "@/utils/health";
 import { isAuraEvolutionQuery } from "@/utils/memory";
+import { isAuraGlobalSearchQuery } from "@/utils/global-search";
 
 export type AuraCentralModule =
   | "global"
@@ -276,6 +277,10 @@ export function detectAuraCentralIntent(
   message: string,
   actionId?: string
 ): AuraCentralIntent {
+  if (isAuraGlobalSearchQuery(message)) {
+    return { module: "global", mode: "chat", actionId: "buscar" };
+  }
+
   if (actionId === "treino-hoje" || isAuraCentralHealthTreinoQuery(message)) {
     return { module: "saude", mode: "treino", actionId };
   }

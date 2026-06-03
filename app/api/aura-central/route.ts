@@ -30,6 +30,13 @@ import {
   getTopStaleOpportunity,
   isTodayPlanningQuery,
 } from "@/utils/follow-up";
+import { runGlobalSearch } from "@/lib/supabase/services/global-search.service";
+import {
+  extractAuraSearchQuery,
+  formatGlobalSearchReply,
+  GLOBAL_SEARCH_INITIAL_LIMIT,
+  isAuraGlobalSearchQuery,
+} from "@/utils/global-search";
 import {
   AURA_CENTRAL_CONTEXT,
   detectAuraCentralIntent,
@@ -256,6 +263,47 @@ export async function POST(req: Request) {
 
     if (!message) {
       return Response.json({ error: "Mensagem não enviada." }, { status: 400 });
+    }
+
+    if (isAuraGlobalSearchQuery(message)) {
+      const searchQuery = extractAuraSearchQuery(message);
+      if (!searchQuery) {
+        return Response.json({
+          text: 'Use "Buscar" seguido do termo (ex.: Buscar João). Mínimo 2 caracteres.',
+          module: "global",
+          kind: "search",
+          searchResults: [],
+          searchQuery: "",
+          total: 0,
+        });
+      }
+
+      const { results, total, error: searchError } = await runGlobalSearch(searchQuery, {
+        filter: "todos",
+        page: 0,
+        limit: GLOBAL_SEARCH_INITIAL_LIMIT,
+      });
+
+      if (searchError) {
+        const status = searchError === "Usuário não autenticado." ? 401 : 400;
+        return Response.json({ error: searchError }, { status });
+      }
+
+      const text = formatGlobalSearchReply(results, searchQuery, total);
+      await persistAiTurn("aura_central", message, text, {
+        kind: "search",
+        searchQuery,
+        total,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "search",
+        searchResults: results,
+        searchQuery,
+        total,
+      });
     }
 
     if (!process.env.OPENAI_API_KEY) {

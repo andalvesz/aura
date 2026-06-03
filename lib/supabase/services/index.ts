@@ -16,3 +16,4 @@ export * from "./notifications.service";
 export * from "./health-coach.service";
 export * from "./social-ia.service";
 export * from "./seed.service";
+export * from "./global-search.service";

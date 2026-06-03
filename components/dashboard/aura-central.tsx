@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import type { GlobalSearchResult } from "@/utils/global-search";
+import { formatResultDateLabel } from "@/utils/global-search";
 import {
   Building2,
   CalendarDays,
@@ -31,6 +33,9 @@ type Message = {
   module?: AuraCentralModule;
   suggestion?: ParsedEventoSuggestion;
   kind?: string;
+  searchResults?: GlobalSearchResult[];
+  searchQuery?: string;
+  searchTotal?: number;
 };
 
 const MODULE_ICONS: Record<AuraCentralModule, React.ComponentType<{ className?: string }>> = {
@@ -148,6 +153,9 @@ export function AuraCentral() {
         module?: AuraCentralModule;
         suggestion?: ParsedEventoSuggestion;
         kind?: string;
+        searchResults?: GlobalSearchResult[];
+        searchQuery?: string;
+        total?: number;
       }>(response);
 
       if (parseError || !response.ok) {
@@ -174,6 +182,9 @@ export function AuraCentral() {
           module: data?.module ?? "global",
           suggestion: data?.suggestion,
           kind: data?.kind,
+          searchResults: data?.searchResults,
+          searchQuery: data?.searchQuery,
+          searchTotal: data?.total,
         },
       ]);
     } catch {
@@ -292,6 +303,42 @@ export function AuraCentral() {
                   </div>
                 )}
                 <p className="whitespace-pre-wrap">{message.text}</p>
+                {message.kind === "search" && message.searchResults && (
+                  <ul className="mt-2 space-y-2 border-t border-white/[0.06] pt-2">
+                    {message.searchResults.length === 0 ? (
+                      <li className="text-[12px] text-zinc-500">
+                        Nenhum resultado encontrado.
+                      </li>
+                    ) : (
+                      message.searchResults.map((item) => (
+                        <li key={`${item.entity}-${item.id}`}>
+                          <Link
+                            href={item.moduleHref}
+                            className="block rounded-md bg-white/[0.03] px-2 py-1.5 transition-colors hover:bg-white/[0.06]"
+                          >
+                            <p className="text-[10px] font-medium text-violet-300/90">
+                              [{item.typeLabel}]
+                            </p>
+                            <p className="text-[12px] font-medium text-zinc-200">
+                              {item.title}
+                            </p>
+                            <p className="text-[10px] text-zinc-500">
+                              {item.moduleLabel} · {formatResultDateLabel(item.dateIso)}
+                            </p>
+                          </Link>
+                        </li>
+                      ))
+                    )}
+                    {message.searchTotal != null &&
+                      message.searchTotal > (message.searchResults?.length ?? 0) && (
+                        <li className="text-[10px] text-zinc-600">
+                          Use a busca no topo da Aura para ver todos os{" "}
+                          {message.searchTotal} resultados
+                          {message.searchQuery ? ` de "${message.searchQuery}"` : ""}.
+                        </li>
+                      )}
+                  </ul>
+                )}
               </div>
             );
           })}
