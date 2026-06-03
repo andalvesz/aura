@@ -97,6 +97,8 @@ export type SmartFinanceInput = {
   gastos: Gasto[];
   income: FinancialIncome[];
   goals: FinancialGoal[];
+  /** Saldo informado pelo usuário (financial_balance.valor_atual) */
+  initialBalance?: number | null;
 };
 
 export function computeFinanceStats(gastos: Gasto[]) {
@@ -173,7 +175,13 @@ export function computeSmartFinanceStats(input: SmartFinanceInput) {
   const expenseStats = computeFinanceStats(input.gastos);
   const monthIncome = filterIncomeCurrentMonth(input.income);
   const totalIncomeMonth = monthIncome.reduce((s, i) => s + Number(i.valor), 0);
-  const saldo = totalIncomeMonth - expenseStats.totalMonth;
+
+  const hasInitialBalance =
+    input.initialBalance != null && !Number.isNaN(Number(input.initialBalance));
+  const baseBalance = hasInitialBalance ? Number(input.initialBalance) : 0;
+  const saldoAtual = hasInitialBalance
+    ? baseBalance + totalIncomeMonth - expenseStats.totalMonth
+    : null;
 
   const activeGoal = getActiveFinancialGoal(input.goals);
   const goalProgress = activeGoal ? computeGoalProgress(activeGoal) : null;
@@ -186,7 +194,9 @@ export function computeSmartFinanceStats(input: SmartFinanceInput) {
       : 0;
   const projectedIncome = incomeDailyAvg * expenseStats.daysInMonth;
   const projectedExpenses = expenseDailyAvg * expenseStats.daysInMonth;
-  const projectedSaldo = projectedIncome - projectedExpenses;
+  const projectedSaldo = hasInitialBalance
+    ? baseBalance + projectedIncome - projectedExpenses
+    : null;
 
   const expenseAlert = detectUnusualExpense(
     input.gastos,
@@ -197,7 +207,11 @@ export function computeSmartFinanceStats(input: SmartFinanceInput) {
     ...expenseStats,
     monthIncome,
     totalIncomeMonth,
-    saldo,
+    hasInitialBalance,
+    initialBalance: hasInitialBalance ? baseBalance : null,
+    saldoAtual,
+    /** @deprecated Use saldoAtual — mantido para compatibilidade interna */
+    saldo: saldoAtual ?? 0,
     activeGoal,
     goalProgress,
     projectedIncome,
@@ -230,10 +244,12 @@ export function buildFinanceNextActions(stats: ReturnType<typeof computeSmartFin
     actions.push("Despesas do mês acima da sua média recente — revise categorias.");
   }
 
-  if (stats.saldo < 0) {
-    actions.push("Saldo negativo no mês — reduza despesas ou registre novas receitas.");
+  if (!stats.hasInitialBalance) {
+    actions.push("Defina seu saldo inicial no módulo Financeiro.");
+  } else if ((stats.saldoAtual ?? 0) < 0) {
+    actions.push("Saldo negativo — reduza despesas ou registre novas receitas.");
   } else if (stats.totalIncomeMonth === 0 && stats.totalMonth > 0) {
-    actions.push("Registre receitas (salário, Alvesz, consórcios) para ver o saldo real.");
+    actions.push("Registre receitas (salário, Alvesz, consórcios) para acompanhar entradas.");
   }
 
   if (stats.topCategory && stats.topCategory.pct >= 40) {

@@ -29,10 +29,12 @@ const emptyData = {
   healthAvailable: true,
   financialIncome: [],
   financialGoals: [],
+  financialBalance: null,
   alveszEventos: [],
 } satisfies AuraGlobalSummaryData & {
   financialIncome: [];
   financialGoals: [];
+  financialBalance: null;
   alveszEventos: [];
 };
 

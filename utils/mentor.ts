@@ -157,7 +157,7 @@ function buildFinanceSection(gastos: Gasto[], available: boolean): string {
 * Total gasto: ${formatBRL(stats.totalMonth)}
 * Previsão de despesas no mês: ${formatBRL(stats.forecast)}
 * Maior categoria: ${stats.topCategory?.label ?? "N/A"} (${stats.topCategory?.pct ?? 0}%)
-* Saldo real: registre receitas no módulo Financeiro para calcular entradas − despesas
+* Saldo: defina o saldo inicial no Financeiro; o saldo atual usa base + receitas − gastos do mês
 
 ### Gastos recentes
 ${recentLines}

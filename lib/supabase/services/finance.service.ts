@@ -118,13 +118,21 @@ export async function loadSmartFinanceDashboard(): Promise<{
 }> {
   const { supabase, userId } = await getDataContext();
 
-  const [gastosRes, incomeRes, goalsRes] = await Promise.all([
+  const [gastosRes, incomeRes, goalsRes, balanceRes] = await Promise.all([
     new GastosRepository(supabase, userId).findAll("data"),
     new FinancialIncomeRepository(supabase, userId).findAll("data"),
     new FinancialGoalsRepository(supabase, userId).findAll("data_fim"),
+    supabase
+      .from("financial_balance")
+      .select("valor_atual")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
-  const error = gastosRes.error ?? incomeRes.error ?? goalsRes.error;
+  const error =
+    gastosRes.error ?? incomeRes.error ?? goalsRes.error ?? balanceRes.error?.message ?? null;
   if (error) {
     return { stats: null, error };
   }
@@ -133,6 +141,10 @@ export async function loadSmartFinanceDashboard(): Promise<{
     gastos: (gastosRes.data ?? []) as Gasto[],
     income: (incomeRes.data ?? []) as FinancialIncome[],
     goals: (goalsRes.data ?? []) as FinancialGoal[],
+    initialBalance:
+      balanceRes.data?.valor_atual != null
+        ? Number(balanceRes.data.valor_atual)
+        : null,
   };
 
   return {

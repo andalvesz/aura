@@ -366,6 +366,8 @@ export function buildAuraCentralOpeningSummary(
         : [],
     financialGoals:
       "financialGoals" in data && data.financialGoals ? data.financialGoals : [],
+    financialBalance:
+      "financialBalance" in data ? data.financialBalance ?? null : null,
     alveszEventos:
       "alveszEventos" in data && data.alveszEventos ? data.alveszEventos : [],
   };

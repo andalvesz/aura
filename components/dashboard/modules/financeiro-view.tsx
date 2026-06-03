@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Target, TrendingUp } from "lucide-react";
+import { Plus, Target, TrendingUp, Wallet } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -8,6 +8,7 @@ import {
   ListSkeleton,
   MetricsSkeleton,
 } from "@/components/dashboard/loading-skeleton";
+import { useFinancialBalance } from "@/hooks/use-financial-balance";
 import { useFinancialGoals } from "@/hooks/use-financial-goals";
 import { useFinancialIncome } from "@/hooks/use-financial-income";
 import { useGastos } from "@/hooks/use-gastos";
@@ -24,6 +25,7 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 import { AddGastoModal } from "./add-gasto-modal";
 import { AddMetaFinanceiraModal } from "./add-meta-financeira-modal";
 import { AddReceitaModal } from "./add-receita-modal";
+import { SetSaldoInicialModal } from "./set-saldo-inicial-modal";
 
 async function syncGoalsProgress() {
   const supabase = createClient();
@@ -75,38 +77,68 @@ export function FinanceiroView() {
     create: createGoal,
     refresh: refreshGoals,
   } = useFinancialGoals();
+  const {
+    data: balances,
+    loading: loadingBalance,
+    error: balanceError,
+    create: createBalance,
+    update: updateBalance,
+    refresh: refreshBalance,
+  } = useFinancialBalance();
 
   const [gastoModalOpen, setGastoModalOpen] = useState(false);
   const [receitaModalOpen, setReceitaModalOpen] = useState(false);
   const [metaModalOpen, setMetaModalOpen] = useState(false);
+  const [saldoModalOpen, setSaldoModalOpen] = useState(false);
 
-  const loading = loadingGastos || loadingIncome || loadingGoals;
+  const currentBalance = balances[0] ?? null;
+  const loading = loadingGastos || loadingIncome || loadingGoals || loadingBalance;
 
   const stats = useMemo(
-    () => computeSmartFinanceStats({ gastos, income, goals }),
-    [gastos, income, goals]
+    () =>
+      computeSmartFinanceStats({
+        gastos,
+        income,
+        goals,
+        initialBalance: currentBalance?.valor_atual ?? null,
+      }),
+    [gastos, income, goals, currentBalance?.valor_atual]
   );
 
   const refreshFinance = useCallback(async () => {
     await syncGoalsProgress();
-    await Promise.all([refreshIncome(), refreshGoals()]);
-  }, [refreshIncome, refreshGoals]);
+    await Promise.all([refreshIncome(), refreshGoals(), refreshBalance()]);
+  }, [refreshIncome, refreshGoals, refreshBalance]);
+
+  async function handleSetInitialBalance(valor: number) {
+    if (currentBalance) {
+      return updateBalance(currentBalance.id, { valor_atual: valor });
+    }
+    return createBalance({ valor_atual: valor });
+  }
 
   useEffect(() => {
-    if (!loadingIncome && !loadingGoals) {
+    if (!loadingIncome && !loadingGoals && !loadingBalance) {
       void refreshFinance();
     }
-  }, [loadingIncome, loadingGoals, refreshFinance]);
+  }, [loadingIncome, loadingGoals, loadingBalance, refreshFinance]);
 
   useEffect(() => {
     if (gastosError) toast.error(gastosError);
     if (incomeError) toast.error(incomeError);
     if (goalsError) toast.error(goalsError);
-  }, [gastosError, incomeError, goalsError]);
+    if (balanceError) toast.error(balanceError);
+  }, [gastosError, incomeError, goalsError, balanceError]);
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap justify-end gap-2">
+        <ActionButton
+          icon={<Wallet className="size-3.5" />}
+          onClick={() => setSaldoModalOpen(true)}
+        >
+          Definir saldo inicial
+        </ActionButton>
         <ActionButton
           icon={<TrendingUp className="size-3.5" />}
           onClick={() => setReceitaModalOpen(true)}
@@ -130,41 +162,49 @@ export function FinanceiroView() {
       {loading ? (
         <MetricsSkeleton />
       ) : (
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <MetricCard
+            label="Saldo atual"
+            value={
+              stats.hasInitialBalance
+                ? formatBRL(stats.saldoAtual ?? 0)
+                : "Defina seu saldo inicial"
+            }
+            hint={
+              stats.hasInitialBalance
+                ? `Base ${formatBRL(stats.initialBalance ?? 0)} + movimentação do mês`
+                : "Informe quanto você tem hoje"
+            }
+            hintClassName={
+              stats.hasInitialBalance
+                ? (stats.saldoAtual ?? 0) >= 0
+                  ? "text-emerald-400/90"
+                  : "text-red-400/90"
+                : undefined
+            }
+          />
+          <MetricCard
+            label="Gastos do mês"
+            value={formatBRL(stats.totalMonth)}
+            hint={`Dia ${stats.dayOfMonth} de ${stats.daysInMonth}`}
+          />
           <MetricCard
             label="Receitas do mês"
             value={formatBRL(stats.totalIncomeMonth)}
             hintClassName="text-emerald-400/90"
           />
           <MetricCard
-            label="Despesas do mês"
-            value={formatBRL(stats.totalMonth)}
-            hint={`Dia ${stats.dayOfMonth} de ${stats.daysInMonth}`}
-          />
-          <MetricCard
-            label="Saldo"
-            value={formatBRL(stats.saldo)}
-            hintClassName={
-              stats.saldo >= 0 ? "text-emerald-400/90" : "text-red-400/90"
-            }
-          />
-          <MetricCard
-            label="Meta"
+            label="Previsão do mês"
             value={
-              stats.activeGoal
-                ? `${stats.goalProgress?.pct ?? 0}%`
-                : "—"
+              stats.hasInitialBalance
+                ? formatBRL(stats.projectedSaldo ?? 0)
+                : "Defina seu saldo inicial"
             }
             hint={
-              stats.activeGoal
-                ? `${formatBRL(stats.goalProgress?.atual ?? 0)} / ${formatBRL(stats.goalProgress?.meta ?? 0)}`
-                : "Crie uma meta"
+              stats.hasInitialBalance
+                ? "Saldo estimado no fim do mês"
+                : "Disponível após definir o saldo"
             }
-          />
-          <MetricCard
-            label="Projeção"
-            value={formatBRL(stats.projectedSaldo)}
-            hint="Saldo estimado fim do mês"
           />
         </div>
       )}
@@ -339,6 +379,16 @@ export function FinanceiroView() {
         onSubmit={async (payload) => {
           const { error } = await createGoal({ ...payload, valor_atual: 0 });
           if (!error) await refreshFinance();
+          return { error };
+        }}
+      />
+      <SetSaldoInicialModal
+        open={saldoModalOpen}
+        onClose={() => setSaldoModalOpen(false)}
+        currentValue={currentBalance?.valor_atual}
+        onSubmit={async (valor) => {
+          const { error } = await handleSetInitialBalance(valor);
+          if (!error) await refreshBalance();
           return { error };
         }}
       />

@@ -2,6 +2,7 @@ import type {
   AlveszEvento,
   Conteudo,
   Evento,
+  FinancialBalance,
   FinancialGoal,
   FinancialIncome,
   GrowthGoal,
@@ -61,6 +62,7 @@ export type ExecutiveReportPayload = {
 export type ExecutiveReportData = AuraGlobalSummaryData & {
   financialIncome: FinancialIncome[];
   financialGoals: FinancialGoal[];
+  financialBalance: FinancialBalance | null;
   alveszEventos: AlveszEvento[];
 };
 
@@ -296,6 +298,7 @@ export function buildMonthlyExecutiveReport(data: ExecutiveReportData): Executiv
     gastos: data.gastos,
     income: data.financialIncome,
     goals: data.financialGoals,
+    initialBalance: data.financialBalance?.valor_atual ?? null,
   });
 
   const sections = [
@@ -303,7 +306,12 @@ export function buildMonthlyExecutiveReport(data: ExecutiveReportData): Executiv
       label: "Receita",
       lines: [
         `Receitas no mês: ${formatBRL(receita)}`,
-        `Saldo projetado: ${formatBRL(financeStats.projectedSaldo)}`,
+        financeStats.hasInitialBalance
+          ? `Saldo atual: ${formatBRL(financeStats.saldoAtual ?? 0)}`
+          : "Saldo atual: defina o saldo inicial no Financeiro",
+        financeStats.hasInitialBalance
+          ? `Previsão fim do mês: ${formatBRL(financeStats.projectedSaldo ?? 0)}`
+          : "Previsão: indisponível sem saldo inicial",
       ],
     },
     {

@@ -57,6 +57,14 @@ export type FinancialIncome = {
   updated_at: string;
 };
 
+export type FinancialBalance = {
+  id: string;
+  user_id: string;
+  valor_atual: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Evento = {
   id: string;
   user_id: string;
@@ -412,6 +420,14 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      financial_balance: TableDef<
+        FinancialBalance,
+        Omit<FinancialBalance, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       eventos: TableDef<
         Evento,
         Omit<
@@ -688,6 +704,7 @@ export type UserScopedTable =
   | "gastos"
   | "financial_goals"
   | "financial_income"
+  | "financial_balance"
   | "eventos"
   | "clientes"
   | "orcamentos"

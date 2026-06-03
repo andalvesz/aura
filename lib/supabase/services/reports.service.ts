@@ -5,7 +5,12 @@ import {
 } from "@/lib/supabase/repositories";
 import { BaseRepository } from "@/lib/supabase/repositories/base.repository";
 import { loadAuraGlobalSummaryData } from "@/lib/supabase/services/mentor.service";
-import type { AlveszEvento, FinancialGoal, FinancialIncome } from "@/types/database";
+import type {
+  AlveszEvento,
+  FinancialBalance,
+  FinancialGoal,
+  FinancialIncome,
+} from "@/types/database";
 import {
   buildExecutiveReport,
   buildReportAnalysisFallback,
@@ -38,15 +43,23 @@ export async function loadExecutiveReportData(): Promise<{
 
   let financialIncome: FinancialIncome[] = [];
   let financialGoals: FinancialGoal[] = [];
+  let financialBalance: FinancialBalance | null = null;
   let alveszEventos: AlveszEvento[] = [];
 
   try {
-    const [incomeRes, goalsRes, eventosRes] = await Promise.all([
+    const [incomeRes, goalsRes, eventosRes, balanceRes] = await Promise.all([
       new FinancialIncomeRepository(ctx.supabase, ctx.userId).findAll("data"),
       new FinancialGoalsRepository(ctx.supabase, ctx.userId).findAll("data_fim"),
       new BaseRepository(ctx.supabase, "alvesz_eventos", ctx.userId).findAll(
         "data_evento"
       ),
+      ctx.supabase
+        .from("financial_balance")
+        .select("*")
+        .eq("user_id", ctx.userId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     if (
@@ -61,6 +74,7 @@ export async function loadExecutiveReportData(): Promise<{
 
     financialIncome = (incomeRes.data ?? []) as FinancialIncome[];
     financialGoals = (goalsRes.data ?? []) as FinancialGoal[];
+    financialBalance = (balanceRes.data as FinancialBalance | null) ?? null;
     alveszEventos = (eventosRes.data ?? []) as AlveszEvento[];
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -72,6 +86,7 @@ export async function loadExecutiveReportData(): Promise<{
       ...base,
       financialIncome,
       financialGoals,
+      financialBalance,
       alveszEventos,
     },
     error: null,

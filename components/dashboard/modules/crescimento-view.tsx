@@ -8,6 +8,7 @@ import {
   Plus,
   Sparkles,
   Target,
+  Trash2,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -154,6 +155,7 @@ export function CrescimentoView() {
     error: growthLeadsError,
     create: createGrowthLead,
     update: updateGrowthLead,
+    remove: removeGrowthLead,
   } = useGrowthLeads();
 
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -349,6 +351,22 @@ export function CrescimentoView() {
       return;
     }
     toast.success(`Status: ${getGrowthLeadStatusLabel(status)}`);
+  }
+
+  async function handleDeleteGrowthLead(lead: GrowthLead) {
+    if (
+      !confirm(
+        `Excluir o lead "${lead.nome}"? Esta ação remove apenas o registro do CRM.`
+      )
+    ) {
+      return;
+    }
+    const { error } = await removeGrowthLead(lead.id);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    toast.success("Lead excluído.");
   }
 
   async function handleAnalyzeProfile(profile: GrowthProfile) {
@@ -679,6 +697,15 @@ export function CrescimentoView() {
                           </option>
                         ))}
                       </select>
+                      <ActionButton
+                        variant="ghost"
+                        className="h-8 px-2 text-[10px] text-red-400/90 hover:text-red-400"
+                        icon={<Trash2 className="size-3" />}
+                        disabled={Boolean(growthDataError)}
+                        onClick={() => handleDeleteGrowthLead(lead)}
+                      >
+                        Excluir
+                      </ActionButton>
                       </div>
                     </li>
                   );

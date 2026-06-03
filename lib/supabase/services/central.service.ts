@@ -19,9 +19,10 @@ import { loadExecutiveReportData } from "./reports.service";
 function buildFinanceMentorContext(
   gastos: Gasto[],
   income: FinancialIncome[],
-  goals: FinancialGoal[]
+  goals: FinancialGoal[],
+  initialBalance?: number | null
 ): string {
-  const stats = computeSmartFinanceStats({ gastos, income, goals });
+  const stats = computeSmartFinanceStats({ gastos, income, goals, initialBalance });
   const actions = buildFinanceNextActions(stats);
 
   const recentExpenseLines =
@@ -51,13 +52,20 @@ function buildFinanceMentorContext(
 * Progresso: ${stats.goalProgress?.pct ?? 0}% (${formatBRL(stats.goalProgress?.atual ?? 0)} de ${formatBRL(stats.goalProgress?.meta ?? 0)})`
     : "* Meta: nenhuma meta ativa no período";
 
+  const saldoLine = stats.hasInitialBalance
+    ? `* Saldo atual: ${formatBRL(stats.saldoAtual ?? 0)} (base ${formatBRL(stats.initialBalance ?? 0)})`
+    : "* Saldo atual: não definido — peça para definir o saldo inicial";
+  const projecaoLine = stats.hasInitialBalance
+    ? `* Previsão fim do mês: ${formatBRL(stats.projectedSaldo ?? 0)}`
+    : "* Previsão fim do mês: indisponível sem saldo inicial";
+
   return `## FINANCEIRO — CONTEXTO PARA AURA CENTRAL
 
 ### Resumo do mês
 * Receitas: ${formatBRL(stats.totalIncomeMonth)}
-* Despesas: ${formatBRL(stats.totalMonth)}
-* Saldo: ${formatBRL(stats.saldo)}
-* Projeção saldo fim do mês: ${formatBRL(stats.projectedSaldo)}
+* Gastos: ${formatBRL(stats.totalMonth)}
+${saldoLine}
+${projecaoLine}
 
 ### Meta
 ${metaBlock}
@@ -102,22 +110,37 @@ export async function getAuraCentralFinanceContext(): Promise<{
   }
 
   try {
-    const [gastosRes, incomeRes, goalsRes] = await Promise.all([
+    const [gastosRes, incomeRes, goalsRes, balanceRes] = await Promise.all([
       new GastosRepository(ctx.supabase, ctx.userId).findAll("data"),
       new FinancialIncomeRepository(ctx.supabase, ctx.userId).findAll("data"),
       new FinancialGoalsRepository(ctx.supabase, ctx.userId).findAll("data_fim"),
+      ctx.supabase
+        .from("financial_balance")
+        .select("valor_atual")
+        .eq("user_id", ctx.userId)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
-    const error = gastosRes.error ?? incomeRes.error ?? goalsRes.error;
+    const error =
+      gastosRes.error ??
+      incomeRes.error ??
+      goalsRes.error ??
+      balanceRes.error?.message ??
+      null;
     if (error && !isMissingSupabaseTableError(error)) {
       return { context: null, error };
     }
+
+    const initialBalance = balanceRes.data?.valor_atual ?? null;
 
     return {
       context: buildFinanceMentorContext(
         (gastosRes.data ?? []) as Gasto[],
         (incomeRes.data ?? []) as FinancialIncome[],
-        (goalsRes.data ?? []) as FinancialGoal[]
+        (goalsRes.data ?? []) as FinancialGoal[],
+        initialBalance != null ? Number(initialBalance) : null
       ),
       error: null,
     };
