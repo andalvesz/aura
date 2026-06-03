@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { Download, FileText, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -472,7 +472,13 @@ export function AlveszView() {
                     icon={<FileText className="size-3.5" />}
                     onClick={() => setPropostaOrcamento(o)}
                   >
-                    Gerar proposta
+                    Proposta
+                  </ActionButton>
+                  <ActionButton
+                    icon={<Download className="size-3.5" />}
+                    onClick={() => setPropostaOrcamento(o)}
+                  >
+                    Gerar PDF
                   </ActionButton>
                   <select
                     value={normalizeOrcamentoStatus(o.status)}
@@ -625,9 +631,12 @@ export function AlveszView() {
             orcamento_id: payload.orcamento_id,
             conteudo: payload.conteudo,
             melhorada_ia: payload.melhorada_ia,
-            pdf_meta: DEFAULT_ALVESZ_PROPOSTA_PDF_META,
+            pdf_meta: payload.pdf_meta ?? DEFAULT_ALVESZ_PROPOSTA_PDF_META,
           });
-          return { error: result.error };
+          return {
+            error: result.error,
+            data: result.data ? { id: result.data.id } : undefined,
+          };
         }}
       />
     </div>

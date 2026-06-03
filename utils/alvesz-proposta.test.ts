@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Cliente, Orcamento } from "@/types/database";
 import {
+  appendPdfHistoryEntry,
   buildAlveszProposta,
   formatPropostaWhatsApp,
+  nextPdfVersion,
   suggestPacoteAlvesz,
 } from "./alvesz-proposta";
 
@@ -55,5 +57,32 @@ describe("alvesz-proposta", () => {
   it("normaliza quebras para WhatsApp", () => {
     const out = formatPropostaWhatsApp("a\n\n\n\nb");
     assert.equal(out, "a\n\nb");
+  });
+
+  it("inclui link do PDF no WhatsApp", () => {
+    const out = formatPropostaWhatsApp("Proposta", "https://x.com/p.pdf");
+    assert.match(out, /https:\/\/x\.com\/p\.pdf/);
+  });
+
+  it("incrementa versão do PDF", () => {
+    assert.equal(nextPdfVersion({ ready: true, version: 2, history: [] }), 3);
+    assert.equal(
+      nextPdfVersion({
+        ready: true,
+        version: 1,
+        history: [{ version: 4, exportedAt: "", userId: "u" }],
+      }),
+      5
+    );
+  });
+
+  it("registra histórico de geração", () => {
+    const meta = appendPdfHistoryEntry(
+      { ready: false, version: 1 },
+      { version: 1, exportedAt: "2026-01-01T00:00:00Z", userId: "u1", userLabel: "a@test.com" }
+    );
+    assert.equal(meta.ready, true);
+    assert.equal(meta.history?.length, 1);
+    assert.equal(meta.history?.[0]?.userLabel, "a@test.com");
   });
 });

@@ -2,18 +2,50 @@ import type { Cliente, Orcamento } from "@/types/database";
 import { getOrcamentoStatusLabel } from "@/utils/alvesz-integration";
 import { formatBRL, formatDate } from "@/utils/format";
 
-/** Metadados reservados para exportação PDF (futuro). */
+export type AlveszPropostaPdfHistoryEntry = {
+  version: number;
+  exportedAt: string;
+  userId: string;
+  userLabel?: string;
+};
+
+/** Metadados de exportação PDF e histórico de versões. */
 export type AlveszPropostaPdfMeta = {
   ready: boolean;
   version: number;
   templateId?: string;
   exportedAt?: string;
+  pdfUrl?: string;
+  storagePath?: string;
+  propostaId?: string;
+  history?: AlveszPropostaPdfHistoryEntry[];
 };
 
 export const DEFAULT_ALVESZ_PROPOSTA_PDF_META: AlveszPropostaPdfMeta = {
   ready: false,
   version: 1,
+  templateId: "alvesz-premium-v1",
 };
+
+export function appendPdfHistoryEntry(
+  meta: AlveszPropostaPdfMeta,
+  entry: AlveszPropostaPdfHistoryEntry
+): AlveszPropostaPdfMeta {
+  const history = [...(meta.history ?? []), entry];
+  return {
+    ...meta,
+    ready: true,
+    version: entry.version,
+    exportedAt: entry.exportedAt,
+    history,
+  };
+}
+
+export function nextPdfVersion(meta: AlveszPropostaPdfMeta | undefined): number {
+  const current = meta?.version ?? 0;
+  const fromHistory = meta?.history?.reduce((max, h) => Math.max(max, h.version), 0) ?? 0;
+  return Math.max(current, fromHistory) + 1;
+}
 
 export type AlveszPropostaInput = {
   orcamento: Orcamento;
@@ -87,8 +119,8 @@ export function buildAlveszProposta({ orcamento, cliente }: AlveszPropostaInput)
 }
 
 /** Formato otimizado para colar no WhatsApp (sem quebras excessivas). */
-export function formatPropostaWhatsApp(texto: string): string {
-  return texto
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+export function formatPropostaWhatsApp(texto: string, pdfUrl?: string | null): string {
+  const base = texto.replace(/\n{3,}/g, "\n\n").trim();
+  if (!pdfUrl?.trim()) return base;
+  return `${base}\n\n📄 Proposta em PDF: ${pdfUrl.trim()}`;
 }
