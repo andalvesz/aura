@@ -305,6 +305,30 @@ export type GrowthContentMemory = {
   created_at: string;
 };
 
+export type NotificationType =
+  | "lead_followup"
+  | "event_upcoming"
+  | "mission_pending"
+  | "content_overdue"
+  | "workout_planned"
+  | "budget_negotiation";
+
+export type NotificationStatus = "unread" | "read";
+
+export type Notification = {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string;
+  type: NotificationType;
+  status: NotificationStatus;
+  related_module: string | null;
+  related_id: string | null;
+  scheduled_for: string | null;
+  created_at: string;
+  read_at: string | null;
+};
+
 type TableDef<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -539,6 +563,21 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      notifications: TableDef<
+        Notification,
+        Omit<
+          Notification,
+          "id" | "created_at" | "status" | "read_at" | "related_module" | "related_id" | "scheduled_for"
+        > & {
+          id?: string;
+          status?: NotificationStatus;
+          related_module?: string | null;
+          related_id?: string | null;
+          scheduled_for?: string | null;
+          read_at?: string | null;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -583,7 +622,8 @@ export type UserScopedTable =
   | "health_habits"
   | "health_workouts"
   | "health_meals"
-  | "health_sessions";
+  | "health_sessions"
+  | "notifications";
 
 export type AiModule =
   | "financeiro"

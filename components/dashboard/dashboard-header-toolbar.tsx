@@ -1,8 +1,8 @@
 "use client";
 
-import { Bell } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { AvatarStack } from "@/components/dashboard/avatar-stack";
+import { NotificationsBell } from "@/components/dashboard/notifications-panel";
 import { OfflineBadge } from "@/components/dashboard/offline-badge";
 import { ResetTestDataButton } from "@/components/dashboard/reset-test-data-button";
 
@@ -23,13 +23,7 @@ export function DashboardHeaderToolbar({
     <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 md:flex-none">
       <OfflineBadge />
       <AvatarStack max={3} size="sm" className="hidden lg:flex" />
-      <button
-        type="button"
-        className="flex size-11 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors duration-200 hover:bg-white/[0.04] hover:text-zinc-300 md:size-8"
-        aria-label="Notificações"
-      >
-        <Bell className="size-3.5" />
-      </button>
+      <NotificationsBell />
       <div className="hidden min-w-0 text-right sm:block">
         <p className="truncate text-[12px] font-medium leading-tight text-zinc-200">
           {displayName}

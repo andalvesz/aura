@@ -17,3 +17,4 @@ export { useHealthHabits } from "./use-health-habits";
 export { useHealthWorkouts } from "./use-health-workouts";
 export { useHealthMeals } from "./use-health-meals";
 export { useHealthSessions } from "./use-health-sessions";
+export { useNotifications } from "./use-notifications";

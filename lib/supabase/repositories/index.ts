@@ -8,6 +8,7 @@ export { TreinosRepository } from "./treinos.repository";
 export { DietaRepository } from "./dieta.repository";
 export { ConteudosRepository } from "./conteudos.repository";
 export { LeadsRepository } from "./leads.repository";
+export { NotificationsRepository } from "./notifications.repository";
 export { AiMessagesRepository } from "./ai-messages.repository";
 export {
   GrowthGoalsRepository,
