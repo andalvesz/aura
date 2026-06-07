@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logOpenAiError } from "@/lib/logs/record";
 import { parseRequestJson } from "@/utils/safe-json";
 
 const openai = new OpenAI({
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
     return Response.json({ text });
   } catch (error) {
     console.error(error);
+    logOpenAiError("aura", error, "/api/aura");
 
     return Response.json(
       { error: "Erro ao gerar resposta da Aura IA." },

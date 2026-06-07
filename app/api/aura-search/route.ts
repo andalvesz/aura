@@ -1,4 +1,5 @@
 import { runGlobalSearch } from "@/lib/search/global-search";
+import { logAuthFailure, logSearchFailure } from "@/lib/logs/record";
 import type { GlobalSearchFilter } from "@/utils/global-search";
 
 const VALID_FILTERS = new Set<GlobalSearchFilter>([
@@ -28,6 +29,11 @@ export async function GET(req: Request) {
 
     if (error) {
       const status = error === "Usuário não autenticado." ? 401 : 400;
+      if (status === 401) {
+        logAuthFailure("/api/aura-search", error);
+      } else {
+        logSearchFailure(error);
+      }
       return Response.json(
         { error, results: [], groups: [], total: 0, hasMore: false },
         { status }
@@ -37,6 +43,7 @@ export async function GET(req: Request) {
     return Response.json({ results, groups, total, hasMore, query: q, filter, page });
   } catch (error) {
     console.error("[aura-search]", error);
+    logSearchFailure(error instanceof Error ? error.message : "Erro na busca global.");
     return Response.json(
       { error: "Erro na busca global.", results: [], total: 0, hasMore: false },
       { status: 500 }

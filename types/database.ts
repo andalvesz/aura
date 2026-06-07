@@ -523,6 +523,18 @@ export type XpHistory = {
   created_at: string;
 };
 
+export type SystemLogTipo = "error" | "warning" | "info" | "success";
+
+export type SystemLog = {
+  id: string;
+  user_id: string;
+  tipo: SystemLogTipo;
+  modulo: string;
+  mensagem: string;
+  detalhes: Json | null;
+  created_at: string;
+};
+
 type TableDef<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -934,6 +946,14 @@ export type Database = {
           created_at?: string;
         }
       >;
+      system_logs: TableDef<
+        SystemLog,
+        Omit<SystemLog, "id" | "created_at" | "detalhes"> & {
+          id?: string;
+          detalhes?: Json | null;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -989,7 +1009,8 @@ export type UserScopedTable =
   | "aura_command_history"
   | "communication_logs"
   | "user_xp"
-  | "xp_history";
+  | "xp_history"
+  | "system_logs";
 
 export type AiModule =
   | "aura_central"

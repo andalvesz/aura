@@ -6,9 +6,11 @@ import {
   ClipboardCopy,
   Loader2,
   Play,
+  ScrollText,
   Stethoscope,
   XCircle,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
@@ -170,6 +172,15 @@ export function DiagnosticsView() {
               Verifique Supabase, OpenAI e todos os módulos em uma única execução.
             </p>
           </div>
+        </div>
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          <Link
+            href="/dashboard/logs"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-orange-500/20 bg-orange-500/10 px-3 text-[11px] font-medium text-orange-300 hover:bg-orange-500/15 sm:min-h-0 sm:py-2"
+          >
+            <ScrollText className="size-3.5" />
+            Central de Logs
+          </Link>
         </div>
       </header>
 

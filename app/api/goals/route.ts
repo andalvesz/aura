@@ -1,4 +1,5 @@
 import { createGoal, listGoals, syncGoalsProgress } from "@/lib/supabase/services/goals.service";
+import { logApiError, logAuthFailure } from "@/lib/logs/record";
 import type { GoalTipo } from "@/types/database";
 import { parseRequestJson } from "@/utils/safe-json";
 
@@ -22,6 +23,8 @@ export async function GET(req: Request) {
 
     if (error) {
       const status = error === "Usuário não autenticado." ? 401 : 500;
+      if (status === 401) logAuthFailure("/api/goals", error);
+      else logApiError("metas", "/api/goals", error, status);
       return Response.json({ error }, { status });
     }
 

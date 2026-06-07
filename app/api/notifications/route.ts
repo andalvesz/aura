@@ -5,6 +5,7 @@ import {
   markNotificationRead,
   syncNotifications,
 } from "@/lib/supabase/services/notifications.service";
+import { logApiError, logAuthFailure } from "@/lib/logs/record";
 import { parseRequestJson } from "@/utils/safe-json";
 
 export async function GET() {
@@ -12,10 +13,12 @@ export async function GET() {
     const { notifications, error } = await listNotifications();
 
     if (error === "Usuário não autenticado.") {
+      logAuthFailure("/api/notifications", error);
       return Response.json({ error }, { status: 401 });
     }
 
     if (error) {
+      logApiError("notificacoes", "/api/notifications", error, 500);
       return Response.json({ error: "Não foi possível carregar notificações." }, { status: 500 });
     }
 

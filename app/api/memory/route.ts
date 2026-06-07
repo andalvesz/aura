@@ -1,4 +1,5 @@
 import { listAuraMemories } from "@/lib/supabase/services/ai-memories.service";
+import { logApiError, logAuthFailure } from "@/lib/logs/record";
 import type { AiMemoryCategoria } from "@/types/database";
 
 const VALID_CATEGORIAS = new Set<AiMemoryCategoria>([
@@ -32,10 +33,12 @@ export async function GET(req: Request) {
     });
 
     if (error === "Usuário não autenticado.") {
+      logAuthFailure("/api/memory", error);
       return Response.json({ error }, { status: 401 });
     }
 
     if (error) {
+      logApiError("memoria", "/api/memory", error, 500);
       return Response.json({ error: "Não foi possível carregar memórias." }, { status: 500 });
     }
 

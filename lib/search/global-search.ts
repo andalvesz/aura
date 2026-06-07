@@ -1,4 +1,5 @@
 import { getDataContext } from "@/lib/supabase/services/context";
+import { logSearchFailure } from "@/lib/logs/record";
 import {
   buildSearchResult,
   entitiesForFilter,
@@ -337,15 +338,27 @@ export async function runGlobalSearch(
 
   const entities = entitiesForFilter(filter);
 
-  const batches = await Promise.all(
-    entities.map((entity) =>
-      searchTable(ctx.supabase, ctx.userId, entity, pattern, perTable)
-    )
-  );
+  try {
+    const batches = await Promise.all(
+      entities.map((entity) =>
+        searchTable(ctx.supabase, ctx.userId, entity, pattern, perTable)
+      )
+    );
 
-  const merged = sortSearchResults(batches.flat());
-  const groups = groupSearchResults(merged);
-  const { slice, total, hasMore } = paginateSearchResults(merged, page, pageSize);
+    const merged = sortSearchResults(batches.flat());
+    const groups = groupSearchResults(merged);
+    const { slice, total, hasMore } = paginateSearchResults(merged, page, pageSize);
 
-  return { results: slice, groups, total, hasMore, error: null };
+    return { results: slice, groups, total, hasMore, error: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erro na busca global.";
+    logSearchFailure(message);
+    return {
+      results: [],
+      groups: [],
+      total: 0,
+      hasMore: false,
+      error: message,
+    };
+  }
 }

@@ -16,6 +16,7 @@ import type {
 } from "@/utils/diagnostics";
 import { countStatuses, rollupStatus } from "@/utils/diagnostics";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
+import { logSupabaseError } from "@/lib/logs/record";
 
 type TableProbe = {
   table: string;
@@ -49,6 +50,7 @@ async function probeTable(
   const message = error.message ?? "Erro desconhecido";
 
   if (isMissingSupabaseTableError(message)) {
+    logSupabaseError("diagnostico", `probe ${table}`, message);
     return {
       id: `table-${table}`,
       label: `Tabela ${table}`,

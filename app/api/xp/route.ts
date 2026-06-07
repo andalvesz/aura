@@ -1,4 +1,5 @@
 import { awardAuraXp, getAuraXpState } from "@/lib/supabase/services/xp.service";
+import { logApiError, logAuthFailure } from "@/lib/logs/record";
 import { isXpAcao } from "@/utils/xp";
 import { parseRequestJson } from "@/utils/safe-json";
 
@@ -8,12 +9,15 @@ export async function GET() {
 
     if (error) {
       const status = error === "Usuário não autenticado." ? 401 : 500;
+      if (status === 401) logAuthFailure("/api/xp", error);
+      else logApiError("xp", "/api/xp", error, status);
       return Response.json({ error }, { status });
     }
 
     return Response.json({ state });
   } catch (error) {
     console.error("[xp] GET", error);
+    logApiError("xp", "/api/xp", error, 500);
     return Response.json({ error: "Erro ao carregar progresso." }, { status: 500 });
   }
 }

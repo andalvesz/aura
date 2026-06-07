@@ -1,5 +1,6 @@
 import OpenAI, { APIError } from "openai";
 import { persistAiTurn } from "@/lib/ai/memory-runtime";
+import { logCalendarFailure, logOpenAiError } from "@/lib/logs/record";
 import type { ParsedEventoSuggestion } from "@/utils/calendar";
 import { parseRequestJson, safeJsonParse } from "@/utils/safe-json";
 
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
     }
 
     if (!process.env.OPENAI_API_KEY) {
+      logOpenAiError("calendario", "OPENAI_API_KEY ausente", "/api/calendar-agenda");
       return Response.json(
         {
           error:
@@ -90,6 +92,8 @@ export async function POST(req: Request) {
     return Response.json({ suggestion });
   } catch (error) {
     console.error("[calendar-agenda]", error);
+    logCalendarFailure(error);
+    logOpenAiError("calendario", error, "/api/calendar-agenda");
     return Response.json({ error: resolveMentorError(error) }, { status: 500 });
   }
 }

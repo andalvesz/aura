@@ -12,6 +12,7 @@ import {
   Rocket,
   Share2,
   Stethoscope,
+  ScrollText,
   Target,
   Wallet,
 } from "lucide-react";
@@ -197,6 +198,12 @@ export const DIAGNOSTICS_NAV = {
   href: "/dashboard/diagnostico",
   label: "Diagnóstico",
   icon: Stethoscope,
+};
+
+export const LOGS_NAV = {
+  href: "/dashboard/logs",
+  label: "Logs",
+  icon: ScrollText,
 };
 
 export function getModule(id: ModuleId): ModuleConfig {

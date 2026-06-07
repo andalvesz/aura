@@ -12,8 +12,9 @@ import type {
   TableInsert,
 } from "@/types/database";
 import { computeSmartFinanceStats, type SmartFinanceInput } from "@/utils/finance";
-import { getDataContext } from "./context";
+import { getDataContext } from "@/lib/supabase/services/context";
 import { awardAuraXp } from "./xp.service";
+import { logFinanceFailure } from "@/lib/logs/record";
 
 export async function listFinancialGoals() {
   const { supabase, userId } = await getDataContext();
@@ -136,6 +137,10 @@ export async function loadSmartFinanceDashboard(): Promise<{
   const error =
     gastosRes.error ?? incomeRes.error ?? goalsRes.error ?? balanceRes.error?.message ?? null;
   if (error) {
+    logFinanceFailure("loadSmartFinanceDashboard", error);
+    if (gastosRes.error) logFinanceFailure("listGastos", gastosRes.error);
+    if (incomeRes.error) logFinanceFailure("listFinancialIncome", incomeRes.error);
+    if (goalsRes.error) logFinanceFailure("listFinancialGoals", goalsRes.error);
     return { stats: null, error };
   }
 
