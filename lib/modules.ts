@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  BarChart3,
   Brain,
   Building2,
   CalendarDays,
@@ -176,6 +177,12 @@ export const GOALS_NAV = {
   href: "/dashboard/metas",
   label: "Metas",
   icon: Target,
+};
+
+export const BI_NAV = {
+  href: "/dashboard/business-intelligence",
+  label: "Business Intelligence",
+  icon: BarChart3,
 };
 
 export function getModule(id: ModuleId): ModuleConfig {
