@@ -26,3 +26,6 @@ export {
 export { UserXpRepository, XpHistoryRepository } from "./xp.repository";
 export { TripsRepository } from "./trips.repository";
 export { TripChecklistRepository } from "./trip-checklist.repository";
+export { LanguageProgressRepository } from "./language-progress.repository";
+export { LanguageSessionsRepository } from "./language-sessions.repository";
+export { LanguageLessonsRepository } from "./language-lessons.repository";

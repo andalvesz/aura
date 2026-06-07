@@ -21,6 +21,7 @@ import {
 } from "@/utils/executive-reports";
 import { isAuraGlobalSearchQuery } from "@/utils/global-search";
 import { AURA_COACH_ACTION_ID } from "@/utils/coach";
+import { isAuraEnglishCoachQuery } from "@/utils/english";
 
 export type AuraCentralModule =
   | "global"
@@ -29,7 +30,8 @@ export type AuraCentralModule =
   | "alvesz"
   | "saude"
   | "social-media"
-  | "financeiro";
+  | "financeiro"
+  | "idiomas";
 
 export type AuraCentralMode =
   | "chat"
@@ -87,6 +89,24 @@ export const AURA_CENTRAL_QUICK_ACTIONS = [
     module: "crescimento" as const,
     prompt: "Como está minha meta?",
   },
+  {
+    id: "aula-ingles",
+    label: "Aula de inglês",
+    module: "idiomas" as const,
+    prompt: "Me dê uma aula de inglês",
+  },
+  {
+    id: "ingles-aeroporto",
+    label: "Inglês aeroporto",
+    module: "idiomas" as const,
+    prompt: "Treinar inglês para aeroporto",
+  },
+  {
+    id: "conversa-disney",
+    label: "Conversa Disney",
+    module: "idiomas" as const,
+    prompt: "Simular conversa na Disney",
+  },
 ] as const;
 
 export const AURA_CENTRAL_CONTEXT = `Você é a Aura Central — única interface de IA que coordena toda a Aura OS para Anderson Alves.
@@ -112,6 +132,7 @@ export const AURA_CENTRAL_MODULE_LABELS: Record<AuraCentralModule, string> = {
   saude: "Saúde",
   "social-media": "Social Media",
   financeiro: "Financeiro",
+  idiomas: "Aura English Coach",
 };
 
 function normalizeQuery(text: string): string {
@@ -320,6 +341,15 @@ export function detectAuraCentralIntent(
 
   if (isAuraCentralFinanceQuery(message)) {
     return { module: "financeiro", mode: "chat", actionId };
+  }
+
+  if (
+    actionId === "aula-ingles" ||
+    actionId === "ingles-aeroporto" ||
+    actionId === "conversa-disney" ||
+    isAuraEnglishCoachQuery(message)
+  ) {
+    return { module: "idiomas", mode: "chat", actionId };
   }
 
   if (

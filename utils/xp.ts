@@ -15,6 +15,9 @@ export const XP_REWARDS: Record<XpAcao, number> = {
   evento_fechado_alvesz: 50,
   criar_viagem: 15,
   completar_checklist_viagem: 10,
+  concluir_aula_ingles: 10,
+  exercicio_ingles_concluido: 5,
+  modulo_ingles_completo: 20,
 };
 
 export const XP_ACAO_LABELS: Record<XpAcao, string> = {
@@ -29,6 +32,9 @@ export const XP_ACAO_LABELS: Record<XpAcao, string> = {
   evento_fechado_alvesz: "Evento Alvesz fechado",
   criar_viagem: "Viagem criada",
   completar_checklist_viagem: "Item do checklist concluído",
+  concluir_aula_ingles: "Aula de inglês concluída",
+  exercicio_ingles_concluido: "Exercício de inglês concluído",
+  modulo_ingles_completo: "Módulo de inglês completo",
 };
 
 const LEVEL_THRESHOLDS = [0, 100, 250, 450, 700] as const;

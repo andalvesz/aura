@@ -340,6 +340,81 @@ export type TripChecklistItem = {
   updated_at: string;
 };
 
+export type LanguageModo =
+  | "viagens"
+  | "aeroporto"
+  | "hotel"
+  | "disney"
+  | "nba"
+  | "negocios"
+  | "conversacao_livre";
+
+export type LanguageSessionTipo =
+  | "aula_diaria"
+  | "vocabulario"
+  | "frases"
+  | "exercicio"
+  | "correcao"
+  | "conversacao";
+
+export type LanguageSessionStatus =
+  | "planejado"
+  | "em_andamento"
+  | "concluido"
+  | "cancelado";
+
+export type LanguageLessonStatus = "pendente" | "em_andamento" | "concluido";
+
+export type LanguageNivel = "iniciante" | "intermediario" | "avancado";
+
+export type LanguageProgress = {
+  id: string;
+  user_id: string;
+  modo_favorito: LanguageModo | null;
+  nivel: LanguageNivel;
+  streak_dias: number;
+  ultima_pratica: string | null;
+  aulas_concluidas: number;
+  exercicios_concluidos: number;
+  modulos_concluidos: number;
+  meta_diaria_min: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LanguageSession = {
+  id: string;
+  user_id: string;
+  modo: LanguageModo;
+  tipo: LanguageSessionTipo;
+  titulo: string;
+  duracao_min: number;
+  data: string;
+  status: LanguageSessionStatus;
+  conteudo: Json;
+  score: number | null;
+  feedback: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LanguageLesson = {
+  id: string;
+  user_id: string;
+  session_id: string | null;
+  modo: LanguageModo;
+  titulo: string;
+  vocabulario: Json;
+  frases: Json;
+  exercicios: Json;
+  status: LanguageLessonStatus;
+  ordem: number;
+  score: number | null;
+  concluido_em: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Lead = {
   id: string;
   user_id: string;
@@ -549,7 +624,10 @@ export type XpAcao =
   | "lead_convertido"
   | "evento_fechado_alvesz"
   | "criar_viagem"
-  | "completar_checklist_viagem";
+  | "completar_checklist_viagem"
+  | "concluir_aula_ingles"
+  | "exercicio_ingles_concluido"
+  | "modulo_ingles_completo";
 
 export type UserXp = {
   id: string;
@@ -979,6 +1057,87 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      language_progress: TableDef<
+        LanguageProgress,
+        Omit<
+          LanguageProgress,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "modo_favorito"
+          | "nivel"
+          | "streak_dias"
+          | "ultima_pratica"
+          | "aulas_concluidas"
+          | "exercicios_concluidos"
+          | "modulos_concluidos"
+          | "meta_diaria_min"
+        > & {
+          id?: string;
+          modo_favorito?: LanguageModo | null;
+          nivel?: LanguageNivel;
+          streak_dias?: number;
+          ultima_pratica?: string | null;
+          aulas_concluidas?: number;
+          exercicios_concluidos?: number;
+          modulos_concluidos?: number;
+          meta_diaria_min?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      language_sessions: TableDef<
+        LanguageSession,
+        Omit<
+          LanguageSession,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "status"
+          | "conteudo"
+          | "score"
+          | "feedback"
+          | "duracao_min"
+        > & {
+          id?: string;
+          status?: LanguageSessionStatus;
+          conteudo?: Json;
+          score?: number | null;
+          feedback?: string | null;
+          duracao_min?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      language_lessons: TableDef<
+        LanguageLesson,
+        Omit<
+          LanguageLesson,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "session_id"
+          | "status"
+          | "ordem"
+          | "score"
+          | "concluido_em"
+          | "vocabulario"
+          | "frases"
+          | "exercicios"
+        > & {
+          id?: string;
+          session_id?: string | null;
+          status?: LanguageLessonStatus;
+          ordem?: number;
+          score?: number | null;
+          concluido_em?: string | null;
+          vocabulario?: Json;
+          frases?: Json;
+          exercicios?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       notifications: TableDef<
         Notification,
         Omit<
@@ -1078,6 +1237,9 @@ export type UserScopedTable =
   | "health_sessions"
   | "trips"
   | "trip_checklist_items"
+  | "language_progress"
+  | "language_sessions"
+  | "language_lessons"
   | "notifications"
   | "aura_command_history"
   | "communication_logs"
@@ -1090,4 +1252,5 @@ export type AiModule =
   | "mentor"
   | "agenda"
   | "saude"
-  | "social";
+  | "social"
+  | "idiomas";

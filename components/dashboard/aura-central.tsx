@@ -22,6 +22,7 @@ import {
   Check,
   Dumbbell,
   History,
+  Languages,
   Loader2,
   Rocket,
   Send,
@@ -62,6 +63,7 @@ const MODULE_ICONS: Record<AuraCentralModule, React.ComponentType<{ className?: 
   saude: Dumbbell,
   "social-media": Share2,
   financeiro: Wallet,
+  idiomas: Languages,
 };
 
 function formatHistoryTime(iso: string) {

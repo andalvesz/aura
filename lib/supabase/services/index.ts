@@ -20,3 +20,5 @@ export * from "./global-search.service";
 export * from "./ai-memories.service";
 export * from "./reports.service";
 export * from "./travel.service";
+export * from "./english-coach.service";
+export * from "./language.service";

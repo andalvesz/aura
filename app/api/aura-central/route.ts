@@ -17,6 +17,7 @@ import {
   getGrowthLeadsMentorContext,
   getGrowthStrategicMemoryMentorContext,
 } from "@/lib/supabase/services/growth.service";
+import { getEnglishCoachMentorContext } from "@/lib/supabase/services/english-coach.service";
 import { getHealthCoachMentorContext } from "@/lib/supabase/services/health-coach.service";
 import { getAuraGlobalSummaryMentorContext } from "@/lib/supabase/services/mentor.service";
 import {
@@ -106,6 +107,8 @@ const MODULE_INSTRUCTIONS: Record<AuraCentralModule, string> = {
     "Foque em conteúdo para @and.alvesz, Alvesz Experience e Consórcios. Ganchos fortes e CTAs.",
   financeiro:
     "Foque em receitas, despesas, saldo, meta financeira e projeção. Liste próximas ações práticas com base nos dados reais.",
+  idiomas:
+    "Foque em ensino de inglês personalizado: aulas, vocabulário, frases, exercícios e simulação de conversa. Objetivos: viagens, Disney, NBA, aeroporto, hotel e negócios. Responda com exemplos em inglês e explicações em português.",
 };
 
 function logCentralError(error: unknown) {
@@ -165,6 +168,10 @@ async function loadContextForModule(
     }
     case "financeiro": {
       const { context, error } = await getAuraCentralFinanceContext();
+      return { context, error };
+    }
+    case "idiomas": {
+      const { context, error } = await getEnglishCoachMentorContext();
       return { context, error };
     }
     default:

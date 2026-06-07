@@ -9,6 +9,7 @@ import {
   FileText,
   Home,
   Mail,
+  Languages,
   MapPin,
   Rocket,
   Share2,
@@ -27,7 +28,8 @@ export type ModuleId =
   | "consorcios"
   | "crescimento"
   | "comunicacao"
-  | "viagens";
+  | "viagens"
+  | "idiomas";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -170,6 +172,20 @@ export const MODULES: ModuleConfig[] = [
       metric: "Viagens",
       value: "0",
       hint: "Nenhuma viagem planejada",
+    },
+  },
+  {
+    id: "idiomas",
+    href: "/dashboard/idiomas",
+    label: "Aura English Coach",
+    shortLabel: "Idiomas",
+    description: "Inglês personalizado para viagens, Disney, NBA e negócios.",
+    icon: Languages,
+    accent: "text-violet-400",
+    overview: {
+      metric: "Streak",
+      value: "0d",
+      hint: "Comece sua primeira aula de inglês",
     },
   },
 ];

@@ -13,6 +13,7 @@ export const AI_MODULE_LABELS: Record<AiModule, string> = {
   agenda: "Aura Agenda",
   saude: "Aura Saúde",
   social: "Aura Social",
+  idiomas: "Aura English Coach",
 };
 
 const YESTERDAY_PHRASES = [
