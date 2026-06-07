@@ -295,6 +295,26 @@ export type AiMessage = {
   created_at: string;
 };
 
+export type AiMemoryCategoria =
+  | "coach"
+  | "mentor"
+  | "calendario"
+  | "financeiro"
+  | "saude"
+  | "alvesz"
+  | "crescimento"
+  | "social_media";
+
+export type AiMemory = {
+  id: string;
+  user_id: string;
+  categoria: AiMemoryCategoria;
+  titulo: string;
+  conteudo: string;
+  origem: string;
+  created_at: string;
+};
+
 export type GrowthGoal = {
   id: string;
   user_id: string;
@@ -655,6 +675,13 @@ export type Database = {
           created_at?: string;
         }
       >;
+      ai_memories: TableDef<
+        AiMemory,
+        Omit<AiMemory, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        }
+      >;
       growth_goals: TableDef<
         GrowthGoal,
         Omit<GrowthGoal, "id" | "created_at" | "updated_at"> & {
@@ -839,6 +866,7 @@ export type UserScopedTable =
   | "conteudos"
   | "leads"
   | "ai_messages"
+  | "ai_memories"
   | "growth_goals"
   | "growth_missions"
   | "growth_actions"

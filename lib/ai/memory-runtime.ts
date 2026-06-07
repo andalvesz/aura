@@ -1,5 +1,6 @@
 import type OpenAI from "openai";
 import type { AiModule } from "@/types/database";
+import { saveAuraMemory } from "@/lib/supabase/services/ai-memories.service";
 import {
   buildMemoryRecallSection,
   saveAiExchange,
@@ -43,5 +44,12 @@ export async function persistAiTurn(
   metadata?: Record<string, unknown>
 ) {
   if (!assistantContent.trim()) return;
-  await saveAiExchange(module, userMessage, assistantContent, metadata ?? {});
+  const meta = metadata ?? {};
+  await saveAiExchange(module, userMessage, assistantContent, meta);
+  await saveAuraMemory({
+    module,
+    userMessage,
+    assistantContent,
+    metadata: meta,
+  });
 }

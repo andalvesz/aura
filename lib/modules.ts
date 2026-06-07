@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Brain,
   Building2,
   CalendarDays,
   Dumbbell,
@@ -156,6 +157,12 @@ export const HOME_NAV = {
   href: "/dashboard",
   label: "Visão geral",
   icon: Home,
+};
+
+export const MEMORY_NAV = {
+  href: "/dashboard/memoria",
+  label: "Memória",
+  icon: Brain,
 };
 
 export function getModule(id: ModuleId): ModuleConfig {

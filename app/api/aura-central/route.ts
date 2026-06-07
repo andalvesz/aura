@@ -7,10 +7,12 @@ import {
   getAuraCentralFinanceContext,
   getAuraCentralOpeningSummary,
 } from "@/lib/supabase/services/central.service";
+import { buildAuraMemoryDirectReply } from "@/lib/supabase/services/ai-memories.service";
 import {
   getAuraEvolutionContext,
   resolveMergedHistory,
 } from "@/lib/supabase/services/memory.service";
+import { isMemoryRecallQuery } from "@/utils/memory";
 import {
   getGrowthLeadsMentorContext,
   getGrowthStrategicMemoryMentorContext,
@@ -274,6 +276,18 @@ export async function POST(req: Request) {
 
     if (!message) {
       return Response.json({ error: "Mensagem não enviada." }, { status: 400 });
+    }
+
+    if (isMemoryRecallQuery(message)) {
+      const text =
+        (await buildAuraMemoryDirectReply(message)) ??
+        "Ainda não tenho memórias salvas sobre isso. Use a Aura Coach ou Mentor para gerar recomendações — elas ficarão registradas em Memória.";
+      await persistAiTurn("aura_central", message, text, { kind: "memory" });
+      return Response.json({
+        text,
+        module: "global",
+        kind: "memory",
+      });
     }
 
     const coachMode = detectCoachMode(message, actionId);

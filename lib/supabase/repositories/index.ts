@@ -12,6 +12,7 @@ export { ConteudosRepository } from "./conteudos.repository";
 export { LeadsRepository } from "./leads.repository";
 export { NotificationsRepository } from "./notifications.repository";
 export { AiMessagesRepository } from "./ai-messages.repository";
+export { AiMemoriesRepository } from "./ai-memories.repository";
 export {
   GrowthGoalsRepository,
   GrowthMissionsRepository,

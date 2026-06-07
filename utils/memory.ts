@@ -41,6 +41,31 @@ const WORKOUT_RECALL_PHRASES = [
   "último treino",
 ] as const;
 
+const RECOMMENDATION_RECALL_PHRASES = [
+  "o que você me recomendou ontem",
+  "o que voce me recomendou ontem",
+  "me recomendou ontem",
+  "recomendou ontem",
+  "o que recomendou",
+] as const;
+
+const LEAD_PRIORITY_PHRASES = [
+  "qual lead eu deveria priorizar",
+  "qual lead priorizar",
+  "lead eu deveria priorizar",
+  "leads priorizar",
+  "lead devo priorizar",
+  "priorizar lead",
+] as const;
+
+const SALES_PLAN_PHRASES = [
+  "qual plano de vendas foi gerado",
+  "plano de vendas foi gerado",
+  "plano de vendas gerado",
+  "plano de vendas voce gerou",
+  "plano de vendas você gerou",
+] as const;
+
 export const EVOLUTION_PHRASES = [
   "como está minha evolução",
   "como esta minha evolucao",
@@ -75,11 +100,26 @@ export function isMemoryWorkoutQuery(message: string) {
   return matchesAny(normalizeQuery(message), WORKOUT_RECALL_PHRASES);
 }
 
+export function isMemoryRecommendationQuery(message: string) {
+  return matchesAny(normalizeQuery(message), RECOMMENDATION_RECALL_PHRASES);
+}
+
+export function isMemoryLeadPriorityQuery(message: string) {
+  return matchesAny(normalizeQuery(message), LEAD_PRIORITY_PHRASES);
+}
+
+export function isMemorySalesPlanQuery(message: string) {
+  return matchesAny(normalizeQuery(message), SALES_PLAN_PHRASES);
+}
+
 export function isMemoryRecallQuery(message: string) {
   return (
     isMemoryYesterdayQuery(message) ||
+    isMemoryRecommendationQuery(message) ||
     isMemoryGoalQuery(message) ||
-    isMemoryWorkoutQuery(message)
+    isMemoryWorkoutQuery(message) ||
+    isMemoryLeadPriorityQuery(message) ||
+    isMemorySalesPlanQuery(message)
   );
 }
 

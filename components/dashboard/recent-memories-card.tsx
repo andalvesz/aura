@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Brain } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ListSkeleton } from "@/components/dashboard/loading-skeleton";
@@ -70,6 +71,12 @@ export function RecentMemoriesCard() {
           <Brain className="size-4 text-violet-400" />
           <PanelTitle>Memórias recentes</PanelTitle>
         </div>
+        <Link
+          href="/dashboard/memoria"
+          className="text-[11px] text-violet-400/90 transition-colors hover:text-violet-300"
+        >
+          Ver tudo
+        </Link>
       </PanelHeader>
       <PanelContent className="pt-0">
         {loading ? (

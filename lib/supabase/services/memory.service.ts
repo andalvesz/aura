@@ -29,6 +29,7 @@ import {
 } from "@/utils/memory";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { getOptionalDataContext } from "./context";
+import { buildAuraMemoriesContextSection } from "@/lib/supabase/services/ai-memories.service";
 import { appendAiMessage } from "./ai.service";
 
 export type RecentMemoriesSnapshot = {
@@ -90,8 +91,9 @@ export async function buildMemoryRecallSection(
   const ctx = await getOptionalDataContext();
   if (!ctx || !isMemoryRecallQuery(message)) return "";
 
+  const persistentSection = await buildAuraMemoriesContextSection(message);
   const repo = new AiMessagesRepository(ctx.supabase, ctx.userId);
-  const sections: string[] = [];
+  const sections: string[] = persistentSection ? [persistentSection] : [];
 
   if (isMemoryYesterdayQuery(message)) {
     const yesterday = yesterdayIsoDate();
