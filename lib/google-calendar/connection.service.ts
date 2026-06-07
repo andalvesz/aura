@@ -8,6 +8,8 @@ import {
   tokenExpiresAt,
 } from "./oauth";
 
+const DEFAULT_CALENDAR_ID = "primary";
+
 export type { GoogleCalendarPublicStatus };
 
 export async function getGoogleCalendarPublicStatus(): Promise<GoogleCalendarPublicStatus> {
@@ -20,7 +22,7 @@ export async function getGoogleCalendarPublicStatus(): Promise<GoogleCalendarPub
 
   const { data } = await ctx.supabase
     .from("google_calendar_connections")
-    .select("google_email, calendar_id")
+    .select("google_email")
     .eq("user_id", ctx.userId)
     .maybeSingle();
 
@@ -32,7 +34,7 @@ export async function getGoogleCalendarPublicStatus(): Promise<GoogleCalendarPub
     connected: true,
     configured,
     email: data.google_email,
-    calendarId: data.calendar_id,
+    calendarId: DEFAULT_CALENDAR_ID,
   };
 }
 
@@ -64,27 +66,38 @@ export async function saveGoogleCalendarConnection(params: {
   expiresIn: number;
   email?: string | null;
 }) {
-  const { supabase, userId } = await getDataContext();
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    const userError = new Error(
+      "Usuário não autenticado — não foi possível obter user_id para google_calendar_connections"
+    );
+    console.error("GOOGLE_USER_ERROR", userError);
+    return { error: userError.message };
+  }
+
+  const { supabase, userId } = ctx;
   const email =
     params.email ?? (await fetchGoogleUserEmail(params.accessToken));
-
-  const { connection: existing } = await getGoogleCalendarConnection();
 
   const row = {
     user_id: userId,
     access_token: params.accessToken,
     refresh_token: params.refreshToken,
-    token_expires_at: tokenExpiresAt(params.expiresIn),
+    expires_at: tokenExpiresAt(params.expiresIn),
     google_email: email,
-    calendar_id: existing?.calendar_id ?? "primary",
-    gmail_enabled: existing?.gmail_enabled ?? false,
   };
 
   const { error } = await supabase.from("google_calendar_connections").upsert(row, {
     onConflict: "user_id",
   });
 
-  return { error: error?.message ?? null };
+  if (error) {
+    console.error("GOOGLE_INSERT_ERROR", error);
+    const parts = [error.message, error.code, error.details, error.hint].filter(Boolean);
+    return { error: parts.join(" | ") };
+  }
+
+  return { error: null };
 }
 
 export async function deleteGoogleCalendarConnection() {
@@ -108,19 +121,25 @@ export async function getValidGoogleAccessToken(): Promise<{
   }
 
   const { connection, error } = await getGoogleCalendarConnection();
-  if (error || !connection) {
-    return { accessToken: null, calendarId: null, error: error ?? null };
+  if (error || !connection?.access_token) {
+    return { accessToken: null, calendarId: null, error: error ?? "Google não conectado." };
   }
 
-  const expiresAt = new Date(connection.token_expires_at).getTime();
-  const needsRefresh = expiresAt - Date.now() < 60_000;
+  const expiresAt = connection.expires_at
+    ? new Date(connection.expires_at).getTime()
+    : 0;
+  const needsRefresh = !connection.expires_at || expiresAt - Date.now() < 60_000;
 
   if (!needsRefresh) {
     return {
       accessToken: connection.access_token,
-      calendarId: connection.calendar_id,
+      calendarId: DEFAULT_CALENDAR_ID,
       error: null,
     };
+  }
+
+  if (!connection.refresh_token) {
+    return { accessToken: null, calendarId: null, error: "Refresh token ausente." };
   }
 
   try {
@@ -135,7 +154,7 @@ export async function getValidGoogleAccessToken(): Promise<{
       .from("google_calendar_connections")
       .update({
         access_token: refreshed.access_token,
-        token_expires_at: tokenExpiresAt(refreshed.expires_in),
+        expires_at: tokenExpiresAt(refreshed.expires_in),
         ...(refreshed.refresh_token
           ? { refresh_token: refreshed.refresh_token }
           : {}),
@@ -148,7 +167,7 @@ export async function getValidGoogleAccessToken(): Promise<{
 
     return {
       accessToken: refreshed.access_token,
-      calendarId: connection.calendar_id,
+      calendarId: DEFAULT_CALENDAR_ID,
       error: null,
     };
   } catch (err) {
@@ -157,10 +176,6 @@ export async function getValidGoogleAccessToken(): Promise<{
   }
 }
 
-export async function updateGoogleSyncToken(syncToken: string | null) {
-  const { supabase, userId } = await getDataContext();
-  await supabase
-    .from("google_calendar_connections")
-    .update({ sync_token: syncToken })
-    .eq("user_id", userId);
+export async function updateGoogleSyncToken(_syncToken: string | null) {
+  // sync_token não faz parte do schema atual de google_calendar_connections
 }

@@ -54,7 +54,7 @@ export async function GET(request: Request) {
 
     if (!refreshToken) {
       const { connection } = await getGoogleCalendarConnection();
-      refreshToken = connection?.refresh_token;
+      refreshToken = connection?.refresh_token ?? undefined;
     }
 
     if (!refreshToken) {

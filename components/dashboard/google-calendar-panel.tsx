@@ -32,7 +32,8 @@ export function GoogleCalendarPanel({ onImported }: GoogleCalendarPanelProps) {
     } else if (google === "no_refresh") {
       toast.error("Conexão incompleta. Desconecte e conecte novamente com consentimento total.");
     } else if (google === "save_error") {
-      toast.error("Não foi possível salvar a conexão Google.");
+      const msg = searchParams.get("msg");
+      toast.error(msg ?? "Não foi possível salvar a conexão Google.");
     } else if (google === "unconfigured") {
       toast.error("Google Calendar não está configurado no servidor.");
     } else if (google === "error" || google === "denied") {

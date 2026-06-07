@@ -86,7 +86,7 @@ export async function getCommsDashboardStats(
     followUpsPending,
     propostasSent,
     propostasOpened,
-    gmailConnected: Boolean(connection?.gmail_enabled),
+    gmailConnected: Boolean(connection?.access_token),
     gmailConfigured: configured,
   };
 }

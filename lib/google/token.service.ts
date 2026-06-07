@@ -40,15 +40,21 @@ export async function getValidGoogleAccessToken(): Promise<{
     return { accessToken: null, error: error ?? null, gmailEnabled: false };
   }
 
-  const expiresAt = new Date(connection.token_expires_at).getTime();
-  const needsRefresh = expiresAt - Date.now() < 60_000;
+  const expiresAt = connection.expires_at
+    ? new Date(connection.expires_at).getTime()
+    : 0;
+  const needsRefresh = !connection.expires_at || expiresAt - Date.now() < 60_000;
 
   if (!needsRefresh) {
     return {
       accessToken: connection.access_token,
       error: null,
-      gmailEnabled: Boolean(connection.gmail_enabled),
+      gmailEnabled: Boolean(connection.access_token),
     };
+  }
+
+  if (!connection.refresh_token) {
+    return { accessToken: null, error: "Refresh token ausente.", gmailEnabled: false };
   }
 
   try {
@@ -63,7 +69,7 @@ export async function getValidGoogleAccessToken(): Promise<{
       .from("google_calendar_connections")
       .update({
         access_token: refreshed.access_token,
-        token_expires_at: tokenExpiresAt(refreshed.expires_in),
+        expires_at: tokenExpiresAt(refreshed.expires_in),
         ...(refreshed.refresh_token ? { refresh_token: refreshed.refresh_token } : {}),
       })
       .eq("user_id", userId);
@@ -75,7 +81,7 @@ export async function getValidGoogleAccessToken(): Promise<{
     return {
       accessToken: refreshed.access_token,
       error: null,
-      gmailEnabled: Boolean(connection.gmail_enabled),
+      gmailEnabled: true,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao renovar token Google.";

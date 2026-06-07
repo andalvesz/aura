@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { getUser } from "@/lib/auth";
 import {
   exchangeGoogleCode,
   fetchGoogleUserEmail,
@@ -13,11 +13,13 @@ export async function GET(request: Request) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
   const calendarioUrl = `${siteUrl}/dashboard/calendario`;
 
-  try {
-    await requireUser();
-  } catch {
+  const user = await getUser();
+  if (!user) {
+    const userError = new Error("Usuário não autenticado no callback Google Calendar");
+    console.error("GOOGLE_USER_ERROR", userError);
     return NextResponse.redirect(`${siteUrl}/login?error=auth`);
   }
+  const userId = user.id;
 
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -49,14 +51,30 @@ export async function GET(request: Request) {
       oauth.clientSecret
     );
 
+    const hasAccessToken = Boolean(tokens.access_token);
     let refreshToken = tokens.refresh_token;
+    const hasRefreshTokenFromOAuth = Boolean(refreshToken);
 
     if (!refreshToken) {
       const { connection } = await getGoogleCalendarConnection();
-      refreshToken = connection?.refresh_token;
+      refreshToken = connection?.refresh_token ?? undefined;
+    }
+
+    if (!hasAccessToken) {
+      const tokenError = new Error(
+        `access_token ausente após troca OAuth (user_id=${userId}, refresh_token=${Boolean(refreshToken)})`
+      );
+      console.error("GOOGLE_CALLBACK_ERROR", tokenError);
+      return NextResponse.redirect(
+        `${calendarioUrl}?google=error&msg=${encodeURIComponent(tokenError.message)}`
+      );
     }
 
     if (!refreshToken) {
+      const refreshError = new Error(
+        `refresh_token ausente após troca OAuth (user_id=${userId}, oauth_refresh=${hasRefreshTokenFromOAuth})`
+      );
+      console.error("GOOGLE_CALLBACK_ERROR", refreshError);
       return NextResponse.redirect(`${calendarioUrl}?google=no_refresh`);
     }
 
@@ -70,14 +88,19 @@ export async function GET(request: Request) {
     });
 
     if (error) {
-      return NextResponse.redirect(`${calendarioUrl}?google=save_error`);
+      return NextResponse.redirect(
+        `${calendarioUrl}?google=save_error&msg=${encodeURIComponent(error)}`
+      );
     }
 
     const response = NextResponse.redirect(`${calendarioUrl}?google=connected`);
     response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
     return response;
   } catch (err) {
-    console.error("[google/calendar/callback]", err);
-    return NextResponse.redirect(`${calendarioUrl}?google=error`);
+    console.error("GOOGLE_CALLBACK_ERROR", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.redirect(
+      `${calendarioUrl}?google=error&msg=${encodeURIComponent(message)}`
+    );
   }
 }

@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     let refreshToken = tokens.refresh_token;
     if (!refreshToken) {
       const { connection } = await getGoogleAccountConnection();
-      refreshToken = connection?.refresh_token;
+      refreshToken = connection?.refresh_token ?? undefined;
     }
 
     if (!refreshToken) {
@@ -64,10 +64,8 @@ export async function GET(request: Request) {
         user_id: userId,
         access_token: tokens.access_token,
         refresh_token: refreshToken,
-        token_expires_at: tokenExpiresAt(tokens.expires_in),
+        expires_at: tokenExpiresAt(tokens.expires_in),
         google_email: email,
-        calendar_id: "primary",
-        gmail_enabled: true,
       },
       { onConflict: "user_id" }
     );

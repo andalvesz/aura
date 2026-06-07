@@ -16,7 +16,7 @@ export async function getGmailPublicStatus(): Promise<GmailPublicStatus> {
   const { connection } = await getGoogleAccountConnection();
 
   return {
-    connected: Boolean(connection?.gmail_enabled),
+    connected: Boolean(connection?.access_token),
     configured,
     email: connection?.google_email ?? null,
   };

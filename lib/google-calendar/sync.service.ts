@@ -117,7 +117,6 @@ export async function importGoogleCalendarEvents(): Promise<{
     return { imported: 0, updated: 0, error: tokenError ?? "Google não conectado." };
   }
 
-  const { connection } = await getGoogleCalendarConnection();
   const { supabase, userId } = await getDataContext();
   const repo = new EventosRepository(supabase, userId);
 
@@ -136,7 +135,7 @@ export async function importGoogleCalendarEvents(): Promise<{
   let imported = 0;
   let updated = 0;
   let pageToken: string | undefined;
-  let nextSyncToken: string | null = connection?.sync_token ?? null;
+  let nextSyncToken: string | null = null;
 
   try {
     do {

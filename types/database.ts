@@ -107,15 +107,13 @@ export type Evento = {
 };
 
 export type GoogleCalendarConnection = {
+  id: string;
   user_id: string;
-  access_token: string;
-  refresh_token: string;
-  token_expires_at: string;
   google_email: string | null;
-  calendar_id: string;
-  sync_token: string | null;
-  gmail_enabled: boolean;
-  connected_at: string;
+  access_token: string | null;
+  refresh_token: string | null;
+  expires_at: string | null;
+  created_at: string;
   updated_at: string;
 };
 
@@ -614,14 +612,13 @@ export type Database = {
       >;
       google_calendar_connections: TableDef<
         GoogleCalendarConnection,
-        Omit<
-          GoogleCalendarConnection,
-          "connected_at" | "updated_at" | "sync_token" | "google_email" | "gmail_enabled"
-        > & {
-          sync_token?: string | null;
+        Omit<GoogleCalendarConnection, "id" | "created_at" | "updated_at"> & {
+          id?: string;
           google_email?: string | null;
-          gmail_enabled?: boolean;
-          connected_at?: string;
+          access_token?: string | null;
+          refresh_token?: string | null;
+          expires_at?: string | null;
+          created_at?: string;
           updated_at?: string;
         }
       >;
