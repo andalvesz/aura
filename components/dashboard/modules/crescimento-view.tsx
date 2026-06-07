@@ -31,6 +31,7 @@ import {
   useOrcamentos,
 } from "@/hooks";
 import { buildProfileAnalysisInput, isSupabaseTableMissingError } from "@/lib/growth";
+import { awardAuraXpClient } from "@/lib/xp/client";
 import type {
   GrowthLead,
   GrowthLeadCanal,
@@ -357,10 +358,14 @@ export function CrescimentoView() {
   }
 
   async function moveGrowthLead(id: string, status: GrowthLeadStatus) {
+    const previous = growthLeads.find((lead) => lead.id === id);
     const { error } = await updateGrowthLead(id, { status });
     if (error) {
       toast.error(error);
       return;
+    }
+    if (status === "fechado" && previous?.status !== "fechado") {
+      await awardAuraXpClient("lead_convertido");
     }
     toast.success(`Status: ${getGrowthLeadStatusLabel(status)}`);
   }

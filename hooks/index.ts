@@ -24,3 +24,4 @@ export { useHealthMeals } from "./use-health-meals";
 export { useHealthSessions } from "./use-health-sessions";
 export { useNotifications } from "./use-notifications";
 export { useGoals } from "./use-goals";
+export { useAuraXp } from "./use-aura-xp";

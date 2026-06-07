@@ -49,6 +49,10 @@ import {
   isGoalBehind as isAuraGoalBehind,
   sortGoalsByUrgency,
 } from "@/utils/goals";
+import {
+  formatXpRemaining,
+  getStreakDisplay,
+} from "@/utils/xp";
 import { isPostTodayQuery, MARCA_LABELS } from "@/utils/instagram";
 import {
   buildCoachNowResponse,
@@ -65,6 +69,9 @@ export type CoachMode =
   | "goals"
   | "goals-late"
   | "post-today"
+  | "xp-level"
+  | "xp-progress"
+  | "xp-missions"
   | "intro";
 
 export const AURA_COACH_ACTION_ID = "aura-coach";
@@ -138,6 +145,34 @@ const GOALS_LATE_PHRASES = [
   "meta atrasada",
 ] as const;
 
+const XP_LEVEL_PHRASES = [
+  "qual meu nivel",
+  "qual meu nível",
+  "meu nivel",
+  "meu nível",
+  "nivel atual",
+  "nível atual",
+] as const;
+
+const XP_PROGRESS_PHRASES = [
+  "quanto falta para subir",
+  "quanto falta pro proximo nivel",
+  "quanto falta pro próximo nível",
+  "falta quanto xp",
+  "progresso de xp",
+  "barra de xp",
+] as const;
+
+const XP_MISSIONS_PHRASES = [
+  "quais missoes faltam",
+  "quais missões faltam",
+  "missoes diarias",
+  "missões diárias",
+  "o que falta hoje",
+  "missoes do dia",
+  "missões do dia",
+] as const;
+
 function normalize(text: string): string {
   return text
     .toLowerCase()
@@ -169,6 +204,9 @@ export function detectCoachMode(
   if (matchesAny(normalized, ROUTINE_PHRASES)) return "performance";
   if (matchesAny(normalized, GOALS_LATE_PHRASES)) return "goals-late";
   if (matchesAny(normalized, GOALS_PHRASES)) return "goals";
+  if (matchesAny(normalized, XP_LEVEL_PHRASES)) return "xp-level";
+  if (matchesAny(normalized, XP_PROGRESS_PHRASES)) return "xp-progress";
+  if (matchesAny(normalized, XP_MISSIONS_PHRASES)) return "xp-missions";
   if (matchesAny(normalized, FOCUS_PHRASES)) return "opportunity";
   if (matchesAny(normalized, ALERT_PHRASES)) return "alerts";
 
@@ -750,6 +788,74 @@ export function buildCoachNowResponseFromReport(
   return buildCoachNowResponse(reportDataToDailyInput(data), displayName);
 }
 
+export function buildCoachXpLevelResponse(
+  data: ExecutiveReportData,
+  displayName = "Anderson"
+): string {
+  const xp = data.auraXp;
+  if (!xp) {
+    return `${displayName}, seu progresso Aura XP ainda não está disponível. Use a Aura hoje para começar a acumular XP.`;
+  }
+
+  const streakLine =
+    xp.userXp.streak_dias > 0
+      ? `Streak: ${xp.userXp.streak_dias} dia(s) ${getStreakDisplay(xp.userXp.streak_dias)}`
+      : "Streak: comece hoje com uma ação na Aura.";
+
+  return `${displayName}, você está no **nível ${xp.progress.level}** com **${xp.userXp.xp_total} XP** total.
+${streakLine}
+Continue registrando finanças, hábitos e follow-ups para evoluir.`;
+}
+
+export function buildCoachXpProgressResponse(
+  data: ExecutiveReportData,
+  displayName = "Anderson"
+): string {
+  const xp = data.auraXp;
+  if (!xp) {
+    return `${displayName}, não encontrei seus dados de XP. Faça uma ação na Aura hoje para iniciar o progresso.`;
+  }
+
+  const remaining = formatXpRemaining(xp.userXp.xp_total);
+  if (remaining <= 0) {
+    return `${displayName}, você já passou do último marco definido — **${xp.userXp.xp_total} XP** no nível **${xp.progress.level}**. Mantenha o ritmo diário.`;
+  }
+
+  return `${displayName}, faltam **${remaining} XP** para o nível **${xp.progress.level + 1}**.
+Progresso atual: **${xp.progress.xpInLevel}/${xp.progress.xpNeeded} XP** neste nível (${xp.progress.pct}%).
+Próximo passo: complete uma missão diária pendente.`;
+}
+
+export function buildCoachXpMissionsResponse(
+  data: ExecutiveReportData,
+  displayName = "Anderson"
+): string {
+  const xp = data.auraXp;
+  if (!xp) {
+    return `${displayName}, suas missões diárias aparecerão assim que você começar a usar a Aura hoje.`;
+  }
+
+  const pending = xp.dailyMissions.filter((m) => !m.done);
+  const done = xp.dailyMissions.filter((m) => m.done);
+
+  const pendingLines =
+    pending.length > 0
+      ? pending.map((m) => `• ${m.label}`).join("\n")
+      : "• Nenhuma — você completou todas as missões de hoje.";
+
+  const doneLine =
+    done.length > 0 ? done.map((m) => m.label).join(", ") : "nenhuma ainda";
+
+  return `${displayName}, missões diárias de hoje:
+
+**Faltam:**
+${pendingLines}
+
+**Concluídas:** ${doneLine}
+
+Foque primeiro em follow-up ou finanças — são as de maior impacto no seu dia.`;
+}
+
 export function resolveCoachResponse(
   mode: CoachMode,
   data: ExecutiveReportData,
@@ -776,6 +882,12 @@ export function resolveCoachResponse(
       return { text: buildCoachGoalsLateResponse(data, name), mode };
     case "post-today":
       return { text: buildCoachPostTodayResponse(data, name), mode };
+    case "xp-level":
+      return { text: buildCoachXpLevelResponse(data, name), mode };
+    case "xp-progress":
+      return { text: buildCoachXpProgressResponse(data, name), mode };
+    case "xp-missions":
+      return { text: buildCoachXpMissionsResponse(data, name), mode };
     case "intro":
     default:
       return { text: buildCoachIntroResponse(name), mode: "intro" };

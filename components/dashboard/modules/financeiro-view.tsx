@@ -10,6 +10,7 @@ import {
 } from "@/components/dashboard/loading-skeleton";
 import { useFinanceiro } from "@/hooks/use-financeiro";
 import { createClient } from "@/lib/supabase/client";
+import { awardAuraXpClient } from "@/lib/xp/client";
 import { formatBRL, formatDate } from "@/utils/format";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import {
@@ -415,6 +416,7 @@ export function FinanceiroView() {
         onClose={() => setGastoModalOpen(false)}
         onSubmit={async (payload) => {
           const { error } = await createGasto(payload);
+          if (!error) await awardAuraXpClient("registrar_despesa");
           return { error };
         }}
       />
@@ -423,7 +425,10 @@ export function FinanceiroView() {
         onClose={() => setReceitaModalOpen(false)}
         onSubmit={async (payload) => {
           const { error } = await createIncome(payload);
-          if (!error) await refreshFinance();
+          if (!error) {
+            await refreshFinance();
+            await awardAuraXpClient("registrar_receita");
+          }
           return { error };
         }}
       />

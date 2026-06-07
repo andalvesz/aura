@@ -319,6 +319,7 @@ export async function POST(req: Request) {
           alveszEventos: [],
           weekMemories: [],
           goals: [],
+          auraXp: null,
         }, displayName);
         await persistAiTurn("aura_central", message, text, { kind: "coach", coachMode });
         return Response.json({ text, module: "global", kind: "coach", coachMode });

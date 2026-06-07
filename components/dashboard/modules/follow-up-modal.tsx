@@ -13,6 +13,7 @@ import {
 } from "@/utils/follow-up";
 import { formatBRL } from "@/utils/format";
 import { openWhatsAppLink, WHATSAPP_NO_PHONE_MESSAGE } from "@/utils/whatsapp";
+import { awardAuraXpClient } from "@/lib/xp/client";
 import { ActionButton } from "../action-button";
 
 const CHANNELS: { id: FollowUpChannel; label: string }[] = [
@@ -106,6 +107,9 @@ export function FollowUpModal({
     if (onMarkContacted) {
       const { error } = await onMarkContacted();
       if (error) toast.info(`WhatsApp aberto, mas não atualizou lead: ${error}`);
+      else await awardAuraXpClient("follow_up_realizado");
+    } else {
+      await awardAuraXpClient("follow_up_realizado");
     }
   }
 
@@ -116,6 +120,9 @@ export function FollowUpModal({
       if (onMarkContacted) {
         const { error } = await onMarkContacted();
         if (error) toast.info(`Copiado, mas não atualizou lead: ${error}`);
+        else await awardAuraXpClient("follow_up_realizado");
+      } else {
+        await awardAuraXpClient("follow_up_realizado");
       }
     } catch {
       toast.error("Não foi possível copiar.");
@@ -132,6 +139,7 @@ export function FollowUpModal({
       return;
     }
     toast.success("Follow-up agendado no calendário (+3 dias).");
+    await awardAuraXpClient("follow_up_realizado");
     onClose();
   }
 

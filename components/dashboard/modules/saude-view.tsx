@@ -23,6 +23,7 @@ import {
   useHealthSessions,
   useHealthWorkouts,
 } from "@/hooks";
+import { awardAuraXpClient } from "@/lib/xp/client";
 import { ActionButton } from "../action-button";
 import { MetricCard } from "../metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
@@ -128,6 +129,7 @@ export function SaudeView() {
       return;
     }
 
+    await awardAuraXpClient("completar_treino");
     toast.success("Treino salvo.");
     setActiveSuggestion(null);
   }
@@ -300,6 +302,7 @@ export function SaudeView() {
                         onClick={async () => {
                           const { error } = await removeHabit(h.id);
                           if (error) toast.error(error);
+                          else await awardAuraXpClient("completar_habito");
                         }}
                         className="text-zinc-600 hover:text-red-400"
                       >
@@ -484,6 +487,7 @@ export function SaudeView() {
         initial={workoutSuggestion}
         onSubmit={async (payload) => {
           const result = await createWorkout(payload);
+          if (!result.error) await awardAuraXpClient("completar_treino");
           return { error: result.error };
         }}
       />

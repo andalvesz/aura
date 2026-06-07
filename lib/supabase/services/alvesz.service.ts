@@ -7,6 +7,7 @@ import type { Orcamento, TableInsert, TableUpdate } from "@/types/database";
 import { normalizeOrcamentoStatus } from "@/utils/alvesz-integration";
 import { getDataContext } from "./context";
 import { syncAlveszIncomeFromOrcamento } from "./finance.service";
+import { awardAuraXp } from "./xp.service";
 
 export async function listClientes() {
   const { supabase, userId } = await getDataContext();
@@ -35,7 +36,9 @@ export async function updateOrcamento(
   payload: TableUpdate<"orcamentos">
 ) {
   const { supabase, userId } = await getDataContext();
-  const result = await new OrcamentosRepository(supabase, userId).update(id, payload);
+  const repo = new OrcamentosRepository(supabase, userId);
+  const previous = await repo.findById(id);
+  const result = await repo.update(id, payload);
 
   if (!result.error && result.data) {
     const orcamento = result.data as Orcamento;
@@ -44,6 +47,9 @@ export async function updateOrcamento(
     );
     if (status === "fechado") {
       await syncAlveszIncomeFromOrcamento({ ...orcamento, status: "fechado" });
+      if (normalizeOrcamentoStatus(previous.data?.status ?? "") !== "fechado") {
+        await awardAuraXp("evento_fechado_alvesz");
+      }
     }
   }
 

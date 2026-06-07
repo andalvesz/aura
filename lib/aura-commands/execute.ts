@@ -18,6 +18,7 @@ import {
   updateGrowthLead,
 } from "@/lib/supabase/services/growth.service";
 import { getDataContext } from "@/lib/supabase/services/context";
+import { awardAuraXp } from "@/lib/supabase/services/xp.service";
 import { calcLucroEstimado } from "@/utils/alvesz";
 import {
   buildEventoDateTime,
@@ -332,6 +333,7 @@ export async function executeAuraCommand(
           data: todayIsoDate(),
         });
         if (error) return { result: {}, error };
+        await awardAuraXp("completar_treino");
         return {
           result: { message: `Treino "${payload.nome}" salvo em Saúde.`, id: data?.id },
           error: null,
@@ -340,6 +342,7 @@ export async function executeAuraCommand(
 
       case "saude.criar-habito": {
         const { supabase, userId } = await getDataContext();
+        const status = String(payload.status ?? "pendente");
         const { data, error } = await new BaseRepository(
           supabase,
           "health_habits",
@@ -347,10 +350,13 @@ export async function executeAuraCommand(
         ).create({
           titulo: String(payload.titulo),
           frequencia: String(payload.frequencia ?? "diario"),
-          status: String(payload.status ?? "pendente"),
+          status,
           data: todayIsoDate(),
         });
         if (error) return { result: {}, error };
+        if (status === "concluido") {
+          await awardAuraXp("completar_habito");
+        }
         return {
           result: { message: `Hábito "${payload.titulo}" criado.`, id: data?.id },
           error: null,

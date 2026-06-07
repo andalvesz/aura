@@ -380,6 +380,7 @@ export function buildAuraCentralOpeningSummary(
     weekMemories:
       "weekMemories" in data && data.weekMemories ? data.weekMemories : [],
     goals: "goals" in data && data.goals ? data.goals : [],
+    auraXp: "auraXp" in data ? data.auraXp ?? null : null,
   };
 
   const name = displayName?.trim() || "você";

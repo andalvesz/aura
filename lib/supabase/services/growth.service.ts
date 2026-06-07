@@ -22,6 +22,7 @@ import {
   getCurrentMonthReference,
 } from "@/utils/growth";
 import { getDataContext, getOptionalDataContext } from "./context";
+import { awardAuraXp } from "./xp.service";
 
 export async function listGrowthGoals() {
   const { supabase, userId } = await getDataContext();
@@ -114,7 +115,19 @@ export async function updateGrowthLead(
   payload: TableUpdate<"growth_leads">
 ) {
   const { supabase, userId } = await getDataContext();
-  return new GrowthLeadsRepository(supabase, userId).update(id, payload);
+  const repo = new GrowthLeadsRepository(supabase, userId);
+  const previous = await repo.findById(id);
+  const result = await repo.update(id, payload);
+
+  if (
+    !result.error &&
+    payload.status === "fechado" &&
+    previous.data?.status !== "fechado"
+  ) {
+    await awardAuraXp("lead_convertido");
+  }
+
+  return result;
 }
 
 export async function getGrowthLeadsMentorContext(actionId?: string): Promise<{

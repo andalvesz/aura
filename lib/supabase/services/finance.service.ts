@@ -13,6 +13,7 @@ import type {
 } from "@/types/database";
 import { computeSmartFinanceStats, type SmartFinanceInput } from "@/utils/finance";
 import { getDataContext } from "./context";
+import { awardAuraXp } from "./xp.service";
 
 export async function listFinancialGoals() {
   const { supabase, userId } = await getDataContext();
@@ -49,6 +50,7 @@ export async function createFinancialIncome(
   const result = await new FinancialIncomeRepository(supabase, userId).create(payload);
   if (!result.error && result.data) {
     await syncFinancialGoalsProgress(supabase, userId);
+    await awardAuraXp("registrar_receita");
   }
   return result;
 }

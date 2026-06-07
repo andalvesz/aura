@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   Bot,
   CalendarPlus,
+  Check,
   Loader2,
   Pencil,
   Send,
@@ -18,6 +19,7 @@ import { MiniCalendar } from "@/components/dashboard/mini-calendar";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 import { useEventos } from "@/hooks/use-eventos";
 import { useGrowthLeads } from "@/hooks/use-growth-leads";
+import { awardAuraXpClient } from "@/lib/xp/client";
 import { parseJsonResponse } from "@/utils/safe-json";
 import {
   CHAT_INPUT_CLASS,
@@ -206,8 +208,19 @@ export function CalendarioView() {
     const result = await create(payload);
     if (!result.error) {
       setSuggestion(null);
+      await awardAuraXpClient("criar_evento");
     }
     return { error: result.error };
+  }
+
+  async function handleCompleteEvento(id: string) {
+    const { error } = await update(id, { tipo: "concluido" });
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    await awardAuraXpClient("concluir_evento");
+    toast.success("Evento concluído.");
   }
 
   async function handleDelete(id: string) {
@@ -300,6 +313,16 @@ export function CalendarioView() {
                         )}
                       </div>
                       <div className="flex shrink-0 gap-0.5">
+                        {ev.tipo !== "concluido" && (
+                          <button
+                            type="button"
+                            onClick={() => void handleCompleteEvento(ev.id)}
+                            className={ICON_BTN_CLASS}
+                            aria-label="Concluir"
+                          >
+                            <Check className="size-4 md:size-3.5" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => openCreate(ev)}

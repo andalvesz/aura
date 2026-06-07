@@ -4,6 +4,7 @@ import { Download, ExternalLink, FileText, MessageCircle, Plus, Trash2 } from "l
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { awardAuraXpClient } from "@/lib/xp/client";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import {
   ListSkeleton,
@@ -181,12 +182,16 @@ export function AlveszView() {
     orcamento: Orcamento,
     newStatus: OrcamentoStatus
   ) {
+    const previousStatus = normalizeOrcamentoStatus(orcamento.status);
     const { error } = await updateOrcamento(orcamento.id, { status: newStatus });
     if (error) {
       toast.error(error);
       return;
     }
     await syncGrowthLeadOnOrcamentoStatus(supabase, orcamento, newStatus);
+    if (newStatus === "fechado" && previousStatus !== "fechado") {
+      await awardAuraXpClient("evento_fechado_alvesz");
+    }
     toast.success(`Status: ${getOrcamentoStatusLabel(newStatus)}`);
   }
 

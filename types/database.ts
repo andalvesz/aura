@@ -490,6 +490,34 @@ export type AuraCommandHistory = {
   created_at: string;
 };
 
+export type XpAcao =
+  | "registrar_despesa"
+  | "registrar_receita"
+  | "criar_evento"
+  | "concluir_evento"
+  | "completar_habito"
+  | "completar_treino"
+  | "follow_up_realizado"
+  | "lead_convertido"
+  | "evento_fechado_alvesz";
+
+export type UserXp = {
+  id: string;
+  user_id: string;
+  xp_total: number;
+  nivel: number;
+  streak_dias: number;
+  created_at: string;
+};
+
+export type XpHistory = {
+  id: string;
+  user_id: string;
+  acao: string;
+  xp: number;
+  created_at: string;
+};
+
 type TableDef<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -887,6 +915,20 @@ export type Database = {
           created_at?: string;
         }
       >;
+      user_xp: TableDef<
+        UserXp,
+        Omit<UserXp, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        }
+      >;
+      xp_history: TableDef<
+        XpHistory,
+        Omit<XpHistory, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -940,7 +982,9 @@ export type UserScopedTable =
   | "health_sessions"
   | "notifications"
   | "aura_command_history"
-  | "communication_logs";
+  | "communication_logs"
+  | "user_xp"
+  | "xp_history";
 
 export type AiModule =
   | "aura_central"

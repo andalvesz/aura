@@ -23,3 +23,4 @@ export {
   GrowthLeadsRepository,
   GrowthContentMemoryRepository,
 } from "./growth.repository";
+export { UserXpRepository, XpHistoryRepository } from "./xp.repository";

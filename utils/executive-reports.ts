@@ -13,6 +13,7 @@ import type {
   HealthHabit,
   HealthWorkout,
 } from "@/types/database";
+import type { AuraXpState } from "@/lib/supabase/services/xp.service";
 import type { AuraGlobalSummaryData } from "@/utils/mentor";
 import { formatBRL, formatDate, formatTime } from "@/utils/format";
 import {
@@ -72,6 +73,7 @@ export type ExecutiveReportData = AuraGlobalSummaryData & {
   alveszEventos: AlveszEvento[];
   weekMemories: AiMemory[];
   goals: Goal[];
+  auraXp: AuraXpState | null;
 };
 
 export function formatReportGreeting(name = "você"): string {
