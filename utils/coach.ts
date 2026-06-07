@@ -53,6 +53,7 @@ import {
   formatXpRemaining,
   getStreakDisplay,
 } from "@/utils/xp";
+import { buildImportantNotificationsSummary } from "@/utils/notifications";
 import { isPostTodayQuery, MARCA_LABELS } from "@/utils/instagram";
 import {
   buildCoachNowResponse,
@@ -72,6 +73,7 @@ export type CoachMode =
   | "xp-level"
   | "xp-progress"
   | "xp-missions"
+  | "important-today"
   | "intro";
 
 export const AURA_COACH_ACTION_ID = "aura-coach";
@@ -173,6 +175,17 @@ const XP_MISSIONS_PHRASES = [
   "missões do dia",
 ] as const;
 
+const IMPORTANT_TODAY_PHRASES = [
+  "tenho algo importante hoje",
+  "algo importante hoje",
+  "avisos importantes",
+  "notificacoes importantes",
+  "notificações importantes",
+  "alertas importantes",
+  "o que precisa da minha atencao hoje",
+  "o que precisa da minha atenção hoje",
+] as const;
+
 function normalize(text: string): string {
   return text
     .toLowerCase()
@@ -207,6 +220,7 @@ export function detectCoachMode(
   if (matchesAny(normalized, XP_LEVEL_PHRASES)) return "xp-level";
   if (matchesAny(normalized, XP_PROGRESS_PHRASES)) return "xp-progress";
   if (matchesAny(normalized, XP_MISSIONS_PHRASES)) return "xp-missions";
+  if (matchesAny(normalized, IMPORTANT_TODAY_PHRASES)) return "important-today";
   if (matchesAny(normalized, FOCUS_PHRASES)) return "opportunity";
   if (matchesAny(normalized, ALERT_PHRASES)) return "alerts";
 
@@ -856,6 +870,13 @@ ${pendingLines}
 Foque primeiro em follow-up ou finanças — são as de maior impacto no seu dia.`;
 }
 
+export function buildCoachImportantTodayResponse(
+  data: ExecutiveReportData,
+  displayName = "Anderson"
+): string {
+  return buildImportantNotificationsSummary(data.notifications ?? [], displayName);
+}
+
 export function resolveCoachResponse(
   mode: CoachMode,
   data: ExecutiveReportData,
@@ -888,6 +909,8 @@ export function resolveCoachResponse(
       return { text: buildCoachXpProgressResponse(data, name), mode };
     case "xp-missions":
       return { text: buildCoachXpMissionsResponse(data, name), mode };
+    case "important-today":
+      return { text: buildCoachImportantTodayResponse(data, name), mode };
     case "intro":
     default:
       return { text: buildCoachIntroResponse(name), mode: "intro" };

@@ -3,23 +3,28 @@ import type {
   Conteudo,
   Evento,
   FinancialGoal,
+  FinancialIncome,
   Gasto,
+  Goal,
   GrowthLead,
   GrowthMission,
+  HealthHabit,
   HealthWorkout,
   Notification,
   NotificationType,
   Orcamento,
 } from "@/types/database";
+import { normalizeOrcamentoStatus } from "@/utils/alvesz-integration";
 import {
   detectUnusualExpense,
   filterGastosCurrentMonth,
+  filterIncomeCurrentMonth,
   getActiveFinancialGoal,
-  isGoalBehind,
   isGoalReached,
 } from "@/utils/finance";
 import { getFollowUpTierLabel, listStaleOpportunities } from "@/utils/follow-up";
 import { mergeDailyMissions, getTodayDate } from "@/utils/growth";
+import { getActiveGoals, isGoalBehind as isAuraGoalBehind } from "@/utils/goals";
 import { todayIsoDate, workoutForToday } from "@/utils/health";
 import { normalizeConteudoStatus } from "@/utils/social";
 import { formatBRL, formatTime } from "@/utils/format";
@@ -34,13 +39,31 @@ export type NotificationCandidate = {
   scheduled_for: string | null;
 };
 
+/** Tipos prioritários exibidos na Central Inteligente da Aura */
+export const AURA_PRIORITY_NOTIFICATION_TYPES: NotificationType[] = [
+  "lead_followup",
+  "event_tomorrow",
+  "event_upcoming",
+  "goal_behind",
+  "habit_pending",
+  "budget_waiting",
+  "budget_negotiation",
+  "revenue_below_target",
+  "financial_goal_behind",
+];
+
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   lead_followup: "Lead sem follow-up",
-  event_upcoming: "Evento chegando",
+  event_upcoming: "Evento hoje",
+  event_tomorrow: "Evento amanhã",
   mission_pending: "Missão pendente",
   content_overdue: "Conteúdo atrasado",
   workout_planned: "Treino planejado",
   budget_negotiation: "Orçamento em negociação",
+  budget_waiting: "Orçamento aguardando resposta",
+  habit_pending: "Hábito não concluído",
+  goal_behind: "Meta atrasada",
+  revenue_below_target: "Receita abaixo da meta",
   financial_goal_behind: "Meta financeira atrasada",
   financial_expense_spike: "Despesa acima do normal",
   financial_goal_reached: "Meta financeira atingida",
@@ -57,11 +80,47 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   comunicacao: "/dashboard/comunicacao",
 };
 
+export function isNotificationRead(notification: Pick<Notification, "status">): boolean {
+  return notification.status === "read";
+}
+
 export function getNotificationHref(notification: Notification): string {
+  if (notification.type === "goal_behind") {
+    return "/dashboard/metas";
+  }
   if (notification.related_module) {
     return NOTIFICATION_MODULE_HREFS[notification.related_module as ModuleId];
   }
   return "/dashboard/notificacoes";
+}
+
+function tomorrowIsoDate(reference = new Date()): string {
+  const d = new Date(reference);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function isRevenueBelowTarget(
+  goal: FinancialGoal,
+  income: FinancialIncome[],
+  reference = new Date()
+): boolean {
+  if (isGoalReached(goal)) return false;
+
+  const monthIncome = filterIncomeCurrentMonth(income).reduce(
+    (sum, row) => sum + Number(row.valor),
+    0
+  );
+  const meta = Number(goal.valor_meta);
+  const dayOfMonth = reference.getDate();
+  const daysInMonth = new Date(
+    reference.getFullYear(),
+    reference.getMonth() + 1,
+    0
+  ).getDate();
+  const expectedByNow = (meta / daysInMonth) * dayOfMonth;
+
+  return dayOfMonth >= 5 && monthIncome < expectedByNow * 0.9;
 }
 
 export function buildNotificationCandidates(params: {
@@ -70,10 +129,13 @@ export function buildNotificationCandidates(params: {
   missions: GrowthMission[];
   conteudos: Conteudo[];
   workouts: HealthWorkout[];
+  habits?: HealthHabit[];
+  goals?: Goal[];
   orcamentos: Orcamento[];
   clientes?: Cliente[];
   gastos?: Gasto[];
   financialGoals?: FinancialGoal[];
+  financialIncome?: FinancialIncome[];
 }): NotificationCandidate[] {
   const {
     leads,
@@ -81,13 +143,17 @@ export function buildNotificationCandidates(params: {
     missions,
     conteudos,
     workouts,
+    habits = [],
+    goals = [],
     orcamentos,
     clientes,
     gastos = [],
     financialGoals = [],
+    financialIncome = [],
   } = params;
   const candidates: NotificationCandidate[] = [];
   const today = todayIsoDate();
+  const tomorrow = tomorrowIsoDate();
   const nowIso = new Date().toISOString();
 
   for (const item of listStaleOpportunities({
@@ -104,8 +170,8 @@ export function buildNotificationCandidates(params: {
 
     candidates.push({
       type: "lead_followup",
-      title: `Lead parado — ${getFollowUpTierLabel(tier)}`,
-      message: `${ctx.nome}: ${ctx.tipoEvento} · ${formatBRL(ctx.valor)} · ${ctx.statusLabel} (${ctx.idleDays} dias sem contato).`,
+      title: `Lead sem follow-up há ${ctx.idleDays} dias`,
+      message: `${ctx.nome}: ${ctx.tipoEvento} · ${formatBRL(ctx.valor)} · ${ctx.statusLabel} (${getFollowUpTierLabel(tier)}).`,
       related_module: module,
       related_id: relatedId,
       scheduled_for: nowIso,
@@ -114,18 +180,58 @@ export function buildNotificationCandidates(params: {
 
   for (const evento of eventos) {
     const eventDay = evento.data_inicio.slice(0, 10);
-    if (eventDay !== today) continue;
 
-    const start = new Date(evento.data_inicio);
-    const isPast = start < new Date();
+    if (eventDay === today) {
+      const start = new Date(evento.data_inicio);
+      const isPast = start < new Date();
+
+      candidates.push({
+        type: "event_upcoming",
+        title: isPast ? "Evento em andamento" : "Evento hoje",
+        message: `${formatTime(evento.data_inicio)} — ${evento.titulo}${evento.local ? ` · ${evento.local}` : ""}`,
+        related_module: "calendario",
+        related_id: evento.id,
+        scheduled_for: evento.data_inicio,
+      });
+      continue;
+    }
+
+    if (eventDay === tomorrow) {
+      candidates.push({
+        type: "event_tomorrow",
+        title: "Evento amanhã",
+        message: `${formatTime(evento.data_inicio)} — ${evento.titulo}${evento.local ? ` · ${evento.local}` : ""}`,
+        related_module: "calendario",
+        related_id: evento.id,
+        scheduled_for: evento.data_inicio,
+      });
+    }
+  }
+
+  for (const habit of habits) {
+    if (habit.data !== today) continue;
+    if (habit.status === "concluido") continue;
 
     candidates.push({
-      type: "event_upcoming",
-      title: isPast ? "Evento em andamento" : "Evento chegando",
-      message: `${formatTime(evento.data_inicio)} — ${evento.titulo}${evento.local ? ` · ${evento.local}` : ""}`,
-      related_module: "calendario",
-      related_id: evento.id,
-      scheduled_for: evento.data_inicio,
+      type: "habit_pending",
+      title: "Hábito não concluído",
+      message: `Complete hoje: ${habit.titulo}.`,
+      related_module: "saude",
+      related_id: habit.id,
+      scheduled_for: `${today}T08:00:00.000Z`,
+    });
+  }
+
+  for (const goal of getActiveGoals(goals)) {
+    if (!isAuraGoalBehind(goal)) continue;
+
+    candidates.push({
+      type: "goal_behind",
+      title: "Meta atrasada",
+      message: `"${goal.titulo}" está abaixo do ritmo esperado.`,
+      related_module: null,
+      related_id: goal.id,
+      scheduled_for: nowIso,
     });
   }
 
@@ -172,12 +278,13 @@ export function buildNotificationCandidates(params: {
   }
 
   for (const orcamento of orcamentos) {
-    if (orcamento.status !== "negociacao") continue;
+    const status = normalizeOrcamentoStatus(orcamento.status);
+    if (status !== "enviado" && status !== "negociacao") continue;
 
     candidates.push({
-      type: "budget_negotiation",
-      title: "Orçamento em negociação",
-      message: `${orcamento.tipo_evento} — ${formatBRL(Number(orcamento.valor_total))} aguardando fechamento.`,
+      type: "budget_waiting",
+      title: "Orçamento aguardando resposta",
+      message: `${orcamento.tipo_evento} — ${formatBRL(Number(orcamento.valor_total))} · status ${status}.`,
       related_module: "alvesz",
       related_id: orcamento.id,
       scheduled_for: nowIso,
@@ -195,11 +302,15 @@ export function buildNotificationCandidates(params: {
         related_id: activeGoal.id,
         scheduled_for: nowIso,
       });
-    } else if (isGoalBehind(activeGoal)) {
+    } else if (isRevenueBelowTarget(activeGoal, financialIncome)) {
+      const monthIncome = filterIncomeCurrentMonth(financialIncome).reduce(
+        (sum, row) => sum + Number(row.valor),
+        0
+      );
       candidates.push({
-        type: "financial_goal_behind",
-        title: "Meta financeira atrasada",
-        message: `"${activeGoal.titulo}" — ${formatBRL(Number(activeGoal.valor_atual))} de ${formatBRL(Number(activeGoal.valor_meta))}. Acelere receitas ou ajuste a meta.`,
+        type: "revenue_below_target",
+        title: "Receita abaixo da meta",
+        message: `Receita do mês: ${formatBRL(monthIncome)} · meta: ${formatBRL(Number(activeGoal.valor_meta))}.`,
         related_module: "financeiro",
         related_id: activeGoal.id,
         scheduled_for: nowIso,
@@ -234,4 +345,36 @@ export function notificationMatchesCandidate(
     return notification.related_id === candidate.related_id;
   }
   return notification.title === candidate.title;
+}
+
+export function getUnreadPriorityNotifications(
+  notifications: Notification[]
+): Notification[] {
+  return notifications.filter(
+    (n) =>
+      n.status === "unread" &&
+      AURA_PRIORITY_NOTIFICATION_TYPES.includes(n.type)
+  );
+}
+
+export function buildImportantNotificationsSummary(
+  notifications: Notification[],
+  displayName = "Anderson"
+): string {
+  const unread = getUnreadPriorityNotifications(notifications);
+
+  if (unread.length === 0) {
+    return `${displayName}, nada urgente nas notificações da Aura hoje. Mantenha o ritmo com finanças, hábitos e follow-ups.`;
+  }
+
+  const lines = unread.slice(0, 6).map((n) => {
+    const label = NOTIFICATION_TYPE_LABELS[n.type] ?? n.type;
+    return `• **${label}:** ${n.title} — ${n.message}`;
+  });
+
+  return `${displayName}, você tem **${unread.length} alerta(s) importante(s)** hoje:
+
+${lines.join("\n")}
+
+Abra a Central de Notificações para marcar como lidas e agir na ordem de impacto.`;
 }

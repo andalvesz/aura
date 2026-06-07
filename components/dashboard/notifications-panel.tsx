@@ -15,6 +15,7 @@ import { useNotifications } from "@/hooks/use-notifications";
 import type { Notification } from "@/types/database";
 import {
   getNotificationHref,
+  isNotificationRead,
   NOTIFICATION_TYPE_LABELS,
 } from "@/utils/notifications";
 import { cn } from "@/utils/cn";
@@ -49,7 +50,7 @@ function NotificationItem({
 }) {
   const [busy, setBusy] = useState(false);
   const href = getNotificationHref(notification);
-  const isUnread = notification.status === "unread";
+  const isUnread = !isNotificationRead(notification);
 
   async function handleRead() {
     if (!isUnread) return;
@@ -97,6 +98,9 @@ function NotificationItem({
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-zinc-600">
             <span>{formatWhen(notification.scheduled_for ?? notification.created_at)}</span>
+            <span className={isUnread ? "text-amber-400/90" : "text-zinc-500"}>
+              {isUnread ? "Não lida" : "Lida"}
+            </span>
             {!compact && notification.related_module && (
               <Link href={href} className="text-violet-400 hover:underline">
                 Abrir módulo
@@ -189,7 +193,7 @@ export function NotificationsBell() {
         <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-950/95 shadow-2xl backdrop-blur-xl">
           <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
             <div>
-              <p className="text-[13px] font-medium text-zinc-100">Notificações</p>
+              <p className="text-[13px] font-medium text-zinc-100">Central de Notificações</p>
               <p className="text-[10px] text-zinc-600">
                 {unreadCount > 0 ? `${unreadCount} não lida(s)` : "Tudo em dia"}
               </p>
@@ -283,11 +287,21 @@ export function NotificationsList() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-zinc-100 sm:text-2xl">Notificações</h1>
+          <h1 className="text-xl font-semibold text-zinc-100 sm:text-2xl">
+            🔔 Central de Notificações
+          </h1>
           <p className="mt-0.5 text-sm text-zinc-500">
-            Lembretes e alertas internos da Aura OS
+            A Aura avisa quando algo importante precisa da sua atenção
             {unreadCount > 0 ? ` · ${unreadCount} não lida(s)` : ""}
           </p>
+          <ul className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-zinc-600">
+            <li className="rounded bg-white/[0.04] px-1.5 py-0.5">Follow-up</li>
+            <li className="rounded bg-white/[0.04] px-1.5 py-0.5">Eventos</li>
+            <li className="rounded bg-white/[0.04] px-1.5 py-0.5">Metas</li>
+            <li className="rounded bg-white/[0.04] px-1.5 py-0.5">Hábitos</li>
+            <li className="rounded bg-white/[0.04] px-1.5 py-0.5">Orçamentos</li>
+            <li className="rounded bg-white/[0.04] px-1.5 py-0.5">Receita</li>
+          </ul>
         </div>
         <div className="flex flex-wrap gap-2">
           {unreadCount > 0 && (
@@ -322,7 +336,7 @@ export function NotificationsList() {
           <Bell className="mx-auto size-8 text-zinc-600" />
           <p className="mt-3 text-sm text-zinc-400">Nenhuma notificação por enquanto.</p>
           <p className="mt-1 text-[12px] text-zinc-600">
-            A Aura gera alertas para leads, eventos, missões, conteúdos, treinos e orçamentos.
+            A Aura gera alertas para leads, eventos, metas, hábitos, orçamentos e receita.
           </p>
         </div>
       ) : (

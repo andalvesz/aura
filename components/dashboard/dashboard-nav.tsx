@@ -8,6 +8,7 @@ import {
   MODULES,
   HOME_NAV,
   MEMORY_NAV,
+  NOTIFICATIONS_NAV,
   REPORTS_NAV,
   isModuleActive,
 } from "@/lib/modules";
@@ -30,6 +31,7 @@ export function DashboardNav({
   const ReportsIcon = REPORTS_NAV.icon;
   const GoalsIcon = GOALS_NAV.icon;
   const BiIcon = BI_NAV.icon;
+  const NotificationsIcon = NOTIFICATIONS_NAV.icon;
 
   return (
     <nav className={cn("flex flex-col gap-0.5", className)}>
@@ -74,6 +76,27 @@ export function DashboardNav({
           )}
         />
         {MEMORY_NAV.label}
+      </Link>
+      <Link
+        href={NOTIFICATIONS_NAV.href}
+        onClick={onNavigate}
+        className={cn(
+          "group flex min-h-11 items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-[color,background-color] duration-200 ease-out md:min-h-0 md:px-2 md:py-1.5",
+          isModuleActive(pathname, NOTIFICATIONS_NAV.href)
+            ? "bg-white/[0.06] text-zinc-100"
+            : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300",
+          linkClassName
+        )}
+      >
+        <NotificationsIcon
+          className={cn(
+            "size-[15px] shrink-0",
+            isModuleActive(pathname, NOTIFICATIONS_NAV.href)
+              ? "text-amber-400"
+              : "text-zinc-600 group-hover:text-zinc-400"
+          )}
+        />
+        {NOTIFICATIONS_NAV.label}
       </Link>
       <Link
         href={REPORTS_NAV.href}

@@ -34,6 +34,7 @@ const emptyData: ExecutiveReportData = {
   weekMemories: [],
   goals: [],
   auraXp: null,
+  notifications: [],
 };
 
 describe("Aura Coach", () => {
@@ -45,6 +46,8 @@ describe("Aura Coach", () => {
     assert.equal(detectCoachMode("O que devo postar hoje?"), "post-today");
     assert.equal(detectCoachMode("Como estão minhas metas?"), "goals");
     assert.equal(detectCoachMode("Qual meta está mais atrasada?"), "goals-late");
+    assert.equal(detectCoachMode("Quais missões faltam?"), "xp-missions");
+    assert.equal(detectCoachMode("Tenho algo importante hoje?"), "important-today");
     assert.equal(detectCoachMode("Onde devo focar?"), "opportunity");
     assert.equal(detectCoachMode("alertas"), "alerts");
     assert.equal(detectCoachMode("criar treino"), null);

@@ -12,6 +12,7 @@ import type {
   GrowthLead,
   HealthHabit,
   HealthWorkout,
+  Notification,
 } from "@/types/database";
 import type { AuraXpState } from "@/lib/supabase/services/xp.service";
 import type { AuraGlobalSummaryData } from "@/utils/mentor";
@@ -74,6 +75,7 @@ export type ExecutiveReportData = AuraGlobalSummaryData & {
   weekMemories: AiMemory[];
   goals: Goal[];
   auraXp: AuraXpState | null;
+  notifications: Notification[];
 };
 
 export function formatReportGreeting(name = "você"): string {

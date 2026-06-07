@@ -381,6 +381,7 @@ export function buildAuraCentralOpeningSummary(
       "weekMemories" in data && data.weekMemories ? data.weekMemories : [],
     goals: "goals" in data && data.goals ? data.goals : [],
     auraXp: "auraXp" in data ? data.auraXp ?? null : null,
+    notifications: "notifications" in data && data.notifications ? data.notifications : [],
   };
 
   const name = displayName?.trim() || "você";

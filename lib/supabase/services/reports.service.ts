@@ -24,6 +24,10 @@ import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { listAuraMemories } from "@/lib/supabase/services/ai-memories.service";
 import { syncGoalsProgress } from "@/lib/supabase/services/goals.service";
 import { getAuraXpState } from "@/lib/supabase/services/xp.service";
+import {
+  listNotifications,
+  syncNotifications,
+} from "@/lib/supabase/services/notifications.service";
 import { getWeekRange } from "@/utils/executive-reports";
 import { getActiveGoals } from "@/utils/goals";
 import { getOptionalDataContext, resolveUserDisplayName } from "./context";
@@ -95,6 +99,8 @@ export async function loadExecutiveReportData(): Promise<{
   }
 
   const { state: auraXp } = await getAuraXpState();
+  await syncNotifications();
+  const { notifications } = await listNotifications();
 
   return {
     data: {
@@ -106,6 +112,7 @@ export async function loadExecutiveReportData(): Promise<{
       weekMemories,
       goals,
       auraXp,
+      notifications,
     },
     error: null,
   };

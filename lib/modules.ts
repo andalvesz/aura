@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Bell,
   Brain,
   Building2,
   CalendarDays,
@@ -183,6 +184,12 @@ export const BI_NAV = {
   href: "/dashboard/business-intelligence",
   label: "Business Intelligence",
   icon: BarChart3,
+};
+
+export const NOTIFICATIONS_NAV = {
+  href: "/dashboard/notificacoes",
+  label: "Notificações",
+  icon: Bell,
 };
 
 export function getModule(id: ModuleId): ModuleConfig {

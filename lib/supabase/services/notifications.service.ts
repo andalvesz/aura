@@ -11,9 +11,12 @@ import type {
   Conteudo,
   Evento,
   FinancialGoal,
+  FinancialIncome,
   Gasto,
+  Goal,
   GrowthLead,
   GrowthMission,
+  HealthHabit,
   HealthWorkout,
   Notification,
   Orcamento,
@@ -81,10 +84,13 @@ export async function syncNotifications(): Promise<{
     missions,
     conteudos,
     workouts,
+    habits,
+    goals,
     orcamentos,
     clientes,
     gastos,
     financialGoals,
+    financialIncome,
     existing,
   ] = await Promise.all([
       safeLoad(
@@ -106,6 +112,14 @@ export async function syncNotifications(): Promise<{
         [] as HealthWorkout[]
       ),
       safeLoad(
+        () => new BaseRepository(supabase, "health_habits", userId).findAll("data"),
+        [] as HealthHabit[]
+      ),
+      safeLoad(
+        () => new BaseRepository(supabase, "goals", userId).findAll("data_fim"),
+        [] as Goal[]
+      ),
+      safeLoad(
         () => new OrcamentosRepository(supabase, userId).findAll(),
         [] as Orcamento[]
       ),
@@ -121,6 +135,10 @@ export async function syncNotifications(): Promise<{
         () => new BaseRepository(supabase, "financial_goals", userId).findAll("data_fim"),
         [] as FinancialGoal[]
       ),
+      safeLoad(
+        () => new BaseRepository(supabase, "financial_income", userId).findAll("data"),
+        [] as FinancialIncome[]
+      ),
       notificationsRepo.findAllOrdered(),
     ]);
 
@@ -134,10 +152,13 @@ export async function syncNotifications(): Promise<{
     missions,
     conteudos,
     workouts,
+    habits,
+    goals,
     orcamentos,
     clientes,
     gastos,
     financialGoals,
+    financialIncome,
   });
 
   const unreadExisting = (existing.data ?? []).filter((n) => n.status === "unread");

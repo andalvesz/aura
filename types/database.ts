@@ -451,10 +451,15 @@ export type GrowthContentMemory = {
 export type NotificationType =
   | "lead_followup"
   | "event_upcoming"
+  | "event_tomorrow"
   | "mission_pending"
   | "content_overdue"
   | "workout_planned"
   | "budget_negotiation"
+  | "budget_waiting"
+  | "habit_pending"
+  | "goal_behind"
+  | "revenue_below_target"
   | "financial_goal_behind"
   | "financial_expense_spike"
   | "financial_goal_reached";
