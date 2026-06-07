@@ -23,26 +23,34 @@ export function useEventos() {
     ascending: true,
   });
 
+  const syncToGoogle = useCallback(
+    async (eventoId: string) => {
+      await pushEventoToGoogleApi(eventoId);
+      await crud.refresh();
+    },
+    [crud.refresh]
+  );
+
   const create = useCallback(
     async (payload: Omit<TableInsert<"eventos">, "user_id">) => {
       const result = await crud.create(payload);
       if (result.data?.id) {
-        void pushEventoToGoogleApi(result.data.id);
+        void syncToGoogle(result.data.id);
       }
       return result;
     },
-    [crud.create]
+    [crud.create, syncToGoogle]
   );
 
   const update = useCallback(
     async (id: string, payload: TableUpdate<"eventos">) => {
       const result = await crud.update(id, payload);
       if (result.data?.id) {
-        void pushEventoToGoogleApi(result.data.id);
+        void syncToGoogle(result.data.id);
       }
       return result;
     },
-    [crud.update]
+    [crud.update, syncToGoogle]
   );
 
   const remove = useCallback(

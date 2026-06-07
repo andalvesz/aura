@@ -19,11 +19,26 @@ export function GoogleCalendarPanel({ onImported }: GoogleCalendarPanelProps) {
   useEffect(() => {
     const google = searchParams.get("google");
     if (google === "connected") {
-      toast.success("Google Calendar conectado.");
+      const imported = Number(searchParams.get("imported") ?? "0");
+      const updated = Number(searchParams.get("updated") ?? "0");
+      if (imported > 0 || updated > 0) {
+        toast.success(
+          `Google Calendar conectado. ${imported} evento(s) importado(s), ${updated} atualizado(s).`
+        );
+      } else {
+        toast.success("Google Calendar conectado.");
+      }
+      onImported?.();
+    } else if (google === "no_refresh") {
+      toast.error("Conexão incompleta. Desconecte e conecte novamente com consentimento total.");
+    } else if (google === "save_error") {
+      toast.error("Não foi possível salvar a conexão Google.");
+    } else if (google === "unconfigured") {
+      toast.error("Google Calendar não está configurado no servidor.");
     } else if (google === "error" || google === "denied") {
       toast.error("Não foi possível conectar ao Google Calendar.");
     }
-  }, [searchParams]);
+  }, [searchParams, onImported]);
 
   async function handleImport() {
     const result = await importEvents();

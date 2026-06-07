@@ -5,7 +5,6 @@ import {
   fetchGoogleUserEmail,
   getGoogleCalendarConnection,
   getGoogleOAuthConfig,
-  importGoogleCalendarEvents,
   saveGoogleCalendarConnection,
 } from "@/lib/google-calendar";
 import { GOOGLE_OAUTH_STATE_COOKIE } from "@/lib/google-calendar/config";
@@ -74,19 +73,11 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${calendarioUrl}?google=save_error`);
     }
 
-    const imported = await importGoogleCalendarEvents();
-    const importQuery =
-      imported.error == null
-        ? `&imported=${imported.imported}&updated=${imported.updated}`
-        : "";
-
-    const response = NextResponse.redirect(
-      `${calendarioUrl}?google=connected${importQuery}`
-    );
+    const response = NextResponse.redirect(`${calendarioUrl}?google=connected`);
     response.cookies.delete(GOOGLE_OAUTH_STATE_COOKIE);
     return response;
   } catch (err) {
-    console.error("[google-calendar/callback]", err);
+    console.error("[google/calendar/callback]", err);
     return NextResponse.redirect(`${calendarioUrl}?google=error`);
   }
 }
