@@ -12,7 +12,7 @@ import {
   Wine,
 } from "lucide-react";
 import { useRef, useState } from "react";
-import type { GrowthLead } from "@/types/database";
+import type { GrowthLead, InstagramMarca } from "@/types/database";
 import { parseConteudoSuggestions, type ParsedConteudoSuggestion } from "@/utils/social";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
@@ -77,10 +77,11 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 type AuraSocialProps = {
   leads?: GrowthLead[];
+  marca?: InstagramMarca;
   onSuggestions: (items: ParsedConteudoSuggestion[], kind: string) => void;
 };
 
-export function AuraSocial({ leads = [], onSuggestions }: AuraSocialProps) {
+export function AuraSocial({ leads = [], marca, onSuggestions }: AuraSocialProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState("");
@@ -130,6 +131,7 @@ export function AuraSocial({ leads = [], onSuggestions }: AuraSocialProps) {
           ...(options?.actionId ? { actionId: options.actionId } : {}),
           ...(options?.mode ? { mode: options.mode } : {}),
           ...(options?.leadId ? { leadId: options.leadId } : {}),
+          ...(marca ? { marca } : {}),
         }),
       });
 

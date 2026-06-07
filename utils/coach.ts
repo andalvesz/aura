@@ -35,6 +35,8 @@ import {
 import {
   computeSocialMetrics,
   getConteudoStatusLabel,
+  getFormatoLabel,
+  getSocialGrowthHints,
   normalizeConteudoStatus,
 } from "@/utils/social";
 import {
@@ -47,6 +49,7 @@ import {
   isGoalBehind as isAuraGoalBehind,
   sortGoalsByUrgency,
 } from "@/utils/goals";
+import { isPostTodayQuery, MARCA_LABELS } from "@/utils/instagram";
 
 export type CoachMode =
   | "today"
@@ -56,6 +59,7 @@ export type CoachMode =
   | "opportunity"
   | "goals"
   | "goals-late"
+  | "post-today"
   | "intro";
 
 export const AURA_COACH_ACTION_ID = "aura-coach";
@@ -141,6 +145,8 @@ export function detectCoachMode(
 
   const normalized = normalize(message);
   if (!normalized) return null;
+
+  if (isPostTodayQuery(message)) return "post-today";
 
   if (actionId === "o-que-fazer" || matchesAny(normalized, TODAY_PHRASES)) {
     return "today";
@@ -633,6 +639,61 @@ Nenhuma meta ativa está significativamente atrasada. Continue executando o plan
 **Ação recomendada:** dedique foco a esta meta nos próximos dias — é onde o gap entre ritmo e prazo é maior.`;
 }
 
+export function buildCoachPostTodayResponse(
+  data: ExecutiveReportData,
+  displayName = "Anderson"
+): string {
+  const today = todayIsoDate();
+  const pending = data.conteudos.filter(
+    (c) => normalizeConteudoStatus(c.status) !== "publicado"
+  );
+  const scheduledToday = pending.filter(
+    (c) => c.data_publicacao?.slice(0, 10) === today
+  );
+  const contentInsights = analyzeGrowthLeadContentInsights(data.leads);
+  const hints = getSocialGrowthHints(contentInsights);
+
+  const scheduledLines =
+    scheduledToday.length > 0
+      ? scheduledToday.map(
+          (c) =>
+            `• ${c.titulo} (${getFormatoLabel(c.formato)}${c.marca ? ` — ${MARCA_LABELS[c.marca as keyof typeof MARCA_LABELS] ?? c.marca}` : ""})`
+        )
+      : [];
+
+  const topPending = pending
+    .filter((c) => !scheduledToday.includes(c))
+    .slice(0, 3)
+    .map(
+      (c) =>
+        `• ${c.titulo} — ${getConteudoStatusLabel(normalizeConteudoStatus(c.status))}`
+    );
+
+  const goalHint =
+    getActiveGoals(data.goals).find((g) => g.tipo === "conteudo") ??
+    getActiveGoals(data.goals)[0];
+  const goalLine = goalHint
+    ? `Meta de conteúdo: ${goalHint.titulo} (${computeGoalMetrics(goalHint).pct}%)`
+    : null;
+
+  const recommendation =
+    scheduledToday.length > 0
+      ? `Publique hoje: **${scheduledToday[0]!.titulo}** — já está no calendário.`
+      : hints[0]
+        ? `Priorize conteúdo alinhado ao CRM: ${hints[0]}`
+        : topPending.length > 0
+          ? `Avance no pipeline: **${pending[0]!.titulo}** (grave ou publique).`
+          : "Gere ideias no Instagram Inteligente com base nos seus leads e metas.";
+
+  return `${formatReportGreeting(displayName)}
+
+**O que postar hoje**
+
+${goalLine ? `${goalLine}\n\n` : ""}${scheduledLines.length > 0 ? `**Agendado para hoje**\n${scheduledLines.join("\n")}\n\n` : ""}${topPending.length > 0 ? `**Pipeline prioritário**\n${topPending.join("\n")}\n\n` : ""}${hints.length > 0 ? `**Insights do CRM**\n${hints.map((h) => `• ${h}`).join("\n")}\n\n` : ""}**Recomendação:** ${recommendation}
+
+Abra **Social Media → Instagram Inteligente** para gerar roteiro com IA.`;
+}
+
 export function buildCoachIntroResponse(displayName = "Anderson"): string {
   return `${formatReportGreeting(displayName)}
 
@@ -643,6 +704,7 @@ Posso analisar seus dados reais e orientar decisões. Experimente:
 • **"O que devo fazer hoje?"** — compromissos, leads, tarefas, hábitos e conteúdos
 • **"Como está minha semana?"** — receita, eventos, leads e metas
 • **"Como está minha rotina?"** — hábitos, treinos, leituras e meditações
+• **"O que devo postar hoje?"** — sugestão com dados reais do calendário e CRM
 • **"Como estão minhas metas?"** — progresso de todas as metas ativas
 • **"Qual meta está mais atrasada?"** — foco na meta com maior gap
 • **"Onde devo focar?"** — priorização automática por impacto
@@ -673,6 +735,8 @@ export function resolveCoachResponse(
       return { text: buildCoachGoalsResponse(data, name), mode };
     case "goals-late":
       return { text: buildCoachGoalsLateResponse(data, name), mode };
+    case "post-today":
+      return { text: buildCoachPostTodayResponse(data, name), mode };
     case "intro":
     default:
       return { text: buildCoachIntroResponse(name), mode: "intro" };

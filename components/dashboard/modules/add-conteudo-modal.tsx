@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
-import type { Conteudo } from "@/types/database";
+import type { Conteudo, InstagramMarca } from "@/types/database";
 import {
   CONTEUDO_FORMATOS,
   CONTEUDO_PLATAFORMAS,
@@ -23,12 +23,14 @@ export type ConteudoFormPayload = {
   objetivo: string | null;
   observacoes: string | null;
   roteiro: string | null;
+  marca?: InstagramMarca | null;
 };
 
 type AddConteudoModalProps = {
   open: boolean;
   onClose: () => void;
   initial?: Conteudo | null;
+  defaultMarca?: InstagramMarca;
   onSubmit: (payload: ConteudoFormPayload) => Promise<{ error: string | null }>;
 };
 
@@ -36,6 +38,7 @@ export function AddConteudoModal({
   open,
   onClose,
   initial,
+  defaultMarca,
   onSubmit,
 }: AddConteudoModalProps) {
   const [pending, setPending] = useState(false);
@@ -69,6 +72,7 @@ export function AddConteudoModal({
       objetivo: String(fd.get("objetivo") ?? "").trim() || null,
       observacoes: String(fd.get("observacoes") ?? "").trim() || null,
       roteiro: String(fd.get("roteiro") ?? "").trim() || null,
+      marca: initial?.marca ?? defaultMarca ?? null,
     });
     setPending(false);
 

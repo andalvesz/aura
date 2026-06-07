@@ -40,6 +40,7 @@ describe("Aura Coach", () => {
     assert.equal(detectCoachMode("O que devo fazer hoje?"), "today");
     assert.equal(detectCoachMode("Como está minha semana?"), "executive-week");
     assert.equal(detectCoachMode("Como está minha rotina?"), "performance");
+    assert.equal(detectCoachMode("O que devo postar hoje?"), "post-today");
     assert.equal(detectCoachMode("Como estão minhas metas?"), "goals");
     assert.equal(detectCoachMode("Qual meta está mais atrasada?"), "goals-late");
     assert.equal(detectCoachMode("Onde devo focar?"), "opportunity");

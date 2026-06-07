@@ -227,6 +227,7 @@ export type Conteudo = {
   objetivo: string | null;
   observacoes: string | null;
   roteiro: string | null;
+  marca: InstagramMarca | null;
   created_at: string;
   updated_at: string;
 };
@@ -382,6 +383,8 @@ export type GrowthAction = {
   updated_at: string;
 };
 
+export type InstagramMarca = "marca_pessoal" | "alvesz" | "consorcios";
+
 export type GrowthProfile = {
   id: string;
   user_id: string;
@@ -390,6 +393,10 @@ export type GrowthProfile = {
   nicho: string | null;
   objetivo: string | null;
   observacoes: string | null;
+  marca: InstagramMarca | null;
+  bio: string | null;
+  frequencia_conteudo: string | null;
+  analise: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };
@@ -679,13 +686,21 @@ export type Database = {
         Conteudo,
         Omit<
           Conteudo,
-          "id" | "created_at" | "updated_at" | "formato" | "objetivo" | "observacoes" | "roteiro"
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "formato"
+          | "objetivo"
+          | "observacoes"
+          | "roteiro"
+          | "marca"
         > & {
           id?: string;
           formato?: string | null;
           objetivo?: string | null;
           observacoes?: string | null;
           roteiro?: string | null;
+          marca?: InstagramMarca | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -739,8 +754,21 @@ export type Database = {
       >;
       growth_profiles: TableDef<
         GrowthProfile,
-        Omit<GrowthProfile, "id" | "created_at" | "updated_at"> & {
+        Omit<
+          GrowthProfile,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "marca"
+          | "bio"
+          | "frequencia_conteudo"
+          | "analise"
+        > & {
           id?: string;
+          marca?: InstagramMarca | null;
+          bio?: string | null;
+          frequencia_conteudo?: string | null;
+          analise?: Record<string, unknown> | null;
           created_at?: string;
           updated_at?: string;
         }

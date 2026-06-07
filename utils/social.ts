@@ -36,10 +36,14 @@ export type ConteudoFormato = (typeof CONTEUDO_FORMATOS)[number];
 export const SOCIAL_AI_ACTIONS = [
   "criar-roteiro-reels",
   "calendario-semana",
+  "calendario-mes",
+  "ideias-reels",
+  "ideias-stories",
   "ideias-alvesz",
   "ideias-consorcios",
   "ideias-marca-pessoal",
   "lead-para-conteudo",
+  "post-hoje",
 ] as const;
 
 export type SocialAiAction = (typeof SOCIAL_AI_ACTIONS)[number];
@@ -198,6 +202,7 @@ export type ParsedConteudoSuggestion = {
   data: string | null;
   roteiro: string | null;
   observacoes: string | null;
+  marca: string | null;
 };
 
 function parseSuggestionRow(row: Record<string, unknown>): ParsedConteudoSuggestion | null {
@@ -214,6 +219,7 @@ function parseSuggestionRow(row: Record<string, unknown>): ParsedConteudoSuggest
     data: row.data != null ? String(row.data).slice(0, 10) : null,
     roteiro: row.roteiro != null ? String(row.roteiro).trim() || null : null,
     observacoes: row.observacoes != null ? String(row.observacoes).trim() || null : null,
+    marca: row.marca != null ? String(row.marca) : null,
   };
 }
 

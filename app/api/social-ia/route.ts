@@ -5,7 +5,8 @@ import {
 } from "@/lib/ai/memory-runtime";
 import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
-import type { GrowthLead } from "@/types/database";
+import type { GrowthLead, InstagramMarca } from "@/types/database";
+import { INSTAGRAM_MARCAS, MARCA_LABELS } from "@/utils/instagram";
 import {
   isSocialAiAction,
   SOCIAL_AI_CONTEXT,
@@ -22,9 +23,18 @@ type ChatMessage = {
   content: string;
 };
 
+type SocialIaMode =
+  | "chat"
+  | "calendario"
+  | "calendario-mes"
+  | "ideias"
+  | "ideias-stories"
+  | "roteiro"
+  | "post-hoje";
+
 const ACTION_DEFAULTS: Record<
   SocialAiAction,
-  { mode: "chat" | "calendario" | "ideias" | "roteiro"; message: string }
+  { mode: SocialIaMode; message: string }
 > = {
   "criar-roteiro-reels": {
     mode: "roteiro",
@@ -56,6 +66,25 @@ const ACTION_DEFAULTS: Record<
     message:
       "Transforme os leads atuais do CRM em ideias de conteúdo personalizadas com gancho e CTA para captação.",
   },
+  "calendario-mes": {
+    mode: "calendario-mes",
+    message:
+      "Monte o calendário de conteúdo deste mês com título, plataforma, formato, objetivo e data para cada publicação.",
+  },
+  "ideias-reels": {
+    mode: "ideias",
+    message:
+      "Gere 7 ideias de Reels para Instagram com gancho, objetivo e CTA baseadas nos dados reais.",
+  },
+  "ideias-stories": {
+    mode: "ideias-stories",
+    message:
+      "Gere 7 ideias de Stories para Instagram com interação, CTA e sequência narrativa.",
+  },
+  "post-hoje": {
+    mode: "post-hoje",
+    message: "O que devo postar hoje? Sugira conteúdo concreto com base nos dados reais.",
+  },
 };
 
 function resolveError(error: unknown, fallback: string): string {
@@ -81,6 +110,18 @@ function buildLeadContext(lead: GrowthLead): string {
 Crie 3 ideias de conteúdo que ajudem a converter ou nutrir este lead, sem expor dados sensíveis publicamente.`;
 }
 
+function monthDates(): string[] {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const last = new Date(y, m + 1, 0).getDate();
+  const dates: string[] = [];
+  for (let d = 1; d <= last; d++) {
+    dates.push(new Date(y, m, d).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
 function weekDates(): string[] {
   const now = new Date();
   const start = new Date(now);
@@ -102,6 +143,7 @@ export async function POST(req: Request) {
       actionId?: string;
       history?: unknown;
       leadId?: string;
+      marca?: string;
     }>(req);
 
     if (bodyError || !body) {
@@ -150,8 +192,13 @@ export async function POST(req: Request) {
       );
     }
 
+    const marcaRaw = typeof body.marca === "string" ? body.marca.trim() : "";
+    const marca = INSTAGRAM_MARCAS.some((m) => m.id === marcaRaw)
+      ? (marcaRaw as InstagramMarca)
+      : null;
+
     const { context: dataContext, leads, error: dataError } =
-      await getSocialIaMentorContext();
+      await getSocialIaMentorContext({ marca });
 
     if (dataError === "Usuário não autenticado.") {
       return Response.json({ error: "Faça login para usar a IA Social." }, { status: 401 });
@@ -165,9 +212,13 @@ export async function POST(req: Request) {
     const selectedLead = leadId ? leads.find((l) => l.id === leadId) : null;
     const leadSection = selectedLead ? `\n\n${buildLeadContext(selectedLead)}` : "";
 
+    const marcaSection = marca
+      ? `\n\nMarca ativa: ${MARCA_LABELS[marca]}. Priorize conteúdo para esta marca.`
+      : "";
+
     const systemPrompt = `${SOCIAL_AI_CONTEXT}
 
-${dataContext ?? "## DADOS\nNenhum dado disponível."}${leadSection}`;
+${dataContext ?? "## DADOS\nNenhum dado disponível."}${leadSection}${marcaSection}`;
 
     const mergedHistory = await resolveMergedHistory("social", history);
 
@@ -213,6 +264,134 @@ Use estas datas da semana atual: ${dates.join(", ")}. Gere 7 conteúdos (um por 
         suggestion: parsed,
         text,
       });
+    }
+
+    if (mode === "calendario-mes") {
+      const dates = monthDates();
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${systemPrompt}
+
+Responda APENAS JSON:
+{
+  "resumo": "string curta",
+  "conteudos": [
+    {
+      "titulo": "string",
+      "plataforma": "instagram",
+      "formato": "reel|story|post",
+      "objetivo": "string",
+      "data": "YYYY-MM-DD",
+      "marca": "marca_pessoal|alvesz|consorcios",
+      "observacoes": "string opcional"
+    }
+  ]
+}
+Distribua conteúdos ao longo do mês (${dates[0]} a ${dates[dates.length - 1]}). Gere 12 a 16 itens.`,
+          },
+          { role: "user", content: message },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content ?? "{}";
+      const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
+      const text =
+        typeof parsed.resumo === "string" ? parsed.resumo : "Calendário mensal gerado.";
+
+      await persistAiTurn("social", message, text, { kind: "calendario", marca });
+
+      return Response.json({ kind: "calendario-mes", suggestion: parsed, text });
+    }
+
+    if (mode === "ideias-stories") {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${systemPrompt}
+
+Responda APENAS JSON:
+{
+  "resumo": "string curta",
+  "ideias": [
+    {
+      "titulo": "string",
+      "plataforma": "instagram",
+      "formato": "story",
+      "objetivo": "string",
+      "gancho": "string",
+      "marca": "marca_pessoal|alvesz|consorcios",
+      "observacoes": "string opcional"
+    }
+  ]
+}
+Gere 7 ideias de Stories.`,
+          },
+          { role: "user", content: message },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content ?? "{}";
+      const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
+      const text =
+        typeof parsed.resumo === "string" ? parsed.resumo : "Ideias de Stories geradas.";
+
+      await persistAiTurn("social", message, text, { kind: "ideias", marca });
+
+      return Response.json({ kind: "ideias-stories", suggestion: parsed, text });
+    }
+
+    if (mode === "post-hoje") {
+      const today = new Date().toISOString().slice(0, 10);
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${systemPrompt}
+
+Hoje: ${today}
+
+Responda APENAS JSON:
+{
+  "resumo": "recomendação executiva curta",
+  "prioridade": "marca_pessoal|alvesz|consorcios",
+  "conteudos": [
+    {
+      "titulo": "string",
+      "plataforma": "instagram",
+      "formato": "reel|story|post",
+      "objetivo": "string",
+      "data": "${today}",
+      "marca": "marca_pessoal|alvesz|consorcios",
+      "roteiro": "roteiro ou outline curto",
+      "observacoes": "por que postar isso hoje com base nos dados"
+    }
+  ]
+}
+Sugira 1 a 3 conteúdos para hoje usando leads, eventos, metas e finanças reais.`,
+          },
+          { role: "user", content: message },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content ?? "{}";
+      const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
+      const text =
+        typeof parsed.resumo === "string"
+          ? parsed.resumo
+          : "Sugestão de post para hoje gerada.";
+
+      await persistAiTurn("social", message, text, { kind: "ideias", marca });
+
+      return Response.json({ kind: "post-hoje", suggestion: parsed, text });
     }
 
     if (mode === "ideias") {

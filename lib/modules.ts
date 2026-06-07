@@ -98,9 +98,9 @@ export const MODULES: ModuleConfig[] = [
   {
     id: "social-media",
     href: "/dashboard/social-media",
-    label: "Social Media Creator",
+    label: "Instagram Inteligente",
     shortLabel: "Social Media",
-    description: "Conteúdo, vídeos, roteiros e planejamento.",
+    description: "Centro de crescimento: perfis, calendário, pipeline e IA.",
     icon: Share2,
     accent: "text-amber-400",
     overview: {
