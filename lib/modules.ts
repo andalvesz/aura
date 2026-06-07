@@ -11,6 +11,7 @@ import {
   Mail,
   Rocket,
   Share2,
+  Stethoscope,
   Target,
   Wallet,
 } from "lucide-react";
@@ -190,6 +191,12 @@ export const NOTIFICATIONS_NAV = {
   href: "/dashboard/notificacoes",
   label: "Notificações",
   icon: Bell,
+};
+
+export const DIAGNOSTICS_NAV = {
+  href: "/dashboard/diagnostico",
+  label: "Diagnóstico",
+  icon: Stethoscope,
 };
 
 export function getModule(id: ModuleId): ModuleConfig {
