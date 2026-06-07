@@ -5,6 +5,7 @@ import {
   buildDailyExecutiveReport,
   buildWeeklyExecutiveReport,
   formatReportGreeting,
+  hasWeeklyReportData,
   isExecutiveReportQuery,
   isInDateRange,
 } from "./executive-reports";
@@ -31,11 +32,13 @@ const emptyData = {
   financialGoals: [],
   financialBalance: null,
   alveszEventos: [],
+  weekMemories: [],
 } satisfies AuraGlobalSummaryData & {
   financialIncome: [];
   financialGoals: [];
   financialBalance: null;
   alveszEventos: [];
+  weekMemories: [];
 };
 
 describe("executive-reports", () => {
@@ -56,8 +59,14 @@ describe("executive-reports", () => {
   it("monta relatório semanal com métricas", () => {
     const report = buildWeeklyExecutiveReport(emptyData);
     assert.match(report.text, /Relatório semanal/);
-    assert.match(report.text, /Receita da semana/);
+    assert.match(report.text, /Receitas da semana/);
+    assert.match(report.text, /Despesas da semana/);
     assert.match(report.text, /Leads criados/);
+    assert.match(report.text, /Memória da Aura/);
+  });
+
+  it("detecta semana sem dados", () => {
+    assert.equal(hasWeeklyReportData(emptyData), false);
   });
 
   it("detecta pedido de relatório", () => {

@@ -317,6 +317,7 @@ export async function POST(req: Request) {
           financialGoals: [],
           financialBalance: null,
           alveszEventos: [],
+          weekMemories: [],
         }, displayName);
         await persistAiTurn("aura_central", message, text, { kind: "coach", coachMode });
         return Response.json({ text, module: "global", kind: "coach", coachMode });

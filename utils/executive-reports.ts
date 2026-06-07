@@ -1,10 +1,12 @@
 import type {
+  AiMemory,
   AlveszEvento,
   Conteudo,
   Evento,
   FinancialBalance,
   FinancialGoal,
   FinancialIncome,
+  Gasto,
   GrowthGoal,
   GrowthLead,
   HealthHabit,
@@ -25,6 +27,8 @@ import {
 import { filterUpcomingEventos } from "@/utils/nexus";
 import { normalizeConteudoStatus } from "@/utils/social";
 import { todayIsoDate } from "@/utils/health";
+import { AI_MEMORY_CATEGORY_LABELS } from "@/utils/aura-memory";
+import { truncatePreview } from "@/utils/memory";
 
 export type ExecutiveReportType = "daily" | "weekly" | "monthly";
 
@@ -64,6 +68,7 @@ export type ExecutiveReportData = AuraGlobalSummaryData & {
   financialGoals: FinancialGoal[];
   financialBalance: FinancialBalance | null;
   alveszEventos: AlveszEvento[];
+  weekMemories: AiMemory[];
 };
 
 export function formatReportGreeting(name = "você"): string {
@@ -106,6 +111,51 @@ function sumIncomeInRange(income: FinancialIncome[], start: string, end: string)
   return income
     .filter((i) => isInDateRange(i.data, start, end))
     .reduce((s, i) => s + Number(i.valor), 0);
+}
+
+function sumGastosInRange(gastos: Gasto[], start: string, end: string): number {
+  return gastos
+    .filter((g) => isInDateRange(g.data, start, end))
+    .reduce((s, g) => s + Number(g.valor), 0);
+}
+
+export function hasWeeklyReportData(data: ExecutiveReportData): boolean {
+  const { start, end } = getWeekRange();
+  const weekIncome = sumIncomeInRange(data.financialIncome, start, end);
+  const weekExpenses = sumGastosInRange(data.gastos, start, end);
+  const leadsCreated = data.leads.filter((l) =>
+    isInDateRange(l.created_at, start, end)
+  ).length;
+  const leadsClosed = data.leads.filter(
+    (l) => l.status === "fechado" && isInDateRange(l.updated_at, start, end)
+  ).length;
+  const eventsDone = [
+    ...data.eventos.filter((e) => isInDateRange(e.data_inicio, start, end)),
+    ...data.alveszEventos.filter((e) => isInDateRange(e.data_evento, start, end)),
+  ].length;
+  const contentPublished = data.conteudos.filter(
+    (c) =>
+      normalizeConteudoStatus(c.status) === "publicado" &&
+      isInDateRange(c.data_publicacao ?? c.updated_at, start, end)
+  ).length;
+  const workoutsDone = data.healthWorkouts.filter((w) =>
+    isInDateRange(w.data, start, end)
+  ).length;
+  const habitsDone = data.healthHabits.filter(
+    (h) => h.status === "concluido" && isInDateRange(h.data, start, end)
+  ).length;
+
+  return (
+    weekIncome > 0 ||
+    weekExpenses > 0 ||
+    leadsCreated > 0 ||
+    leadsClosed > 0 ||
+    eventsDone > 0 ||
+    contentPublished > 0 ||
+    workoutsDone > 0 ||
+    habitsDone > 0 ||
+    data.weekMemories.length > 0
+  );
 }
 
 function buildPdfMeta(type: ExecutiveReportType): ExecutiveReportPdfMeta {
@@ -214,16 +264,20 @@ export function buildDailyExecutiveReport(
 export function buildWeeklyExecutiveReport(data: ExecutiveReportData): ExecutiveReportPayload {
   const { start, end } = getWeekRange();
   const weekIncome = sumIncomeInRange(data.financialIncome, start, end);
+  const weekExpenses = sumGastosInRange(data.gastos, start, end);
   const leadsCreated = data.leads.filter((l) =>
     isInDateRange(l.created_at, start, end)
   ).length;
   const leadsClosed = data.leads.filter(
     (l) => l.status === "fechado" && isInDateRange(l.updated_at, start, end)
   ).length;
-  const eventsDone = [
-    ...data.eventos.filter((e) => isInDateRange(e.data_inicio, start, end)),
-    ...data.alveszEventos.filter((e) => isInDateRange(e.data_evento, start, end)),
-  ].length;
+  const calendarEvents = data.eventos.filter((e) =>
+    isInDateRange(e.data_inicio, start, end)
+  ).length;
+  const alveszEvents = data.alveszEventos.filter((e) =>
+    isInDateRange(e.data_evento, start, end)
+  ).length;
+  const eventsDone = calendarEvents + alveszEvents;
   const contentPublished = data.conteudos.filter(
     (c) =>
       normalizeConteudoStatus(c.status) === "publicado" &&
@@ -235,25 +289,79 @@ export function buildWeeklyExecutiveReport(data: ExecutiveReportData): Executive
   const habitsDone = data.healthHabits.filter(
     (h) => h.status === "concluido" && isInDateRange(h.data, start, end)
   ).length;
+  const orcamentosWeek = data.orcamentos.filter((o) =>
+    isInDateRange(o.created_at, start, end)
+  ).length;
 
-  const metrics = [
-    `Receita da semana: ${formatBRL(weekIncome)}`,
-    `Leads criados: ${leadsCreated}`,
-    `Leads fechados: ${leadsClosed}`,
-    `Eventos realizados: ${eventsDone}`,
-    `Conteúdos publicados: ${contentPublished}`,
-    `Treinos concluídos: ${workoutsDone}`,
-    `Hábitos concluídos: ${habitsDone}`,
-  ];
+  const memoryLines =
+    data.weekMemories.length > 0
+      ? data.weekMemories.slice(0, 5).map(
+          (m) =>
+            `${AI_MEMORY_CATEGORY_LABELS[m.categoria]} — ${m.titulo}: ${truncatePreview(m.conteudo, 100)}`
+        )
+      : ["Nenhuma memória registrada nesta semana."];
 
   const sections = [
     {
-      label: `Semana (${formatDate(start)} – ${formatDate(end)})`,
-      lines: metrics,
+      label: "Financeiro",
+      lines: [
+        `Receitas da semana: ${formatBRL(weekIncome)}`,
+        `Despesas da semana: ${formatBRL(weekExpenses)}`,
+        `Saldo da semana: ${formatBRL(weekIncome - weekExpenses)}`,
+      ],
+    },
+    {
+      label: "Crescimento / CRM",
+      lines: [
+        `Leads criados: ${leadsCreated}`,
+        `Leads fechados: ${leadsClosed}`,
+      ],
+    },
+    {
+      label: "Calendário",
+      lines: [`Eventos realizados: ${calendarEvents}`],
+    },
+    {
+      label: "Alvesz",
+      lines: [
+        `Eventos Alvesz: ${alveszEvents}`,
+        `Orçamentos criados: ${orcamentosWeek}`,
+      ],
+    },
+    {
+      label: "Saúde",
+      lines: [
+        `Treinos realizados: ${workoutsDone}`,
+        `Hábitos concluídos: ${habitsDone}`,
+      ],
+    },
+    {
+      label: "Social Media",
+      lines: [`Conteúdos publicados: ${contentPublished}`],
+    },
+    {
+      label: "Memória da Aura",
+      lines: memoryLines,
+    },
+    {
+      label: `Resumo (${formatDate(start)} – ${formatDate(end)})`,
+      lines: [
+        `Receitas: ${formatBRL(weekIncome)}`,
+        `Despesas: ${formatBRL(weekExpenses)}`,
+        `Leads criados: ${leadsCreated}`,
+        `Leads fechados: ${leadsClosed}`,
+        `Eventos realizados: ${eventsDone}`,
+        `Conteúdos publicados: ${contentPublished}`,
+        `Treinos realizados: ${workoutsDone}`,
+        `Hábitos concluídos: ${habitsDone}`,
+      ],
     },
   ];
 
-  const text = `Relatório semanal\n${formatDate(start)} – ${formatDate(end)}\n\n${metrics.map((m) => `- ${m}`).join("\n")}`;
+  const text = `Relatório semanal — ${formatDate(start)} a ${formatDate(end)}\n\n${sections
+    .filter((s) => s.label !== `Resumo (${formatDate(start)} – ${formatDate(end)})`)
+    .map((s) => `${s.label}:\n${s.lines.map((l) => `- ${l}`).join("\n")}`)
+    .join("\n\n")}`;
 
   return {
     type: "weekly",
@@ -394,9 +502,16 @@ export function buildReportAnalysisFallback(
   const naoFuncionou: string[] = [];
 
   if (report.type === "weekly") {
-    const closedLine = report.sections[0]?.lines.find((l) => l.startsWith("Leads fechados"));
+    const crmSection = report.sections.find((s) => s.label.includes("Crescimento"));
+    const closedLine = crmSection?.lines.find((l) => l.startsWith("Leads fechados"));
     if (closedLine && !closedLine.endsWith(": 0")) funcionou.push("Fechamentos na semana.");
     else naoFuncionou.push("Sem fechamentos na semana — reforçar follow-up.");
+
+    const financeSection = report.sections.find((s) => s.label === "Financeiro");
+    const incomeLine = financeSection?.lines.find((l) => l.startsWith("Receitas"));
+    if (incomeLine && !incomeLine.includes("R$ 0,00")) {
+      funcionou.push("Receitas registradas na semana.");
+    }
   }
 
   if (metrics.fechados > 0) funcionou.push(`${metrics.fechados} lead(s) fechado(s) no CRM.`);

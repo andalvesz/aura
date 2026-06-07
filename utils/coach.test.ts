@@ -31,6 +31,7 @@ const emptyData: ExecutiveReportData = {
   financialGoals: [],
   financialBalance: null,
   alveszEventos: [],
+  weekMemories: [],
 };
 
 describe("Aura Coach", () => {

@@ -377,6 +377,8 @@ export function buildAuraCentralOpeningSummary(
       "financialBalance" in data ? data.financialBalance ?? null : null,
     alveszEventos:
       "alveszEventos" in data && data.alveszEventos ? data.alveszEventos : [],
+    weekMemories:
+      "weekMemories" in data && data.weekMemories ? data.weekMemories : [],
   };
 
   const name = displayName?.trim() || "você";

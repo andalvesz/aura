@@ -4,6 +4,7 @@ import {
   Building2,
   CalendarDays,
   Dumbbell,
+  FileText,
   Home,
   Mail,
   Rocket,
@@ -163,6 +164,12 @@ export const MEMORY_NAV = {
   href: "/dashboard/memoria",
   label: "Memória",
   icon: Brain,
+};
+
+export const REPORTS_NAV = {
+  href: "/dashboard/relatorios",
+  label: "Relatórios",
+  icon: FileText,
 };
 
 export function getModule(id: ModuleId): ModuleConfig {
