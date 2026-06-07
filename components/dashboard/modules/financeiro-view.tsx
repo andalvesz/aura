@@ -314,15 +314,15 @@ export function FinanceiroView() {
                 {stats.monthIncome.map((i) => (
                   <li
                     key={i.id}
-                    className="flex items-center justify-between rounded-md px-2 py-2 transition-colors hover:bg-white/[0.03]"
+                    className="flex items-center justify-between gap-2 rounded-md px-2 py-2 transition-colors hover:bg-white/[0.03]"
                   >
-                    <div>
-                      <p className="text-[13px] text-zinc-200">{i.descricao}</p>
-                      <p className="text-[11px] text-zinc-600">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] text-zinc-200">{i.descricao}</p>
+                      <p className="truncate text-[11px] text-zinc-600">
                         {getIncomeOrigemLabel(i.origem)}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <p className="text-[13px] font-medium text-emerald-300/90">
                         {formatBRL(Number(i.valor))}
                       </p>
@@ -359,15 +359,15 @@ export function FinanceiroView() {
                 {stats.monthGastos.map((g) => (
                   <li
                     key={g.id}
-                    className="flex items-center justify-between rounded-md px-2 py-2 transition-colors hover:bg-white/[0.03]"
+                    className="flex items-center justify-between gap-2 rounded-md px-2 py-2 transition-colors hover:bg-white/[0.03]"
                   >
-                    <div>
-                      <p className="text-[13px] text-zinc-200">{g.titulo}</p>
-                      <p className="text-[11px] text-zinc-600">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] text-zinc-200">{g.titulo}</p>
+                      <p className="truncate text-[11px] text-zinc-600">
                         {getCategoryLabel(g.categoria)}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <p className="text-[13px] font-medium text-zinc-200">
                         {formatBRL(Number(g.valor))}
                       </p>

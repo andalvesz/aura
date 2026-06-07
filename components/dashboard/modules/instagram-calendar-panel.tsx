@@ -8,6 +8,7 @@ import {
   getConteudoStatusLabel,
   normalizeConteudoStatus,
 } from "@/utils/social";
+import { MOBILE_SCROLL_HINT_CLASS } from "@/utils/dashboard-mobile";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 
 type InstagramCalendarPanelProps = {
@@ -45,8 +46,9 @@ export function InstagramCalendarPanel({
         </div>
       </PanelHeader>
       <PanelContent className="overflow-x-auto pt-0">
+        <p className={MOBILE_SCROLL_HINT_CLASS}>Deslize horizontalmente para ver o calendário →</p>
         {view === "semana" ? (
-          <div className="grid min-w-[420px] grid-cols-7 gap-1">
+          <div className="grid w-full min-w-0 grid-cols-7 gap-1">
             {semana.map((d) => (
               <DayCell
                 key={d.date}
@@ -60,7 +62,7 @@ export function InstagramCalendarPanel({
         ) : (
           <div>
             <p className="mb-2 text-[11px] text-zinc-500">{mes.monthLabel}</p>
-            <div className="grid min-w-[560px] grid-cols-7 gap-1">
+            <div className="grid min-w-[336px] grid-cols-7 gap-0.5 sm:min-w-[560px] sm:gap-1">
               {["S", "T", "Q", "Q", "S", "S", "D"].map((h) => (
                 <p key={h} className="text-center text-[9px] text-zinc-600">
                   {h}

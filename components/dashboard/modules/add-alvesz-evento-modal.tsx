@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { FORM_GRID_2_CLASS } from "@/utils/dashboard-mobile";
 import type { AlveszEvento, Cliente } from "@/types/database";
 
 type AddAlveszEventoModalProps = {
@@ -72,7 +73,7 @@ export function AddAlveszEventoModal({
     >
       <form onSubmit={handleSubmit} className="space-y-3" key={initial?.id ?? "new"}>
         <Field label="Título" name="titulo" defaultValue={initial?.titulo} required />
-        <div className="grid grid-cols-2 gap-2">
+        <div className={FORM_GRID_2_CLASS}>
           <Field
             label="Data"
             name="data_evento"

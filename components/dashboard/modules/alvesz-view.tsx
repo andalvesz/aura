@@ -229,20 +229,22 @@ export function AlveszView() {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
         <ActionButton
           icon={<Plus className="size-3.5" />}
+          className="w-full sm:w-auto"
           onClick={() => setOrcamentoModal(true)}
         >
           Novo orçamento
         </ActionButton>
-        <ActionButton onClick={() => setClienteModal(true)}>
+        <ActionButton className="w-full sm:w-auto" onClick={() => setClienteModal(true)}>
           Novo cliente
         </ActionButton>
-        <ActionButton onClick={() => setEventoModal(true)}>
+        <ActionButton className="w-full sm:w-auto" onClick={() => setEventoModal(true)}>
           Novo evento
         </ActionButton>
         <ActionButton
+          className="w-full sm:w-auto"
           onClick={() => {
             setEditingEstoque(null);
             setEstoqueModal(true);
@@ -255,7 +257,7 @@ export function AlveszView() {
       {loading ? (
         <MetricsSkeleton />
       ) : (
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Orçamentos"
             value={String(orcamentos.length)}
@@ -323,7 +325,7 @@ export function AlveszView() {
           <PanelHeader>
             <PanelTitle>Estoque</PanelTitle>
           </PanelHeader>
-          <PanelContent className="overflow-x-auto pt-0">
+          <PanelContent className="-mx-3 overflow-x-auto px-3 pt-0">
             {loadingEstoque ? (
               <ListSkeleton rows={5} />
             ) : estoque.length === 0 ? (
@@ -342,10 +344,10 @@ export function AlveszView() {
                 }
               />
             ) : (
-              <table className="w-full min-w-[220px] text-[12px]">
+              <table className="w-full min-w-[280px] text-[12px]">
                 <thead>
                   <tr className="text-left text-[10px] text-zinc-600">
-                    <th className="pb-2 font-medium">Item</th>
+                    <th className="max-w-[120px] pb-2 font-medium">Item</th>
                     <th className="pb-2 font-medium">Qtd</th>
                     <th className="pb-2 font-medium">Status</th>
                     <th className="pb-2" />
@@ -362,10 +364,10 @@ export function AlveszView() {
                         key={row.id}
                         className="border-t border-white/[0.04] text-zinc-300"
                       >
-                        <td className="py-2">
+                        <td className="max-w-[120px] py-2">
                           <button
                             type="button"
-                            className="hover:text-zinc-100"
+                            className="block max-w-full truncate text-left hover:text-zinc-100"
                             onClick={() => {
                               setEditingEstoque(row);
                               setEstoqueModal(true);
@@ -547,7 +549,7 @@ export function AlveszView() {
           <PanelTitle>Simulador de precificação</PanelTitle>
         </PanelHeader>
         <PanelContent className="grid gap-3 pt-0 sm:grid-cols-2">
-          <div className="grid grid-cols-2 gap-2 text-[11px]">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-[11px]">
             <label className="text-zinc-600">
               Convidados
               <input

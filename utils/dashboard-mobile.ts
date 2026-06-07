@@ -24,3 +24,16 @@ export const METRICS_GRID_CLASS = "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid
 
 export const METRICS_GRID_WIDE_CLASS =
   "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5";
+
+/** Grids de formulário em modais — coluna única abaixo de 640px. */
+export const FORM_GRID_2_CLASS = "grid grid-cols-1 gap-2 sm:grid-cols-2";
+
+export const FORM_GRID_3_CLASS = "grid grid-cols-1 gap-2 sm:grid-cols-3";
+
+/** Pipeline/kanban: coluna única no mobile estreito (360–430px). */
+export const PIPELINE_GRID_CLASS =
+  "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4";
+
+/** Indica scroll horizontal intencional em painéis wide. */
+export const MOBILE_SCROLL_HINT_CLASS =
+  "mb-2 text-[10px] text-zinc-600 sm:hidden";

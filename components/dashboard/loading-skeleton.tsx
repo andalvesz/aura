@@ -13,7 +13,7 @@ export function LoadingSkeleton({ className }: { className?: string }) {
 
 export function MetricsSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-2 xl:grid-cols-3 2xl:grid-cols-6">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
       {Array.from({ length: count }).map((_, i) => (
         <LoadingSkeleton key={i} className="h-[72px]" />
       ))}

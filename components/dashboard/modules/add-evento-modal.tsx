@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import type { Evento, GrowthLead } from "@/types/database";
+import { FORM_GRID_2_CLASS } from "@/utils/dashboard-mobile";
 import {
   buildEventoDateTime,
   EVENTO_TIPOS,
@@ -125,7 +126,7 @@ export function AddEventoModal({
           onChange={setDescricao}
           placeholder="Opcional"
         />
-        <div className="grid grid-cols-2 gap-2">
+        <div className={FORM_GRID_2_CLASS}>
           <label className="block text-[12px] text-zinc-500">
             Data
             <input

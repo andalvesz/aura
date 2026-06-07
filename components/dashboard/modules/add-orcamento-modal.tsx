@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
+import { FORM_GRID_2_CLASS } from "@/utils/dashboard-mobile";
 import type { Cliente } from "@/types/database";
 import { ORCAMENTO_STATUSES } from "@/utils/alvesz-integration";
 import { calcLucroEstimado } from "@/utils/alvesz";
@@ -107,7 +108,7 @@ export function AddOrcamentoModal({
           </select>
         </label>
         <Field label="Tipo de evento" name="tipo_evento" placeholder="Premium Open Bar" required />
-        <div className="grid grid-cols-2 gap-2">
+        <div className={FORM_GRID_2_CLASS}>
           <Field label="Convidados" name="convidados" type="number" min="1" required />
           <Field
             label="Valor total (R$)"
@@ -120,7 +121,7 @@ export function AddOrcamentoModal({
             onChange={(e) => setValorTotal(Number(e.target.value) || 0)}
           />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className={FORM_GRID_2_CLASS}>
           <Field label="Data do evento" name="data_evento" type="date" />
           <label className="block text-[12px] text-zinc-500">
             Status

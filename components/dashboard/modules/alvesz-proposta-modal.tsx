@@ -238,7 +238,7 @@ export function AlveszPropostaModal({
       onClose={onClose}
       title="Proposta comercial"
       description="Alvesz Experience — PDF premium, IA e envio"
-      className="max-w-2xl"
+      className="max-w-[min(100vw,42rem)] sm:max-w-2xl"
     >
       <div className="space-y-3">
         <textarea

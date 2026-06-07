@@ -55,7 +55,7 @@ export function CommsDashboardCard() {
             Carregando...
           </div>
         ) : stats ? (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
               <div className="flex items-center gap-1 text-[10px] text-zinc-500">
                 <Send className="size-3" />

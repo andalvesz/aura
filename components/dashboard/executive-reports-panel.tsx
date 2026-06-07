@@ -135,7 +135,7 @@ export function ExecutiveReportsPanel() {
           </p>
         ) : (
           <>
-            <pre className="max-h-[min(40vh,320px)] overflow-y-auto whitespace-pre-wrap rounded-md border border-white/[0.06] bg-zinc-950/50 p-3 font-sans text-[12px] leading-relaxed text-zinc-300">
+            <pre className="max-h-[min(40vh,320px)] overflow-x-auto overflow-y-auto break-words whitespace-pre-wrap rounded-md border border-white/[0.06] bg-zinc-950/50 p-3 font-sans text-[12px] leading-relaxed text-zinc-300">
               {report.text}
             </pre>
 

@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { FORM_GRID_2_CLASS } from "@/utils/dashboard-mobile";
 import { HEALTH_HABIT_FREQUENCIAS, HEALTH_HABIT_STATUSES, todayIsoDate } from "@/utils/health";
 
 type AddHealthHabitModalProps = {
@@ -65,7 +66,7 @@ export function AddHealthHabitModal({ open, onClose, onSubmit }: AddHealthHabitM
             ))}
           </select>
         </label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className={FORM_GRID_2_CLASS}>
           <label className="block text-[12px] text-zinc-500">
             Status
             <select

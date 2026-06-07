@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
+import { FORM_GRID_2_CLASS } from "@/utils/dashboard-mobile";
 import type { GoalTipo } from "@/types/database";
 import { GOAL_TIPO_OPTIONS } from "@/utils/goals";
 import { resetHtmlForm } from "@/utils/html-form";
@@ -136,7 +137,7 @@ export function AddGoalModal({ open, onClose, onSubmit }: AddGoalModalProps) {
           </label>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className={FORM_GRID_2_CLASS}>
           <label className="block text-[12px] text-zinc-400">
             Início
             <input

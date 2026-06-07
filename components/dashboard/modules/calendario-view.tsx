@@ -241,7 +241,7 @@ export function CalendarioView() {
           Novo evento
         </ActionButton>
         {suggestion && (
-          <ActionButton onClick={() => openCreate(suggestion)}>
+          <ActionButton className="w-full sm:w-auto" onClick={() => openCreate(suggestion)}>
             Confirmar sugestão IA
           </ActionButton>
         )}

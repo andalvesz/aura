@@ -18,6 +18,7 @@ import {
   type LeadStatus,
 } from "@/utils/consorcios";
 import { formatTime } from "@/utils/format";
+import { PIPELINE_GRID_CLASS } from "@/utils/dashboard-mobile";
 import { ActionButton } from "../action-button";
 import { MetricCard } from "../metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
@@ -49,15 +50,17 @@ export function ConsorciosView() {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
         <ActionButton
           icon={<Banknote className="size-3.5" />}
+          className="w-full sm:w-auto"
           onClick={() => setComissaoModalOpen(true)}
         >
           Comissão recebida
         </ActionButton>
         <ActionButton
           icon={<Plus className="size-3.5" />}
+          className="w-full sm:w-auto"
           onClick={() => setModalOpen(true)}
         >
           Novo lead
@@ -67,7 +70,7 @@ export function ConsorciosView() {
       {loading ? (
         <MetricsSkeleton />
       ) : (
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Total leads" value={String(leads.length)} hint="Pipeline" />
           <MetricCard label="Propostas" value={String(propostas)} />
           <MetricCard label="Leads hoje" value={String(leadsToday.length)} />
@@ -85,7 +88,7 @@ export function ConsorciosView() {
         </PanelHeader>
         <PanelContent className="pt-0">
           {loading ? (
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <div className={PIPELINE_GRID_CLASS}>
               {Array.from({ length: 4 }).map((_, i) => (
                 <ListSkeleton key={i} rows={3} />
               ))}
@@ -101,7 +104,7 @@ export function ConsorciosView() {
               }
             />
           ) : (
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <div className={PIPELINE_GRID_CLASS}>
               {LEAD_STATUSES.map((col) => {
                 const colLeads = leads.filter((l) => l.status === col.value);
                 return (
@@ -132,7 +135,7 @@ export function ConsorciosView() {
                             onChange={(e) =>
                               moveLead(lead.id, e.target.value as LeadStatus)
                             }
-                            className="mt-1.5 h-7 w-full rounded border border-white/[0.06] bg-transparent px-1 text-[10px] text-zinc-400"
+                            className="mt-1.5 min-h-11 w-full rounded border border-white/[0.06] bg-transparent px-2 text-base text-zinc-400 sm:min-h-8 sm:h-8 sm:px-1 sm:text-[12px]"
                           >
                             {LEAD_STATUSES.map((s) => (
                               <option key={s.value} value={s.value} className="bg-zinc-900">
@@ -189,13 +192,13 @@ export function ConsorciosView() {
               leadsToday.map((lead) => (
                 <div
                   key={lead.id}
-                  className="flex items-center justify-between rounded-md px-2 py-2 hover:bg-white/[0.03]"
+                  className="flex items-center justify-between gap-2 rounded-md px-2 py-2 hover:bg-white/[0.03]"
                 >
-                  <div>
-                    <p className="text-[13px] text-zinc-200">{lead.nome}</p>
-                    <p className="text-[11px] text-zinc-600">{lead.origem}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] text-zinc-200">{lead.nome}</p>
+                    <p className="truncate text-[11px] text-zinc-600">{lead.origem}</p>
                   </div>
-                  <span className="font-mono text-[10px] text-zinc-600">
+                  <span className="shrink-0 font-mono text-[10px] text-zinc-600">
                     {formatTime(lead.created_at)}
                   </span>
                 </div>

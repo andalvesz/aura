@@ -494,7 +494,7 @@ export function ExecutiveDashboardView() {
                         {item.title}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[10px] text-zinc-600">
+                    <span className="hidden shrink-0 text-[10px] text-zinc-600 sm:inline">
                       {item.origem}
                     </span>
                   </div>

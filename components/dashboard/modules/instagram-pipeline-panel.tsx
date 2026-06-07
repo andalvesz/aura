@@ -8,6 +8,7 @@ import {
   getPlataformaLabel,
   normalizeConteudoStatus,
 } from "@/utils/social";
+import { MOBILE_SCROLL_HINT_CLASS } from "@/utils/dashboard-mobile";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 
@@ -51,6 +52,8 @@ export function InstagramPipelinePanel({
             description="Gere ideias com IA ou cadastre conteúdos manualmente."
           />
         ) : (
+          <>
+          <p className={MOBILE_SCROLL_HINT_CLASS}>Deslize para ver todas as colunas →</p>
           <div className="flex min-w-[640px] gap-2">
             {columns.map((col) => (
               <div
@@ -100,6 +103,7 @@ export function InstagramPipelinePanel({
               </div>
             ))}
           </div>
+          </>
         )}
       </PanelContent>
     </Panel>

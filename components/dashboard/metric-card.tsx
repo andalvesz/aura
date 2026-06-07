@@ -25,11 +25,16 @@ export function MetricCard({
     >
       <PanelContent className="py-3 sm:py-2.5">
         <p className="text-[11px] font-medium text-zinc-500">{label}</p>
-        <p className="mt-1 text-lg font-semibold tracking-tight text-zinc-100">
+        <p className="mt-1 break-words text-base font-semibold tracking-tight text-zinc-100 sm:text-lg">
           {value}
         </p>
         {hint && (
-          <p className={cn("mt-0.5 text-[11px] text-zinc-600", hintClassName)}>
+          <p
+            className={cn(
+              "mt-0.5 line-clamp-2 break-words text-[11px] text-zinc-600",
+              hintClassName
+            )}
+          >
             {hint}
           </p>
         )}

@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
+import { FORM_GRID_3_CLASS } from "@/utils/dashboard-mobile";
 import type { EstoqueItem } from "@/types/database";
 
 type AddEstoqueModalProps = {
@@ -66,7 +67,7 @@ export function AddEstoqueModal({
     >
       <form onSubmit={handleSubmit} className="space-y-3" key={initial?.id ?? "new"}>
         <Field label="Item" name="produto" defaultValue={initial?.produto} required />
-        <div className="grid grid-cols-3 gap-2">
+        <div className={FORM_GRID_3_CLASS}>
           <Field
             label="Quantidade"
             name="quantidade"

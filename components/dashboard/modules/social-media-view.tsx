@@ -354,7 +354,7 @@ export function SocialMediaView() {
       {loading ? (
         <MetricsSkeleton />
       ) : (
-        <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard label="Em produção" value={String(metrics.emProducao)} />
           <MetricCard label="Publicados" value={String(metrics.publicados)} />
           <MetricCard label="Ideias" value={String(metrics.ideias)} />
