@@ -9,6 +9,7 @@ import {
   FileText,
   Home,
   Mail,
+  MapPin,
   Rocket,
   Share2,
   Stethoscope,
@@ -25,7 +26,8 @@ export type ModuleId =
   | "social-media"
   | "consorcios"
   | "crescimento"
-  | "comunicacao";
+  | "comunicacao"
+  | "viagens";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -154,6 +156,20 @@ export const MODULES: ModuleConfig[] = [
       metric: "E-mails",
       value: "0",
       hint: "Conecte o Gmail para começar",
+    },
+  },
+  {
+    id: "viagens",
+    href: "/dashboard/viagens",
+    label: "Aura Travel",
+    shortLabel: "Viagens",
+    description: "Planeje e acompanhe viagens com checklist, IA e integrações.",
+    icon: MapPin,
+    accent: "text-teal-400",
+    overview: {
+      metric: "Viagens",
+      value: "0",
+      hint: "Nenhuma viagem planejada",
     },
   },
 ];

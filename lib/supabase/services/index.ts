@@ -19,3 +19,4 @@ export * from "./seed.service";
 export * from "./global-search.service";
 export * from "./ai-memories.service";
 export * from "./reports.service";
+export * from "./travel.service";

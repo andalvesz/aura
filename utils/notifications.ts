@@ -78,6 +78,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   consorcios: "/dashboard/consorcios",
   crescimento: "/dashboard/crescimento",
   comunicacao: "/dashboard/comunicacao",
+  viagens: "/dashboard/viagens",
 };
 
 export function isNotificationRead(notification: Pick<Notification, "status">): boolean {

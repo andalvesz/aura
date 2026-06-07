@@ -24,3 +24,5 @@ export {
   GrowthContentMemoryRepository,
 } from "./growth.repository";
 export { UserXpRepository, XpHistoryRepository } from "./xp.repository";
+export { TripsRepository } from "./trips.repository";
+export { TripChecklistRepository } from "./trip-checklist.repository";

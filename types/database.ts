@@ -295,6 +295,51 @@ export type HealthSession = {
   updated_at: string;
 };
 
+export type TripStatus =
+  | "planejando"
+  | "confirmada"
+  | "em_viagem"
+  | "concluida"
+  | "cancelada";
+
+export type TripChecklistCategoria =
+  | "documentos"
+  | "passaporte"
+  | "visto"
+  | "ingressos"
+  | "hospedagem"
+  | "seguro"
+  | "transporte";
+
+export type TripChecklistStatus = "pendente" | "feito";
+
+export type Trip = {
+  id: string;
+  user_id: string;
+  nome: string;
+  destino: string;
+  data_ida: string;
+  data_volta: string;
+  orcamento: number;
+  gasto_atual: number;
+  status: TripStatus;
+  template_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TripChecklistItem = {
+  id: string;
+  user_id: string;
+  trip_id: string;
+  categoria: TripChecklistCategoria;
+  titulo: string;
+  status: TripChecklistStatus;
+  ordem: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Lead = {
   id: string;
   user_id: string;
@@ -502,7 +547,9 @@ export type XpAcao =
   | "completar_treino"
   | "follow_up_realizado"
   | "lead_convertido"
-  | "evento_fechado_alvesz";
+  | "evento_fechado_alvesz"
+  | "criar_viagem"
+  | "completar_checklist_viagem";
 
 export type UserXp = {
   id: string;
@@ -905,6 +952,33 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      trips: TableDef<
+        Trip,
+        Omit<
+          Trip,
+          "id" | "created_at" | "updated_at" | "template_id" | "gasto_atual" | "status"
+        > & {
+          id?: string;
+          gasto_atual?: number;
+          status?: TripStatus;
+          template_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      trip_checklist_items: TableDef<
+        TripChecklistItem,
+        Omit<
+          TripChecklistItem,
+          "id" | "created_at" | "updated_at" | "status" | "ordem"
+        > & {
+          id?: string;
+          status?: TripChecklistStatus;
+          ordem?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       notifications: TableDef<
         Notification,
         Omit<
@@ -1002,6 +1076,8 @@ export type UserScopedTable =
   | "health_workouts"
   | "health_meals"
   | "health_sessions"
+  | "trips"
+  | "trip_checklist_items"
   | "notifications"
   | "aura_command_history"
   | "communication_logs"
