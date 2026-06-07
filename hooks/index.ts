@@ -23,3 +23,4 @@ export { useHealthWorkouts } from "./use-health-workouts";
 export { useHealthMeals } from "./use-health-meals";
 export { useHealthSessions } from "./use-health-sessions";
 export { useNotifications } from "./use-notifications";
+export { useGoals } from "./use-goals";

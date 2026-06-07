@@ -33,12 +33,14 @@ const emptyData = {
   financialBalance: null,
   alveszEventos: [],
   weekMemories: [],
+  goals: [],
 } satisfies AuraGlobalSummaryData & {
   financialIncome: [];
   financialGoals: [];
   financialBalance: null;
   alveszEventos: [];
   weekMemories: [];
+  goals: [];
 };
 
 describe("executive-reports", () => {

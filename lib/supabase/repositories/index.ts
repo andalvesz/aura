@@ -1,6 +1,7 @@
 export { BaseRepository, type RepositoryResult } from "./base.repository";
 export { GastosRepository } from "./gastos.repository";
 export { FinancialGoalsRepository } from "./financial-goals.repository";
+export { GoalsRepository } from "./goals.repository";
 export { FinancialIncomeRepository } from "./financial-income.repository";
 export { EventosRepository } from "./eventos.repository";
 export { ClientesRepository } from "./clientes.repository";

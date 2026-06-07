@@ -65,6 +65,29 @@ export type FinancialBalance = {
   updated_at: string;
 };
 
+export type GoalTipo =
+  | "financeira"
+  | "saude"
+  | "conteudo"
+  | "vendas"
+  | "eventos"
+  | "personalizada";
+
+export type GoalStatus = "ativa" | "concluida" | "cancelada";
+
+export type Goal = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  tipo: GoalTipo;
+  meta: number;
+  atual: number;
+  data_inicio: string;
+  data_fim: string;
+  status: GoalStatus;
+  created_at: string;
+};
+
 export type GoogleSyncStatus = "synced" | "pending" | "error";
 
 export type Evento = {
@@ -505,6 +528,13 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      goals: TableDef<
+        Goal,
+        Omit<Goal, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        }
+      >;
       eventos: TableDef<
         Evento,
         Omit<
@@ -853,6 +883,7 @@ export type TableUpdate<T extends TableName> =
 /** Tabelas com user_id para RLS */
 export type UserScopedTable =
   | "gastos"
+  | "goals"
   | "financial_goals"
   | "financial_income"
   | "financial_balance"

@@ -22,7 +22,9 @@ import {
 import { safeJsonParse } from "@/utils/safe-json";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { listAuraMemories } from "@/lib/supabase/services/ai-memories.service";
+import { syncGoalsProgress } from "@/lib/supabase/services/goals.service";
 import { getWeekRange } from "@/utils/executive-reports";
+import { getActiveGoals } from "@/utils/goals";
 import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 
 const openai = new OpenAI({
@@ -48,10 +50,12 @@ export async function loadExecutiveReportData(): Promise<{
   let financialBalance: FinancialBalance | null = null;
   let alveszEventos: AlveszEvento[] = [];
   let weekMemories: ExecutiveReportData["weekMemories"] = [];
+  let goals: ExecutiveReportData["goals"] = [];
   const { start: weekStart, end: weekEnd } = getWeekRange();
 
   try {
-    const [incomeRes, goalsRes, eventosRes, balanceRes, memoriesRes] = await Promise.all([
+    const [incomeRes, goalsRes, eventosRes, balanceRes, memoriesRes, goalsRes2] =
+      await Promise.all([
       new FinancialIncomeRepository(ctx.supabase, ctx.userId).findAll("data"),
       new FinancialGoalsRepository(ctx.supabase, ctx.userId).findAll("data_fim"),
       new BaseRepository(ctx.supabase, "alvesz_eventos", ctx.userId).findAll(
@@ -65,6 +69,7 @@ export async function loadExecutiveReportData(): Promise<{
         .limit(1)
         .maybeSingle(),
       listAuraMemories({ from: weekStart, to: weekEnd, limit: 10 }),
+      syncGoalsProgress(),
     ]);
 
     if (
@@ -82,6 +87,7 @@ export async function loadExecutiveReportData(): Promise<{
     financialBalance = (balanceRes.data as FinancialBalance | null) ?? null;
     alveszEventos = (eventosRes.data ?? []) as AlveszEvento[];
     weekMemories = memoriesRes.memories ?? [];
+    goals = goalsRes2.goals ?? [];
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { data: null, error: message };
@@ -95,6 +101,7 @@ export async function loadExecutiveReportData(): Promise<{
       financialBalance,
       alveszEventos,
       weekMemories,
+      goals,
     },
     error: null,
   };
@@ -176,7 +183,7 @@ Responda APENAS JSON:
         },
         {
           role: "user",
-          content: `Tipo: ${type}\n\nRelatório:\n${report.text}\n\nLeads ativos: ${data.leads.filter((l) => l.status !== "fechado" && l.status !== "perdido").length}\nMemórias da semana: ${data.weekMemories.length}`,
+          content: `Tipo: ${type}\n\nRelatório:\n${report.text}\n\nLeads ativos: ${data.leads.filter((l) => l.status !== "fechado" && l.status !== "perdido").length}\nMemórias da semana: ${data.weekMemories.length}\nMetas ativas: ${getActiveGoals(data.goals).length}`,
         },
       ],
     });

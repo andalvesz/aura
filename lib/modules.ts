@@ -172,6 +172,12 @@ export const REPORTS_NAV = {
   icon: FileText,
 };
 
+export const GOALS_NAV = {
+  href: "/dashboard/metas",
+  label: "Metas",
+  icon: Target,
+};
+
 export function getModule(id: ModuleId): ModuleConfig {
   const mod = MODULES.find((m) => m.id === id);
 

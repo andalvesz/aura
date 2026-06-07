@@ -379,6 +379,7 @@ export function buildAuraCentralOpeningSummary(
       "alveszEventos" in data && data.alveszEventos ? data.alveszEventos : [],
     weekMemories:
       "weekMemories" in data && data.weekMemories ? data.weekMemories : [],
+    goals: "goals" in data && data.goals ? data.goals : [],
   };
 
   const name = displayName?.trim() || "você";

@@ -37,6 +37,16 @@ import {
   getConteudoStatusLabel,
   normalizeConteudoStatus,
 } from "@/utils/social";
+import {
+  buildGoalsSummaryLines,
+  computeGoalMetrics,
+  findMostDelayedGoal,
+  formatGoalForecast,
+  getActiveGoals,
+  GOAL_TIPO_LABELS,
+  isGoalBehind as isAuraGoalBehind,
+  sortGoalsByUrgency,
+} from "@/utils/goals";
 
 export type CoachMode =
   | "today"
@@ -44,6 +54,8 @@ export type CoachMode =
   | "performance"
   | "alerts"
   | "opportunity"
+  | "goals"
+  | "goals-late"
   | "intro";
 
 export const AURA_COACH_ACTION_ID = "aura-coach";
@@ -94,6 +106,21 @@ const ALERT_PHRASES = [
   "problemas",
 ] as const;
 
+const GOALS_PHRASES = [
+  "como estao minhas metas",
+  "como estão minhas metas",
+  "minhas metas",
+  "progresso das metas",
+  "status das metas",
+] as const;
+
+const GOALS_LATE_PHRASES = [
+  "qual meta esta mais atrasada",
+  "qual meta está mais atrasada",
+  "meta mais atrasada",
+  "meta atrasada",
+] as const;
+
 function normalize(text: string): string {
   return text
     .toLowerCase()
@@ -120,6 +147,8 @@ export function detectCoachMode(
   }
   if (matchesAny(normalized, WEEK_PHRASES)) return "executive-week";
   if (matchesAny(normalized, ROUTINE_PHRASES)) return "performance";
+  if (matchesAny(normalized, GOALS_LATE_PHRASES)) return "goals-late";
+  if (matchesAny(normalized, GOALS_PHRASES)) return "goals";
   if (matchesAny(normalized, FOCUS_PHRASES)) return "opportunity";
   if (matchesAny(normalized, ALERT_PHRASES)) return "alerts";
 
@@ -175,6 +204,11 @@ export function detectCoachAlerts(data: ExecutiveReportData): string[] {
 
   if (financeStats.activeGoal && isGoalBehind(financeStats.activeGoal)) {
     alerts.push(`Meta financeira atrasada: "${financeStats.activeGoal.titulo}".`);
+  }
+
+  for (const goal of getActiveGoals(data.goals).filter((g) => isAuraGoalBehind(g)).slice(0, 3)) {
+    const m = computeGoalMetrics(goal);
+    alerts.push(`Meta atrasada: ${goal.titulo} (${GOAL_TIPO_LABELS[goal.tipo]}, ${m.pct}%).`);
   }
 
   if (financeStats.expenseAlert.unusual) {
@@ -475,6 +509,17 @@ export function buildCoachOpportunityResponse(
     score: pendingContent * 50,
   });
 
+  const delayedGoal = findMostDelayedGoal(data.goals);
+  if (delayedGoal) {
+    const m = computeGoalMetrics(delayedGoal);
+    focusAreas.push({
+      rank: 0,
+      area: "Metas",
+      action: `Meta atrasada: ${delayedGoal.titulo} (${m.pct}% — faltam ${m.remainingDays} dias).`,
+      score: (100 - m.pct) * 1000 + m.remaining,
+    });
+  }
+
   const sorted = [...focusAreas].sort((a, b) => b.score - a.score);
   const top = sorted[0];
 
@@ -519,6 +564,75 @@ ${alerts.map((a) => `• ${a}`).join("\n")}
 Trate o primeiro item da lista ainda hoje. Pequenas correções evitam gargalos na semana.`;
 }
 
+export function buildCoachGoalsResponse(
+  data: ExecutiveReportData,
+  displayName = "Anderson"
+): string {
+  const active = sortGoalsByUrgency(getActiveGoals(data.goals));
+  const lines = buildGoalsSummaryLines(data.goals);
+
+  if (active.length === 0) {
+    return `${formatReportGreeting(displayName)}
+
+**Suas metas**
+
+Nenhuma meta ativa no momento. Cadastre em **Metas** — financeiras, saúde, conteúdo, vendas ou eventos.
+
+O progresso é atualizado automaticamente com dados reais da Aura.`;
+  }
+
+  const details = active.slice(0, 5).map((g) => {
+    const m = computeGoalMetrics(g);
+    const behind = isAuraGoalBehind(g) ? " (atrasada)" : "";
+    return `• **${g.titulo}** (${GOAL_TIPO_LABELS[g.tipo]}) — ${m.pct}%${behind}\n  ${formatGoalForecast(g)}`;
+  });
+
+  return `${formatReportGreeting(displayName)}
+
+**Como estão suas metas**
+
+${lines.map((l) => `• ${l}`).join("\n")}
+
+**Detalhes**
+${details.join("\n")}
+
+Mantenha o ritmo nas metas atrasadas — pequenas ações diárias fecham a diferença.`;
+}
+
+export function buildCoachGoalsLateResponse(
+  data: ExecutiveReportData,
+  displayName = "Anderson"
+): string {
+  const delayed = findMostDelayedGoal(data.goals);
+
+  if (!delayed) {
+    return `${formatReportGreeting(displayName)}
+
+**Meta mais atrasada**
+
+Nenhuma meta ativa está significativamente atrasada. Continue executando o plano atual.`;
+  }
+
+  const m = computeGoalMetrics(delayed);
+  const remaining =
+    delayed.tipo === "financeira"
+      ? formatBRL(m.remaining)
+      : String(m.remaining);
+
+  return `${formatReportGreeting(displayName)}
+
+**Meta mais atrasada**
+
+**${delayed.titulo}** (${GOAL_TIPO_LABELS[delayed.tipo]})
+
+• Progresso: ${m.pct}% (${m.atual} de ${m.meta})
+• Restante: ${remaining}
+• Tempo do período: ${m.timePct}% decorrido
+• ${formatGoalForecast(delayed)}
+
+**Ação recomendada:** dedique foco a esta meta nos próximos dias — é onde o gap entre ritmo e prazo é maior.`;
+}
+
 export function buildCoachIntroResponse(displayName = "Anderson"): string {
   return `${formatReportGreeting(displayName)}
 
@@ -529,6 +643,8 @@ Posso analisar seus dados reais e orientar decisões. Experimente:
 • **"O que devo fazer hoje?"** — compromissos, leads, tarefas, hábitos e conteúdos
 • **"Como está minha semana?"** — receita, eventos, leads e metas
 • **"Como está minha rotina?"** — hábitos, treinos, leituras e meditações
+• **"Como estão minhas metas?"** — progresso de todas as metas ativas
+• **"Qual meta está mais atrasada?"** — foco na meta com maior gap
 • **"Onde devo focar?"** — priorização automática por impacto
 • **"Alertas"** — leads parados, metas atrasadas e riscos
 
@@ -553,6 +669,10 @@ export function resolveCoachResponse(
       return { text: buildCoachOpportunityResponse(data, name), mode };
     case "alerts":
       return { text: buildCoachAlertsResponse(data, name), mode };
+    case "goals":
+      return { text: buildCoachGoalsResponse(data, name), mode };
+    case "goals-late":
+      return { text: buildCoachGoalsLateResponse(data, name), mode };
     case "intro":
     default:
       return { text: buildCoachIntroResponse(name), mode: "intro" };

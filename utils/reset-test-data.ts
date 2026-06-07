@@ -6,6 +6,7 @@ export const RESET_TEST_DATA_TABLES = [
   "eventos",
   "orcamentos",
   "growth_missions",
+  "goals",
   "growth_goals",
   "growth_leads",
   "clientes",

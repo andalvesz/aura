@@ -7,6 +7,7 @@ import type {
   FinancialGoal,
   FinancialIncome,
   Gasto,
+  Goal,
   GrowthGoal,
   GrowthLead,
   HealthHabit,
@@ -29,6 +30,7 @@ import { normalizeConteudoStatus } from "@/utils/social";
 import { todayIsoDate } from "@/utils/health";
 import { AI_MEMORY_CATEGORY_LABELS } from "@/utils/aura-memory";
 import { truncatePreview } from "@/utils/memory";
+import { buildGoalsSummaryLines } from "@/utils/goals";
 
 export type ExecutiveReportType = "daily" | "weekly" | "monthly";
 
@@ -69,6 +71,7 @@ export type ExecutiveReportData = AuraGlobalSummaryData & {
   financialBalance: FinancialBalance | null;
   alveszEventos: AlveszEvento[];
   weekMemories: AiMemory[];
+  goals: Goal[];
 };
 
 export function formatReportGreeting(name = "você"): string {
@@ -338,6 +341,10 @@ export function buildWeeklyExecutiveReport(data: ExecutiveReportData): Executive
     {
       label: "Social Media",
       lines: [`Conteúdos publicados: ${contentPublished}`],
+    },
+    {
+      label: "Metas",
+      lines: buildGoalsSummaryLines(data.goals),
     },
     {
       label: "Memória da Aura",
