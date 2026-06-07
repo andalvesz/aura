@@ -1,4 +1,4 @@
-import { runGlobalSearch } from "@/lib/supabase/services/global-search.service";
+import { runGlobalSearch } from "@/lib/search/global-search";
 import type { GlobalSearchFilter } from "@/utils/global-search";
 
 const VALID_FILTERS = new Set<GlobalSearchFilter>([
@@ -21,17 +21,20 @@ export async function GET(req: Request) {
       : "todos";
     const page = Math.max(0, Number(searchParams.get("page") ?? "0") || 0);
 
-    const { results, total, hasMore, error } = await runGlobalSearch(q, {
+    const { results, groups, total, hasMore, error } = await runGlobalSearch(q, {
       filter,
       page,
     });
 
     if (error) {
       const status = error === "Usuário não autenticado." ? 401 : 400;
-      return Response.json({ error, results: [], total: 0, hasMore: false }, { status });
+      return Response.json(
+        { error, results: [], groups: [], total: 0, hasMore: false },
+        { status }
+      );
     }
 
-    return Response.json({ results, total, hasMore, query: q, filter, page });
+    return Response.json({ results, groups, total, hasMore, query: q, filter, page });
   } catch (error) {
     console.error("[aura-search]", error);
     return Response.json(

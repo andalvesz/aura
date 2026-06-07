@@ -34,7 +34,7 @@ import {
   detectCoachMode,
   resolveCoachResponse,
 } from "@/utils/coach";
-import { runGlobalSearch } from "@/lib/supabase/services/global-search.service";
+import { runGlobalSearch } from "@/lib/search/global-search";
 import {
   generateExecutiveReportAnalysis,
   getExecutiveReport,
@@ -363,7 +363,7 @@ export async function POST(req: Request) {
       const searchQuery = extractAuraSearchQuery(message);
       if (!searchQuery) {
         return Response.json({
-          text: 'Use "Buscar" seguido do termo (ex.: Buscar João). Mínimo 2 caracteres.',
+          text: 'Use "Buscar", "Procure" ou "Busque" seguido do termo (ex.: Procure Mariana). Mínimo 2 caracteres.',
           module: "global",
           kind: "search",
           searchResults: [],
