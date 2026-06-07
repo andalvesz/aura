@@ -38,6 +38,7 @@ const emptyData: ExecutiveReportData = {
 describe("Aura Coach", () => {
   it("detects coach modes from natural language", () => {
     assert.equal(detectCoachMode("O que devo fazer hoje?"), "today");
+    assert.equal(detectCoachMode("O que devo fazer agora?"), "now");
     assert.equal(detectCoachMode("Como está minha semana?"), "executive-week");
     assert.equal(detectCoachMode("Como está minha rotina?"), "performance");
     assert.equal(detectCoachMode("O que devo postar hoje?"), "post-today");

@@ -50,9 +50,14 @@ import {
   sortGoalsByUrgency,
 } from "@/utils/goals";
 import { isPostTodayQuery, MARCA_LABELS } from "@/utils/instagram";
+import {
+  buildCoachNowResponse,
+  type DailyOperationsInput,
+} from "@/utils/daily-operations";
 
 export type CoachMode =
   | "today"
+  | "now"
   | "executive-week"
   | "performance"
   | "alerts"
@@ -76,6 +81,14 @@ const TODAY_PHRASES = [
   "prioridades de hoje",
   "meu dia",
   "plano do dia",
+] as const;
+
+const NOW_PHRASES = [
+  "o que devo fazer agora",
+  "o que fazer agora",
+  "qual minha prioridade agora",
+  "proximo passo",
+  "próximo passo",
 ] as const;
 
 const WEEK_PHRASES = [
@@ -151,6 +164,7 @@ export function detectCoachMode(
   if (actionId === "o-que-fazer" || matchesAny(normalized, TODAY_PHRASES)) {
     return "today";
   }
+  if (matchesAny(normalized, NOW_PHRASES)) return "now";
   if (matchesAny(normalized, WEEK_PHRASES)) return "executive-week";
   if (matchesAny(normalized, ROUTINE_PHRASES)) return "performance";
   if (matchesAny(normalized, GOALS_LATE_PHRASES)) return "goals-late";
@@ -701,6 +715,7 @@ Sou sua **Aura Coach** — mentor pessoal e executivo da Aura OS.
 
 Posso analisar seus dados reais e orientar decisões. Experimente:
 
+• **"O que devo fazer agora?"** — ação imediata com base nas prioridades do momento
 • **"O que devo fazer hoje?"** — compromissos, leads, tarefas, hábitos e conteúdos
 • **"Como está minha semana?"** — receita, eventos, leads e metas
 • **"Como está minha rotina?"** — hábitos, treinos, leituras e meditações
@@ -713,6 +728,28 @@ Posso analisar seus dados reais e orientar decisões. Experimente:
 Estou pronta quando você estiver.`;
 }
 
+function reportDataToDailyInput(data: ExecutiveReportData): DailyOperationsInput {
+  return {
+    eventos: data.eventos,
+    growthLeads: data.leads,
+    orcamentos: data.orcamentos,
+    gastos: data.gastos,
+    financialIncome: data.financialIncome,
+    financialGoals: data.financialGoals,
+    financialBalance: data.financialBalance?.valor_atual ?? null,
+    healthHabits: data.healthHabits,
+    healthWorkouts: data.healthWorkouts,
+    goals: data.goals,
+  };
+}
+
+export function buildCoachNowResponseFromReport(
+  data: ExecutiveReportData,
+  displayName = "Anderson"
+): string {
+  return buildCoachNowResponse(reportDataToDailyInput(data), displayName);
+}
+
 export function resolveCoachResponse(
   mode: CoachMode,
   data: ExecutiveReportData,
@@ -723,6 +760,8 @@ export function resolveCoachResponse(
   switch (mode) {
     case "today":
       return { text: buildCoachTodayResponse(data, name), mode };
+    case "now":
+      return { text: buildCoachNowResponseFromReport(data, name), mode };
     case "executive-week":
       return { text: buildCoachExecutiveWeekResponse(data, name), mode };
     case "performance":
