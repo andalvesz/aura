@@ -35,6 +35,9 @@ const emptyData: ExecutiveReportData = {
   goals: [],
   auraXp: null,
   notifications: [],
+  languageProgress: null,
+  languageSessions: [],
+  languageLessons: [],
 };
 
 describe("Aura Coach", () => {

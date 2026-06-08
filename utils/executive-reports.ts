@@ -12,6 +12,9 @@ import type {
   GrowthLead,
   HealthHabit,
   HealthWorkout,
+  LanguageLesson,
+  LanguageProgress,
+  LanguageSession,
   Notification,
 } from "@/types/database";
 import type { AuraXpState } from "@/lib/supabase/services/xp.service";
@@ -32,6 +35,7 @@ import { normalizeConteudoStatus } from "@/utils/social";
 import { todayIsoDate } from "@/utils/health";
 import { AI_MEMORY_CATEGORY_LABELS } from "@/utils/aura-memory";
 import { truncatePreview } from "@/utils/memory";
+import { buildLanguageReportLines } from "@/utils/english";
 import { buildGoalsSummaryLines } from "@/utils/goals";
 
 export type ExecutiveReportType = "daily" | "weekly" | "monthly";
@@ -76,6 +80,9 @@ export type ExecutiveReportData = AuraGlobalSummaryData & {
   goals: Goal[];
   auraXp: AuraXpState | null;
   notifications: Notification[];
+  languageProgress: LanguageProgress | null;
+  languageSessions: LanguageSession[];
+  languageLessons: LanguageLesson[];
 };
 
 export function formatReportGreeting(name = "você"): string {
@@ -151,6 +158,9 @@ export function hasWeeklyReportData(data: ExecutiveReportData): boolean {
   const habitsDone = data.healthHabits.filter(
     (h) => h.status === "concluido" && isInDateRange(h.data, start, end)
   ).length;
+  const languageSessionsWeek = data.languageSessions.filter((s) =>
+    isInDateRange(s.data, start, end)
+  ).length;
 
   return (
     weekIncome > 0 ||
@@ -161,6 +171,7 @@ export function hasWeeklyReportData(data: ExecutiveReportData): boolean {
     contentPublished > 0 ||
     workoutsDone > 0 ||
     habitsDone > 0 ||
+    languageSessionsWeek > 0 ||
     data.weekMemories.length > 0
   );
 }
@@ -345,6 +356,14 @@ export function buildWeeklyExecutiveReport(data: ExecutiveReportData): Executive
     {
       label: "Social Media",
       lines: [`Conteúdos publicados: ${contentPublished}`],
+    },
+    {
+      label: "Aura English Coach",
+      lines: buildLanguageReportLines(
+        data.languageProgress,
+        data.languageSessions,
+        data.languageLessons
+      ),
     },
     {
       label: "Metas",

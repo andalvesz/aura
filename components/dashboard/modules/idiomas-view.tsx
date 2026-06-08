@@ -17,6 +17,7 @@ import {
 } from "@/hooks";
 import type { LanguageLesson, LanguageModo } from "@/types/database";
 import {
+  computeWeeklyLanguageStats,
   ENGLISH_MODOS,
   getEnglishModoLabel,
   getStreakEmoji,
@@ -55,6 +56,11 @@ export function IdiomasView() {
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     return { total, done, pct };
   }, [modoLessons]);
+
+  const weeklyStats = useMemo(
+    () => computeWeeklyLanguageStats(sessions, lessons),
+    [sessions, lessons]
+  );
 
   async function handleCompleteLesson(lessonId: string) {
     setActionLoading(true);
@@ -154,6 +160,48 @@ export function IdiomasView() {
           hint={`Nível: ${progress?.nivel ?? "intermediario"}`}
         />
       </div>
+
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Progresso semanal</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          {weeklyStats.sessoes === 0 &&
+          weeklyStats.aulasConcluidas === 0 &&
+          weeklyStats.exerciciosConcluidos === 0 ? (
+            <EmptyState
+              title="Sem prática esta semana"
+              description="Gere uma aula diária ou pratique com o coach para começar."
+            />
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-4">
+              <div className="rounded-md border border-white/[0.06] px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-600">Sessões</p>
+                <p className="text-lg font-medium text-zinc-200">{weeklyStats.sessoes}</p>
+              </div>
+              <div className="rounded-md border border-white/[0.06] px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-600">Aulas</p>
+                <p className="text-lg font-medium text-zinc-200">{weeklyStats.aulasConcluidas}</p>
+              </div>
+              <div className="rounded-md border border-white/[0.06] px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-600">Exercícios</p>
+                <p className="text-lg font-medium text-zinc-200">
+                  {weeklyStats.exerciciosConcluidos}
+                </p>
+              </div>
+              <div className="rounded-md border border-white/[0.06] px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-600">Dias ativos</p>
+                <p className="text-lg font-medium text-zinc-200">{weeklyStats.diasAtivos}</p>
+              </div>
+            </div>
+          )}
+          <p className="mt-2 text-[11px] text-zinc-600">
+            {weeklyStats.minutosEstudo > 0
+              ? `${weeklyStats.minutosEstudo} min de estudo na semana`
+              : "Meta diária: 15 min"}
+          </p>
+        </PanelContent>
+      </Panel>
 
       <Panel>
         <PanelHeader>

@@ -34,6 +34,9 @@ const emptyData = {
   alveszEventos: [],
   weekMemories: [],
   goals: [],
+  languageProgress: null,
+  languageSessions: [],
+  languageLessons: [],
 } satisfies AuraGlobalSummaryData & {
   financialIncome: [];
   financialGoals: [];
@@ -41,6 +44,9 @@ const emptyData = {
   alveszEventos: [];
   weekMemories: [];
   goals: [];
+  languageProgress: null;
+  languageSessions: [];
+  languageLessons: [];
 };
 
 describe("executive-reports", () => {

@@ -8,6 +8,7 @@ export const GOAL_TIPO_LABELS: Record<GoalTipo, string> = {
   conteudo: "Conteúdo",
   vendas: "Vendas",
   eventos: "Eventos",
+  idiomas: "Idiomas",
   personalizada: "Personalizada",
 };
 
@@ -17,6 +18,7 @@ export const GOAL_TIPO_OPTIONS: { id: GoalTipo; label: string; example: string }
   { id: "conteudo", label: "Conteúdo", example: "Publicar 30 conteúdos" },
   { id: "vendas", label: "Vendas", example: "Fechar 5 contratos" },
   { id: "eventos", label: "Eventos", example: "Fechar 3 eventos Alvesz" },
+  { id: "idiomas", label: "Idiomas", example: "Concluir 15 aulas de inglês" },
   { id: "personalizada", label: "Personalizada", example: "Meta personalizada" },
 ];
 

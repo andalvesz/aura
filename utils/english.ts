@@ -6,6 +6,22 @@ import type {
 } from "@/types/database";
 import { todayIsoDate } from "@/utils/health";
 
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function getWeekRangeLocal(reference = new Date()): { start: string; end: string } {
+  const end = new Date(reference);
+  const start = new Date(reference);
+  start.setDate(start.getDate() - 6);
+  return { start: toIsoDate(start), end: toIsoDate(end) };
+}
+
+function isInDateRangeLocal(iso: string, start: string, end: string): boolean {
+  const d = iso.slice(0, 10);
+  return d >= start && d <= end;
+}
+
 export const ENGLISH_MODOS = [
   { id: "viagens", label: "Inglês para viagens" },
   { id: "aeroporto", label: "Inglês para aeroporto" },
@@ -119,6 +135,64 @@ export function computeLanguageStreak(
   }
 
   return { streak_dias: 1, ultima_pratica: today };
+}
+
+export type WeeklyLanguageStats = {
+  sessoes: number;
+  aulasConcluidas: number;
+  exerciciosConcluidos: number;
+  minutosEstudo: number;
+  diasAtivos: number;
+};
+
+export function computeWeeklyLanguageStats(
+  sessions: LanguageSession[],
+  lessons: LanguageLesson[],
+  reference = new Date()
+): WeeklyLanguageStats {
+  const { start, end } = getWeekRangeLocal(reference);
+  const inRange = (iso: string | null | undefined) =>
+    iso ? isInDateRangeLocal(iso, start, end) : false;
+
+  const weekSessions = sessions.filter((s) => inRange(s.data));
+  const weekLessons = lessons.filter(
+    (l) => l.status === "concluido" && inRange(l.concluido_em ?? l.created_at)
+  );
+
+  return {
+    sessoes: weekSessions.length,
+    aulasConcluidas: weekLessons.length,
+    exerciciosConcluidos: weekSessions.filter(
+      (s) => s.tipo === "exercicio" && s.status === "concluido" && inRange(s.data)
+    ).length,
+    minutosEstudo: weekSessions.reduce((sum, s) => sum + s.duracao_min, 0),
+    diasAtivos: new Set(weekSessions.map((s) => s.data)).size,
+  };
+}
+
+export function buildLanguageReportLines(
+  progress: LanguageProgress | null,
+  sessions: LanguageSession[],
+  lessons: LanguageLesson[],
+  reference = new Date()
+): string[] {
+  const stats = computeWeeklyLanguageStats(sessions, lessons, reference);
+
+  if (!progress && stats.sessoes === 0 && stats.aulasConcluidas === 0) {
+    return ["Nenhuma prática de inglês registrada nesta semana."];
+  }
+
+  return [
+    `Streak atual: ${progress?.streak_dias ?? 0} dias`,
+    `Sessões na semana: ${stats.sessoes}`,
+    `Aulas concluídas: ${stats.aulasConcluidas}`,
+    `Exercícios concluídos: ${stats.exerciciosConcluidos}`,
+    `Minutos de estudo: ${stats.minutosEstudo}`,
+    `Dias ativos: ${stats.diasAtivos}`,
+    progress?.modo_favorito
+      ? `Modo favorito: ${getEnglishModoLabel(progress.modo_favorito)}`
+      : "Modo favorito: não definido",
+  ];
 }
 
 export function getStreakEmoji(streak: number): string {

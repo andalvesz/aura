@@ -412,6 +412,14 @@ export function buildAuraCentralOpeningSummary(
     goals: "goals" in data && data.goals ? data.goals : [],
     auraXp: "auraXp" in data ? data.auraXp ?? null : null,
     notifications: "notifications" in data && data.notifications ? data.notifications : [],
+    languageProgress:
+      "languageProgress" in data ? data.languageProgress ?? null : null,
+    languageSessions:
+      "languageSessions" in data && data.languageSessions
+        ? data.languageSessions
+        : [],
+    languageLessons:
+      "languageLessons" in data && data.languageLessons ? data.languageLessons : [],
   };
 
   const name = displayName?.trim() || "você";

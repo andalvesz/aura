@@ -71,6 +71,7 @@ export type GoalTipo =
   | "conteudo"
   | "vendas"
   | "eventos"
+  | "idiomas"
   | "personalizada";
 
 export type GoalStatus = "ativa" | "concluida" | "cancelada";

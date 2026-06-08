@@ -5,11 +5,17 @@ import {
 } from "@/lib/supabase/repositories";
 import { BaseRepository } from "@/lib/supabase/repositories/base.repository";
 import { loadAuraGlobalSummaryData } from "@/lib/supabase/services/mentor.service";
+import { LanguageLessonsRepository } from "@/lib/supabase/repositories/language-lessons.repository";
+import { LanguageProgressRepository } from "@/lib/supabase/repositories/language-progress.repository";
+import { LanguageSessionsRepository } from "@/lib/supabase/repositories/language-sessions.repository";
 import type {
   AlveszEvento,
   FinancialBalance,
   FinancialGoal,
   FinancialIncome,
+  LanguageLesson,
+  LanguageProgress,
+  LanguageSession,
 } from "@/types/database";
 import {
   buildExecutiveReport,
@@ -56,11 +62,23 @@ export async function loadExecutiveReportData(): Promise<{
   let alveszEventos: AlveszEvento[] = [];
   let weekMemories: ExecutiveReportData["weekMemories"] = [];
   let goals: ExecutiveReportData["goals"] = [];
+  let languageProgress: LanguageProgress | null = null;
+  let languageSessions: LanguageSession[] = [];
+  let languageLessons: LanguageLesson[] = [];
   const { start: weekStart, end: weekEnd } = getWeekRange();
 
   try {
-    const [incomeRes, goalsRes, eventosRes, balanceRes, memoriesRes, goalsRes2] =
-      await Promise.all([
+    const [
+      incomeRes,
+      goalsRes,
+      eventosRes,
+      balanceRes,
+      memoriesRes,
+      goalsRes2,
+      progressRes,
+      sessionsRes,
+      lessonsRes,
+    ] = await Promise.all([
       new FinancialIncomeRepository(ctx.supabase, ctx.userId).findAll("data"),
       new FinancialGoalsRepository(ctx.supabase, ctx.userId).findAll("data_fim"),
       new BaseRepository(ctx.supabase, "alvesz_eventos", ctx.userId).findAll(
@@ -75,6 +93,9 @@ export async function loadExecutiveReportData(): Promise<{
         .maybeSingle(),
       listAuraMemories({ from: weekStart, to: weekEnd, limit: 10 }),
       syncGoalsProgress(),
+      new LanguageProgressRepository(ctx.supabase, ctx.userId).findByUser(),
+      new LanguageSessionsRepository(ctx.supabase, ctx.userId).findAll("data"),
+      new LanguageLessonsRepository(ctx.supabase, ctx.userId).findAll("created_at"),
     ]);
 
     if (
@@ -93,6 +114,15 @@ export async function loadExecutiveReportData(): Promise<{
     alveszEventos = (eventosRes.data ?? []) as AlveszEvento[];
     weekMemories = memoriesRes.memories ?? [];
     goals = goalsRes2.goals ?? [];
+    if (!progressRes.error) {
+      languageProgress = progressRes.data;
+    }
+    if (!sessionsRes.error) {
+      languageSessions = sessionsRes.data ?? [];
+    }
+    if (!lessonsRes.error) {
+      languageLessons = lessonsRes.data ?? [];
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { data: null, error: message };
@@ -113,6 +143,9 @@ export async function loadExecutiveReportData(): Promise<{
       goals,
       auraXp,
       notifications,
+      languageProgress,
+      languageSessions,
+      languageLessons,
     },
     error: null,
   };

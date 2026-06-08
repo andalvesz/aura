@@ -11,6 +11,7 @@ import type {
   GoalTipo,
   GrowthLead,
   HealthWorkout,
+  LanguageLesson,
   TableInsert,
 } from "@/types/database";
 import { isDateInGoalRange } from "@/utils/goals";
@@ -24,6 +25,7 @@ type SyncContext = {
   alveszEventos: AlveszEvento[];
   leads: GrowthLead[];
   healthWorkouts: HealthWorkout[];
+  languageLessons: LanguageLesson[];
 };
 
 function computeGoalAtual(goal: Goal, ctx: SyncContext): number {
@@ -50,6 +52,12 @@ function computeGoalAtual(goal: Goal, ctx: SyncContext): number {
       ).length;
     case "saude":
       return ctx.healthWorkouts.filter((w) => isDateInGoalRange(w.data, goal)).length;
+    case "idiomas":
+      return ctx.languageLessons.filter(
+        (l) =>
+          l.status === "concluido" &&
+          isDateInGoalRange(l.concluido_em ?? l.updated_at, goal)
+      ).length;
     case "personalizada":
     default:
       return Number(goal.atual);
@@ -60,7 +68,7 @@ async function loadSyncContext(
   userId: string,
   supabase: SupabaseClient<Database>
 ) {
-  const [incomeRes, conteudosRes, eventosRes, alveszRes, leadsRes, workoutsRes] =
+  const [incomeRes, conteudosRes, eventosRes, alveszRes, leadsRes, workoutsRes, lessonsRes] =
     await Promise.all([
       new BaseRepository(supabase, "financial_income", userId).findAll("data"),
       new BaseRepository(supabase, "conteudos", userId).findAll("created_at"),
@@ -68,6 +76,7 @@ async function loadSyncContext(
       new BaseRepository(supabase, "alvesz_eventos", userId).findAll("data_evento"),
       new BaseRepository(supabase, "growth_leads", userId).findAll("created_at"),
       new BaseRepository(supabase, "health_workouts", userId).findAll("data"),
+      new BaseRepository(supabase, "language_lessons", userId).findAll("created_at"),
     ]);
 
   return {
@@ -77,6 +86,7 @@ async function loadSyncContext(
     alveszEventos: (alveszRes.data ?? []) as AlveszEvento[],
     leads: (leadsRes.data ?? []) as GrowthLead[],
     healthWorkouts: (workoutsRes.data ?? []) as HealthWorkout[],
+    languageLessons: (lessonsRes.data ?? []) as LanguageLesson[],
   } satisfies SyncContext;
 }
 
@@ -112,6 +122,7 @@ export async function syncGoalsProgress(): Promise<{
     "eventos",
     "vendas",
     "saude",
+    "idiomas",
   ]);
 
   for (const goal of goals ?? []) {

@@ -6,6 +6,7 @@ import {
   Languages,
   Loader2,
   MessageCircle,
+  PenLine,
   Send,
   Sparkles,
 } from "lucide-react";
@@ -17,7 +18,7 @@ import {
   CHAT_INPUT_CLASS,
   CHAT_SEND_CLASS,
 } from "@/utils/dashboard-mobile";
-import type { ParsedEnglishLesson } from "@/utils/english";
+import type { ParsedEnglishCorrection, ParsedEnglishLesson } from "@/utils/english";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 
 type Message = {
@@ -66,6 +67,13 @@ const QUICK_ACTIONS = [
     prompt: "Simular conversa",
     mode: "conversacao" as const,
   },
+  {
+    id: "correcao",
+    label: "Correção",
+    icon: PenLine,
+    prompt: "Corrija minha resposta em inglês",
+    mode: "correcao" as const,
+  },
 ];
 
 export function AuraEnglish({ modo, onLessonGenerated }: AuraEnglishProps) {
@@ -110,7 +118,7 @@ export function AuraEnglish({ modo, onLessonGenerated }: AuraEnglishProps) {
 
       const { data, error } = await parseJsonResponse<{
         text?: string;
-        suggestion?: ParsedEnglishLesson;
+        suggestion?: ParsedEnglishLesson | ParsedEnglishCorrection;
         kind?: string;
         lessonId?: string | null;
         error?: string;
@@ -123,8 +131,25 @@ export function AuraEnglish({ modo, onLessonGenerated }: AuraEnglishProps) {
         return;
       }
 
-      if (data?.suggestion && data.kind !== "correcao") {
-        const lesson = data.suggestion;
+      if (data?.suggestion && data.kind === "correcao") {
+        const correction = data.suggestion as ParsedEnglishCorrection;
+        const summary = [
+          `Correção: ${correction.correcao}`,
+          correction.explicacao,
+          correction.versao_melhorada
+            ? `Versão melhorada: ${correction.versao_melhorada}`
+            : "",
+          `Nota: ${correction.nota}/10`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        setMessages((m) => [...m, { role: "assistant", text: summary }]);
+        return;
+      }
+
+      if (data?.suggestion) {
+        const lesson = data.suggestion as ParsedEnglishLesson;
         const summary = [
           `**${lesson.titulo}**`,
           lesson.introducao,
