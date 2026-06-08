@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui/modal";
 import { FORM_GRID_2_CLASS } from "@/utils/dashboard-mobile";
@@ -13,6 +13,7 @@ import {
   getFormatoLabel,
   getPlataformaLabel,
   normalizeConteudoFormato,
+  normalizeConteudoStatus,
 } from "@/utils/social";
 
 export type ConteudoFormPayload = {
@@ -45,10 +46,6 @@ export function AddConteudoModal({
   const [pending, setPending] = useState(false);
   const isEdit = Boolean(initial);
 
-  useEffect(() => {
-    if (!open) return;
-  }, [open, initial]);
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -62,6 +59,19 @@ export function AddConteudoModal({
     const data_publicacao = dataRaw
       ? new Date(`${dataRaw}T12:00:00`).toISOString()
       : null;
+    const status = String(fd.get("status"));
+    const wasPublished =
+      initial && normalizeConteudoStatus(initial.status) === "publicado";
+
+    if (status === "publicado" && !wasPublished) {
+      const planned = dataRaw
+        ? new Date(`${dataRaw}T12:00:00`).toLocaleDateString("pt-BR")
+        : null;
+      const message = planned
+        ? `Marcar como publicado? A data planejada (${planned}) será preservada.`
+        : "Marcar este conteúdo como publicado?";
+      if (!confirm(message)) return;
+    }
 
     setPending(true);
     const { error } = await onSubmit({
@@ -69,7 +79,7 @@ export function AddConteudoModal({
       plataforma: String(fd.get("plataforma")),
       formato: String(fd.get("formato") || "") || null,
       data_publicacao,
-      status: String(fd.get("status")),
+      status,
       objetivo: String(fd.get("objetivo") ?? "").trim() || null,
       observacoes: String(fd.get("observacoes") ?? "").trim() || null,
       roteiro: String(fd.get("roteiro") ?? "").trim() || null,

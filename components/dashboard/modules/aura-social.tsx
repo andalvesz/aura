@@ -78,10 +78,21 @@ const QUICK_ACTIONS: QuickAction[] = [
 type AuraSocialProps = {
   leads?: GrowthLead[];
   marca?: InstagramMarca;
+  iaAvailable?: boolean;
+  iaReason?: string | null;
   onSuggestions: (items: ParsedConteudoSuggestion[], kind: string) => void;
 };
 
-export function AuraSocial({ leads = [], marca, onSuggestions }: AuraSocialProps) {
+const IA_UNAVAILABLE_MSG =
+  "IA indisponível no momento. Você pode continuar cadastrando conteúdos manualmente.";
+
+export function AuraSocial({
+  leads = [],
+  marca,
+  iaAvailable = true,
+  iaReason = null,
+  onSuggestions,
+}: AuraSocialProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState("");
@@ -109,6 +120,20 @@ export function AuraSocial({ leads = [], marca, onSuggestions }: AuraSocialProps
   ) {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
+
+    if (!iaAvailable) {
+      setMessages((current) => [
+        ...current,
+        { role: "user", text: trimmed },
+        {
+          role: "assistant",
+          text: iaReason ?? IA_UNAVAILABLE_MSG,
+        },
+      ]);
+      setInput("");
+      scrollToBottom();
+      return;
+    }
 
     setInput("");
     setLoading(true);
@@ -285,7 +310,7 @@ export function AuraSocial({ leads = [], marca, onSuggestions }: AuraSocialProps
               <button
                 key={action.id}
                 type="button"
-                disabled={loading}
+                disabled={loading || !iaAvailable}
                 onClick={() => handleQuickAction(action)}
                 className="inline-flex items-center gap-1.5 rounded-md border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-[11px] text-zinc-400 transition-colors hover:border-violet-400/20 hover:bg-violet-500/[0.06] hover:text-violet-200 disabled:opacity-50"
               >
@@ -325,12 +350,12 @@ export function AuraSocial({ leads = [], marca, onSuggestions }: AuraSocialProps
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ex: roteiro para casamento, ideias de Reels, calendário..."
-            disabled={loading}
+            disabled={loading || !iaAvailable}
             className="h-10 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:border-violet-400/40 focus:outline-none disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || !iaAvailable}
             className="flex size-10 shrink-0 items-center justify-center rounded-md bg-violet-500 text-white transition hover:bg-violet-400 disabled:opacity-50"
           >
             <Send className="size-4" />

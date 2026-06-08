@@ -14,7 +14,7 @@ import type {
   TableInsert,
 } from "@/types/database";
 import { isDateInGoalRange } from "@/utils/goals";
-import { normalizeConteudoStatus } from "@/utils/social";
+import { getConteudoPublishedDate, normalizeConteudoStatus } from "@/utils/social";
 import { getOptionalDataContext } from "./context";
 
 type SyncContext = {
@@ -36,7 +36,7 @@ function computeGoalAtual(goal: Goal, ctx: SyncContext): number {
       return ctx.conteudos.filter(
         (c) =>
           normalizeConteudoStatus(c.status) === "publicado" &&
-          isDateInGoalRange(c.data_publicacao ?? c.updated_at, goal)
+          isDateInGoalRange(getConteudoPublishedDate(c), goal)
       ).length;
     case "eventos":
       return (

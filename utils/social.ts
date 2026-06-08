@@ -132,6 +132,31 @@ export function normalizeConteudoStatus(status: string): ConteudoStatus {
   return map[status] ?? "ideia";
 }
 
+const STATUS_FLOW: ConteudoStatus[] = CONTEUDO_STATUSES.map((s) => s.id);
+
+export function getNextConteudoStatus(status: string): ConteudoStatus | null {
+  const current = normalizeConteudoStatus(status);
+  const index = STATUS_FLOW.indexOf(current);
+  if (index < 0 || index >= STATUS_FLOW.length - 1) return null;
+  return STATUS_FLOW[index + 1] ?? null;
+}
+
+export function getPrevConteudoStatus(status: string): ConteudoStatus | null {
+  const current = normalizeConteudoStatus(status);
+  const index = STATUS_FLOW.indexOf(current);
+  if (index <= 0) return null;
+  return STATUS_FLOW[index - 1] ?? null;
+}
+
+/** Data usada para metas/relatórios de publicação (real > planejada > updated_at). */
+export function getConteudoPublishedDate(conteudo: Conteudo): string {
+  return (
+    conteudo.data_publicada_em ??
+    conteudo.data_publicacao ??
+    conteudo.updated_at
+  );
+}
+
 export function normalizeConteudoFormato(formato: string | null): ConteudoFormato {
   const map: Record<string, ConteudoFormato> = {
     reel: "reel",

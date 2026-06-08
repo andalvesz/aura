@@ -32,7 +32,7 @@ import {
   getActiveFinancialGoal,
 } from "@/utils/finance";
 import { filterUpcomingEventos } from "@/utils/nexus";
-import { normalizeConteudoStatus } from "@/utils/social";
+import { getConteudoPublishedDate, normalizeConteudoStatus } from "@/utils/social";
 import { todayIsoDate } from "@/utils/health";
 import { AI_MEMORY_CATEGORY_LABELS } from "@/utils/aura-memory";
 import { truncatePreview } from "@/utils/memory";
@@ -152,7 +152,7 @@ export function hasWeeklyReportData(data: ExecutiveReportData): boolean {
   const contentPublished = data.conteudos.filter(
     (c) =>
       normalizeConteudoStatus(c.status) === "publicado" &&
-      isInDateRange(c.data_publicacao ?? c.updated_at, start, end)
+      isInDateRange(getConteudoPublishedDate(c), start, end)
   ).length;
   const workoutsDone = data.healthWorkouts.filter((w) =>
     isInDateRange(w.data, start, end)
@@ -301,7 +301,7 @@ export function buildWeeklyExecutiveReport(data: ExecutiveReportData): Executive
   const contentPublished = data.conteudos.filter(
     (c) =>
       normalizeConteudoStatus(c.status) === "publicado" &&
-      isInDateRange(c.data_publicacao ?? c.updated_at, start, end)
+      isInDateRange(getConteudoPublishedDate(c), start, end)
   ).length;
   const workoutsDone = data.healthWorkouts.filter((w) =>
     isInDateRange(w.data, start, end)
@@ -418,7 +418,7 @@ export function buildMonthlyExecutiveReport(data: ExecutiveReportData): Executiv
   const contentPublished = data.conteudos.filter(
     (c) =>
       normalizeConteudoStatus(c.status) === "publicado" &&
-      isInDateRange(c.data_publicacao ?? c.updated_at, start, end)
+      isInDateRange(getConteudoPublishedDate(c), start, end)
   ).length;
   const contentTotal = data.conteudos.filter((c) =>
     isInDateRange(c.created_at, start, end)

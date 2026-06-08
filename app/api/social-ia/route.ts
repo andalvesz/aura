@@ -3,6 +3,10 @@ import {
   buildOpenAiMessagesWithMemory,
   persistAiTurn,
 } from "@/lib/ai/memory-runtime";
+import {
+  assertOpenAiAvailable,
+  generateSocialRoteiro,
+} from "@/lib/social/generate-roteiro";
 import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import type { GrowthLead, InstagramMarca } from "@/types/database";
@@ -185,11 +189,9 @@ export async function POST(req: Request) {
       return Response.json({ error: "Descreva o que você precisa." }, { status: 400 });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return Response.json(
-        { error: "IA indisponível (OPENAI_API_KEY). Use o cadastro manual." },
-        { status: 503 }
-      );
+    const unavailable = assertOpenAiAvailable();
+    if (unavailable) {
+      return Response.json({ error: unavailable }, { status: 503 });
     }
 
     const marcaRaw = typeof body.marca === "string" ? body.marca.trim() : "";
@@ -438,40 +440,18 @@ Gere entre 5 e 7 ideias práticas.`,
     }
 
     if (mode === "roteiro") {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: `${systemPrompt}
-
-Responda APENAS JSON:
-{
-  "titulo": "string",
-  "plataforma": "instagram",
-  "formato": "reel",
-  "objetivo": "string",
-  "roteiro": "texto completo do roteiro com gancho, desenvolvimento, CTA e hashtags"
-}`,
-          },
-          { role: "user", content: message },
-        ],
+      const { roteiro, suggestion } = await generateSocialRoteiro({
+        titulo: message,
+        marca,
+        message,
       });
 
-      const raw = response.choices[0]?.message?.content ?? "{}";
-      const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
-      const text =
-        typeof parsed.roteiro === "string"
-          ? parsed.roteiro
-          : "Roteiro gerado.";
-
-      await persistAiTurn("social", message, text, { kind: "roteiro" });
+      await persistAiTurn("social", message, roteiro, { kind: "roteiro", marca });
 
       return Response.json({
         kind: "roteiro",
-        suggestion: parsed,
-        text,
+        suggestion,
+        text: roteiro,
       });
     }
 

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   CalendarDays,
   Clapperboard,
   Image,
@@ -16,12 +17,17 @@ import { MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { useConteudos } from "@/hooks/use-conteudos";
 import { useGrowthLeads } from "@/hooks/use-growth-leads";
 import { useGrowthProfiles } from "@/hooks/use-growth-profiles";
+import { useSocialIaStatus } from "@/hooks/use-social-ia-status";
 import { parseJsonResponse } from "@/utils/safe-json";
 import type { Conteudo, InstagramMarca } from "@/types/database";
 import { analyzeGrowthLeadContentInsights } from "@/utils/growth";
 import {
   computeSocialMetrics,
+  getConteudoStatusLabel,
+  getNextConteudoStatus,
+  getPrevConteudoStatus,
   getSocialGrowthHints,
+  normalizeConteudoStatus,
   parseConteudoSuggestions,
   type ParsedConteudoSuggestion,
 } from "@/utils/social";
@@ -36,15 +42,33 @@ import { InstagramCalendarPanel } from "./instagram-calendar-panel";
 import { InstagramPipelinePanel } from "./instagram-pipeline-panel";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 
+const IA_UNAVAILABLE_MSG =
+  "IA indisponível no momento. Você pode continuar cadastrando conteúdos manualmente.";
+
 export function SocialMediaView() {
-  const { data: conteudos, loading, create, update, remove } = useConteudos();
+  const {
+    data: conteudos,
+    loading,
+    error: conteudosError,
+    refresh,
+    create,
+    update,
+    remove,
+  } = useConteudos();
   const { data: leads } = useGrowthLeads();
   const { data: profiles, refresh: refreshProfiles } = useGrowthProfiles();
+  const {
+    available: iaAvailable,
+    reason: iaReason,
+    loading: iaStatusLoading,
+  } = useSocialIaStatus();
+
   const [activeMarca, setActiveMarca] = useState<InstagramMarca>("marca_pessoal");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Conteudo | null>(null);
   const [roteiroTarget, setRoteiroTarget] = useState<Conteudo | null>(null);
   const [roteiroLoading, setRoteiroLoading] = useState(false);
+  const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null);
   const [pendingSuggestions, setPendingSuggestions] = useState<ParsedConteudoSuggestion[]>([]);
   const [savingSuggestions, setSavingSuggestions] = useState(false);
   const [iaLoading, setIaLoading] = useState<string | null>(null);
@@ -64,6 +88,13 @@ export function SocialMediaView() {
     [contentInsights]
   );
 
+  const showIaBanner = !iaStatusLoading && !iaAvailable;
+  const iaDisabled = iaStatusLoading || !iaAvailable;
+
+  function notifyIaUnavailable() {
+    toast.error(iaReason ?? IA_UNAVAILABLE_MSG);
+  }
+
   function openNew() {
     setEditing(null);
     setModalOpen(true);
@@ -71,13 +102,33 @@ export function SocialMediaView() {
 
   async function handleSubmit(payload: ConteudoFormPayload) {
     const withMarca = { ...payload, marca: payload.marca ?? activeMarca };
-    if (editing) {
-      return update(editing.id, withMarca);
+    const isPublishing = normalizeConteudoStatus(payload.status) === "publicado";
+    const wasPublished =
+      editing && normalizeConteudoStatus(editing.status) === "publicado";
+
+    if (isPublishing) {
+      const publishFields = {
+        ...withMarca,
+        data_publicada_em: editing?.data_publicada_em ?? new Date().toISOString(),
+      };
+      if (editing) return update(editing.id, publishFields);
+      return create(publishFields);
     }
-    return create(withMarca);
+
+    const fields = wasPublished
+      ? { ...withMarca, data_publicada_em: null }
+      : withMarca;
+
+    if (editing) return update(editing.id, fields);
+    return create(fields);
   }
 
   async function handleGerarRoteiro(item: Conteudo) {
+    if (iaDisabled) {
+      notifyIaUnavailable();
+      return;
+    }
+
     setRoteiroTarget(item);
     setRoteiroLoading(true);
     try {
@@ -89,6 +140,7 @@ export function SocialMediaView() {
           plataforma: item.plataforma,
           formato: item.formato,
           objetivo: item.objetivo,
+          marca: item.marca ?? activeMarca,
         }),
       });
       const { data, error: parseError } = await parseJsonResponse<{
@@ -120,6 +172,11 @@ export function SocialMediaView() {
     mode: string,
     options?: { message?: string; actionId?: string }
   ) {
+    if (iaDisabled) {
+      notifyIaUnavailable();
+      return;
+    }
+
     setIaLoading(actionKey);
     try {
       const res = await fetch("/api/social-ia", {
@@ -194,12 +251,62 @@ export function SocialMediaView() {
   }
 
   async function handlePublicado(id: string) {
+    const item = conteudos.find((c) => c.id === id);
+    const planned = item?.data_publicacao
+      ? new Date(item.data_publicacao).toLocaleDateString("pt-BR")
+      : null;
+
+    const message = planned
+      ? `Marcar como publicado? A data planejada (${planned}) será preservada.`
+      : "Marcar este conteúdo como publicado?";
+
+    if (!confirm(message)) return;
+
+    setStatusLoadingId(id);
     const { error } = await update(id, {
       status: "publicado",
-      data_publicacao: new Date().toISOString(),
+      data_publicada_em: new Date().toISOString(),
     });
+    setStatusLoadingId(null);
+
     if (error) toast.error(error);
     else toast.success("Marcado como publicado.");
+  }
+
+  async function handleAdvanceStatus(item: Conteudo) {
+    const current = normalizeConteudoStatus(item.status);
+    const next = getNextConteudoStatus(current);
+    if (!next) return;
+
+    if (next === "publicado") {
+      await handlePublicado(item.id);
+      return;
+    }
+
+    setStatusLoadingId(item.id);
+    const { error } = await update(item.id, { status: next });
+    setStatusLoadingId(null);
+
+    if (error) toast.error(error);
+    else toast.success(`Status: ${getConteudoStatusLabel(next)}`);
+  }
+
+  async function handleRetreatStatus(item: Conteudo) {
+    const current = normalizeConteudoStatus(item.status);
+    const prev = getPrevConteudoStatus(current);
+    if (!prev) return;
+
+    setStatusLoadingId(item.id);
+    const payload =
+      current === "publicado"
+        ? { status: prev, data_publicada_em: null }
+        : { status: prev };
+
+    const { error } = await update(item.id, payload);
+    setStatusLoadingId(null);
+
+    if (error) toast.error(error);
+    else toast.success(`Status: ${getConteudoStatusLabel(prev)}`);
   }
 
   async function handleDelete(id: string) {
@@ -211,6 +318,36 @@ export function SocialMediaView() {
 
   return (
     <div className="space-y-3">
+      {conteudosError && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100/90">
+          <span className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            {conteudosError}
+          </span>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="inline-flex min-h-11 items-center rounded-md px-3 py-2 text-[12px] font-medium text-amber-200 hover:bg-amber-500/15 md:min-h-0 md:px-2 md:py-1 md:text-[11px]"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {showIaBanner && (
+        <Panel className="border-violet-500/20 bg-violet-500/[0.06]">
+          <PanelContent className="flex gap-2 py-2.5">
+            <Sparkles className="mt-0.5 size-3.5 shrink-0 text-violet-300" />
+            <div className="min-w-0">
+              <p className="text-[12px] font-medium text-violet-100">IA indisponível</p>
+              <p className="mt-0.5 text-[11px] text-violet-200/70">
+                {iaReason ?? IA_UNAVAILABLE_MSG}
+              </p>
+            </div>
+          </PanelContent>
+        </Panel>
+      )}
+
       <InstagramProfilesPanel
         profiles={profiles}
         activeMarca={activeMarca}
@@ -233,7 +370,7 @@ export function SocialMediaView() {
           onClick={() =>
             handleIaAction("post-hoje", "post-hoje", { actionId: "post-hoje" })
           }
-          disabled={Boolean(iaLoading)}
+          disabled={Boolean(iaLoading) || iaDisabled}
         >
           O que postar hoje?
         </ActionButton>
@@ -250,7 +387,7 @@ export function SocialMediaView() {
               actionId: "calendario-semana",
             })
           }
-          disabled={Boolean(iaLoading)}
+          disabled={Boolean(iaLoading) || iaDisabled}
         >
           Calendário semanal
         </ActionButton>
@@ -267,7 +404,7 @@ export function SocialMediaView() {
               actionId: "calendario-mes",
             })
           }
-          disabled={Boolean(iaLoading)}
+          disabled={Boolean(iaLoading) || iaDisabled}
         >
           Calendário mensal
         </ActionButton>
@@ -282,7 +419,7 @@ export function SocialMediaView() {
           onClick={() =>
             handleIaAction("ideias-reels", "ideias", { actionId: "ideias-reels" })
           }
-          disabled={Boolean(iaLoading)}
+          disabled={Boolean(iaLoading) || iaDisabled}
         >
           Ideias Reels
         </ActionButton>
@@ -299,7 +436,7 @@ export function SocialMediaView() {
               actionId: "ideias-stories",
             })
           }
-          disabled={Boolean(iaLoading)}
+          disabled={Boolean(iaLoading) || iaDisabled}
         >
           Ideias Stories
         </ActionButton>
@@ -364,6 +501,8 @@ export function SocialMediaView() {
       <AuraSocial
         leads={leads}
         marca={activeMarca}
+        iaAvailable={iaAvailable}
+        iaReason={iaReason}
         onSuggestions={(items) =>
           setPendingSuggestions(
             items.map((s) => ({ ...s, marca: s.marca ?? activeMarca }))
@@ -381,14 +520,17 @@ export function SocialMediaView() {
 
       <InstagramPipelinePanel
         conteudos={filtered}
+        loadError={conteudosError}
         onEdit={(c) => {
           setEditing(c);
           setModalOpen(true);
         }}
         onRoteiro={handleGerarRoteiro}
-        onPublicado={handlePublicado}
+        onAdvanceStatus={handleAdvanceStatus}
+        onRetreatStatus={handleRetreatStatus}
         onDelete={handleDelete}
         roteiroLoadingId={roteiroLoading ? roteiroTarget?.id ?? null : null}
+        statusLoadingId={statusLoadingId}
       />
 
       <AddConteudoModal

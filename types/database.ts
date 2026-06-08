@@ -223,6 +223,7 @@ export type Conteudo = {
   titulo: string;
   status: string;
   data_publicacao: string | null;
+  data_publicada_em: string | null;
   formato: string | null;
   objetivo: string | null;
   observacoes: string | null;
@@ -872,6 +873,7 @@ export type Database = {
           | "observacoes"
           | "roteiro"
           | "marca"
+          | "data_publicada_em"
         > & {
           id?: string;
           formato?: string | null;
@@ -879,6 +881,7 @@ export type Database = {
           observacoes?: string | null;
           roteiro?: string | null;
           marca?: InstagramMarca | null;
+          data_publicada_em?: string | null;
           created_at?: string;
           updated_at?: string;
         }

@@ -72,7 +72,18 @@ export function getProfileForMarca(
   profiles: GrowthProfile[],
   marca: InstagramMarca
 ): GrowthProfile | null {
-  return profiles.find((p) => p.marca === marca) ?? null;
+  const exact = profiles.find((p) => p.marca === marca);
+  if (exact) return exact;
+
+  // Perfis legados sem marca: associa ao primeiro slot (marca pessoal)
+  if (marca === "marca_pessoal") {
+    const legacy = profiles.filter(
+      (p) => !p.marca && p.plataforma.toLowerCase() === "instagram"
+    );
+    if (legacy.length === 1) return legacy[0] ?? null;
+  }
+
+  return null;
 }
 
 export function parseProfileAnalysis(

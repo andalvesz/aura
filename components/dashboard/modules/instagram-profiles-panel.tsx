@@ -4,6 +4,7 @@ import { Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import type { GrowthProfile, InstagramMarca } from "@/types/database";
 import {
+  getProfileForMarca,
   INSTAGRAM_MARCAS,
   MARCA_LABELS,
   parseProfileAnalysis,
@@ -27,7 +28,8 @@ export function InstagramProfilesPanel({
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMarca, setModalMarca] = useState<InstagramMarca>("marca_pessoal");
 
-  const activeProfile = profiles.find((p) => p.marca === activeMarca);
+  const activeProfile = getProfileForMarca(profiles, activeMarca);
+  const modalProfile = getProfileForMarca(profiles, modalMarca);
   const analysis = activeProfile?.analise
     ? parseProfileAnalysis(activeProfile.analise)
     : null;
@@ -57,7 +59,7 @@ export function InstagramProfilesPanel({
         <PanelContent className="space-y-3 pt-0">
           <div className="flex flex-wrap gap-1">
             {INSTAGRAM_MARCAS.map((m) => {
-              const hasProfile = profiles.some((p) => p.marca === m.id);
+              const hasProfile = Boolean(getProfileForMarca(profiles, m.id));
               return (
                 <button
                   key={m.id}
@@ -83,8 +85,10 @@ export function InstagramProfilesPanel({
               <p className="font-medium text-zinc-200">
                 @{activeProfile.username} · {MARCA_LABELS[activeMarca]}
               </p>
-              {activeProfile.bio && (
-                <p className="mt-1 text-zinc-400">{activeProfile.bio}</p>
+              {(activeProfile.bio ?? activeProfile.observacoes) && (
+                <p className="mt-1 text-zinc-400">
+                  {activeProfile.bio ?? activeProfile.observacoes}
+                </p>
               )}
               <div className="mt-2 grid gap-1 text-[11px] text-zinc-500 sm:grid-cols-2">
                 <span>Nicho: {activeProfile.nicho ?? "—"}</span>
@@ -123,6 +127,7 @@ export function InstagramProfilesPanel({
         onClose={() => setModalOpen(false)}
         onSaved={onRefresh}
         initialMarca={modalMarca}
+        profile={modalProfile}
       />
     </>
   );

@@ -1,24 +1,12 @@
-import OpenAI, { APIError } from "openai";
 import { persistAiTurn } from "@/lib/ai/memory-runtime";
-import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
-import { SOCIAL_ROTEIRO_CONTEXT } from "@/utils/social";
+import {
+  assertOpenAiAvailable,
+  generateSocialRoteiro,
+  resolveSocialRoteiroError,
+} from "@/lib/social/generate-roteiro";
+import type { InstagramMarca } from "@/types/database";
+import { INSTAGRAM_MARCAS } from "@/utils/instagram";
 import { parseRequestJson } from "@/utils/safe-json";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-function resolveError(error: unknown): string {
-  if (error instanceof APIError) {
-    if (error.code === "insufficient_quota") {
-      return "Sua API da OpenAI está sem créditos.";
-    }
-    if (error.code === "invalid_api_key" || error.status === 401) {
-      return "Chave da OpenAI inválida.";
-    }
-  }
-  return "Erro ao gerar roteiro. Tente novamente.";
-}
 
 export async function POST(req: Request) {
   try {
@@ -27,6 +15,7 @@ export async function POST(req: Request) {
       plataforma?: string;
       formato?: string;
       objetivo?: string;
+      marca?: string;
     }>(req);
 
     if (bodyError || !body) {
@@ -35,54 +24,42 @@ export async function POST(req: Request) {
 
     const titulo = typeof body.titulo === "string" ? body.titulo.trim() : "";
     const plataforma = typeof body.plataforma === "string" ? body.plataforma : "instagram";
-    const formato = typeof body.formato === "string" ? body.formato : "reels";
+    const formato = typeof body.formato === "string" ? body.formato : "reel";
     const objetivo = typeof body.objetivo === "string" ? body.objetivo.trim() : "";
 
     if (!titulo) {
       return Response.json({ error: "Informe o título do conteúdo." }, { status: 400 });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return Response.json(
-        { error: "OPENAI_API_KEY não configurada." },
-        { status: 503 }
-      );
+    const unavailable = assertOpenAiAvailable();
+    if (unavailable) {
+      return Response.json({ error: unavailable }, { status: 503 });
     }
 
-    const { context: dataContext } = await getSocialIaMentorContext();
-    const dataSection = dataContext
-      ? `\n\n${dataContext}`
-      : "\n\n## DADOS\nNenhum dado disponível.";
+    const marcaRaw = typeof body.marca === "string" ? body.marca.trim() : "";
+    const marca = INSTAGRAM_MARCAS.some((m) => m.id === marcaRaw)
+      ? (marcaRaw as InstagramMarca)
+      : null;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `Você cria roteiros de conteúdo para redes sociais.
-${SOCIAL_ROTEIRO_CONTEXT}${dataSection}
-Estruture: gancho, desenvolvimento, CTA, hashtags sugeridas. Seja prático e em português do Brasil.`,
-        },
-        {
-          role: "user",
-          content: `Crie um roteiro para:
-Título: ${titulo}
-Plataforma: ${plataforma}
-Formato: ${formato}
-Objetivo: ${objetivo || "Engajamento e conversão"}`,
-        },
-      ],
+    const { roteiro } = await generateSocialRoteiro({
+      titulo,
+      plataforma,
+      formato,
+      objetivo,
+      marca,
     });
 
-    const roteiro =
-      response.choices[0]?.message?.content ?? "Não foi possível gerar o roteiro.";
-
     const userMessage = `Roteiro: ${titulo} (${plataforma}/${formato})`;
-    await persistAiTurn("social", userMessage, roteiro, { kind: "roteiro" });
+    await persistAiTurn("social", userMessage, roteiro, { kind: "roteiro", marca });
 
     return Response.json({ roteiro });
   } catch (error) {
     console.error("[social-roteiro]", error);
-    return Response.json({ error: resolveError(error) }, { status: 500 });
+    const message =
+      error instanceof Error
+        ? error.message
+        : resolveSocialRoteiroError(error, "Erro ao gerar roteiro. Tente novamente.");
+    const status = message.includes("OPENAI") || message.includes("IA indisponível") ? 503 : 500;
+    return Response.json({ error: message }, { status });
   }
 }
