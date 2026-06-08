@@ -7,6 +7,7 @@ import type {
   GrowthMission,
   GrowthVertical,
   Orcamento,
+  XpAcao,
 } from "@/types/database";
 import { formatBRL } from "@/utils/format";
 import { parseProfileAnalysis } from "@/utils/instagram";
@@ -119,10 +120,18 @@ export const AURA_MENTOR_SUGGESTIONS = [
   },
 ] as const;
 
-export const XP_PER_LEVEL = 100;
+/** Mapeia mission_key → ação registrada em user_xp / xp_history */
+export const GROWTH_MISSION_XP_ACAO: Record<string, XpAcao> = {
+  prospectar: "missao_prospectar",
+  postar: "missao_postar",
+  followup: "missao_followup",
+  oferta: "missao_oferta",
+  estudar: "missao_estudar",
+  analisar: "missao_analisar",
+};
 
-export function calculateLevel(xp: number): number {
-  return Math.max(1, Math.floor(xp / XP_PER_LEVEL) + 1);
+export function getGrowthMissionXpAcao(missionKey: string): XpAcao | null {
+  return GROWTH_MISSION_XP_ACAO[missionKey] ?? null;
 }
 
 export function getCurrentMonthReference(): string {

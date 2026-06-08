@@ -18,6 +18,12 @@ export const XP_REWARDS: Record<XpAcao, number> = {
   concluir_aula_ingles: 10,
   exercicio_ingles_concluido: 5,
   modulo_ingles_completo: 20,
+  missao_prospectar: 25,
+  missao_postar: 20,
+  missao_followup: 20,
+  missao_oferta: 30,
+  missao_estudar: 15,
+  missao_analisar: 15,
 };
 
 export const XP_ACAO_LABELS: Record<XpAcao, string> = {
@@ -35,6 +41,12 @@ export const XP_ACAO_LABELS: Record<XpAcao, string> = {
   concluir_aula_ingles: "Aula de inglês concluída",
   exercicio_ingles_concluido: "Exercício de inglês concluído",
   modulo_ingles_completo: "Módulo de inglês completo",
+  missao_prospectar: "Missão: prospectar clientes",
+  missao_postar: "Missão: postar conteúdo",
+  missao_followup: "Missão: follow-up",
+  missao_oferta: "Missão: criar oferta",
+  missao_estudar: "Missão: estudar vendas",
+  missao_analisar: "Missão: analisar perfil",
 };
 
 const LEVEL_THRESHOLDS = [0, 100, 250, 450, 700] as const;

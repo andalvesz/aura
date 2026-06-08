@@ -14,6 +14,8 @@ import { todayIsoDate } from "@/utils/health";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { getDataContext, getOptionalDataContext } from "./context";
 
+/** Fonte única de verdade: user_xp (total/nível) + xp_history (cada ganho). */
+
 export type AuraXpState = {
   userXp: UserXp;
   progress: XpProgress;

@@ -627,7 +627,13 @@ export type XpAcao =
   | "completar_checklist_viagem"
   | "concluir_aula_ingles"
   | "exercicio_ingles_concluido"
-  | "modulo_ingles_completo";
+  | "modulo_ingles_completo"
+  | "missao_prospectar"
+  | "missao_postar"
+  | "missao_followup"
+  | "missao_oferta"
+  | "missao_estudar"
+  | "missao_analisar";
 
 export type UserXp = {
   id: string;

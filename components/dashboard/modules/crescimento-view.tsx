@@ -22,6 +22,7 @@ import {
   MetricsSkeleton,
 } from "@/components/dashboard/loading-skeleton";
 import {
+  useAuraXp,
   useGrowthActions,
   useGrowthAnalyses,
   useGrowthGoals,
@@ -43,7 +44,6 @@ import type {
 } from "@/types/database";
 import { formatBRL } from "@/utils/format";
 import {
-  calculateLevel,
   computeGrowthLeadMetrics,
   computeMonthlyExecutiveScore,
   computeRevenueProgress,
@@ -53,6 +53,7 @@ import {
   getActionForVertical,
   getCurrentGoal,
   getCurrentMonthReference,
+  getGrowthMissionXpAcao,
   getLatestAnalysisForProfile,
   getTodayDate,
   parseGrowthAnalysisContent,
@@ -190,6 +191,7 @@ export function CrescimentoView() {
   } = useGrowthProfiles();
   const { data: actions, loading: actionsLoading, error: actionsError } = useGrowthActions();
   const { data: analyses, refresh: refreshAnalyses, error: analysesError } = useGrowthAnalyses();
+  const { state: auraXp, refresh: refreshAuraXp } = useAuraXp();
   const {
     data: growthLeads,
     loading: growthLeadsLoading,
@@ -256,23 +258,9 @@ export function CrescimentoView() {
     () => computeMonthlyExecutiveScore(missions, growthLeads),
     [missions, growthLeads]
   );
-  const hasXp = (currentGoal?.xp_total ?? 0) > 0;
-
-  const xp = currentGoal?.xp_total ?? 0;
-  const nivel = hasXp ? (currentGoal?.nivel ?? calculateLevel(xp)) : null;
-
-  async function ensureCurrentGoal() {
-    if (currentGoal) return { goal: currentGoal, error: null as string | null };
-    const mesReferencia = getCurrentMonthReference();
-    const result = await createGoal({
-      meta_receita_mensal: 0,
-      receita_atual: 0,
-      xp_total: 0,
-      nivel: 1,
-      mes_referencia: mesReferencia,
-    });
-    return { goal: result.data, error: result.error };
-  }
+  const xp = auraXp?.userXp.xp_total ?? 0;
+  const nivel = auraXp?.progress.level ?? null;
+  const hasXp = xp > 0;
 
   async function handleSetGoal(metaReceita: number) {
     const mesReferencia = getCurrentMonthReference();
@@ -342,31 +330,17 @@ export function CrescimentoView() {
       return;
     }
 
-    const ensured = currentGoal
-      ? { goal: currentGoal, error: null as string | null }
-      : await ensureCurrentGoal();
-
-    if (ensured.error || !ensured.goal) {
-      toast.error(
-        ensured.error ?? "Missão salva, mas não foi possível registrar o XP."
-      );
-      setCompletingKey(null);
-      return;
+    const xpAcao = getGrowthMissionXpAcao(missionKey);
+    if (xpAcao) {
+      await awardAuraXpClient(xpAcao);
+      await refreshAuraXp({ silent: true });
     }
 
-    const newXp = (ensured.goal.xp_total ?? 0) + xpReward;
-    const xpResult = await updateGoal(ensured.goal.id, {
-      xp_total: newXp,
-      nivel: calculateLevel(newXp),
-    });
-
-    if (xpResult.error) {
-      toast.error("Missão salva, mas o XP não foi atualizado.");
-      setCompletingKey(null);
-      return;
-    }
-
-    toast.success(`Missão concluída! +${xpReward} XP`);
+    toast.success(
+      xpAcao
+        ? `Missão concluída! +${xpReward} XP`
+        : "Missão concluída!"
+    );
     setCompletingKey(null);
   }
 
