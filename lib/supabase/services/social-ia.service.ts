@@ -35,6 +35,7 @@ import {
 import { getWeekRange, isInDateRange } from "@/utils/executive-reports";
 import { workoutsThisWeek } from "@/utils/health";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
+import { appendUserIdentityContext } from "./identity.service";
 import { getOptionalDataContext } from "./context";
 
 type SafeLoadResult<T> = {
@@ -230,8 +231,12 @@ export async function getSocialIaMentorContext(options?: {
     atrasados,
   });
 
+  const context = await appendUserIdentityContext(
+    `${baseContext}\n\n${instagramContext}\n\n${intelligenceContext}`
+  );
+
   return {
-    context: `${baseContext}\n\n${instagramContext}\n\n${intelligenceContext}`,
+    context,
     conteudos,
     profiles,
     leads,

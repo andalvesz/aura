@@ -1,3 +1,4 @@
+import { injectIdentityIntoPrompt } from "@/lib/ai/identity-runtime";
 import OpenAI, { APIError } from "openai";
 import type { InstagramMarca } from "@/types/database";
 import { MARCA_LABELS } from "@/utils/instagram";
@@ -54,13 +55,7 @@ export async function generateSocialRoteiro(
     ? `\nMarca ativa: ${MARCA_LABELS[params.marca]}.`
     : "";
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: `${SOCIAL_ROTEIRO_CONTEXT}${marcaSection}
+  const systemPrompt = await injectIdentityIntoPrompt(`${SOCIAL_ROTEIRO_CONTEXT}${marcaSection}
 
 Responda APENAS JSON:
 {
@@ -69,7 +64,15 @@ Responda APENAS JSON:
   "plataforma": "string",
   "formato": "string",
   "hashtags": ["string"]
-}`,
+}`);
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: systemPrompt,
       },
       {
         role: "user",

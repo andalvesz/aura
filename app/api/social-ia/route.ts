@@ -4,6 +4,11 @@ import {
   persistAiTurn,
 } from "@/lib/ai/memory-runtime";
 import {
+  detectIdentityCommand,
+  injectIdentityIntoPrompt,
+  resolveIdentityCommandResponse,
+} from "@/lib/ai/identity-runtime";
+import {
   assertOpenAiAvailable,
   generateSocialRoteiro,
 } from "@/lib/social/generate-roteiro";
@@ -205,6 +210,26 @@ export async function POST(req: Request) {
       return Response.json({ error: "Descreva o que você precisa." }, { status: 400 });
     }
 
+    const identityCommand = detectIdentityCommand(message);
+    if (identityCommand) {
+      const identityResponse = await resolveIdentityCommandResponse({
+        message,
+        module: "social",
+        command: identityCommand,
+      });
+      if (identityResponse) {
+        await persistAiTurn("social", message, identityResponse.text, {
+          kind: "identity",
+          identityCommand: identityResponse.command,
+        });
+        return Response.json({
+          kind: "identity",
+          text: identityResponse.text,
+          identityCommand: identityResponse.command,
+        });
+      }
+    }
+
     const unavailable = assertOpenAiAvailable();
     if (unavailable) {
       return Response.json({ error: unavailable }, { status: 503 });
@@ -234,9 +259,9 @@ export async function POST(req: Request) {
       ? `\n\nMarca ativa: ${MARCA_LABELS[marca]}. Priorize conteúdo para esta marca.`
       : "";
 
-    const systemPrompt = `${SOCIAL_AI_CONTEXT}
+    const systemPrompt = await injectIdentityIntoPrompt(`${SOCIAL_AI_CONTEXT}
 
-${dataContext ?? "## DADOS\nNenhum dado disponível."}${leadSection}${marcaSection}`;
+${dataContext ?? "## DADOS\nNenhum dado disponível."}${leadSection}${marcaSection}`);
 
     const mergedHistory = await resolveMergedHistory("social", history);
 

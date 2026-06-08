@@ -3,6 +3,11 @@ import {
   buildOpenAiMessagesWithMemory,
   persistAiTurn,
 } from "@/lib/ai/memory-runtime";
+import {
+  detectIdentityCommand,
+  injectIdentityIntoPrompt,
+  resolveIdentityCommandResponse,
+} from "@/lib/ai/identity-runtime";
 import { getEnglishCoachMentorContext } from "@/lib/supabase/services/english-coach.service";
 import {
   saveGeneratedLesson,
@@ -85,6 +90,10 @@ function buildSystemPrompt(dataContext: string | null): string {
   return `${ENGLISH_COACH_CONTEXT}${dataSection}`;
 }
 
+async function buildSystemPromptWithIdentity(dataContext: string | null): Promise<string> {
+  return injectIdentityIntoPrompt(buildSystemPrompt(dataContext));
+}
+
 const LESSON_JSON_SCHEMA = `Responda APENAS JSON:
 {
   "titulo": "string",
@@ -150,6 +159,26 @@ export async function POST(req: Request) {
       return Response.json({ error: "Descreva o que você precisa." }, { status: 400 });
     }
 
+    const identityCommand = detectIdentityCommand(message);
+    if (identityCommand) {
+      const identityResponse = await resolveIdentityCommandResponse({
+        message,
+        module: "idiomas",
+        command: identityCommand,
+      });
+      if (identityResponse) {
+        await persistAiTurn("idiomas", message, identityResponse.text, {
+          kind: "identity",
+          identityCommand: identityResponse.command,
+        });
+        return Response.json({
+          text: identityResponse.text,
+          kind: "identity",
+          identityCommand: identityResponse.command,
+        });
+      }
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       return Response.json(
         { error: "IA indisponível (OPENAI_API_KEY)." },
@@ -164,7 +193,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "Faça login para usar o English Coach." }, { status: 401 });
     }
 
-    const systemPrompt = buildSystemPrompt(dataContext);
+    const systemPrompt = await buildSystemPromptWithIdentity(dataContext);
     const mergedHistory = await resolveMergedHistory("idiomas", history);
     const modoLabel = modo;
 

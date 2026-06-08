@@ -37,7 +37,8 @@ import {
 } from "@/lib/supabase/services/notifications.service";
 import { getWeekRange } from "@/utils/executive-reports";
 import { getActiveGoals } from "@/utils/goals";
-import { getLegacyContext } from "./legado.service";
+import { injectIdentityIntoPrompt } from "@/lib/ai/identity-runtime";
+import { getUserLegacyContext } from "./identity.service";
 import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 
 const openai = new OpenAI({
@@ -183,7 +184,7 @@ async function buildReportAnalysisUserContent(
   report: ExecutiveReportPayload,
   data: ExecutiveReportData
 ): Promise<string> {
-  const { context: legacyContext } = await getLegacyContext();
+  const { context: legacyContext } = await getUserLegacyContext();
   const legacySection = legacyContext ? `\n\n${legacyContext}` : "";
 
   return `Tipo: ${type}
@@ -233,14 +234,9 @@ export async function generateExecutiveReportAnalysis(
   }
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `Você é a Aura Central analisando relatórios executivos de Anderson Alves.
+    const systemPrompt = await injectIdentityIntoPrompt(`Você é a Aura Central analisando relatórios executivos de Anderson Alves.
 Use APENAS o relatório e contexto fornecidos. Português do Brasil, tom executivo e direto.
+Considere a trajetória pessoal (legado) ao identificar oportunidades e prioridades.
 Responda APENAS JSON:
 {
   "funcionou": "string",
@@ -248,7 +244,15 @@ Responda APENAS JSON:
   "maiorOportunidade": "string",
   "maiorRisco": "string",
   "proximaPrioridade": "string"
-}`,
+}`);
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
         },
         {
           role: "user",

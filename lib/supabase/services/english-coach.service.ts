@@ -9,6 +9,7 @@ import type {
 } from "@/types/database";
 import { buildEnglishCoachDataContext } from "@/utils/english";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
+import { appendUserIdentityContext } from "./identity.service";
 import { getOptionalDataContext } from "./context";
 
 type SafeLoadResult<T> = {
@@ -77,8 +78,12 @@ export async function getEnglishCoachMentorContext(): Promise<{
   const sessions = sessionsLoad.data as LanguageSession[];
   const lessons = lessonsLoad.data as LanguageLesson[];
 
+  const context = await appendUserIdentityContext(
+    buildEnglishCoachDataContext(progress, sessions, lessons)
+  );
+
   return {
-    context: buildEnglishCoachDataContext(progress, sessions, lessons),
+    context,
     error: null,
   };
 }

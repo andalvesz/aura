@@ -31,7 +31,7 @@ import {
 } from "@/utils/mentor";
 import type { OrcamentoWithCliente } from "@/utils/nexus";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
-import { getLegacyContext } from "./legado.service";
+import { getUserLegacyContext } from "./identity.service";
 import { getOptionalDataContext } from "./context";
 
 type SafeLoadResult<T> = {
@@ -210,7 +210,7 @@ export async function getAuraGlobalSummaryMentorContext(): Promise<{
   }
 
   const base = buildAuraGlobalSummaryContext(data);
-  const { context: legacyContext } = await getLegacyContext();
+  const { context: legacyContext } = await getUserLegacyContext();
   const context = legacyContext ? `${base}\n\n${legacyContext}` : base;
 
   return { context, error: null };

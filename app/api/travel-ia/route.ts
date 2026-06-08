@@ -1,5 +1,10 @@
 import OpenAI, { APIError } from "openai";
 import { persistAiTurn } from "@/lib/ai/memory-runtime";
+import {
+  detectIdentityCommand,
+  injectIdentityIntoPrompt,
+  resolveIdentityCommandResponse,
+} from "@/lib/ai/identity-runtime";
 import { logOpenAiError } from "@/lib/logs/record";
 import { parseTravelAiResponse, type ParsedTravelAiResponse } from "@/utils/travel";
 import { parseRequestJson, safeJsonParse } from "@/utils/safe-json";
@@ -51,6 +56,26 @@ export async function POST(req: Request) {
       return Response.json({ error: "Descreva a viagem que deseja planejar." }, { status: 400 });
     }
 
+    const identityCommand = detectIdentityCommand(message);
+    if (identityCommand) {
+      const identityResponse = await resolveIdentityCommandResponse({
+        message,
+        module: "agenda",
+        command: identityCommand,
+      });
+      if (identityResponse) {
+        await persistAiTurn("agenda", message, identityResponse.text, {
+          kind: "identity",
+          identityCommand: identityResponse.command,
+        });
+        return Response.json({
+          text: identityResponse.text,
+          kind: "identity",
+          identityCommand: identityResponse.command,
+        });
+      }
+    }
+
     if (!process.env.OPENAI_API_KEY) {
       logOpenAiError("calendario", "OPENAI_API_KEY ausente", "/api/travel-ia");
       return Response.json({ error: "IA indisponível (OPENAI_API_KEY)." }, { status: 503 });
@@ -67,11 +92,13 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join("\n");
 
+    const systemPrompt = await injectIdentityIntoPrompt(SYSTEM);
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: SYSTEM },
+        { role: "system", content: systemPrompt },
         {
           role: "user",
           content: context ? `${context}\n\nPedido: ${message}` : message,

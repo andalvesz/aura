@@ -4,6 +4,12 @@ import {
   persistAiTurn,
 } from "@/lib/ai/memory-runtime";
 import {
+  detectIdentityCommand,
+  injectIdentityIntoPrompt,
+  resolveIdentityCommandResponse,
+} from "@/lib/ai/identity-runtime";
+import { getUserLegacyContext } from "@/lib/supabase/services/identity.service";
+import {
   getAuraCentralFinanceContext,
   getAuraCentralOpeningSummary,
 } from "@/lib/supabase/services/central.service";
@@ -297,6 +303,27 @@ export async function POST(req: Request) {
       });
     }
 
+    const identityCommand = detectIdentityCommand(message);
+    if (identityCommand) {
+      const identityResponse = await resolveIdentityCommandResponse({
+        message,
+        module: "aura_central",
+        command: identityCommand,
+      });
+      if (identityResponse) {
+        await persistAiTurn("aura_central", message, identityResponse.text, {
+          kind: "identity",
+          identityCommand: identityResponse.command,
+        });
+        return Response.json({
+          text: identityResponse.text,
+          module: "global",
+          kind: "identity",
+          identityCommand: identityResponse.command,
+        });
+      }
+    }
+
     const coachMode = detectCoachMode(message, actionId);
     if (coachMode) {
       if (coachMode === "intro") {
@@ -350,7 +377,14 @@ export async function POST(req: Request) {
 
       const ctx = await getOptionalDataContext();
       const displayName = ctx ? await resolveUserDisplayName(ctx) : "Anderson";
-      const { text, mode } = resolveCoachResponse(coachMode, coachData, displayName);
+      let { text, mode } = resolveCoachResponse(coachMode, coachData, displayName);
+
+      if (coachMode === "goals" || coachMode === "goals-late") {
+        const { context: legacyContext } = await getUserLegacyContext();
+        if (legacyContext) {
+          text += `\n\n---\n**Conexão com sua trajetória:** suas metas se alinham com a evolução registrada no Legado — ginástica, dança, Alvesz, Aura e liberdade financeira. Use essa história como combustível.`;
+        }
+      }
 
       await persistAiTurn("aura_central", message, text, { kind: "coach", coachMode: mode });
 
@@ -560,12 +594,12 @@ export async function POST(req: Request) {
     const evolutionContext =
       actionId === "evolucao" ? await getAuraEvolutionContext() : null;
 
-    const systemPrompt = `${AURA_CENTRAL_CONTEXT}
+    const systemPrompt = await injectIdentityIntoPrompt(`${AURA_CENTRAL_CONTEXT}
 
 ## MÓDULO ATIVO: ${module.toUpperCase()}
 ${MODULE_INSTRUCTIONS[module]}
 
-${dataContext ?? "## DADOS\nNenhum dado cadastrado ainda para este módulo."}`;
+${dataContext ?? "## DADOS\nNenhum dado cadastrado ainda para este módulo."}`);
 
     const extraSections = evolutionContext ? [evolutionContext] : [];
 

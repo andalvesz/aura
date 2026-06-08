@@ -25,6 +25,7 @@ import {
   buildStrategicMemoryContext,
   getCurrentMonthReference,
 } from "@/utils/growth";
+import { appendUserIdentityContext } from "./identity.service";
 import { getDataContext, getOptionalDataContext } from "./context";
 import { awardAuraXp } from "./xp.service";
 
@@ -218,8 +219,12 @@ export async function getGrowthLeadsMentorContext(actionId?: string): Promise<{
 
   const leads = data ?? [];
 
+  const context = await appendUserIdentityContext(
+    buildGrowthLeadsMentorContext(leads, actionId)
+  );
+
   return {
-    context: buildGrowthLeadsMentorContext(leads, actionId),
+    context,
     error: null,
     leadCount: leads.length,
   };
