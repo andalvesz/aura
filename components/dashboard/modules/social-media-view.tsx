@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
@@ -12,14 +12,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ActionButton } from "../action-button";
-import { MetricCard } from "../metric-card";
 import { MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { useConteudos } from "@/hooks/use-conteudos";
+import { useGoals } from "@/hooks/use-goals";
 import { useGrowthLeads } from "@/hooks/use-growth-leads";
 import { useGrowthProfiles } from "@/hooks/use-growth-profiles";
 import { useSocialIaStatus } from "@/hooks/use-social-ia-status";
+import { useAuraXp } from "@/hooks/use-aura-xp";
+import { awardAuraXpClient } from "@/lib/xp/client";
 import { parseJsonResponse } from "@/utils/safe-json";
-import type { Conteudo, InstagramMarca } from "@/types/database";
+import type { Conteudo, InstagramMarca, XpAcao } from "@/types/database";
 import { analyzeGrowthLeadContentInsights } from "@/utils/growth";
 import {
   computeSocialMetrics,
@@ -31,15 +33,22 @@ import {
   parseConteudoSuggestions,
   type ParsedConteudoSuggestion,
 } from "@/utils/social";
-import { filterConteudosByMarca } from "@/utils/instagram";
+import {
+  DEFAULT_SOCIAL_FILTERS,
+  filterConteudosSocial,
+  type SocialContentFilters,
+} from "@/utils/social-filters";
 import {
   AddConteudoModal,
   type ConteudoFormPayload,
 } from "./add-conteudo-modal";
 import { AuraSocial } from "./aura-social";
+import { ConfirmPublishModal } from "./confirm-publish-modal";
 import { InstagramProfilesPanel } from "./instagram-profiles-panel";
 import { InstagramCalendarPanel } from "./instagram-calendar-panel";
 import { InstagramPipelinePanel } from "./instagram-pipeline-panel";
+import { SocialContentGoalsPanel } from "./social-content-goals-panel";
+import { SocialContentToolbar } from "./social-content-toolbar";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 
 const IA_UNAVAILABLE_MSG =
@@ -57,6 +66,8 @@ export function SocialMediaView() {
   } = useConteudos();
   const { data: leads } = useGrowthLeads();
   const { data: profiles, refresh: refreshProfiles } = useGrowthProfiles();
+  const { data: goals, loading: goalsLoading, refresh: refreshGoals } = useGoals();
+  const { refresh: refreshXp } = useAuraXp();
   const {
     available: iaAvailable,
     reason: iaReason,
@@ -64,6 +75,7 @@ export function SocialMediaView() {
   } = useSocialIaStatus();
 
   const [activeMarca, setActiveMarca] = useState<InstagramMarca>("marca_pessoal");
+  const [filters, setFilters] = useState<SocialContentFilters>(DEFAULT_SOCIAL_FILTERS);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Conteudo | null>(null);
   const [roteiroTarget, setRoteiroTarget] = useState<Conteudo | null>(null);
@@ -72,11 +84,29 @@ export function SocialMediaView() {
   const [pendingSuggestions, setPendingSuggestions] = useState<ParsedConteudoSuggestion[]>([]);
   const [savingSuggestions, setSavingSuggestions] = useState(false);
   const [iaLoading, setIaLoading] = useState<string | null>(null);
+  const [publishModal, setPublishModal] = useState<{
+    id?: string;
+    titulo: string;
+    plannedDate: string | null;
+  } | null>(null);
+  const [publishPending, setPublishPending] = useState(false);
+  const publishResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
 
-  const filtered = useMemo(
-    () => filterConteudosByMarca(conteudos, activeMarca),
-    [conteudos, activeMarca]
-  );
+  const filtered = useMemo(() => {
+    const withMarcaFilter: SocialContentFilters = {
+      ...filters,
+      marca: filters.marca === "all" ? activeMarca : filters.marca,
+    };
+    if (filters.marca === "all") {
+      return filterConteudosSocial(
+        conteudos.filter(
+          (c) => c.marca === activeMarca || (!c.marca && activeMarca === "marca_pessoal")
+        ),
+        { ...filters, marca: "all" }
+      );
+    }
+    return filterConteudosSocial(conteudos, withMarcaFilter);
+  }, [conteudos, filters, activeMarca]);
 
   const metrics = useMemo(() => computeSocialMetrics(filtered), [filtered]);
   const contentInsights = useMemo(
@@ -91,6 +121,29 @@ export function SocialMediaView() {
   const showIaBanner = !iaStatusLoading && !iaAvailable;
   const iaDisabled = iaStatusLoading || !iaAvailable;
 
+  const awardSocialXp = useCallback(
+    async (acao: XpAcao, idempotencyKey: string) => {
+      const { awarded } = await awardAuraXpClient(acao, idempotencyKey);
+      if (awarded) void refreshXp({ silent: true });
+    },
+    [refreshXp]
+  );
+
+  const requestPublishConfirm = useCallback(
+    (info: { titulo: string; plannedDate: string | null; id?: string }) =>
+      new Promise<boolean>((resolve) => {
+        publishResolveRef.current = resolve;
+        setPublishModal(info);
+      }),
+    []
+  );
+
+  const closePublishModal = useCallback((confirmed: boolean) => {
+    publishResolveRef.current?.(confirmed);
+    publishResolveRef.current = null;
+    setPublishModal(null);
+  }, []);
+
   function notifyIaUnavailable() {
     toast.error(iaReason ?? IA_UNAVAILABLE_MSG);
   }
@@ -98,6 +151,25 @@ export function SocialMediaView() {
   function openNew() {
     setEditing(null);
     setModalOpen(true);
+  }
+
+  async function executePublish(id: string) {
+    setStatusLoadingId(id);
+    const { error } = await update(id, {
+      status: "publicado",
+      data_publicada_em: new Date().toISOString(),
+    });
+    setStatusLoadingId(null);
+
+    if (error) {
+      toast.error(error);
+      return false;
+    }
+
+    toast.success("Marcado como publicado.");
+    await awardSocialXp("publicar_conteudo", `conteudo:${id}:publicado`);
+    void refreshGoals();
+    return true;
   }
 
   async function handleSubmit(payload: ConteudoFormPayload) {
@@ -111,8 +183,21 @@ export function SocialMediaView() {
         ...withMarca,
         data_publicada_em: editing?.data_publicada_em ?? new Date().toISOString(),
       };
-      if (editing) return update(editing.id, publishFields);
-      return create(publishFields);
+      if (editing) {
+        const result = await update(editing.id, publishFields);
+        if (!result.error && !wasPublished) {
+          await awardSocialXp("publicar_conteudo", `conteudo:${editing.id}:publicado`);
+          void refreshGoals();
+        }
+        return result;
+      }
+      const result = await create(publishFields);
+      if (!result.error && result.data) {
+        await awardSocialXp("criar_conteudo", `conteudo:${result.data.id}:criado`);
+        await awardSocialXp("publicar_conteudo", `conteudo:${result.data.id}:publicado`);
+        void refreshGoals();
+      }
+      return result;
     }
 
     const fields = wasPublished
@@ -120,7 +205,12 @@ export function SocialMediaView() {
       : withMarca;
 
     if (editing) return update(editing.id, fields);
-    return create(fields);
+
+    const result = await create(fields);
+    if (!result.error && result.data) {
+      await awardSocialXp("criar_conteudo", `conteudo:${result.data.id}:criado`);
+    }
+    return result;
   }
 
   async function handleGerarRoteiro(item: Conteudo) {
@@ -158,7 +248,10 @@ export function SocialMediaView() {
         status: "roteiro",
       });
       if (error) toast.error(error);
-      else toast.success("Roteiro gerado e salvo.");
+      else {
+        toast.success("Roteiro gerado e salvo.");
+        await awardSocialXp("gerar_roteiro", `conteudo:${item.id}:roteiro`);
+      }
     } catch {
       toast.error("Erro de conexão ao gerar roteiro.");
     } finally {
@@ -229,7 +322,7 @@ export function SocialMediaView() {
         ? new Date(`${item.data}T12:00:00`).toISOString()
         : null;
 
-      const { error } = await create({
+      const { error, data } = await create({
         titulo: item.titulo,
         plataforma: item.plataforma,
         formato: item.formato,
@@ -241,7 +334,15 @@ export function SocialMediaView() {
         marca: (item.marca as InstagramMarca) ?? activeMarca,
       });
 
-      if (!error) saved++;
+      if (!error) {
+        saved++;
+        if (data) {
+          await awardSocialXp("criar_conteudo", `conteudo:${data.id}:criado`);
+          if (item.roteiro) {
+            await awardSocialXp("gerar_roteiro", `conteudo:${data.id}:roteiro`);
+          }
+        }
+      }
     }
 
     setSavingSuggestions(false);
@@ -252,25 +353,27 @@ export function SocialMediaView() {
 
   async function handlePublicado(id: string) {
     const item = conteudos.find((c) => c.id === id);
-    const planned = item?.data_publicacao
-      ? new Date(item.data_publicacao).toLocaleDateString("pt-BR")
-      : null;
+    if (!item) return;
 
-    const message = planned
-      ? `Marcar como publicado? A data planejada (${planned}) será preservada.`
-      : "Marcar este conteúdo como publicado?";
-
-    if (!confirm(message)) return;
-
-    setStatusLoadingId(id);
-    const { error } = await update(id, {
-      status: "publicado",
-      data_publicada_em: new Date().toISOString(),
+    await requestPublishConfirm({
+      id,
+      titulo: item.titulo,
+      plannedDate: item.data_publicacao?.slice(0, 10) ?? null,
     });
-    setStatusLoadingId(null);
+  }
 
-    if (error) toast.error(error);
-    else toast.success("Marcado como publicado.");
+  async function handlePublishModalConfirm() {
+    if (!publishModal) return;
+    setPublishPending(true);
+
+    if (publishModal.id) {
+      const ok = await executePublish(publishModal.id);
+      closePublishModal(ok);
+    } else {
+      closePublishModal(true);
+    }
+
+    setPublishPending(false);
   }
 
   async function handleAdvanceStatus(item: Conteudo) {
@@ -353,6 +456,23 @@ export function SocialMediaView() {
         activeMarca={activeMarca}
         onMarcaChange={setActiveMarca}
         onRefresh={() => void refreshProfiles()}
+      />
+
+      {loading ? (
+        <MetricsSkeleton />
+      ) : (
+        <SocialContentGoalsPanel
+          conteudos={conteudos}
+          goals={goals}
+          goalsLoading={goalsLoading}
+          activeMarca={activeMarca}
+        />
+      )}
+
+      <SocialContentToolbar
+        filters={filters}
+        onChange={setFilters}
+        resultCount={filtered.length}
       />
 
       <div className="flex flex-wrap justify-end gap-2">
@@ -488,13 +608,20 @@ export function SocialMediaView() {
         </Panel>
       )}
 
-      {loading ? (
-        <MetricsSkeleton />
-      ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          <MetricCard label="Em produção" value={String(metrics.emProducao)} />
-          <MetricCard label="Publicados" value={String(metrics.publicados)} />
-          <MetricCard label="Ideias" value={String(metrics.ideias)} />
+      {!loading && (
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-md border border-white/[0.06] bg-zinc-950/30 px-2 py-1.5">
+            <p className="text-[10px] text-zinc-500">Ideias</p>
+            <p className="text-[14px] font-semibold text-zinc-200">{metrics.ideias}</p>
+          </div>
+          <div className="rounded-md border border-white/[0.06] bg-zinc-950/30 px-2 py-1.5">
+            <p className="text-[10px] text-zinc-500">Em produção</p>
+            <p className="text-[14px] font-semibold text-zinc-200">{metrics.emProducao}</p>
+          </div>
+          <div className="rounded-md border border-white/[0.06] bg-zinc-950/30 px-2 py-1.5">
+            <p className="text-[10px] text-zinc-500">Publicados</p>
+            <p className="text-[14px] font-semibold text-zinc-200">{metrics.publicados}</p>
+          </div>
         </div>
       )}
 
@@ -542,6 +669,21 @@ export function SocialMediaView() {
         initial={editing}
         defaultMarca={activeMarca}
         onSubmit={handleSubmit}
+        onPublishConfirm={(info) =>
+          requestPublishConfirm({
+            titulo: info.titulo,
+            plannedDate: info.plannedDate,
+          })
+        }
+      />
+
+      <ConfirmPublishModal
+        open={Boolean(publishModal)}
+        onClose={() => closePublishModal(false)}
+        onConfirm={() => void handlePublishModalConfirm()}
+        titulo={publishModal?.titulo ?? ""}
+        plannedDate={publishModal?.plannedDate ?? null}
+        pending={publishPending}
       />
     </div>
   );

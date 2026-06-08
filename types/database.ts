@@ -636,7 +636,10 @@ export type XpAcao =
   | "missao_followup"
   | "missao_oferta"
   | "missao_estudar"
-  | "missao_analisar";
+  | "missao_analisar"
+  | "criar_conteudo"
+  | "gerar_roteiro"
+  | "publicar_conteudo";
 
 export type UserXp = {
   id: string;

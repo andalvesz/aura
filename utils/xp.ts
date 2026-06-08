@@ -24,6 +24,9 @@ export const XP_REWARDS: Record<XpAcao, number> = {
   missao_oferta: 30,
   missao_estudar: 15,
   missao_analisar: 15,
+  criar_conteudo: 5,
+  gerar_roteiro: 10,
+  publicar_conteudo: 15,
 };
 
 export const XP_ACAO_LABELS: Record<XpAcao, string> = {
@@ -47,6 +50,9 @@ export const XP_ACAO_LABELS: Record<XpAcao, string> = {
   missao_oferta: "Missão: criar oferta",
   missao_estudar: "Missão: estudar vendas",
   missao_analisar: "Missão: analisar perfil",
+  criar_conteudo: "Conteúdo criado",
+  gerar_roteiro: "Roteiro gerado",
+  publicar_conteudo: "Conteúdo publicado",
 };
 
 const LEVEL_THRESHOLDS = [0, 100, 250, 450, 700] as const;

@@ -34,6 +34,10 @@ type AddConteudoModalProps = {
   initial?: Conteudo | null;
   defaultMarca?: InstagramMarca;
   onSubmit: (payload: ConteudoFormPayload) => Promise<{ error: string | null }>;
+  onPublishConfirm?: (info: {
+    titulo: string;
+    plannedDate: string | null;
+  }) => Promise<boolean>;
 };
 
 export function AddConteudoModal({
@@ -42,6 +46,7 @@ export function AddConteudoModal({
   initial,
   defaultMarca,
   onSubmit,
+  onPublishConfirm,
 }: AddConteudoModalProps) {
   const [pending, setPending] = useState(false);
   const isEdit = Boolean(initial);
@@ -64,13 +69,10 @@ export function AddConteudoModal({
       initial && normalizeConteudoStatus(initial.status) === "publicado";
 
     if (status === "publicado" && !wasPublished) {
-      const planned = dataRaw
-        ? new Date(`${dataRaw}T12:00:00`).toLocaleDateString("pt-BR")
-        : null;
-      const message = planned
-        ? `Marcar como publicado? A data planejada (${planned}) será preservada.`
-        : "Marcar este conteúdo como publicado?";
-      if (!confirm(message)) return;
+      const confirmed = onPublishConfirm
+        ? await onPublishConfirm({ titulo, plannedDate: dataRaw || null })
+        : confirm("Marcar este conteúdo como publicado?");
+      if (!confirmed) return;
     }
 
     setPending(true);
