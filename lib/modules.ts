@@ -110,7 +110,7 @@ export const MODULES: ModuleConfig[] = [
     href: "/dashboard/social-media",
     label: "Instagram Inteligente",
     shortLabel: "Social Media",
-    description: "Centro de crescimento: perfis, calendário, pipeline e IA.",
+    description: "Inteligência integrada: oportunidades, metas, relatório e IA Coach.",
     icon: Share2,
     accent: "text-amber-400",
     overview: {

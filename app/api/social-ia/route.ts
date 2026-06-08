@@ -34,7 +34,8 @@ type SocialIaMode =
   | "ideias"
   | "ideias-stories"
   | "roteiro"
-  | "post-hoje";
+  | "post-hoje"
+  | "coach";
 
 const ACTION_DEFAULTS: Record<
   SocialAiAction,
@@ -88,6 +89,21 @@ const ACTION_DEFAULTS: Record<
   "post-hoje": {
     mode: "post-hoje",
     message: "O que devo postar hoje? Sugira conteúdo concreto com base nos dados reais.",
+  },
+  "conteudo-atrasado": {
+    mode: "coach",
+    message:
+      "Tenho algum conteúdo atrasado? Liste o que está atrasado e sugira ações para recuperar o calendário.",
+  },
+  "melhor-resultado": {
+    mode: "coach",
+    message:
+      "Qual conteúdo gera mais resultado? Analise formatos, marcas e pipeline para recomendar o que priorizar.",
+  },
+  "gravar-semana": {
+    mode: "coach",
+    message:
+      "Qual conteúdo devo gravar esta semana? Liste gravações prioritárias com base em eventos, metas e oportunidades.",
   },
 };
 
@@ -347,6 +363,52 @@ Gere 7 ideias de Stories.`,
       await persistAiTurn("social", message, text, { kind: "ideias", marca });
 
       return Response.json({ kind: "ideias-stories", suggestion: parsed, text });
+    }
+
+    if (mode === "coach") {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${systemPrompt}
+
+Responda APENAS JSON:
+{
+  "resumo": "análise executiva respondendo à pergunta do usuário",
+  "insights": ["insight 1", "insight 2"],
+  "conteudos": [
+    {
+      "titulo": "string",
+      "plataforma": "instagram",
+      "formato": "reel|story|post",
+      "objetivo": "string",
+      "data": "YYYY-MM-DD ou null",
+      "marca": "marca_pessoal|alvesz|consorcios",
+      "observacoes": "por que esta ação"
+    }
+  ]
+}
+Use dados reais: oportunidades automáticas, conteúdos atrasados, relatório social, metas, eventos Alvesz, leads consórcios, viagens Disney/NBA e inglês.
+Para "conteúdo atrasado": liste atrasados e sugira replanejamento.
+Para "melhor resultado": analise pipeline e formatos publicados.
+Para "gravar esta semana": priorize gravações com data desta semana.`,
+          },
+          { role: "user", content: message },
+        ],
+      });
+
+      const raw = response.choices[0]?.message?.content ?? "{}";
+      const parsed = safeJsonParse<Record<string, unknown>>(raw, {});
+      const text =
+        typeof parsed.resumo === "string"
+          ? parsed.resumo
+          : "Análise gerada com base nos seus dados.";
+
+      await persistAiTurn("social", message, text, { kind: "coach", marca });
+
+      return Response.json({ kind: "coach", suggestion: parsed, text });
     }
 
     if (mode === "post-hoje") {

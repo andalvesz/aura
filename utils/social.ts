@@ -44,6 +44,9 @@ export const SOCIAL_AI_ACTIONS = [
   "ideias-marca-pessoal",
   "lead-para-conteudo",
   "post-hoje",
+  "conteudo-atrasado",
+  "melhor-resultado",
+  "gravar-semana",
 ] as const;
 
 export type SocialAiAction = (typeof SOCIAL_AI_ACTIONS)[number];

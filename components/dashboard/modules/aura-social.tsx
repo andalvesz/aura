@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertCircle,
   CalendarDays,
   Clapperboard,
   Heart,
@@ -8,7 +9,9 @@ import {
   Loader2,
   Send,
   Sparkles,
+  TrendingUp,
   UserCircle,
+  Video,
   Wine,
 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -27,8 +30,39 @@ type QuickAction = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   prompt: string;
-  mode?: "chat" | "calendario" | "ideias" | "roteiro";
+  mode?: "chat" | "calendario" | "ideias" | "roteiro" | "post-hoje" | "coach";
 };
+
+const COACH_ACTIONS: QuickAction[] = [
+  {
+    id: "post-hoje",
+    label: "O que postar hoje?",
+    icon: Sparkles,
+    mode: "post-hoje",
+    prompt: "O que devo postar hoje?",
+  },
+  {
+    id: "conteudo-atrasado",
+    label: "Conteúdo atrasado?",
+    icon: AlertCircle,
+    mode: "coach",
+    prompt: "Tenho algum conteúdo atrasado?",
+  },
+  {
+    id: "melhor-resultado",
+    label: "Melhor resultado",
+    icon: TrendingUp,
+    mode: "coach",
+    prompt: "Qual conteúdo gera mais resultado?",
+  },
+  {
+    id: "gravar-semana",
+    label: "Gravar esta semana",
+    icon: Video,
+    mode: "coach",
+    prompt: "Qual conteúdo devo gravar esta semana?",
+  },
+];
 
 const QUICK_ACTIONS: QuickAction[] = [
   {
@@ -80,7 +114,7 @@ type AuraSocialProps = {
   marca?: InstagramMarca;
   iaAvailable?: boolean;
   iaReason?: string | null;
-  onSuggestions: (items: ParsedConteudoSuggestion[], kind: string) => void;
+  onSuggestions: (items: ParsedConteudoSuggestion[], kind?: string) => void;
 };
 
 const IA_UNAVAILABLE_MSG =
@@ -99,7 +133,7 @@ export function AuraSocial({
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Olá, Anderson. Sou sua IA de Social Media — planejo conteúdos para Instagram, TikTok, YouTube e Facebook. Uso seus dados reais de conteúdos, perfis e leads do CRM.",
+      text: "Sou sua IA Social Coach — analiso sua vida real (Alvesz, consórcios, viagens Disney/NBA, inglês, metas e calendário) para sugerir o que postar.",
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -204,12 +238,12 @@ export function AuraSocial({
         return;
       }
 
-      if (kind === "ideias" && suggestions.length > 0) {
+      if ((kind === "ideias" || kind === "post-hoje" || kind === "coach") && suggestions.length > 0) {
         setMessages((current) => [
           ...current,
           {
             role: "assistant",
-            text: `${data?.text ?? "Ideias geradas."}\n\n${suggestions.length} ideia(s) prontas para salvar.`,
+            text: `${data?.text ?? "Sugestões geradas."}\n\n${suggestions.length} ideia(s) prontas para salvar.`,
           },
         ]);
         return;
@@ -242,7 +276,7 @@ export function AuraSocial({
         ...current,
         {
           role: "assistant",
-          text: "Erro ao conectar com a IA Social. Tente novamente.",
+          text: "Erro ao conectar com a IA Social Coach. Tente novamente.",
         },
       ]);
     } finally {
@@ -274,15 +308,36 @@ export function AuraSocial({
             <Sparkles className="size-3.5 text-violet-400" />
           </div>
           <div>
-            <PanelTitle>IA Social Media</PanelTitle>
+            <PanelTitle>IA Social Coach</PanelTitle>
             <p className="text-[10px] text-zinc-600">
-              Roteiros · Calendário · Ideias · Leads → conteúdo
+              Inteligência integrada · Alvesz · Consórcios · Disney/NBA
             </p>
           </div>
         </div>
       </PanelHeader>
 
       <PanelContent className="pt-0">
+        <p className="mb-2 text-[11px] font-medium text-violet-200/80">
+          Perguntas rápidas
+        </p>
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          {COACH_ACTIONS.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                key={action.id}
+                type="button"
+                disabled={loading || !iaAvailable}
+                onClick={() => handleQuickAction(action)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-violet-400/15 bg-violet-500/[0.06] px-2.5 py-1.5 text-[11px] text-violet-200 transition-colors hover:border-violet-400/30 hover:bg-violet-500/10 disabled:opacity-50"
+              >
+                <Icon className="size-3 shrink-0" />
+                {action.label}
+              </button>
+            );
+          })}
+        </div>
+
         {activeLeads.length > 0 && (
           <label className="mb-2 block text-[11px] text-zinc-500">
             Lead para personalizar (opcional)
@@ -303,6 +358,7 @@ export function AuraSocial({
           </label>
         )}
 
+        <p className="mb-1.5 text-[11px] text-zinc-500">Ferramentas</p>
         <div className="mb-3 flex flex-wrap gap-1.5">
           {QUICK_ACTIONS.map((action) => {
             const Icon = action.icon;
@@ -338,7 +394,7 @@ export function AuraSocial({
           {loading && (
             <div className="mr-6 flex items-center gap-2 rounded-lg bg-violet-500/10 px-3 py-2 text-[13px] text-violet-300">
               <Loader2 className="size-3.5 animate-spin" />
-              Gerando conteúdo...
+              Analisando seus dados...
             </div>
           )}
 
@@ -349,7 +405,7 @@ export function AuraSocial({
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ex: roteiro para casamento, ideias de Reels, calendário..."
+            placeholder="Ex: o que postar hoje? conteúdo atrasado? gravar esta semana..."
             disabled={loading || !iaAvailable}
             className="h-10 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:border-violet-400/40 focus:outline-none disabled:opacity-50"
           />

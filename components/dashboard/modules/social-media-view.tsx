@@ -13,11 +13,19 @@ import {
 import { toast } from "sonner";
 import { ActionButton } from "../action-button";
 import { MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
+import { useAlveszEventos } from "@/hooks/use-alvesz-eventos";
 import { useConteudos } from "@/hooks/use-conteudos";
+import { useEventos } from "@/hooks/use-eventos";
 import { useGoals } from "@/hooks/use-goals";
 import { useGrowthLeads } from "@/hooks/use-growth-leads";
 import { useGrowthProfiles } from "@/hooks/use-growth-profiles";
+import { useLanguageProgress } from "@/hooks/use-language-progress";
+import { useLanguageSessions } from "@/hooks/use-language-sessions";
+import { useLeads } from "@/hooks/use-leads";
+import { useOrcamentos } from "@/hooks/use-orcamentos";
 import { useSocialIaStatus } from "@/hooks/use-social-ia-status";
+import { useSupabaseCrud } from "@/hooks/use-supabase-crud";
+import { useTrips } from "@/hooks/use-trips";
 import { useAuraXp } from "@/hooks/use-aura-xp";
 import { awardAuraXpClient } from "@/lib/xp/client";
 import { parseJsonResponse } from "@/utils/safe-json";
@@ -39,6 +47,13 @@ import {
   type SocialContentFilters,
 } from "@/utils/social-filters";
 import {
+  computeAllSocialOpportunities,
+  computePostingStreak,
+  computeSocialReport,
+  opportunityToSuggestion,
+  type SocialOpportunity,
+} from "@/utils/social-intelligence";
+import {
   AddConteudoModal,
   type ConteudoFormPayload,
 } from "./add-conteudo-modal";
@@ -49,6 +64,8 @@ import { InstagramCalendarPanel } from "./instagram-calendar-panel";
 import { InstagramPipelinePanel } from "./instagram-pipeline-panel";
 import { SocialContentGoalsPanel } from "./social-content-goals-panel";
 import { SocialContentToolbar } from "./social-content-toolbar";
+import { SocialOpportunitiesPanel } from "./social-opportunities-panel";
+import { SocialReportPanel } from "./social-report-panel";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "../panel";
 
 const IA_UNAVAILABLE_MSG =
@@ -65,6 +82,17 @@ export function SocialMediaView() {
     remove,
   } = useConteudos();
   const { data: leads } = useGrowthLeads();
+  const { data: consorciosLeads } = useLeads();
+  const { data: orcamentos } = useOrcamentos();
+  const { data: alveszEventos } = useAlveszEventos();
+  const { data: eventos } = useEventos();
+  const { data: trips } = useTrips();
+  const { data: checklist } = useSupabaseCrud<"trip_checklist_items">({
+    table: "trip_checklist_items",
+    orderBy: "ordem",
+  });
+  const { data: languageProgress } = useLanguageProgress();
+  const { data: languageSessions } = useLanguageSessions();
   const { data: profiles, refresh: refreshProfiles } = useGrowthProfiles();
   const { data: goals, loading: goalsLoading, refresh: refreshGoals } = useGoals();
   const { refresh: refreshXp } = useAuraXp();
@@ -116,6 +144,55 @@ export function SocialMediaView() {
   const growthHints = useMemo(
     () => getSocialGrowthHints(contentInsights),
     [contentInsights]
+  );
+
+  const opportunities = useMemo(
+    () =>
+      computeAllSocialOpportunities({
+        orcamentos,
+        alveszEventos,
+        eventos,
+        leads: consorciosLeads,
+        trips,
+        checklist,
+        languageProgress,
+        languageSessions,
+        goals,
+        activeMarca,
+      }),
+    [
+      orcamentos,
+      alveszEventos,
+      eventos,
+      consorciosLeads,
+      trips,
+      checklist,
+      languageProgress,
+      languageSessions,
+      goals,
+      activeMarca,
+    ]
+  );
+
+  const marcaConteudos = useMemo(
+    () =>
+      conteudos.filter(
+        (c) => c.marca === activeMarca || (!c.marca && activeMarca === "marca_pessoal")
+      ),
+    [conteudos, activeMarca]
+  );
+
+  const reportSemana = useMemo(
+    () => computeSocialReport(marcaConteudos, activeMarca, "semana"),
+    [marcaConteudos, activeMarca]
+  );
+  const reportMes = useMemo(
+    () => computeSocialReport(marcaConteudos, activeMarca, "mes"),
+    [marcaConteudos, activeMarca]
+  );
+  const postingStreak = useMemo(
+    () => computePostingStreak(marcaConteudos),
+    [marcaConteudos]
   );
 
   const showIaBanner = !iaStatusLoading && !iaAvailable;
@@ -312,6 +389,42 @@ export function SocialMediaView() {
     }
   }
 
+  function handleAddOpportunity(opp: SocialOpportunity) {
+    const suggestion = opportunityToSuggestion(opp);
+    setPendingSuggestions((current) => [
+      ...current,
+      {
+        titulo: suggestion.titulo,
+        plataforma: suggestion.plataforma,
+        formato: suggestion.formato,
+        objetivo: suggestion.objetivo,
+        observacoes: suggestion.observacoes,
+        data: null,
+        roteiro: null,
+        marca: suggestion.marca,
+      },
+    ]);
+    toast.success("Oportunidade adicionada às sugestões.");
+  }
+
+  function handleAddAllOpportunities() {
+    const suggestions = opportunities.map((opp) => {
+      const s = opportunityToSuggestion(opp);
+      return {
+        titulo: s.titulo,
+        plataforma: s.plataforma,
+        formato: s.formato,
+        objetivo: s.objetivo,
+        observacoes: s.observacoes,
+        data: null,
+        roteiro: null,
+        marca: s.marca,
+      };
+    });
+    setPendingSuggestions(suggestions);
+    toast.success(`${suggestions.length} oportunidade(s) prontas para salvar.`);
+  }
+
   async function handleSaveSuggestions() {
     if (pendingSuggestions.length === 0) return;
     setSavingSuggestions(true);
@@ -466,6 +579,19 @@ export function SocialMediaView() {
           goals={goals}
           goalsLoading={goalsLoading}
           activeMarca={activeMarca}
+          streak={postingStreak}
+        />
+      )}
+
+      {!loading && (
+        <SocialReportPanel reportSemana={reportSemana} reportMes={reportMes} />
+      )}
+
+      {!loading && (
+        <SocialOpportunitiesPanel
+          opportunities={opportunities}
+          onAddOpportunity={handleAddOpportunity}
+          onAddAll={opportunities.length > 0 ? handleAddAllOpportunities : undefined}
         />
       )}
 
