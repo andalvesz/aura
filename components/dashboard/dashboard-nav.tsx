@@ -6,6 +6,7 @@ import {
   BI_NAV,
   DIAGNOSTICS_NAV,
   GOALS_NAV,
+  LEGADO_NAV,
   LOGS_NAV,
   MODULES,
   HOME_NAV,
@@ -30,6 +31,7 @@ export function DashboardNav({
   const pathname = usePathname();
   const HomeIcon = HOME_NAV.icon;
   const MemoryIcon = MEMORY_NAV.icon;
+  const LegadoIcon = LEGADO_NAV.icon;
   const ReportsIcon = REPORTS_NAV.icon;
   const GoalsIcon = GOALS_NAV.icon;
   const BiIcon = BI_NAV.icon;
@@ -80,6 +82,27 @@ export function DashboardNav({
           )}
         />
         {MEMORY_NAV.label}
+      </Link>
+      <Link
+        href={LEGADO_NAV.href}
+        onClick={onNavigate}
+        className={cn(
+          "group flex min-h-11 items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-[color,background-color] duration-200 ease-out md:min-h-0 md:px-2 md:py-1.5",
+          isModuleActive(pathname, LEGADO_NAV.href)
+            ? "bg-white/[0.06] text-zinc-100"
+            : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300",
+          linkClassName
+        )}
+      >
+        <LegadoIcon
+          className={cn(
+            "size-[15px] shrink-0",
+            isModuleActive(pathname, LEGADO_NAV.href)
+              ? "text-yellow-400"
+              : "text-zinc-600 group-hover:text-zinc-400"
+          )}
+        />
+        {LEGADO_NAV.label}
       </Link>
       <Link
         href={NOTIFICATIONS_NAV.href}

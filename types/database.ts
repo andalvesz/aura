@@ -430,6 +430,111 @@ export type Lead = {
   updated_at: string;
 };
 
+export type LegacyCategoria =
+  | "ginastica"
+  | "danca"
+  | "teatro"
+  | "empreendedorismo"
+  | "tecnologia"
+  | "viagens"
+  | "vida_pessoal";
+
+export type LegacyAchievementTipo =
+  | "medalha"
+  | "trofeu"
+  | "vaga"
+  | "conquista_pessoal"
+  | "outro";
+
+export type LegacyLifeEventTipo =
+  | "competicao"
+  | "apresentacao"
+  | "conquista"
+  | "viagem"
+  | "pessoal"
+  | "profissional"
+  | "outro";
+
+export type LegacyMilestoneTipo =
+  | "inicio_ginastica"
+  | "inicio_danca"
+  | "inicio_teatro"
+  | "primeiro_cliente_alvesz"
+  | "criacao_aura"
+  | "noivado"
+  | "viagem_internacional"
+  | "conquista_futura"
+  | "outro";
+
+export type LegacyMilestoneStatus = "concluido" | "em_andamento" | "futuro";
+
+export type LegacyTimeline = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  descricao: string | null;
+  categoria: LegacyCategoria;
+  ano: number;
+  mes: number | null;
+  ordem: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LegacyAchievement = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  descricao: string | null;
+  tipo: LegacyAchievementTipo;
+  categoria: LegacyCategoria;
+  ano: number;
+  local: string | null;
+  ordem: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LegacyCertificate = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  instituicao: string | null;
+  categoria: LegacyCategoria;
+  ano: number;
+  descricao: string | null;
+  ordem: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LegacyLifeEvent = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  descricao: string | null;
+  categoria: LegacyCategoria;
+  data_evento: string;
+  tipo_evento: LegacyLifeEventTipo;
+  ordem: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LegacyMilestone = {
+  id: string;
+  user_id: string;
+  titulo: string;
+  descricao: string | null;
+  categoria: LegacyCategoria;
+  data_marco: string | null;
+  tipo_marco: LegacyMilestoneTipo;
+  status: LegacyMilestoneStatus;
+  ordem: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiMessage = {
   id: string;
   user_id: string;
@@ -448,7 +553,8 @@ export type AiMemoryCategoria =
   | "saude"
   | "alvesz"
   | "crescimento"
-  | "social_media";
+  | "social_media"
+  | "legado";
 
 export type AiMemory = {
   id: string;
@@ -1202,6 +1308,74 @@ export type Database = {
           created_at?: string;
         }
       >;
+      legacy_timeline: TableDef<
+        LegacyTimeline,
+        Omit<LegacyTimeline, "id" | "created_at" | "updated_at" | "descricao" | "mes" | "ordem"> & {
+          id?: string;
+          descricao?: string | null;
+          mes?: number | null;
+          ordem?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      legacy_achievements: TableDef<
+        LegacyAchievement,
+        Omit<
+          LegacyAchievement,
+          "id" | "created_at" | "updated_at" | "descricao" | "local" | "ordem"
+        > & {
+          id?: string;
+          descricao?: string | null;
+          local?: string | null;
+          ordem?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      legacy_certificates: TableDef<
+        LegacyCertificate,
+        Omit<
+          LegacyCertificate,
+          "id" | "created_at" | "updated_at" | "instituicao" | "descricao" | "ordem"
+        > & {
+          id?: string;
+          instituicao?: string | null;
+          descricao?: string | null;
+          ordem?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      legacy_life_events: TableDef<
+        LegacyLifeEvent,
+        Omit<
+          LegacyLifeEvent,
+          "id" | "created_at" | "updated_at" | "descricao" | "ordem" | "tipo_evento"
+        > & {
+          id?: string;
+          descricao?: string | null;
+          tipo_evento?: LegacyLifeEventTipo;
+          ordem?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      legacy_milestones: TableDef<
+        LegacyMilestone,
+        Omit<
+          LegacyMilestone,
+          "id" | "created_at" | "updated_at" | "descricao" | "data_marco" | "status" | "ordem"
+        > & {
+          id?: string;
+          descricao?: string | null;
+          data_marco?: string | null;
+          status?: LegacyMilestoneStatus;
+          ordem?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -1264,7 +1438,12 @@ export type UserScopedTable =
   | "communication_logs"
   | "user_xp"
   | "xp_history"
-  | "system_logs";
+  | "system_logs"
+  | "legacy_timeline"
+  | "legacy_achievements"
+  | "legacy_certificates"
+  | "legacy_life_events"
+  | "legacy_milestones";
 
 export type AiModule =
   | "aura_central"
@@ -1272,4 +1451,5 @@ export type AiModule =
   | "agenda"
   | "saude"
   | "social"
-  | "idiomas";
+  | "idiomas"
+  | "legado";

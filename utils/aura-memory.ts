@@ -13,6 +13,7 @@ export const AI_MEMORY_CATEGORIAS: {
   { id: "alvesz", label: "Alvesz" },
   { id: "crescimento", label: "Crescimento" },
   { id: "social_media", label: "Social Media" },
+  { id: "legado", label: "Legado & Hall da Fama" },
 ];
 
 export const AI_MEMORY_CATEGORY_LABELS: Record<AiMemoryCategoria, string> =
@@ -35,6 +36,7 @@ const PERSIST_KINDS = new Set([
   "vendas",
   "conteudo",
   "comms",
+  "legado",
 ]);
 
 const KIND_TITLES: Record<string, string> = {
@@ -51,6 +53,7 @@ const KIND_TITLES: Record<string, string> = {
   prioridade: "Prioridade recomendada",
   vendas: "Plano de vendas",
   conteudo: "Conteúdo gerado",
+  legado: "História e legado",
 };
 
 const COACH_MODE_TITLES: Record<string, string> = {
@@ -96,6 +99,7 @@ export function resolveAuraMemoryCategoria(
   if (module === "mentor" || kind === "report") return "mentor";
   if (kind === "coach") return "coach";
   if (module === "aura_central") return "coach";
+  if (module === "legado" || kind === "legado") return "legado";
   return "mentor";
 }
 

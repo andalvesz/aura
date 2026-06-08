@@ -37,6 +37,7 @@ import {
 } from "@/lib/supabase/services/notifications.service";
 import { getWeekRange } from "@/utils/executive-reports";
 import { getActiveGoals } from "@/utils/goals";
+import { getLegacyContext } from "./legado.service";
 import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 
 const openai = new OpenAI({
@@ -177,6 +178,24 @@ export async function getExecutiveReport(
   return { report: buildExecutiveReport(type, data, displayName), error: null };
 }
 
+async function buildReportAnalysisUserContent(
+  type: ExecutiveReportType,
+  report: ExecutiveReportPayload,
+  data: ExecutiveReportData
+): Promise<string> {
+  const { context: legacyContext } = await getLegacyContext();
+  const legacySection = legacyContext ? `\n\n${legacyContext}` : "";
+
+  return `Tipo: ${type}
+
+Relatório:
+${report.text}
+
+Leads ativos: ${data.leads.filter((l) => l.status !== "fechado" && l.status !== "perdido").length}
+Memórias da semana: ${data.weekMemories.length}
+Metas ativas: ${getActiveGoals(data.goals).length}${legacySection}`;
+}
+
 function resolveAnalysisError(error: unknown): string {
   if (error instanceof APIError) {
     if (error.code === "insufficient_quota") {
@@ -233,7 +252,7 @@ Responda APENAS JSON:
         },
         {
           role: "user",
-          content: `Tipo: ${type}\n\nRelatório:\n${report.text}\n\nLeads ativos: ${data.leads.filter((l) => l.status !== "fechado" && l.status !== "perdido").length}\nMemórias da semana: ${data.weekMemories.length}\nMetas ativas: ${getActiveGoals(data.goals).length}`,
+          content: await buildReportAnalysisUserContent(type, report, data),
         },
       ],
     });

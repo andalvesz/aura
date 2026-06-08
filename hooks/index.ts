@@ -31,3 +31,4 @@ export { useLanguageProgress } from "./use-language-progress";
 export { useLanguageSessions } from "./use-language-sessions";
 export { useLanguageLessons } from "./use-language-lessons";
 export { useSocialIaStatus } from "./use-social-ia-status";
+export { useLegacy } from "./use-legacy";

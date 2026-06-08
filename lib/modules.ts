@@ -16,6 +16,7 @@ import {
   Share2,
   Stethoscope,
   ScrollText,
+  Star,
   Target,
   Wallet,
 } from "lucide-react";
@@ -31,7 +32,8 @@ export type ModuleId =
   | "comunicacao"
   | "viagens"
   | "idiomas"
-  | "disney-nba";
+  | "disney-nba"
+  | "legado";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -205,6 +207,21 @@ export const MODULES: ModuleConfig[] = [
       hint: "Crie a viagem Disney + NBA para começar",
     },
   },
+  {
+    id: "legado",
+    href: "/dashboard/legado",
+    label: "Legado & Hall da Fama",
+    shortLabel: "Legado",
+    description:
+      "Trajetória de vida, conquistas, certificados e marcos — contexto permanente da Aura.",
+    icon: Star,
+    accent: "text-yellow-400",
+    overview: {
+      metric: "Conquistas",
+      value: "0",
+      hint: "Registre sua trajetória desde 2016",
+    },
+  },
 ];
 
 export const HOME_NAV = {
@@ -217,6 +234,12 @@ export const MEMORY_NAV = {
   href: "/dashboard/memoria",
   label: "Memória",
   icon: Brain,
+};
+
+export const LEGADO_NAV = {
+  href: "/dashboard/legado",
+  label: "Legado & Hall da Fama",
+  icon: Star,
 };
 
 export const REPORTS_NAV = {
