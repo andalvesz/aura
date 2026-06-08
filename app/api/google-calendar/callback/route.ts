@@ -68,6 +68,7 @@ export async function GET(request: Request) {
       refreshToken,
       expiresIn: tokens.expires_in,
       email,
+      grantedScopes: tokens.scope ?? null,
     });
 
     if (error) {

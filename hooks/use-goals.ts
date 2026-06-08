@@ -67,5 +67,55 @@ export function useGoals() {
     [refresh]
   );
 
-  return { data, loading, error, refresh, create };
+  const update = useCallback(
+    async (
+      id: string,
+      payload: Partial<{
+        titulo: string;
+        tipo: Goal["tipo"];
+        meta: number;
+        atual: number;
+        data_inicio: string;
+        data_fim: string;
+        status: Goal["status"];
+      }>
+    ) => {
+      const res = await fetch(`/api/goals/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const { data: body, error: parseError } = await parseJsonResponse<{
+        goal?: Goal;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return { error: body?.error ?? parseError ?? "Erro ao atualizar meta." };
+      }
+
+      await refresh(false);
+      return { error: null, goal: body?.goal ?? null };
+    },
+    [refresh]
+  );
+
+  const remove = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/goals/${id}`, { method: "DELETE" });
+      const { data: body, error: parseError } = await parseJsonResponse<{
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return { error: body?.error ?? parseError ?? "Erro ao excluir meta." };
+      }
+
+      await refresh(false);
+      return { error: null };
+    },
+    [refresh]
+  );
+
+  return { data, loading, error, refresh, create, update, remove };
 }

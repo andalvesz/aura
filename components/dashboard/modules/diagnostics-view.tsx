@@ -23,6 +23,7 @@ import type {
 } from "@/utils/diagnostics";
 import { formatDiagnosticReport, statusLabel } from "@/utils/diagnostics";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { V1StableChecklistPanel } from "@/components/dashboard/v1-stable-checklist-panel";
 import { cn } from "@/utils/cn";
 
 function StatusIcon({ status }: { status: DiagnosticStatus }) {
@@ -183,6 +184,8 @@ export function DiagnosticsView() {
           </Link>
         </div>
       </header>
+
+      <V1StableChecklistPanel />
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <ActionButton

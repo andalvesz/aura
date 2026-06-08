@@ -1,4 +1,5 @@
 import { gmailGetThread, gmailListMessages } from "@/lib/gmail/api";
+import { resolveGoogleCapabilities } from "@/lib/gmail/scopes";
 import { getValidGoogleAccessToken } from "@/lib/google/token.service";
 import type { GmailMessageSummary } from "@/utils/comms";
 
@@ -6,6 +7,8 @@ export type GmailPublicStatus = {
   connected: boolean;
   configured: boolean;
   email: string | null;
+  gmailEnabled: boolean;
+  missingGmailScopes: string[];
 };
 
 export async function getGmailPublicStatus(): Promise<GmailPublicStatus> {
@@ -14,11 +17,16 @@ export async function getGmailPublicStatus(): Promise<GmailPublicStatus> {
 
   const configured = Boolean(getGoogleOAuthConfig());
   const { connection } = await getGoogleAccountConnection();
+  const capabilities = resolveGoogleCapabilities(connection?.granted_scopes);
 
   return {
     connected: Boolean(connection?.access_token),
     configured,
     email: connection?.google_email ?? null,
+    gmailEnabled: capabilities.gmailEnabled,
+    missingGmailScopes: capabilities.missingGmailScopes.filter((s) =>
+      s.includes("gmail")
+    ),
   };
 }
 

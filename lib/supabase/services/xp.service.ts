@@ -106,11 +106,15 @@ export async function getAuraXpState(): Promise<{
   };
 }
 
-export async function awardAuraXp(acao: XpAcao): Promise<{
+export async function awardAuraXp(
+  acao: XpAcao,
+  idempotencyKey?: string | null
+): Promise<{
   awarded: boolean;
   xp: number;
   state: AuraXpState | null;
   error: string | null;
+  duplicate?: boolean;
 }> {
   if (!isXpAcao(acao)) {
     return { awarded: false, xp: 0, state: null, error: "Ação de XP inválida." };
@@ -128,11 +132,23 @@ export async function awardAuraXp(acao: XpAcao): Promise<{
       return { awarded: false, xp: 0, state: null, error: ensured.error ?? "Erro ao carregar XP." };
     }
 
+    if (idempotencyKey) {
+      const dup = await historyRepo.hasIdempotencyKey(idempotencyKey);
+      if (dup.data) {
+        const { state } = await getAuraXpState();
+        return { awarded: false, xp: 0, state, error: null, duplicate: true };
+      }
+    }
+
     const nextStreak = await computeNextStreak(historyRepo, ensured.data.streak_dias);
     const newXpTotal = ensured.data.xp_total + xp;
     const newLevel = calculateLevel(newXpTotal);
 
-    const { error: historyError } = await historyRepo.create({ acao, xp });
+    const { error: historyError } = await historyRepo.create({
+      acao,
+      xp,
+      idempotency_key: idempotencyKey ?? null,
+    });
     if (historyError) {
       return { awarded: false, xp: 0, state: null, error: historyError };
     }

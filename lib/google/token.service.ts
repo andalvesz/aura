@@ -1,4 +1,5 @@
 import type { GoogleCalendarConnection } from "@/types/database";
+import { resolveGoogleCapabilities } from "@/lib/gmail/scopes";
 import { getDataContext, getOptionalDataContext } from "@/lib/supabase/services/context";
 import { getGoogleOAuthConfig } from "@/lib/google-calendar/config";
 import { refreshGoogleAccessToken, tokenExpiresAt } from "@/lib/google-calendar/oauth";
@@ -45,11 +46,13 @@ export async function getValidGoogleAccessToken(): Promise<{
     : 0;
   const needsRefresh = !connection.expires_at || expiresAt - Date.now() < 60_000;
 
+  const capabilities = resolveGoogleCapabilities(connection.granted_scopes);
+
   if (!needsRefresh) {
     return {
       accessToken: connection.access_token,
       error: null,
-      gmailEnabled: Boolean(connection.access_token),
+      gmailEnabled: capabilities.gmailEnabled,
     };
   }
 
@@ -78,10 +81,13 @@ export async function getValidGoogleAccessToken(): Promise<{
       return { accessToken: null, error: updateError.message, gmailEnabled: false };
     }
 
+    const { connection: updated } = await getGoogleAccountConnection();
+    const refreshedCapabilities = resolveGoogleCapabilities(updated?.granted_scopes);
+
     return {
       accessToken: refreshed.access_token,
       error: null,
-      gmailEnabled: true,
+      gmailEnabled: refreshedCapabilities.gmailEnabled,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao renovar token Google.";

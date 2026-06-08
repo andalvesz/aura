@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
-import { getDataContext } from "@/lib/supabase/services/context";
-import { exchangeGoogleCode, fetchGoogleUserEmail, tokenExpiresAt } from "@/lib/google-calendar/oauth";
+import { exchangeGoogleCode, fetchGoogleUserEmail } from "@/lib/google-calendar/oauth";
 import { getGoogleOAuthConfig } from "@/lib/google-calendar/config";
-import { getGoogleAccountConnection } from "@/lib/google/token.service";
+import {
+  getGoogleCalendarConnection,
+  saveGoogleCalendarConnection,
+} from "@/lib/google-calendar/connection.service";
 import { GMAIL_OAUTH_STATE_COOKIE, getGmailRedirectUri } from "@/lib/gmail/config";
 
 export async function GET(request: Request) {
@@ -48,7 +50,7 @@ export async function GET(request: Request) {
 
     let refreshToken = tokens.refresh_token;
     if (!refreshToken) {
-      const { connection } = await getGoogleAccountConnection();
+      const { connection } = await getGoogleCalendarConnection();
       refreshToken = connection?.refresh_token ?? undefined;
     }
 
@@ -57,18 +59,14 @@ export async function GET(request: Request) {
     }
 
     const email = await fetchGoogleUserEmail(tokens.access_token);
-    const { supabase, userId } = await getDataContext();
 
-    const { error } = await supabase.from("google_calendar_connections").upsert(
-      {
-        user_id: userId,
-        access_token: tokens.access_token,
-        refresh_token: refreshToken,
-        expires_at: tokenExpiresAt(tokens.expires_in),
-        google_email: email,
-      },
-      { onConflict: "user_id" }
-    );
+    const { error } = await saveGoogleCalendarConnection({
+      accessToken: tokens.access_token,
+      refreshToken,
+      expiresIn: tokens.expires_in,
+      email,
+      grantedScopes: tokens.scope ?? null,
+    });
 
     if (error) {
       return NextResponse.redirect(`${commsUrl}?gmail=save_error`);

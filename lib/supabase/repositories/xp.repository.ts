@@ -66,6 +66,19 @@ export class XpHistoryRepository extends BaseRepository<"xp_history"> {
     };
   }
 
+  async hasIdempotencyKey(key: string): Promise<RepositoryResult<boolean>> {
+    const { count, error } = await this.supabase
+      .from("xp_history")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", this.userId)
+      .eq("idempotency_key", key);
+
+    return {
+      data: (count ?? 0) > 0,
+      error: error?.message ?? null,
+    };
+  }
+
   async hasActivityOnDate(dateIso: string): Promise<RepositoryResult<boolean>> {
     const next = new Date(`${dateIso}T00:00:00.000Z`);
     next.setUTCDate(next.getUTCDate() + 1);

@@ -165,7 +165,9 @@ export function DisneyNbaView() {
       toast.error(error);
       return;
     }
-    if (next === "feito") await awardAuraXpClient("completar_checklist_viagem");
+    if (next === "feito") {
+      await awardAuraXpClient("completar_checklist_viagem", `checklist:${id}:feito`);
+    }
     toast.success(next === "feito" ? "Item concluído." : "Item reaberto.");
   }
 

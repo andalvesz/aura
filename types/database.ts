@@ -113,6 +113,8 @@ export type GoogleCalendarConnection = {
   access_token: string | null;
   refresh_token: string | null;
   expires_at: string | null;
+  sync_token: string | null;
+  granted_scopes: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -649,6 +651,7 @@ export type XpHistory = {
   user_id: string;
   acao: string;
   xp: number;
+  idempotency_key: string | null;
   created_at: string;
 };
 
@@ -749,6 +752,8 @@ export type Database = {
           access_token?: string | null;
           refresh_token?: string | null;
           expires_at?: string | null;
+          sync_token?: string | null;
+          granted_scopes?: string | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -1179,6 +1184,7 @@ export type Database = {
         XpHistory,
         Omit<XpHistory, "id" | "created_at"> & {
           id?: string;
+          idempotency_key?: string | null;
           created_at?: string;
         }
       >;

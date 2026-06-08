@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getUser } from "@/lib/auth";
+import { getOptionalDataContext } from "@/lib/supabase/services/context";
 import { hasSupabaseEnv } from "@/lib/env";
 import { runGlobalSearch } from "@/lib/search/global-search";
 import { createClient } from "@/lib/supabase/server";
@@ -274,6 +275,54 @@ const MODULE_DEFS: ModuleDef[] = [
         label: "API /api/aura-search",
         status: "ok",
         message: `Busca funcional (${total} resultado(s) para probe)`,
+      };
+    },
+  },
+  {
+    id: "viagens",
+    label: "Travel",
+    tables: [{ table: "trips" }, { table: "trip_checklist_items" }],
+  },
+  {
+    id: "idiomas",
+    label: "English Coach",
+    tables: [
+      { table: "language_progress" },
+      { table: "language_sessions" },
+      { table: "language_lessons" },
+    ],
+  },
+  {
+    id: "comunicacao",
+    label: "Comunicação",
+    tables: [{ table: "communication_logs" }],
+    runApi: async () => {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return { label: "RPC mark_communication_opened", status: "error", message: "Sem sessão" };
+      }
+
+      const { error } = await ctx.supabase.rpc("mark_communication_opened", {
+        p_token: "00000000-0000-0000-0000-000000000000",
+      });
+
+      if (error) {
+        const msg = error.message ?? "RPC indisponível";
+        const missing = msg.toLowerCase().includes("does not exist");
+        return {
+          label: "RPC mark_communication_opened",
+          status: missing ? "error" : "warning",
+          message: missing
+            ? "Migration comms_tracking não aplicada"
+            : "RPC acessível com ressalvas",
+          detail: msg,
+        };
+      }
+
+      return {
+        label: "RPC mark_communication_opened",
+        status: "ok",
+        message: "Tracking de e-mail operacional",
       };
     },
   },

@@ -1,7 +1,8 @@
 "use client";
 
-import { Loader2, Plus, Target } from "lucide-react";
+import { Check, Loader2, Plus, Target, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton } from "@/components/dashboard/loading-skeleton";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
@@ -19,7 +20,7 @@ import {
 } from "@/utils/goals";
 
 export function MetasView() {
-  const { data: goals, loading, error, create, refresh } = useGoals();
+  const { data: goals, loading, error, create, update, remove, refresh } = useGoals();
   const [modalOpen, setModalOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
@@ -88,7 +89,21 @@ export function MetasView() {
           ) : (
             <div className="space-y-3">
               {sorted.map((goal) => (
-                <GoalCard key={goal.id} goal={goal} />
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  onComplete={async (id) => {
+                    const { error: err } = await update(id, { status: "concluida" });
+                    if (err) toast.error(err);
+                    else toast.success("Meta concluída.");
+                  }}
+                  onDelete={async (id) => {
+                    if (!confirm("Excluir esta meta?")) return;
+                    const { error: err } = await remove(id);
+                    if (err) toast.error(err);
+                    else toast.success("Meta excluída.");
+                  }}
+                />
               ))}
             </div>
           )}
@@ -122,7 +137,15 @@ export function MetasView() {
   );
 }
 
-function GoalCard({ goal }: { goal: Goal }) {
+function GoalCard({
+  goal,
+  onComplete,
+  onDelete,
+}: {
+  goal: Goal;
+  onComplete: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+}) {
   const m = computeGoalMetrics(goal);
   const behind = isGoalBehind(goal);
   const isMoney = goal.tipo === "financeira";
@@ -136,11 +159,29 @@ function GoalCard({ goal }: { goal: Goal }) {
           </p>
           <p className="text-[13px] font-medium text-zinc-200">{goal.titulo}</p>
         </div>
-        {behind && (
-          <span className="rounded-md bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-400">
-            Atrasada
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          {behind && (
+            <span className="rounded-md bg-rose-500/10 px-2 py-0.5 text-[10px] text-rose-400">
+              Atrasada
+            </span>
+          )}
+          <button
+            type="button"
+            title="Marcar como concluída"
+            onClick={() => void onComplete(goal.id)}
+            className="rounded p-1 text-zinc-600 hover:text-emerald-400"
+          >
+            <Check className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            title="Excluir meta"
+            onClick={() => void onDelete(goal.id)}
+            className="rounded p-1 text-zinc-600 hover:text-rose-400"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">

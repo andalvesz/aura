@@ -1,4 +1,5 @@
 import type { GoogleCalendarConnection } from "@/types/database";
+import { mergeGrantedScopes, resolveGoogleCapabilities } from "@/lib/gmail/scopes";
 import { getDataContext, getOptionalDataContext } from "@/lib/supabase/services/context";
 import type { GoogleCalendarPublicStatus } from "@/utils/google-calendar";
 import { getGoogleOAuthConfig } from "./config";
@@ -65,6 +66,7 @@ export async function saveGoogleCalendarConnection(params: {
   refreshToken: string;
   expiresIn: number;
   email?: string | null;
+  grantedScopes?: string | null;
 }) {
   const ctx = await getOptionalDataContext();
   if (!ctx) {
@@ -79,12 +81,20 @@ export async function saveGoogleCalendarConnection(params: {
   const email =
     params.email ?? (await fetchGoogleUserEmail(params.accessToken));
 
+  const { connection: existing } = await getGoogleCalendarConnection();
+  const granted_scopes = mergeGrantedScopes(
+    existing?.granted_scopes,
+    params.grantedScopes
+  );
+
   const row = {
     user_id: userId,
     access_token: params.accessToken,
     refresh_token: params.refreshToken,
     expires_at: tokenExpiresAt(params.expiresIn),
     google_email: email,
+    granted_scopes,
+    sync_token: existing?.sync_token ?? null,
   };
 
   const { error } = await supabase.from("google_calendar_connections").upsert(row, {
@@ -176,6 +186,22 @@ export async function getValidGoogleAccessToken(): Promise<{
   }
 }
 
-export async function updateGoogleSyncToken(_syncToken: string | null) {
-  // sync_token não faz parte do schema atual de google_calendar_connections
+export async function updateGoogleSyncToken(syncToken: string | null) {
+  const { supabase, userId } = await getDataContext();
+  const { error } = await supabase
+    .from("google_calendar_connections")
+    .update({ sync_token: syncToken })
+    .eq("user_id", userId);
+
+  return { error: error?.message ?? null };
+}
+
+export async function getGoogleGrantedScopes(): Promise<string | null> {
+  const { connection } = await getGoogleCalendarConnection();
+  return connection?.granted_scopes ?? null;
+}
+
+export async function getGoogleCapabilities() {
+  const { connection } = await getGoogleCalendarConnection();
+  return resolveGoogleCapabilities(connection?.granted_scopes);
 }

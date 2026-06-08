@@ -24,13 +24,21 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { data: body, error: bodyError } = await parseRequestJson<{ acao?: string }>(req);
+    const { data: body, error: bodyError } = await parseRequestJson<{
+      acao?: string;
+      idempotency_key?: string;
+    }>(req);
 
     if (bodyError || !body?.acao || !isXpAcao(body.acao)) {
       return Response.json({ error: "Ação de XP inválida." }, { status: 400 });
     }
 
-    const result = await awardAuraXp(body.acao);
+    const idempotencyKey =
+      typeof body.idempotency_key === "string" && body.idempotency_key.trim()
+        ? body.idempotency_key.trim()
+        : null;
+
+    const result = await awardAuraXp(body.acao, idempotencyKey);
 
     if (result.error) {
       const status = result.error === "Usuário não autenticado." ? 401 : 500;

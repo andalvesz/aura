@@ -150,3 +150,33 @@ export async function createGoal(
   const created = goals.find((g) => g.id === data?.id) ?? data;
   return { goal: created ?? null, error: null };
 }
+
+export async function updateGoal(
+  id: string,
+  patch: Partial<Pick<Goal, "titulo" | "tipo" | "meta" | "atual" | "data_inicio" | "data_fim" | "status">>
+): Promise<{ goal: Goal | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { goal: null, error: "Usuário não autenticado." };
+  }
+
+  const repo = new GoalsRepository(ctx.supabase, ctx.userId);
+  const { data, error } = await repo.update(id, patch);
+  if (error) return { goal: null, error };
+
+  await syncGoalsProgress();
+  const { goals } = await listGoals();
+  const updated = goals.find((g) => g.id === id) ?? data;
+  return { goal: updated ?? null, error: null };
+}
+
+export async function deleteGoal(id: string): Promise<{ error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { error: "Usuário não autenticado." };
+  }
+
+  const repo = new GoalsRepository(ctx.supabase, ctx.userId);
+  const { error } = await repo.delete(id);
+  return { error };
+}
