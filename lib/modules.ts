@@ -5,6 +5,7 @@ import {
   Brain,
   Building2,
   CalendarDays,
+  Castle,
   Dumbbell,
   FileText,
   Home,
@@ -29,7 +30,8 @@ export type ModuleId =
   | "crescimento"
   | "comunicacao"
   | "viagens"
-  | "idiomas";
+  | "idiomas"
+  | "disney-nba";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -186,6 +188,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Streak",
       value: "0d",
       hint: "Comece sua primeira aula de inglês",
+    },
+  },
+  {
+    id: "disney-nba",
+    href: "/dashboard/disney-nba",
+    label: "Central Disney + NBA",
+    shortLabel: "Disney + NBA",
+    description:
+      "Acompanhe toda a preparação da viagem: finanças, checklist, inglês e calendário.",
+    icon: Castle,
+    accent: "text-fuchsia-400",
+    overview: {
+      metric: "Contagem",
+      value: "—",
+      hint: "Crie a viagem Disney + NBA para começar",
     },
   },
 ];
