@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Circle,
+  Loader2,
   MessageCircle,
   Phone,
   Plus,
@@ -30,7 +31,8 @@ import {
   useGrowthProfiles,
   useOrcamentos,
 } from "@/hooks";
-import { buildProfileAnalysisInput, isSupabaseTableMissingError } from "@/lib/growth";
+import type { ProfileAnalysisResult } from "@/lib/growth/types";
+import { isSupabaseTableMissingError } from "@/lib/growth";
 import { awardAuraXpClient } from "@/lib/xp/client";
 import type {
   GrowthLead,
@@ -53,6 +55,7 @@ import {
   getCurrentMonthReference,
   getLatestAnalysisForProfile,
   getTodayDate,
+  parseGrowthAnalysisContent,
   hasAnySalesAction,
   isSalesActionConfigured,
   mergeDailyMissions,
@@ -78,6 +81,7 @@ import {
 import {
   buildWhatsAppLeadContext,
 } from "@/utils/whatsapp-ia";
+import { parseJsonResponse } from "@/utils/safe-json";
 
 function GrowthDataError({
   message,
@@ -113,6 +117,37 @@ function EmptyFieldValue({ label }: { label?: string }) {
     <span className="text-[12px] italic text-zinc-600">
       {label ?? "Não cadastrado"}
     </span>
+  );
+}
+
+function ProfileAnalysisDetails({ analysis }: { analysis: ProfileAnalysisResult }) {
+  const sections = [
+    { title: "Pontos fortes", items: analysis.strengths, color: "text-emerald-400/90" },
+    { title: "Pontos fracos", items: analysis.weaknesses, color: "text-amber-400/90" },
+    { title: "Oportunidades", items: analysis.opportunities, color: "text-sky-400/90" },
+    { title: "Plano de ação", items: analysis.actionPlan, color: "text-violet-400/90" },
+  ] as const;
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-white/[0.06] pt-3">
+      <p className="text-[11px] text-zinc-400">{analysis.summary}</p>
+      {sections.map((section) =>
+        section.items.length > 0 ? (
+          <div key={section.title}>
+            <p className={`text-[10px] font-medium uppercase tracking-wide ${section.color}`}>
+              {section.title}
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {section.items.map((item) => (
+                <li key={item} className="text-[11px] text-zinc-500">
+                  · {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null
+      )}
+    </div>
   );
 }
 
@@ -154,7 +189,7 @@ export function CrescimentoView() {
     create: createProfile,
   } = useGrowthProfiles();
   const { data: actions, loading: actionsLoading, error: actionsError } = useGrowthActions();
-  const { data: analyses, create: createAnalysis, error: analysesError } = useGrowthAnalyses();
+  const { data: analyses, refresh: refreshAnalyses, error: analysesError } = useGrowthAnalyses();
   const {
     data: growthLeads,
     loading: growthLeadsLoading,
@@ -172,6 +207,7 @@ export function CrescimentoView() {
   const { data: orcamentos } = useOrcamentos();
   const { create: createEvento } = useEventos();
   const [completingKey, setCompletingKey] = useState<string | null>(null);
+  const [analyzingProfileId, setAnalyzingProfileId] = useState<string | null>(null);
 
   const growthDataError =
     goalsError ||
@@ -387,19 +423,30 @@ export function CrescimentoView() {
   }
 
   async function handleAnalyzeProfile(profile: GrowthProfile) {
-    const input = buildProfileAnalysisInput(profile);
-    const { error } = await createAnalysis({
-      profile_id: profile.id,
-      status: "pending",
-      conteudo: JSON.stringify({ input, source: "manual" }),
-    });
-    if (error) {
-      toast.error(error);
-      return;
+    setAnalyzingProfileId(profile.id);
+    try {
+      const res = await fetch("/api/growth/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: profile.id }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        analysis?: ProfileAnalysisResult;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        toast.error(data?.error ?? parseError ?? "Erro ao analisar perfil.");
+        return;
+      }
+
+      await refreshAnalyses();
+      toast.success("Análise concluída pela Aura IA.");
+    } catch {
+      toast.error("Erro de conexão ao analisar perfil.");
+    } finally {
+      setAnalyzingProfileId(null);
     }
-    toast.info(
-      "Análise registrada como pendente. A Aura IA usará os dados cadastrados quando a integração estiver ativa."
-    );
   }
 
   return (
@@ -941,6 +988,11 @@ export function CrescimentoView() {
             <div className="space-y-2">
               {profiles.map((profile) => {
                 const latestAnalysis = getLatestAnalysisForProfile(analyses, profile.id);
+                const analysisResult =
+                  latestAnalysis?.status === "completed"
+                    ? parseGrowthAnalysisContent(latestAnalysis.conteudo)
+                    : null;
+                const isAnalyzing = analyzingProfileId === profile.id;
                 return (
                   <div
                     key={profile.id}
@@ -971,14 +1023,23 @@ export function CrescimentoView() {
                         <AnalysisStatusBadge status={latestAnalysis.status} />
                       )}
                     </div>
+                    {analysisResult && (
+                      <ProfileAnalysisDetails analysis={analysisResult} />
+                    )}
                     <div className="mt-3">
                       <ActionButton
-                        icon={<Sparkles className="size-3.5" />}
+                        icon={
+                          isAnalyzing ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Sparkles className="size-3.5" />
+                          )
+                        }
                         className="w-full sm:w-auto"
-                        disabled={Boolean(growthDataError)}
+                        disabled={Boolean(growthDataError) || isAnalyzing}
                         onClick={() => handleAnalyzeProfile(profile)}
                       >
-                        Analisar perfil com IA
+                        {isAnalyzing ? "Analisando..." : "Analisar perfil com IA"}
                       </ActionButton>
                     </div>
                   </div>

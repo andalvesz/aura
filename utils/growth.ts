@@ -1,3 +1,4 @@
+import type { ProfileAnalysisResult } from "@/lib/growth/types";
 import type {
   GrowthAction,
   GrowthContentMemory,
@@ -8,6 +9,7 @@ import type {
   Orcamento,
 } from "@/types/database";
 import { formatBRL } from "@/utils/format";
+import { parseProfileAnalysis } from "@/utils/instagram";
 import {
   getFollowUpIdleTier,
   getFollowUpTierLabel,
@@ -897,6 +899,18 @@ export function getLatestAnalysisForProfile<
   return analyses
     .filter((a) => a.profile_id === profileId)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+}
+
+export function parseGrowthAnalysisContent(
+  conteudo: string | null
+): ProfileAnalysisResult | null {
+  if (!conteudo) return null;
+  try {
+    const parsed = JSON.parse(conteudo) as { result?: Record<string, unknown> };
+    return parseProfileAnalysis(parsed.result ?? null);
+  } catch {
+    return null;
+  }
 }
 
 export const SALES_FUNNEL_STEPS = [

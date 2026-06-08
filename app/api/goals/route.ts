@@ -9,7 +9,6 @@ const VALID_TIPOS = new Set<GoalTipo>([
   "conteudo",
   "vendas",
   "eventos",
-  "idiomas",
   "personalizada",
 ]);
 

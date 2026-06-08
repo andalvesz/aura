@@ -81,14 +81,25 @@ export function parseProfileAnalysis(
   if (!raw || typeof raw !== "object") return null;
   const summary = String(raw.summary ?? "");
   if (!summary) return null;
+  const strengths = Array.isArray(raw.strengths) ? raw.strengths.map(String) : [];
+  const improvements = Array.isArray(raw.improvements)
+    ? raw.improvements.map(String)
+    : [];
+  const weaknesses = Array.isArray(raw.weaknesses)
+    ? raw.weaknesses.map(String)
+    : improvements;
+
   return {
     summary,
-    strengths: Array.isArray(raw.strengths)
-      ? raw.strengths.map(String)
+    strengths,
+    weaknesses,
+    opportunities: Array.isArray(raw.opportunities)
+      ? raw.opportunities.map(String)
       : [],
-    improvements: Array.isArray(raw.improvements)
-      ? raw.improvements.map(String)
+    actionPlan: Array.isArray(raw.actionPlan)
+      ? raw.actionPlan.map(String)
       : [],
+    improvements: improvements.length > 0 ? improvements : undefined,
     contentIdeas: Array.isArray(raw.contentIdeas)
       ? raw.contentIdeas.map(String)
       : [],

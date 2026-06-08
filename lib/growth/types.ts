@@ -29,7 +29,11 @@ export type ProfileAnalysisInput = {
 export type ProfileAnalysisResult = {
   summary: string;
   strengths: string[];
-  improvements: string[];
+  weaknesses: string[];
+  opportunities: string[];
+  actionPlan: string[];
+  /** Legado — mapeado de weaknesses quando ausente */
+  improvements?: string[];
   contentIdeas: string[];
   generatedAt: string;
 };
@@ -59,6 +63,7 @@ export function buildProfileAnalysisInput(profile: {
   nicho: string | null;
   objetivo: string | null;
   observacoes: string | null;
+  bio?: string | null;
 }): ProfileAnalysisInput {
   return {
     profileId: profile.id,
@@ -66,7 +71,7 @@ export function buildProfileAnalysisInput(profile: {
     username: profile.username,
     nicho: profile.nicho,
     objetivo: profile.objetivo,
-    observacoes: profile.observacoes,
+    observacoes: profile.observacoes ?? profile.bio ?? null,
     externalMetrics: null,
   };
 }

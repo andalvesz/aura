@@ -7,7 +7,11 @@ import {
   GrowthProfilesRepository,
   GrowthLeadsRepository,
 } from "@/lib/supabase/repositories/growth.repository";
+import type { ProfileAnalysisResult } from "@/lib/growth/types";
+import { buildProfileAnalysisInput } from "@/lib/growth/types";
+import { generateProfileAnalysis } from "@/lib/growth/profile-analysis";
 import type {
+  GrowthAnalysis,
   GrowthContentMemory,
   GrowthGoal,
   GrowthLead,
@@ -96,6 +100,69 @@ export async function createGrowthAnalysis(
 ) {
   const { supabase, userId } = await getDataContext();
   return new GrowthAnalysesRepository(supabase, userId).create(payload);
+}
+
+export async function analyzeGrowthProfile(profileId: string): Promise<{
+  analysis: ProfileAnalysisResult | null;
+  record: GrowthAnalysis | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { analysis: null, record: null, error: "Usuário não autenticado." };
+  }
+
+  const profilesRepo = new GrowthProfilesRepository(ctx.supabase, ctx.userId);
+  const analysesRepo = new GrowthAnalysesRepository(ctx.supabase, ctx.userId);
+
+  const { data: profile, error: loadError } = await profilesRepo.findById(profileId);
+  if (loadError || !profile) {
+    return { analysis: null, record: null, error: loadError ?? "Perfil não encontrado." };
+  }
+
+  const input = buildProfileAnalysisInput(profile);
+  const { data: pending, error: pendingError } = await analysesRepo.create({
+    profile_id: profileId,
+    status: "pending",
+    conteudo: JSON.stringify({ input, source: "aura-ia" }),
+  });
+
+  if (pendingError || !pending) {
+    return { analysis: null, record: null, error: pendingError ?? "Erro ao registrar análise." };
+  }
+
+  try {
+    const { analysis } = await generateProfileAnalysis(profile);
+    const conteudo = JSON.stringify({ input, result: analysis, source: "aura-ia" });
+
+    const [updateAnalysis, updateProfile] = await Promise.all([
+      analysesRepo.update(pending.id, { status: "completed", conteudo }),
+      profilesRepo.update(profileId, {
+        analise: analysis as unknown as Record<string, unknown>,
+      }),
+    ]);
+
+    if (updateAnalysis.error) {
+      return { analysis: null, record: null, error: updateAnalysis.error };
+    }
+
+    if (updateProfile.error) {
+      console.error("[growth-analyze] profile update", updateProfile.error);
+    }
+
+    return {
+      analysis,
+      record: updateAnalysis.data,
+      error: null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro ao analisar perfil.";
+    await analysesRepo.update(pending.id, {
+      status: "failed",
+      conteudo: JSON.stringify({ input, error: message, source: "aura-ia" }),
+    });
+    return { analysis: null, record: null, error: message };
+  }
 }
 
 export async function listGrowthLeads() {
