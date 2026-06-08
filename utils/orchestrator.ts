@@ -420,6 +420,10 @@ export function buildAuraCentralOpeningSummary(
         : [],
     languageLessons:
       "languageLessons" in data && data.languageLessons ? data.languageLessons : [],
+    communicationLogs:
+      "communicationLogs" in data && data.communicationLogs
+        ? data.communicationLogs
+        : [],
   };
 
   const name = displayName?.trim() || "você";

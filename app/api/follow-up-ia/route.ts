@@ -38,6 +38,10 @@ export async function POST(req: Request) {
         statusLabel?: string;
         idleDays?: number;
         historico?: string;
+        clienteEmail?: string;
+        telefone?: string;
+        orcamentoId?: string;
+        leadId?: string;
       };
       baseMessage?: string;
     }>(req);
@@ -90,6 +94,10 @@ Evento/tipo: ${ctx.tipoEvento ?? "evento"}
 Valor: ${valorFmt}
 Status: ${ctx.statusLabel ?? "—"}
 Dias sem contato: ${ctx.idleDays ?? "—"}
+E-mail: ${ctx.clienteEmail ?? "—"}
+Telefone: ${ctx.telefone ?? "—"}
+Orçamento ID: ${ctx.orcamentoId ?? "—"}
+Lead ID: ${ctx.leadId ?? "—"}
 Histórico: ${ctx.historico ?? "—"}
 
 Rascunho base:

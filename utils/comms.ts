@@ -39,6 +39,9 @@ export type CommsDashboardStats = {
   followUpsPending: number;
   propostasSent: number;
   propostasOpened: number;
+  semResposta: number;
+  aguardandoRetorno: number;
+  followUpPendente: number;
   gmailConnected: boolean;
   gmailConfigured: boolean;
 };

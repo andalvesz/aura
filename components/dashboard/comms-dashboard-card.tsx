@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Loader2, Mail, MessageCircle, Send } from "lucide-react";
+import { Loader2, Mail, MessageCircle, Send, UserX } from "lucide-react";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 import type { CommsDashboardStats } from "@/utils/comms";
 import { parseJsonResponse } from "@/utils/safe-json";
@@ -55,32 +55,49 @@ export function CommsDashboardCard() {
             Carregando...
           </div>
         ) : stats ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
+              <div className="flex items-center gap-1 text-[10px] text-zinc-500">
+                <UserX className="size-3" />
+                Sem resposta
+              </div>
+              <p className="mt-1 text-lg font-semibold text-rose-300">{stats.semResposta}</p>
+            </div>
             <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
               <div className="flex items-center gap-1 text-[10px] text-zinc-500">
                 <Send className="size-3" />
-                E-mails enviados
+                Aguardando retorno
               </div>
-              <p className="mt-1 text-lg font-semibold text-zinc-100">{stats.emailsSent}</p>
+              <p className="mt-1 text-lg font-semibold text-amber-300">
+                {stats.aguardandoRetorno}
+              </p>
             </div>
             <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
               <div className="flex items-center gap-1 text-[10px] text-zinc-500">
                 <MessageCircle className="size-3" />
-                Follow-ups
+                Follow-up pendente
               </div>
-              <p className="mt-1 text-lg font-semibold text-amber-300">
-                {stats.followUpsPending}
+              <p className="mt-1 text-lg font-semibold text-violet-300">
+                {stats.followUpPendente}
               </p>
-              <p className="text-[9px] text-zinc-600">pendentes</p>
             </div>
             <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2">
               <div className="flex items-center gap-1 text-[10px] text-zinc-500">
                 <Mail className="size-3" />
+                E-mails enviados
+              </div>
+              <p className="mt-1 text-lg font-semibold text-zinc-100">{stats.emailsSent}</p>
+            </div>
+            <div className="col-span-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2 sm:col-span-2">
+              <div className="flex items-center gap-1 text-[10px] text-zinc-500">
+                <Send className="size-3" />
                 Propostas
               </div>
-              <p className="mt-1 text-lg font-semibold text-zinc-100">{stats.propostasSent}</p>
-              <p className="text-[9px] text-zinc-600">
-                {stats.propostasOpened} aberta(s)
+              <p className="mt-1 text-lg font-semibold text-zinc-100">
+                {stats.propostasSent}{" "}
+                <span className="text-sm font-normal text-zinc-500">
+                  · {stats.propostasOpened} aberta(s)
+                </span>
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import type {
   AiMemory,
   AlveszEvento,
+  CommunicationLog,
   Conteudo,
   Evento,
   FinancialBalance,
@@ -83,6 +84,7 @@ export type ExecutiveReportData = AuraGlobalSummaryData & {
   languageProgress: LanguageProgress | null;
   languageSessions: LanguageSession[];
   languageLessons: LanguageLesson[];
+  communicationLogs: CommunicationLog[];
 };
 
 export function formatReportGreeting(name = "você"): string {

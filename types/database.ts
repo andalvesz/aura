@@ -1194,6 +1194,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       seed_demo_data: { Args: Record<string, never>; Returns: undefined };
+      mark_communication_opened: { Args: { p_token: string }; Returns: boolean };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

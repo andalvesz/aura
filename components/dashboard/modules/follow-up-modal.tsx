@@ -13,6 +13,7 @@ import {
 } from "@/utils/follow-up";
 import { formatBRL } from "@/utils/format";
 import { openWhatsAppLink, WHATSAPP_NO_PHONE_MESSAGE } from "@/utils/whatsapp";
+import { logCommsContactClient } from "@/lib/comms/client";
 import { awardAuraXpClient } from "@/lib/xp/client";
 import { ActionButton } from "../action-button";
 
@@ -76,6 +77,10 @@ export function FollowUpModal({
             statusLabel: context.statusLabel,
             idleDays: context.idleDays,
             historico: context.historico,
+            clienteEmail: context.clienteEmail,
+            telefone: context.telefone,
+            orcamentoId: context.orcamentoId,
+            leadId: context.leadId,
           },
           baseMessage: message,
         }),
@@ -104,6 +109,15 @@ export function FollowUpModal({
       return;
     }
     toast.success("WhatsApp aberto com a mensagem pronta.");
+    await logCommsContactClient({
+      channel: "whatsapp",
+      bodyPreview: message,
+      recipient: context.telefone ?? undefined,
+      clienteId: context.clienteId,
+      orcamentoId: context.orcamentoId,
+      leadId: context.leadId,
+      metadata: { action: "follow_up_whatsapp" },
+    });
     if (onMarkContacted) {
       const { error } = await onMarkContacted();
       if (error) toast.info(`WhatsApp aberto, mas não atualizou lead: ${error}`);
@@ -114,9 +128,22 @@ export function FollowUpModal({
   }
 
   async function handleCopiar() {
+    if (!context) return;
     try {
       await navigator.clipboard.writeText(message);
       toast.success("Mensagem copiada.");
+      await logCommsContactClient({
+        channel,
+        bodyPreview: message,
+        recipient:
+          channel === "email"
+            ? (context.clienteEmail ?? undefined)
+            : (context.telefone ?? undefined),
+        clienteId: context.clienteId,
+        orcamentoId: context.orcamentoId,
+        leadId: context.leadId,
+        metadata: { action: `follow_up_${channel}` },
+      });
       if (onMarkContacted) {
         const { error } = await onMarkContacted();
         if (error) toast.info(`Copiado, mas não atualizou lead: ${error}`);

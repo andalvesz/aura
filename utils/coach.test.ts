@@ -38,6 +38,7 @@ const emptyData: ExecutiveReportData = {
   languageProgress: null,
   languageSessions: [],
   languageLessons: [],
+  communicationLogs: [],
 };
 
 describe("Aura Coach", () => {
@@ -48,6 +49,12 @@ describe("Aura Coach", () => {
     assert.equal(detectCoachMode("Como está minha rotina?"), "performance");
     assert.equal(detectCoachMode("O que devo postar hoje?"), "post-today");
     assert.equal(detectCoachMode("Como estão minhas metas?"), "goals");
+    assert.equal(detectCoachMode("Quem devo contatar hoje?"), "comms-contact");
+    assert.equal(detectCoachMode("Qual proposta está parada?"), "comms-stalled");
+    assert.equal(
+      detectCoachMode("Quais clientes estão sem retorno?"),
+      "comms-no-response"
+    );
     assert.equal(detectCoachMode("Qual meta está mais atrasada?"), "goals-late");
     assert.equal(detectCoachMode("Quais missões faltam?"), "xp-missions");
     assert.equal(detectCoachMode("Tenho algo importante hoje?"), "important-today");

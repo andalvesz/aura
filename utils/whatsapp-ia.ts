@@ -156,8 +156,10 @@ export function buildDefaultWhatsAppMessage(ctx: WhatsAppIaContext): string {
     historico: ctx.historico ?? "",
     leadId: null,
     orcamentoId: null,
+    clienteId: null,
     canal: "whatsapp",
     telefone: null,
+    clienteEmail: null,
   };
 
   return buildDefaultFollowUpMessages(followUpCtx).whatsapp;

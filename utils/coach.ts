@@ -54,6 +54,11 @@ import {
   getStreakDisplay,
 } from "@/utils/xp";
 import { buildImportantNotificationsSummary } from "@/utils/notifications";
+import {
+  buildCommsCentralReply,
+  detectCommsCentralQuery,
+  type CommsCentralQueryType,
+} from "@/utils/comms-central";
 import { isPostTodayQuery, MARCA_LABELS } from "@/utils/instagram";
 import {
   buildCoachNowResponse,
@@ -74,6 +79,9 @@ export type CoachMode =
   | "xp-progress"
   | "xp-missions"
   | "important-today"
+  | "comms-contact"
+  | "comms-stalled"
+  | "comms-no-response"
   | "intro";
 
 export const AURA_COACH_ACTION_ID = "aura-coach";
@@ -208,6 +216,13 @@ export function detectCoachMode(
   if (!normalized) return null;
 
   if (isPostTodayQuery(message)) return "post-today";
+
+  const commsQuery = detectCommsCentralQuery(message);
+  if (commsQuery === "contatar-hoje") return "comms-contact";
+  if (commsQuery === "proposta-parada" || commsQuery === "propostas-sem-retorno") {
+    return "comms-stalled";
+  }
+  if (commsQuery === "clientes-sem-retorno") return "comms-no-response";
 
   if (actionId === "o-que-fazer" || matchesAny(normalized, TODAY_PHRASES)) {
     return "today";
@@ -877,6 +892,21 @@ export function buildCoachImportantTodayResponse(
   return buildImportantNotificationsSummary(data.notifications ?? [], displayName);
 }
 
+function buildCoachCommsResponse(
+  data: ExecutiveReportData,
+  query: CommsCentralQueryType
+): string {
+  return buildCommsCentralReply({
+    query,
+    logs: data.communicationLogs ?? [],
+    leads: data.leads,
+    orcamentos: data.orcamentos,
+    clientes: data.clientes,
+    gmailConnected: false,
+    recentInboundCount: 0,
+  });
+}
+
 export function resolveCoachResponse(
   mode: CoachMode,
   data: ExecutiveReportData,
@@ -911,6 +941,15 @@ export function resolveCoachResponse(
       return { text: buildCoachXpMissionsResponse(data, name), mode };
     case "important-today":
       return { text: buildCoachImportantTodayResponse(data, name), mode };
+    case "comms-contact":
+      return { text: buildCoachCommsResponse(data, "contatar-hoje"), mode };
+    case "comms-stalled":
+      return {
+        text: buildCoachCommsResponse(data, "proposta-parada"),
+        mode,
+      };
+    case "comms-no-response":
+      return { text: buildCoachCommsResponse(data, "clientes-sem-retorno"), mode };
     case "intro":
     default:
       return { text: buildCoachIntroResponse(name), mode: "intro" };

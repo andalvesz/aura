@@ -13,6 +13,14 @@ describe("comms central", () => {
       detectCommsCentralQuery("Quais clientes devo contatar hoje?"),
       "contatar-hoje"
     );
+    assert.equal(
+      detectCommsCentralQuery("Qual proposta está parada?"),
+      "proposta-parada"
+    );
+    assert.equal(
+      detectCommsCentralQuery("Quais clientes estão sem retorno?"),
+      "clientes-sem-retorno"
+    );
     assert.equal(detectCommsCentralQuery("Como está minha meta?"), null);
   });
 

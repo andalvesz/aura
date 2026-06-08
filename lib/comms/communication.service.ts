@@ -1,6 +1,7 @@
 import { getDataContext, getOptionalDataContext } from "@/lib/supabase/services/context";
 import type { CommunicationLog, Json, TableInsert } from "@/types/database";
 import type { CommsChannel, CommsDashboardStats, CommsStatus } from "@/utils/comms";
+import { computeCommsOperationalStats } from "@/utils/comms-ops";
 import { listStaleOpportunities } from "@/utils/follow-up";
 import { getGoogleOAuthConfig } from "@/lib/google-calendar/config";
 import { getGoogleAccountConnection } from "@/lib/google/token.service";
@@ -39,9 +40,17 @@ export async function markCommunicationOpened(trackingToken: string) {
   const ctx = await getOptionalDataContext();
   if (!ctx) return { updated: false };
 
+  const { data, error } = await ctx.supabase.rpc("mark_communication_opened", {
+    p_token: trackingToken,
+  });
+
+  if (!error && data === true) {
+    return { updated: true };
+  }
+
   const { data: existing } = await ctx.supabase
     .from("communication_logs")
-    .select("id, status, opened_at")
+    .select("id, opened_at")
     .eq("tracking_token", trackingToken)
     .maybeSingle();
 
@@ -81,11 +90,16 @@ export async function getCommsDashboardStats(
     clientes,
   }).length;
 
+  const operational = computeCommsOperationalStats(logs, leads, orcamentos, clientes);
+
   return {
     emailsSent,
     followUpsPending,
     propostasSent,
     propostasOpened,
+    semResposta: operational.semResposta,
+    aguardandoRetorno: operational.aguardandoRetorno,
+    followUpPendente: operational.followUpPendente,
     gmailConnected: Boolean(connection?.access_token),
     gmailConfigured: configured,
   };

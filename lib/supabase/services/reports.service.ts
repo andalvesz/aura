@@ -28,6 +28,7 @@ import {
 import { safeJsonParse } from "@/utils/safe-json";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { listAuraMemories } from "@/lib/supabase/services/ai-memories.service";
+import { listCommunicationLogs } from "@/lib/comms";
 import { syncGoalsProgress } from "@/lib/supabase/services/goals.service";
 import { getAuraXpState } from "@/lib/supabase/services/xp.service";
 import {
@@ -62,6 +63,7 @@ export async function loadExecutiveReportData(): Promise<{
   let alveszEventos: AlveszEvento[] = [];
   let weekMemories: ExecutiveReportData["weekMemories"] = [];
   let goals: ExecutiveReportData["goals"] = [];
+  let communicationLogs: ExecutiveReportData["communicationLogs"] = [];
   let languageProgress: LanguageProgress | null = null;
   let languageSessions: LanguageSession[] = [];
   let languageLessons: LanguageLesson[] = [];
@@ -75,6 +77,7 @@ export async function loadExecutiveReportData(): Promise<{
       balanceRes,
       memoriesRes,
       goalsRes2,
+      logsRes,
       progressRes,
       sessionsRes,
       lessonsRes,
@@ -93,6 +96,7 @@ export async function loadExecutiveReportData(): Promise<{
         .maybeSingle(),
       listAuraMemories({ from: weekStart, to: weekEnd, limit: 10 }),
       syncGoalsProgress(),
+      listCommunicationLogs(100),
       new LanguageProgressRepository(ctx.supabase, ctx.userId).findByUser(),
       new LanguageSessionsRepository(ctx.supabase, ctx.userId).findAll("data"),
       new LanguageLessonsRepository(ctx.supabase, ctx.userId).findAll("created_at"),
@@ -114,6 +118,7 @@ export async function loadExecutiveReportData(): Promise<{
     alveszEventos = (eventosRes.data ?? []) as AlveszEvento[];
     weekMemories = memoriesRes.memories ?? [];
     goals = goalsRes2.goals ?? [];
+    communicationLogs = logsRes.data ?? [];
     if (!progressRes.error) {
       languageProgress = progressRes.data;
     }
@@ -146,6 +151,7 @@ export async function loadExecutiveReportData(): Promise<{
       languageProgress,
       languageSessions,
       languageLessons,
+      communicationLogs,
     },
     error: null,
   };

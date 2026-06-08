@@ -2,6 +2,7 @@ import type { Cliente, GrowthLead, Orcamento } from "@/types/database";
 import type { CommunicationLog } from "@/types/database";
 import { normalizeOrcamentoStatus } from "@/utils/alvesz-integration";
 import {
+  daysSinceContact,
   listStaleOpportunities,
   type StaleOpportunity,
 } from "@/utils/follow-up";
@@ -11,6 +12,8 @@ import { getGrowthLeadStatusLabel } from "@/utils/growth";
 export type CommsCentralQueryType =
   | "client-responses"
   | "propostas-sem-retorno"
+  | "proposta-parada"
+  | "clientes-sem-retorno"
   | "contatar-hoje"
   | null;
 
@@ -38,6 +41,23 @@ const NO_RETURN_PHRASES = [
   "orcamentos sem retorno",
 ];
 
+const STALLED_PROPOSAL_PHRASES = [
+  "qual proposta esta parada",
+  "qual proposta está parada",
+  "proposta parada",
+  "proposta travada",
+  "qual proposta precisa de retorno",
+];
+
+const NO_RESPONSE_CLIENTS_PHRASES = [
+  "quais clientes estao sem retorno",
+  "quais clientes estão sem retorno",
+  "clientes sem retorno",
+  "clientes sem resposta",
+  "quem esta sem retorno",
+  "quem está sem retorno",
+];
+
 const CONTACT_TODAY_PHRASES = [
   "clientes devo contatar hoje",
   "quais clientes devo contatar",
@@ -48,6 +68,8 @@ const CONTACT_TODAY_PHRASES = [
 export function detectCommsCentralQuery(message: string): CommsCentralQueryType {
   const n = normalize(message);
   if (RESPONSE_PHRASES.some((p) => n.includes(normalize(p)))) return "client-responses";
+  if (STALLED_PROPOSAL_PHRASES.some((p) => n.includes(normalize(p)))) return "proposta-parada";
+  if (NO_RESPONSE_CLIENTS_PHRASES.some((p) => n.includes(normalize(p)))) return "clientes-sem-retorno";
   if (NO_RETURN_PHRASES.some((p) => n.includes(normalize(p)))) return "propostas-sem-retorno";
   if (CONTACT_TODAY_PHRASES.some((p) => n.includes(normalize(p)))) return "contatar-hoje";
   return null;
@@ -140,6 +162,55 @@ No Supabase, há **${logs.filter((l) => l.direction === "inbound").length}** reg
       }
 
       lines.push("", "Gere follow-up em **Comunicação** ou Crescimento Digital.");
+      return lines.join("\n");
+    }
+
+    case "proposta-parada": {
+      const semRetorno = sentProposals.filter((o) => {
+        const related = logs.filter((l) => l.orcamento_id === o.id);
+        const hasOpen = related.some((l) => l.status === "opened");
+        const status = normalizeOrcamentoStatus(o.status);
+        return !hasOpen && status !== "fechado" && status !== "perdido";
+      });
+
+      if (semRetorno.length === 0) {
+        return "**Proposta parada**\n\nNenhuma proposta enviada aguardando retorno no momento.";
+      }
+
+      const top = semRetorno.sort(
+        (a, b) => daysSinceContact(b.updated_at) - daysSinceContact(a.updated_at)
+      )[0];
+      const cliente = clientes.find((c) => c.id === top.cliente_id);
+      const idle = daysSinceContact(top.updated_at);
+
+      return [
+        "**Proposta mais parada**",
+        "",
+        `· **${cliente?.nome ?? "Cliente"}** — ${top.tipo_evento}`,
+        `· Valor: ${formatBRL(Number(top.valor_total))}`,
+        `· Status: ${normalizeOrcamentoStatus(top.status)}`,
+        `· Sem movimento há **${idle} dia(s)**`,
+        "",
+        "Gere follow-up em **Comunicação** com contexto do orçamento e cliente.",
+      ].join("\n");
+    }
+
+    case "clientes-sem-retorno": {
+      const longIdle = stale.filter((s) => (s.context.idleTier ?? 0) >= 7);
+      if (longIdle.length === 0) {
+        return "**Clientes sem retorno**\n\nNenhum cliente parado há 7+ dias no momento.";
+      }
+
+      const lines = [
+        `**Clientes sem retorno** (${longIdle.length})`,
+        "",
+        ...longIdle.slice(0, 8).map((item, i) => {
+          const ctx = item.context;
+          return `${i + 1}. **${ctx.nome}** — ${ctx.tipoEvento} — ${formatBRL(ctx.valor)} — ${ctx.idleDays}d sem contato`;
+        }),
+        "",
+        "Priorize follow-up com IA em **Comunicação**.",
+      ];
       return lines.join("\n");
     }
 

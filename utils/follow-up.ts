@@ -23,8 +23,10 @@ export type FollowUpContext = {
   historico: string;
   leadId: string | null;
   orcamentoId: string | null;
+  clienteId: string | null;
   canal: GrowthLead["canal"] | null;
   telefone: string | null;
+  clienteEmail: string | null;
 };
 
 export type StaleOpportunity = {
@@ -78,7 +80,8 @@ export function findOrcamentoForLead(
 
 export function buildFollowUpContextFromLead(
   lead: GrowthLead,
-  orcamento: Orcamento | null
+  orcamento: Orcamento | null,
+  cliente: Cliente | null = null
 ): FollowUpContext {
   const idleDays = daysSinceContact(lead.updated_at);
   const tipoEvento =
@@ -91,6 +94,7 @@ export function buildFollowUpContextFromLead(
     `Lead desde ${formatDate(lead.created_at.slice(0, 10))}`,
     `Última atualização há ${idleDays} dia(s)`,
     lead.observacoes ? `Notas: ${lead.observacoes}` : null,
+    cliente?.email ? `E-mail: ${cliente.email}` : null,
     orcamento?.local ? `Local: ${orcamento.local}` : null,
     orcamento?.data_evento
       ? `Data do evento: ${formatDate(orcamento.data_evento)}`
@@ -107,8 +111,10 @@ export function buildFollowUpContextFromLead(
     historico: historicoParts.join(" · "),
     leadId: lead.id,
     orcamentoId: orcamento?.id ?? null,
+    clienteId: cliente?.id ?? orcamento?.cliente_id ?? null,
     canal: lead.canal,
-    telefone: lead.contato,
+    telefone: lead.contato ?? cliente?.telefone ?? null,
+    clienteEmail: cliente?.email ?? null,
   };
 }
 
@@ -139,8 +145,10 @@ export function buildFollowUpContextFromOrcamento(
       .join(" · "),
     leadId: null,
     orcamentoId: orcamento.id,
+    clienteId: orcamento.cliente_id,
     canal: cliente?.instagram ? "instagram" : "whatsapp",
     telefone: cliente?.telefone ?? null,
+    clienteEmail: cliente?.email ?? null,
   };
 }
 
@@ -175,11 +183,14 @@ export function listStaleOpportunities(params: {
 
     const orcamento = findOrcamentoForLead(lead, orcamentos);
     if (orcamento) linkedOrcamentoIds.add(orcamento.id);
+    const cliente = orcamento?.cliente_id
+      ? (clientesById.get(orcamento.cliente_id) ?? null)
+      : null;
 
     items.push({
       lead,
       orcamento,
-      context: buildFollowUpContextFromLead(lead, orcamento),
+      context: buildFollowUpContextFromLead(lead, orcamento, cliente),
       priority: tier * 10 + (lead.valor_potencial ?? 0) / 500,
     });
   }
