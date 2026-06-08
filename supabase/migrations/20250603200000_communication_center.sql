@@ -1,7 +1,18 @@
 -- Centro de Comunicação da Aura
+-- Seguro para banco parcialmente migrado (sem dependência de alvesz_propostas)
 
-alter table public.google_calendar_connections
-  add column if not exists gmail_enabled boolean not null default false;
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_name = 'google_calendar_connections'
+  ) then
+    alter table public.google_calendar_connections
+      add column if not exists gmail_enabled boolean not null default false;
+  end if;
+end $$;
 
 create table if not exists public.communication_logs (
   id uuid primary key default gen_random_uuid(),
@@ -12,10 +23,10 @@ create table if not exists public.communication_logs (
   subject text,
   body_preview text,
   recipient text,
-  cliente_id uuid references public.clientes (id) on delete set null,
-  orcamento_id uuid references public.orcamentos (id) on delete set null,
-  lead_id uuid references public.growth_leads (id) on delete set null,
-  proposta_id uuid references public.alvesz_propostas (id) on delete set null,
+  cliente_id uuid,
+  orcamento_id uuid,
+  lead_id uuid,
+  proposta_id uuid,
   gmail_message_id text,
   gmail_thread_id text,
   tracking_token uuid unique default gen_random_uuid(),
@@ -23,6 +34,52 @@ create table if not exists public.communication_logs (
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+-- FKs opcionais: só quando a tabela referenciada já existir
+do $$
+begin
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'clientes'
+  ) and not exists (
+    select 1 from information_schema.table_constraints
+    where constraint_schema = 'public'
+      and table_name = 'communication_logs'
+      and constraint_name = 'communication_logs_cliente_id_fkey'
+  ) then
+    alter table public.communication_logs
+      add constraint communication_logs_cliente_id_fkey
+      foreign key (cliente_id) references public.clientes (id) on delete set null;
+  end if;
+
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'orcamentos'
+  ) and not exists (
+    select 1 from information_schema.table_constraints
+    where constraint_schema = 'public'
+      and table_name = 'communication_logs'
+      and constraint_name = 'communication_logs_orcamento_id_fkey'
+  ) then
+    alter table public.communication_logs
+      add constraint communication_logs_orcamento_id_fkey
+      foreign key (orcamento_id) references public.orcamentos (id) on delete set null;
+  end if;
+
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'growth_leads'
+  ) and not exists (
+    select 1 from information_schema.table_constraints
+    where constraint_schema = 'public'
+      and table_name = 'communication_logs'
+      and constraint_name = 'communication_logs_lead_id_fkey'
+  ) then
+    alter table public.communication_logs
+      add constraint communication_logs_lead_id_fkey
+      foreign key (lead_id) references public.growth_leads (id) on delete set null;
+  end if;
+end $$;
 
 create index if not exists communication_logs_user_created_idx
   on public.communication_logs (user_id, created_at desc);
