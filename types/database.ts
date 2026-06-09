@@ -637,6 +637,36 @@ export type CreatorLaunch = {
   updated_at: string;
 };
 
+export type CreatorResearch = {
+  id: string;
+  user_id: string;
+  ideia_input: string | null;
+  nicho: string | null;
+  publico: string | null;
+  problema: string | null;
+  solucao: string | null;
+  concorrencia_analise: string | null;
+  facilidade_criacao: number | null;
+  facilidade_venda: number | null;
+  demanda: number | null;
+  competicao: number | null;
+  escalabilidade: number | null;
+  potencial_lucro: number | null;
+  compatibilidade_perfil: number | null;
+  nota_final: number | null;
+  avatar: string | null;
+  dores: Json;
+  desejos: Json;
+  objecoes: Json;
+  produtos_concorrentes: Json;
+  diferencial_sugerido: string | null;
+  faixa_preco_min: number | null;
+  faixa_preco_max: number | null;
+  product_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiMessage = {
   id: string;
   user_id: string;
@@ -1612,6 +1642,65 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creator_research: TableDef<
+        CreatorResearch,
+        Omit<
+          CreatorResearch,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "ideia_input"
+          | "nicho"
+          | "publico"
+          | "problema"
+          | "solucao"
+          | "concorrencia_analise"
+          | "facilidade_criacao"
+          | "facilidade_venda"
+          | "demanda"
+          | "competicao"
+          | "escalabilidade"
+          | "potencial_lucro"
+          | "compatibilidade_perfil"
+          | "nota_final"
+          | "avatar"
+          | "diferencial_sugerido"
+          | "faixa_preco_min"
+          | "faixa_preco_max"
+          | "product_id"
+          | "dores"
+          | "desejos"
+          | "objecoes"
+          | "produtos_concorrentes"
+        > & {
+          id?: string;
+          ideia_input?: string | null;
+          nicho?: string | null;
+          publico?: string | null;
+          problema?: string | null;
+          solucao?: string | null;
+          concorrencia_analise?: string | null;
+          facilidade_criacao?: number | null;
+          facilidade_venda?: number | null;
+          demanda?: number | null;
+          competicao?: number | null;
+          escalabilidade?: number | null;
+          potencial_lucro?: number | null;
+          compatibilidade_perfil?: number | null;
+          nota_final?: number | null;
+          avatar?: string | null;
+          diferencial_sugerido?: string | null;
+          faixa_preco_min?: number | null;
+          faixa_preco_max?: number | null;
+          product_id?: string | null;
+          dores?: Json;
+          desejos?: Json;
+          objecoes?: Json;
+          produtos_concorrentes?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -1684,7 +1773,8 @@ export type UserScopedTable =
   | "creator_validation"
   | "creator_offers"
   | "creator_launches"
-  | "creator_checklist_items";
+  | "creator_checklist_items"
+  | "creator_research";
 
 export type AiModule =
   | "aura_central"

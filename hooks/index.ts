@@ -33,3 +33,4 @@ export { useLanguageLessons } from "./use-language-lessons";
 export { useSocialIaStatus } from "./use-social-ia-status";
 export { useLegacy } from "./use-legacy";
 export { useCreator } from "./use-creator";
+export { useResearch } from "./use-research";

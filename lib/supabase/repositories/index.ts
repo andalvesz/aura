@@ -36,3 +36,4 @@ export {
   CreatorProductsRepository,
   CreatorValidationRepository,
 } from "./creator.repository";
+export { CreatorResearchRepository } from "./research.repository";

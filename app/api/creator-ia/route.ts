@@ -4,8 +4,10 @@ import {
   persistAiTurn,
 } from "@/lib/ai/memory-runtime";
 import { getCreatorContext } from "@/lib/supabase/services/creator.service";
+import { getResearchContext } from "@/lib/supabase/services/research.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import { CREATOR_AI_CONTEXT, CREATOR_IA_ACTIONS } from "@/utils/creator";
+import { RESEARCH_AI_CONTEXT, RESEARCH_IA_ACTIONS } from "@/utils/research";
 import { parseRequestJson } from "@/utils/safe-json";
 
 const openai = new OpenAI({
@@ -17,9 +19,10 @@ type ChatMessage = {
   content: string;
 };
 
-const ACTION_PROMPTS: Record<string, string> = Object.fromEntries(
-  CREATOR_IA_ACTIONS.map((a) => [a.id, a.prompt])
-);
+const ACTION_PROMPTS: Record<string, string> = Object.fromEntries([
+  ...CREATOR_IA_ACTIONS.map((a) => [a.id, a.prompt]),
+  ...RESEARCH_IA_ACTIONS.map((a) => [a.id, a.prompt]),
+]);
 
 function resolveError(error: unknown, fallback: string): string {
   if (error instanceof APIError) {
@@ -39,6 +42,7 @@ export async function POST(req: Request) {
       message?: string;
       actionId?: string;
       history?: unknown;
+      module?: string;
     }>(req);
 
     if (bodyError || !body) {
@@ -48,6 +52,7 @@ export async function POST(req: Request) {
     const actionId =
       typeof body.actionId === "string" ? body.actionId.trim() : "";
     let message = typeof body.message === "string" ? body.message.trim() : "";
+    const isResearch = body.module === "research";
 
     if (actionId && ACTION_PROMPTS[actionId]) {
       message = ACTION_PROMPTS[actionId]!;
@@ -61,9 +66,15 @@ export async function POST(req: Request) {
       return Response.json({ error: "IA indisponível (OPENAI_API_KEY)." }, { status: 503 });
     }
 
-    const { context, error: dataError } = await getCreatorContext();
+    const [creatorCtx, researchCtx] = await Promise.all([
+      getCreatorContext(),
+      getResearchContext(),
+    ]);
 
-    if (dataError === "Usuário não autenticado.") {
+    if (
+      creatorCtx.error === "Usuário não autenticado." ||
+      researchCtx.error === "Usuário não autenticado."
+    ) {
       return Response.json({ error: "Faça login para usar a Aura Creator." }, { status: 401 });
     }
 
@@ -79,7 +90,11 @@ export async function POST(req: Request) {
         )
       : [];
 
-    const systemPrompt = `${CREATOR_AI_CONTEXT}\n\n${context ?? "## CREATOR\nSem dados."}`;
+    const baseContext = [creatorCtx.context, researchCtx.context].filter(Boolean).join("\n\n");
+    const systemPrompt = isResearch
+      ? `${RESEARCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+      : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
+
     const mergedHistory = await resolveMergedHistory("creator", history);
 
     const messages = await buildOpenAiMessagesWithMemory({
@@ -99,11 +114,11 @@ export async function POST(req: Request) {
       response.choices[0]?.message?.content ?? "Não consegui responder agora.";
 
     await persistAiTurn("creator", message, text, {
-      kind: "creator",
+      kind: isResearch ? "research" : "creator",
       actionId: actionId || undefined,
     });
 
-    return Response.json({ text, kind: "creator" });
+    return Response.json({ text, kind: isResearch ? "research" : "creator" });
   } catch (error) {
     console.error("[creator-ia]", error);
     return Response.json(

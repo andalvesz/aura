@@ -8,6 +8,7 @@ import {
   Loader2,
   Plus,
   Rocket,
+  Search,
   Send,
   Sparkles,
   Target,
@@ -15,6 +16,7 @@ import {
   TrendingUp,
   Wand2,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
@@ -484,6 +486,17 @@ export function CreatorView() {
         >
           Criar Produto
         </ActionButton>
+        <Link
+          href={`/dashboard/creator/research?${new URLSearchParams({
+            ...(intake.nicho ? { nicho: intake.nicho } : {}),
+            ...(intake.publico_alvo ? { publico: intake.publico_alvo } : {}),
+            ...(intake.conhecimento ? { ideia: intake.conhecimento } : {}),
+          }).toString()}`}
+        >
+          <ActionButton variant="ghost" icon={<Search className="size-3.5" />}>
+            Validar antes de criar
+          </ActionButton>
+        </Link>
         {step !== "idle" && (
           <ActionButton
             variant="ghost"
@@ -561,7 +574,7 @@ export function CreatorView() {
               ))}
             </div>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <ActionButton
                 disabled={busy}
                 icon={
@@ -582,6 +595,21 @@ export function CreatorView() {
               >
                 Use meus dados da Aura
               </ActionButton>
+              <Link
+                href={`/dashboard/creator/research?${new URLSearchParams({
+                  ...(intake.nicho ? { nicho: intake.nicho } : {}),
+                  ...(intake.publico_alvo ? { publico: intake.publico_alvo } : {}),
+                  ...(intake.conhecimento
+                    ? { ideia: intake.conhecimento }
+                    : intake.nicho
+                      ? { ideia: `Produto digital sobre ${intake.nicho}` }
+                      : {}),
+                }).toString()}`}
+              >
+                <ActionButton variant="ghost" icon={<Search className="size-3.5" />}>
+                  Validar antes de criar
+                </ActionButton>
+              </Link>
             </div>
           </PanelContent>
         </Panel>

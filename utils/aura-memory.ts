@@ -38,6 +38,7 @@ const PERSIST_KINDS = new Set([
   "comms",
   "legado",
   "creator",
+  "research",
 ]);
 
 const KIND_TITLES: Record<string, string> = {
@@ -56,6 +57,7 @@ const KIND_TITLES: Record<string, string> = {
   conteudo: "Conteúdo gerado",
   legado: "História e legado",
   creator: "Produto digital",
+  research: "Pesquisa de mercado",
 };
 
 const COACH_MODE_TITLES: Record<string, string> = {
@@ -70,6 +72,9 @@ const COACH_MODE_TITLES: Record<string, string> = {
   "creator-best-seller": "Maior chance de venda",
   "creator-plan": "Plano de 30 dias",
   "creator-niche": "Nicho mais forte",
+  "research-analyze": "Análise de ideia",
+  "research-niche": "Nicho vale a pena?",
+  "research-products": "Produtos no mercado",
 };
 
 export function shouldPersistAuraMemory(

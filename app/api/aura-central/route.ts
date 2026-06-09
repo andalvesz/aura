@@ -47,7 +47,12 @@ import {
   buildCreatorCoachReply,
   detectCreatorCoachMode,
 } from "@/utils/creator";
+import {
+  buildResearchCoachReply,
+  detectResearchCoachMode,
+} from "@/utils/research";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
+import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
 import { runGlobalSearch } from "@/lib/search/global-search";
 import {
@@ -328,6 +333,40 @@ export async function POST(req: Request) {
           identityCommand: identityResponse.command,
         });
       }
+    }
+
+    const researchMode = detectResearchCoachMode(message);
+    if (researchMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const [{ records }, legacyRes] = await Promise.all([
+        loadResearchRecords(),
+        loadLegacyData(),
+      ]);
+
+      const text = buildResearchCoachReply({
+        mode: researchMode,
+        displayName,
+        records,
+        legacyData: legacyRes.data,
+        message,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: researchMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: researchMode,
+      });
     }
 
     const creatorMode = detectCreatorCoachMode(message);
