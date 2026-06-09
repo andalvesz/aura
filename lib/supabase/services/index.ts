@@ -28,6 +28,7 @@ export * from "./copylab.service";
 export * from "./creative-studio.service";
 export * from "./landing-builder.service";
 export * from "./ads-manager.service";
+export * from "./campaign-orchestrator.service";
 export * from "./launch.service";
 export * from "./money.service";
 export * from "./ceo.service";

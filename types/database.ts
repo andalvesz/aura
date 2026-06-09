@@ -882,6 +882,34 @@ export type CreatorAdsCampaign = {
   updated_at: string;
 };
 
+export type OrchestrationStatus = "draft" | "prepared" | "completed";
+
+export type CreatorCampaignOrchestration = {
+  id: string;
+  user_id: string;
+  product_id: string | null;
+  research_id: string | null;
+  copylab_id: string | null;
+  asset_id: string | null;
+  landing_id: string | null;
+  ads_campaign_id: string | null;
+  launch_plan_id: string | null;
+  status: OrchestrationStatus;
+  pipeline_step: string | null;
+  score_lancamento: number | null;
+  probabilidade_sucesso: number | null;
+  investimento_necessario: number | null;
+  receita_prevista: number | null;
+  roi_estimado: number | null;
+  orcamento_sugerido: Json;
+  plano_lancamento: Json;
+  conexoes: Json;
+  riscos: Json;
+  resumo: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiMessage = {
   id: string;
   user_id: string;
@@ -2281,6 +2309,57 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creator_campaign_orchestrations: TableDef<
+        CreatorCampaignOrchestration,
+        Omit<
+          CreatorCampaignOrchestration,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "product_id"
+          | "research_id"
+          | "copylab_id"
+          | "asset_id"
+          | "landing_id"
+          | "ads_campaign_id"
+          | "launch_plan_id"
+          | "status"
+          | "pipeline_step"
+          | "score_lancamento"
+          | "probabilidade_sucesso"
+          | "investimento_necessario"
+          | "receita_prevista"
+          | "roi_estimado"
+          | "orcamento_sugerido"
+          | "plano_lancamento"
+          | "conexoes"
+          | "riscos"
+          | "resumo"
+        > & {
+          id?: string;
+          product_id?: string | null;
+          research_id?: string | null;
+          copylab_id?: string | null;
+          asset_id?: string | null;
+          landing_id?: string | null;
+          ads_campaign_id?: string | null;
+          launch_plan_id?: string | null;
+          status?: OrchestrationStatus;
+          pipeline_step?: string | null;
+          score_lancamento?: number | null;
+          probabilidade_sucesso?: number | null;
+          investimento_necessario?: number | null;
+          receita_prevista?: number | null;
+          roi_estimado?: number | null;
+          orcamento_sugerido?: Json;
+          plano_lancamento?: Json;
+          conexoes?: Json;
+          riscos?: Json;
+          resumo?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -2359,6 +2438,7 @@ export type UserScopedTable =
   | "creator_assets"
   | "creator_landings"
   | "creator_ads_campaigns"
+  | "creator_campaign_orchestrations"
   | "creator_launch_plans"
   | "money_mission_plans"
   | "money_mission_tasks"

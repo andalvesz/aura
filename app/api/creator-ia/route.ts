@@ -9,6 +9,7 @@ import { getStudioContext } from "@/lib/supabase/services/creative-studio.servic
 import { getLaunchContext } from "@/lib/supabase/services/launch.service";
 import { getLandingContext } from "@/lib/supabase/services/landing-builder.service";
 import { getAdsContext } from "@/lib/supabase/services/ads-manager.service";
+import { getOrchestratorContext } from "@/lib/supabase/services/campaign-orchestrator.service";
 import { getResearchContext } from "@/lib/supabase/services/research.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import { COPYLAB_AI_CONTEXT, COPYLAB_IA_ACTIONS } from "@/utils/copylab";
@@ -17,6 +18,10 @@ import { STUDIO_AI_CONTEXT, STUDIO_IA_ACTIONS } from "@/utils/creative-studio";
 import { LAUNCH_AI_CONTEXT, LAUNCH_IA_ACTIONS } from "@/utils/launch";
 import { LANDING_AI_CONTEXT, LANDING_IA_ACTIONS } from "@/utils/landing-builder";
 import { ADS_AI_CONTEXT, ADS_IA_ACTIONS } from "@/utils/ads-manager";
+import {
+  ORCHESTRATOR_AI_CONTEXT,
+  ORCHESTRATOR_IA_ACTIONS,
+} from "@/utils/campaign-orchestrator";
 import { RESEARCH_AI_CONTEXT, RESEARCH_IA_ACTIONS } from "@/utils/research";
 import { parseRequestJson } from "@/utils/safe-json";
 
@@ -36,6 +41,7 @@ const ACTION_PROMPTS: Record<string, string> = Object.fromEntries([
   ...STUDIO_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...LANDING_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...ADS_IA_ACTIONS.map((a) => [a.id, a.prompt]),
+  ...ORCHESTRATOR_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...LAUNCH_IA_ACTIONS.map((a) => [a.id, a.prompt]),
 ]);
 
@@ -72,6 +78,7 @@ export async function POST(req: Request) {
     const isStudio = body.module === "studio";
     const isLanding = body.module === "landing";
     const isAds = body.module === "ads";
+    const isOrchestrator = body.module === "orchestrator";
     const isLaunch = body.module === "launch";
 
     if (actionId && ACTION_PROMPTS[actionId]) {
@@ -86,7 +93,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "IA indisponível (OPENAI_API_KEY)." }, { status: 503 });
     }
 
-    const [creatorCtx, researchCtx, copylabCtx, studioCtx, landingCtx, adsCtx, launchCtx] =
+    const [creatorCtx, researchCtx, copylabCtx, studioCtx, landingCtx, adsCtx, orchestratorCtx, launchCtx] =
       await Promise.all([
         getCreatorContext(),
         getResearchContext(),
@@ -94,6 +101,7 @@ export async function POST(req: Request) {
         getStudioContext(),
         getLandingContext(),
         getAdsContext(),
+        getOrchestratorContext(),
         getLaunchContext(),
       ]);
 
@@ -104,6 +112,7 @@ export async function POST(req: Request) {
       studioCtx.error === "Usuário não autenticado." ||
       landingCtx.error === "Usuário não autenticado." ||
       adsCtx.error === "Usuário não autenticado." ||
+      orchestratorCtx.error === "Usuário não autenticado." ||
       launchCtx.error === "Usuário não autenticado."
     ) {
       return Response.json({ error: "Faça login para usar a Aura Creator." }, { status: 401 });
@@ -128,6 +137,7 @@ export async function POST(req: Request) {
       studioCtx.context,
       landingCtx.context,
       adsCtx.context,
+      orchestratorCtx.context,
       launchCtx.context,
     ]
       .filter(Boolean)
@@ -142,9 +152,11 @@ export async function POST(req: Request) {
             ? `${LANDING_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
             : isAds
               ? `${ADS_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
-              : isLaunch
-                ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
-                : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
+              : isOrchestrator
+                ? `${ORCHESTRATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+                : isLaunch
+                  ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+                  : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
 
     const mergedHistory = await resolveMergedHistory("creator", history);
 
@@ -174,9 +186,11 @@ export async function POST(req: Request) {
             ? "landing"
             : isAds
               ? "ads"
-              : isLaunch
-                ? "launch"
-                : "creator";
+              : isOrchestrator
+                ? "orchestrator"
+                : isLaunch
+                  ? "launch"
+                  : "creator";
 
     await persistAiTurn("creator", message, text, {
       kind,
