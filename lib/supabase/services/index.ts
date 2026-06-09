@@ -24,3 +24,4 @@ export * from "./english-coach.service";
 export * from "./language.service";
 export * from "./creator.service";
 export * from "./research.service";
+export * from "./copylab.service";

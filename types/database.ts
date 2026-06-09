@@ -667,6 +667,37 @@ export type CreatorResearch = {
   updated_at: string;
 };
 
+export type CreatorCopylab = {
+  id: string;
+  user_id: string;
+  product_id: string | null;
+  nome: string | null;
+  avatar: string | null;
+  problema: string | null;
+  solucao: string | null;
+  promessa: string | null;
+  diferencial: string | null;
+  preco: number | null;
+  headline: string | null;
+  subheadline: string | null;
+  big_idea: string | null;
+  mecanismo_unico: string | null;
+  bullets: Json;
+  garantia: string | null;
+  bonus: string | null;
+  cta: string | null;
+  pagina_vendas: string | null;
+  estrutura_vsl: string | null;
+  storytelling: string | null;
+  email_lancamento: string | null;
+  whatsapp_venda: string | null;
+  instagram_post: string | null;
+  facebook_ad: string | null;
+  google_ad: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiMessage = {
   id: string;
   user_id: string;
@@ -1701,6 +1732,67 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creator_copylab: TableDef<
+        CreatorCopylab,
+        Omit<
+          CreatorCopylab,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "product_id"
+          | "nome"
+          | "avatar"
+          | "problema"
+          | "solucao"
+          | "promessa"
+          | "diferencial"
+          | "preco"
+          | "headline"
+          | "subheadline"
+          | "big_idea"
+          | "mecanismo_unico"
+          | "bullets"
+          | "garantia"
+          | "bonus"
+          | "cta"
+          | "pagina_vendas"
+          | "estrutura_vsl"
+          | "storytelling"
+          | "email_lancamento"
+          | "whatsapp_venda"
+          | "instagram_post"
+          | "facebook_ad"
+          | "google_ad"
+        > & {
+          id?: string;
+          product_id?: string | null;
+          nome?: string | null;
+          avatar?: string | null;
+          problema?: string | null;
+          solucao?: string | null;
+          promessa?: string | null;
+          diferencial?: string | null;
+          preco?: number | null;
+          headline?: string | null;
+          subheadline?: string | null;
+          big_idea?: string | null;
+          mecanismo_unico?: string | null;
+          bullets?: Json;
+          garantia?: string | null;
+          bonus?: string | null;
+          cta?: string | null;
+          pagina_vendas?: string | null;
+          estrutura_vsl?: string | null;
+          storytelling?: string | null;
+          email_lancamento?: string | null;
+          whatsapp_venda?: string | null;
+          instagram_post?: string | null;
+          facebook_ad?: string | null;
+          google_ad?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -1774,7 +1866,8 @@ export type UserScopedTable =
   | "creator_offers"
   | "creator_launches"
   | "creator_checklist_items"
-  | "creator_research";
+  | "creator_research"
+  | "creator_copylab";
 
 export type AiModule =
   | "aura_central"

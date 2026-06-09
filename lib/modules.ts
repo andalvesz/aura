@@ -230,7 +230,7 @@ export const MODULES: ModuleConfig[] = [
     label: "Aura Creator",
     shortLabel: "Creator",
     description:
-      "Pipeline completo: ideia → escala. Market Research, checklists, scores IA e integração Legado + Financeiro.",
+      "Pipeline completo: ideia → escala. Market Research, CopyLab, checklists, scores IA e integração Legado + Financeiro.",
     icon: Sparkles,
     accent: "text-violet-400",
     overview: {

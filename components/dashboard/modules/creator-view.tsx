@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Circle,
   Loader2,
+  Megaphone,
   Plus,
   Rocket,
   Search,
@@ -40,8 +41,23 @@ import {
   type CreatorProductIntake,
   type GeneratedCreatorPlan,
 } from "@/utils/creator";
+import { intakeFromProductBundle } from "@/utils/copylab";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { cn } from "@/utils/cn";
+
+function buildCopylabHref(bundle: CreatorProductBundle): string {
+  const intake = intakeFromProductBundle(bundle);
+  return `/dashboard/creator/copy?${new URLSearchParams({
+    product_id: bundle.product.id,
+    ...(intake.nome ? { nome: intake.nome } : {}),
+    ...(intake.avatar ? { avatar: intake.avatar } : {}),
+    ...(intake.problema ? { problema: intake.problema } : {}),
+    ...(intake.solucao ? { solucao: intake.solucao } : {}),
+    ...(intake.promessa ? { promessa: intake.promessa } : {}),
+    ...(intake.diferencial ? { diferencial: intake.diferencial } : {}),
+    ...(intake.preco != null ? { preco: String(intake.preco) } : {}),
+  }).toString()}`;
+}
 
 type WizardStep = "idle" | "intake" | "product" | "validation" | "offer";
 
@@ -659,6 +675,11 @@ export function CreatorView() {
                   Gerar oferta
                 </ActionButton>
               )}
+              <Link href={buildCopylabHref(activeBundle)}>
+                <ActionButton variant="ghost" icon={<Megaphone className="size-3.5" />}>
+                  Gerar copy no CopyLab
+                </ActionButton>
+              </Link>
               {nextStage && (
                 <ActionButton
                   variant="ghost"

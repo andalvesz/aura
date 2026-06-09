@@ -48,9 +48,14 @@ import {
   detectCreatorCoachMode,
 } from "@/utils/creator";
 import {
+  buildCopylabCoachReply,
+  detectCopylabCoachMode,
+} from "@/utils/copylab";
+import {
   buildResearchCoachReply,
   detectResearchCoachMode,
 } from "@/utils/research";
+import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
@@ -333,6 +338,40 @@ export async function POST(req: Request) {
           identityCommand: identityResponse.command,
         });
       }
+    }
+
+    const copylabMode = detectCopylabCoachMode(message);
+    if (copylabMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const [{ records }, { bundles }] = await Promise.all([
+        loadCopylabRecords(),
+        loadCreatorBundles(),
+      ]);
+
+      const text = buildCopylabCoachReply({
+        mode: copylabMode,
+        displayName,
+        records,
+        bundles,
+        message,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: copylabMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: copylabMode,
+      });
     }
 
     const researchMode = detectResearchCoachMode(message);
