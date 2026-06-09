@@ -17,6 +17,7 @@ export const AI_MODULE_LABELS: Record<AiModule, string> = {
   legado: "Aura Legado",
   creator: "Aura Creator",
   execution: "Aura Execution Engine",
+  performance: "Aura Performance AI",
 };
 
 const YESTERDAY_PHRASES = [

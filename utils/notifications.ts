@@ -86,6 +86,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   money: "/dashboard/money",
   ceo: "/dashboard/ceo",
   execution: "/dashboard/execution",
+  performance: "/dashboard/performance",
 };
 
 export function isNotificationRead(notification: Pick<Notification, "status">): boolean {

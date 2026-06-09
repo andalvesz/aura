@@ -44,6 +44,7 @@ const PERSIST_KINDS = new Set([
   "money",
   "ceo",
   "execution",
+  "performance",
 ]);
 
 const KIND_TITLES: Record<string, string> = {
@@ -68,6 +69,7 @@ const KIND_TITLES: Record<string, string> = {
   money: "Plano financeiro",
   ceo: "Estratégia CEO",
   execution: "Execução diária",
+  performance: "Análise de performance",
 };
 
 const COACH_MODE_TITLES: Record<string, string> = {
@@ -99,6 +101,9 @@ const COACH_MODE_TITLES: Record<string, string> = {
   "ceo-delay": "O que está atrasando",
   "ceo-opportunity": "Oportunidade a aproveitar",
   "ceo-plan-30": "Plano 30 dias",
+  "performance-week": "Panorama da semana",
+  "performance-money-loss": "Perda de dinheiro",
+  "performance-optimize": "Otimização estratégica",
 };
 
 export function shouldPersistAuraMemory(
@@ -138,6 +143,7 @@ export function resolveAuraMemoryCategoria(
   if (module === "aura_central") return "coach";
   if (module === "legado" || kind === "legado") return "legado";
   if (module === "execution" || kind === "execution") return "coach";
+  if (module === "performance" || kind === "performance") return "coach";
   if (module === "creator" || kind === "creator" || kind === "copylab" || kind === "launch" || kind === "money" || kind === "ceo")
     return "mentor";
   return "mentor";

@@ -33,3 +33,4 @@ export * from "./launch.service";
 export * from "./money.service";
 export * from "./ceo.service";
 export * from "./execution.service";
+export * from "./performance.service";

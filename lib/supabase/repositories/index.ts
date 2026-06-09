@@ -49,3 +49,6 @@ export { AuraCeoSessionsRepository } from "./ceo.repository";
 export { ExecutionPlansRepository } from "./execution.repository";
 export { ExecutionTasksRepository } from "./execution-tasks.repository";
 export { ExecutionHistoryRepository } from "./execution-history.repository";
+export { PerformanceReportsRepository } from "./performance-reports.repository";
+export { PerformanceMetricsRepository } from "./performance-metrics.repository";
+export { PerformanceInsightsRepository } from "./performance-insights.repository";

@@ -77,6 +77,10 @@ import {
   detectCeoCoachMode,
 } from "@/utils/ceo";
 import {
+  buildPerformanceCoachReply,
+  detectPerformanceCoachMode,
+} from "@/utils/performance";
+import {
   buildResearchCoachReply,
   detectResearchCoachMode,
 } from "@/utils/research";
@@ -87,6 +91,7 @@ import { loadAdsCampaigns } from "@/lib/supabase/services/ads-manager.service";
 import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
 import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
+import { getPerformanceDashboard } from "@/lib/supabase/services/performance.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
@@ -369,6 +374,41 @@ export async function POST(req: Request) {
           identityCommand: identityResponse.command,
         });
       }
+    }
+
+    const performanceMode = detectPerformanceCoachMode(message);
+    if (performanceMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { dashboard, panel, analysis } = await getPerformanceDashboard();
+
+      if (!dashboard || !panel || !analysis) {
+        return Response.json({ error: "Erro ao carregar dados de performance." }, { status: 500 });
+      }
+
+      const text = buildPerformanceCoachReply({
+        mode: performanceMode,
+        displayName,
+        dashboard,
+        panel,
+        analysis,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: performanceMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: performanceMode,
+      });
     }
 
     const ceoMode = detectCeoCoachMode(message);

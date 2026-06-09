@@ -962,6 +962,61 @@ export type ExecutionHistoryEntry = {
   created_at: string;
 };
 
+export type PerformanceReportStatus = "active" | "archived";
+
+export type PerformancePeriod = "daily" | "weekly" | "monthly";
+
+export type PerformanceInsightTipo =
+  | "oportunidade"
+  | "risco"
+  | "desperdicio"
+  | "projeto"
+  | "funcionando"
+  | "atrasando"
+  | "acelerar"
+  | "abandonar"
+  | "potencial";
+
+export type PerformanceReport = {
+  id: string;
+  user_id: string;
+  report_date: string;
+  period: PerformancePeriod;
+  status: PerformanceReportStatus;
+  titulo: string | null;
+  resumo: string | null;
+  score_performance: number | null;
+  ai_analysis: Json;
+  panel: Json;
+  executive_memory: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PerformanceMetric = {
+  id: string;
+  user_id: string;
+  report_id: string;
+  metric_key: string;
+  metric_label: string;
+  metric_value: number;
+  metric_formatted: string | null;
+  modulo: string | null;
+  created_at: string;
+};
+
+export type PerformanceInsight = {
+  id: string;
+  user_id: string;
+  report_id: string;
+  tipo: PerformanceInsightTipo;
+  titulo: string;
+  descricao: string;
+  score: number;
+  modulo: string | null;
+  created_at: string;
+};
+
 export type OrchestrationStatus = "draft" | "prepared" | "completed";
 
 export type CreatorCampaignOrchestration = {
@@ -1207,7 +1262,8 @@ export type XpAcao =
   | "money_primeiro_lancamento"
   | "money_meta_atingida"
   | "missao_execution_concluir"
-  | "execution_plano_completo";
+  | "execution_plano_completo"
+  | "performance_analise_gerar";
 
 export type UserXp = {
   id: string;
@@ -2537,6 +2593,69 @@ export type Database = {
           created_at?: string;
         }
       >;
+      performance_reports: TableDef<
+        PerformanceReport,
+        Omit<
+          PerformanceReport,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "period"
+          | "status"
+          | "titulo"
+          | "resumo"
+          | "score_performance"
+          | "ai_analysis"
+          | "panel"
+          | "executive_memory"
+        > & {
+          id?: string;
+          period?: PerformancePeriod;
+          status?: PerformanceReportStatus;
+          titulo?: string | null;
+          resumo?: string | null;
+          score_performance?: number | null;
+          ai_analysis?: Json;
+          panel?: Json;
+          executive_memory?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      performance_metrics: TableDef<
+        PerformanceMetric,
+        Omit<
+          PerformanceMetric,
+          | "id"
+          | "created_at"
+          | "metric_value"
+          | "metric_formatted"
+          | "modulo"
+        > & {
+          id?: string;
+          metric_value?: number;
+          metric_formatted?: string | null;
+          modulo?: string | null;
+          created_at?: string;
+        }
+      >;
+      performance_insights: TableDef<
+        PerformanceInsight,
+        Omit<
+          PerformanceInsight,
+          | "id"
+          | "created_at"
+          | "descricao"
+          | "score"
+          | "modulo"
+        > & {
+          id?: string;
+          descricao?: string;
+          score?: number;
+          modulo?: string | null;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -2620,6 +2739,9 @@ export type UserScopedTable =
   | "execution_plans"
   | "execution_tasks"
   | "execution_history"
+  | "performance_reports"
+  | "performance_metrics"
+  | "performance_insights"
   | "money_mission_plans"
   | "money_mission_tasks"
   | "aura_ceo_sessions";
@@ -2633,4 +2755,5 @@ export type AiModule =
   | "idiomas"
   | "legado"
   | "creator"
-  | "execution";
+  | "execution"
+  | "performance";

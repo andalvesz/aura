@@ -22,6 +22,7 @@ import {
   ScrollText,
   Star,
   Target,
+  TrendingUp,
   Wallet,
 } from "lucide-react";
 
@@ -41,7 +42,8 @@ export type ModuleId =
   | "creator"
   | "money"
   | "ceo"
-  | "execution";
+  | "execution"
+  | "performance";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -288,6 +290,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Missões",
       value: "0",
       hint: "Gere seu plano diário",
+    },
+  },
+  {
+    id: "performance",
+    href: "/dashboard/performance",
+    label: "Aura Performance AI",
+    shortLabel: "Performance",
+    description:
+      "Analise resultados cross-module e tome decisões estratégicas com IA executiva.",
+    icon: TrendingUp,
+    accent: "text-emerald-400",
+    overview: {
+      metric: "Score",
+      value: "—",
+      hint: "Gere sua análise de performance",
     },
   },
 ];
