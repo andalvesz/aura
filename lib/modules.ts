@@ -14,6 +14,7 @@ import {
   MapPin,
   Rocket,
   Share2,
+  Sparkles,
   Stethoscope,
   ScrollText,
   Star,
@@ -33,7 +34,8 @@ export type ModuleId =
   | "viagens"
   | "idiomas"
   | "disney-nba"
-  | "legado";
+  | "legado"
+  | "creator";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -220,6 +222,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Conquistas",
       value: "0",
       hint: "Registre sua trajetória desde 2016",
+    },
+  },
+  {
+    id: "creator",
+    href: "/dashboard/creator",
+    label: "Aura Creator",
+    shortLabel: "Creator",
+    description:
+      "Crie, valide e lance produtos digitais com IA — integrado ao Legado e Aura Coach.",
+    icon: Sparkles,
+    accent: "text-violet-400",
+    overview: {
+      metric: "Produtos",
+      value: "0",
+      hint: "Valide oportunidades digitais com IA",
     },
   },
 ];

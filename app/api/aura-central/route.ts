@@ -43,6 +43,12 @@ import {
   detectCoachMode,
   resolveCoachResponse,
 } from "@/utils/coach";
+import {
+  buildCreatorCoachReply,
+  detectCreatorCoachMode,
+} from "@/utils/creator";
+import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
+import { loadLegacyData } from "@/lib/supabase/services/legado.service";
 import { runGlobalSearch } from "@/lib/search/global-search";
 import {
   generateExecutiveReportAnalysis,
@@ -322,6 +328,39 @@ export async function POST(req: Request) {
           identityCommand: identityResponse.command,
         });
       }
+    }
+
+    const creatorMode = detectCreatorCoachMode(message);
+    if (creatorMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const [{ bundles }, legacyRes] = await Promise.all([
+        loadCreatorBundles(),
+        loadLegacyData(),
+      ]);
+
+      const text = buildCreatorCoachReply({
+        mode: creatorMode,
+        displayName,
+        bundles,
+        legacyData: legacyRes.data,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: creatorMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: creatorMode,
+      });
     }
 
     const coachMode = detectCoachMode(message, actionId);

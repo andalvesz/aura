@@ -29,3 +29,9 @@ export { TripChecklistRepository } from "./trip-checklist.repository";
 export { LanguageProgressRepository } from "./language-progress.repository";
 export { LanguageSessionsRepository } from "./language-sessions.repository";
 export { LanguageLessonsRepository } from "./language-lessons.repository";
+export {
+  CreatorLaunchesRepository,
+  CreatorOffersRepository,
+  CreatorProductsRepository,
+  CreatorValidationRepository,
+} from "./creator.repository";

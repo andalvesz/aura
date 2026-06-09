@@ -535,6 +535,76 @@ export type LegacyMilestone = {
   updated_at: string;
 };
 
+export type CreatorProductStatus = "draft" | "validated" | "offered" | "launched";
+
+export type CreatorProduct = {
+  id: string;
+  user_id: string;
+  status: CreatorProductStatus;
+  nicho: string | null;
+  conhecimento: string | null;
+  publico_alvo_input: string | null;
+  objetivo_financeiro: number | null;
+  prazo: string | null;
+  used_aura_data: boolean;
+  nome: string | null;
+  problema: string | null;
+  solucao: string | null;
+  avatar: string | null;
+  publico_alvo: string | null;
+  promessa: string | null;
+  mecanismo_unico: string | null;
+  diferenciais: string | null;
+  faixa_preco_min: number | null;
+  faixa_preco_max: number | null;
+  formato: string | null;
+  probabilidade_venda: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreatorValidation = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  demanda: number;
+  concorrencia: number;
+  facilidade_criacao: number;
+  facilidade_venda: number;
+  escalabilidade: number;
+  nota_final: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreatorOffer = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  headline: string | null;
+  subheadline: string | null;
+  bullet_points: Json;
+  garantia: string | null;
+  bonus: string | null;
+  cta: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreatorLaunchStatus = "planned" | "active" | "completed" | "paused";
+
+export type CreatorLaunch = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  status: CreatorLaunchStatus;
+  potencial_estimado: number | null;
+  launched_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiMessage = {
   id: string;
   user_id: string;
@@ -1376,6 +1446,111 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creator_products: TableDef<
+        CreatorProduct,
+        Omit<
+          CreatorProduct,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "status"
+          | "used_aura_data"
+          | "nicho"
+          | "conhecimento"
+          | "publico_alvo_input"
+          | "objetivo_financeiro"
+          | "prazo"
+          | "nome"
+          | "problema"
+          | "solucao"
+          | "avatar"
+          | "publico_alvo"
+          | "promessa"
+          | "mecanismo_unico"
+          | "diferenciais"
+          | "faixa_preco_min"
+          | "faixa_preco_max"
+          | "formato"
+          | "probabilidade_venda"
+        > & {
+          id?: string;
+          status?: CreatorProductStatus;
+          used_aura_data?: boolean;
+          nicho?: string | null;
+          conhecimento?: string | null;
+          publico_alvo_input?: string | null;
+          objetivo_financeiro?: number | null;
+          prazo?: string | null;
+          nome?: string | null;
+          problema?: string | null;
+          solucao?: string | null;
+          avatar?: string | null;
+          publico_alvo?: string | null;
+          promessa?: string | null;
+          mecanismo_unico?: string | null;
+          diferenciais?: string | null;
+          faixa_preco_min?: number | null;
+          faixa_preco_max?: number | null;
+          formato?: string | null;
+          probabilidade_venda?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      creator_validation: TableDef<
+        CreatorValidation,
+        Omit<CreatorValidation, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      creator_offers: TableDef<
+        CreatorOffer,
+        Omit<
+          CreatorOffer,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "headline"
+          | "subheadline"
+          | "bullet_points"
+          | "garantia"
+          | "bonus"
+          | "cta"
+        > & {
+          id?: string;
+          headline?: string | null;
+          subheadline?: string | null;
+          bullet_points?: Json;
+          garantia?: string | null;
+          bonus?: string | null;
+          cta?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      creator_launches: TableDef<
+        CreatorLaunch,
+        Omit<
+          CreatorLaunch,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "status"
+          | "potencial_estimado"
+          | "launched_at"
+          | "notes"
+        > & {
+          id?: string;
+          status?: CreatorLaunchStatus;
+          potencial_estimado?: number | null;
+          launched_at?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -1443,7 +1618,11 @@ export type UserScopedTable =
   | "legacy_achievements"
   | "legacy_certificates"
   | "legacy_life_events"
-  | "legacy_milestones";
+  | "legacy_milestones"
+  | "creator_products"
+  | "creator_validation"
+  | "creator_offers"
+  | "creator_launches";
 
 export type AiModule =
   | "aura_central"
@@ -1452,4 +1631,5 @@ export type AiModule =
   | "saude"
   | "social"
   | "idiomas"
-  | "legado";
+  | "legado"
+  | "creator";

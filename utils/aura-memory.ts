@@ -37,6 +37,7 @@ const PERSIST_KINDS = new Set([
   "conteudo",
   "comms",
   "legado",
+  "creator",
 ]);
 
 const KIND_TITLES: Record<string, string> = {
@@ -54,6 +55,7 @@ const KIND_TITLES: Record<string, string> = {
   vendas: "Plano de vendas",
   conteudo: "Conteúdo gerado",
   legado: "História e legado",
+  creator: "Produto digital",
 };
 
 const COACH_MODE_TITLES: Record<string, string> = {
@@ -100,6 +102,7 @@ export function resolveAuraMemoryCategoria(
   if (kind === "coach") return "coach";
   if (module === "aura_central") return "coach";
   if (module === "legado" || kind === "legado") return "legado";
+  if (module === "creator" || kind === "creator") return "mentor";
   return "mentor";
 }
 

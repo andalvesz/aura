@@ -17,6 +17,7 @@ const IDENTITY_MODULE_LABELS: Partial<Record<AiModule, string>> = {
   idiomas: "English Coach",
   agenda: "Travel",
   legado: "Aura Legado",
+  creator: "Aura Creator",
 };
 
 function resolveIdentityError(error: unknown): string {

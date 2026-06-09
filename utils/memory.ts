@@ -15,6 +15,7 @@ export const AI_MODULE_LABELS: Record<AiModule, string> = {
   social: "Aura Social",
   idiomas: "Aura English Coach",
   legado: "Aura Legado",
+  creator: "Aura Creator",
 };
 
 const YESTERDAY_PHRASES = [
