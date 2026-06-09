@@ -41,6 +41,7 @@ const PERSIST_KINDS = new Set([
   "research",
   "copylab",
   "launch",
+  "money",
 ]);
 
 const KIND_TITLES: Record<string, string> = {
@@ -62,6 +63,7 @@ const KIND_TITLES: Record<string, string> = {
   research: "Pesquisa de mercado",
   copylab: "Copy de produto",
   launch: "Plano de lançamento",
+  money: "Plano financeiro",
 };
 
 const COACH_MODE_TITLES: Record<string, string> = {
@@ -85,6 +87,10 @@ const COACH_MODE_TITLES: Record<string, string> = {
   "launch-next": "Próximo passo",
   "launch-missing": "O que falta para lançar",
   "launch-monetize": "Quanto falta para monetizar",
+  "money-earn": "Como ganhar dinheiro",
+  "money-today": "O que fazer hoje",
+  "money-opportunity": "Melhor oportunidade",
+  "money-late": "Missão atrasada",
 };
 
 export function shouldPersistAuraMemory(
@@ -114,7 +120,7 @@ export function resolveAuraMemoryCategoria(
     return "social_media";
   }
   if (auraModule === "alvesz" || kind === "alvesz") return "alvesz";
-  if (auraModule === "financeiro" || kind === "financeiro") return "financeiro";
+  if (auraModule === "financeiro" || kind === "financeiro" || kind === "money") return "financeiro";
   if (auraModule === "crescimento" || kind === "vendas" || kind === "estrategia" || kind === "command") {
     return "crescimento";
   }
@@ -122,7 +128,7 @@ export function resolveAuraMemoryCategoria(
   if (kind === "coach") return "coach";
   if (module === "aura_central") return "coach";
   if (module === "legado" || kind === "legado") return "legado";
-  if (module === "creator" || kind === "creator" || kind === "copylab" || kind === "launch")
+  if (module === "creator" || kind === "creator" || kind === "copylab" || kind === "launch" || kind === "money")
     return "mentor";
   return "mentor";
 }

@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   Brain,
+  Banknote,
   Building2,
   CalendarDays,
   Castle,
@@ -35,7 +36,8 @@ export type ModuleId =
   | "idiomas"
   | "disney-nba"
   | "legado"
-  | "creator";
+  | "creator"
+  | "money";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -237,6 +239,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Produtos",
       value: "0",
       hint: "Pipeline inteligente com checklist e ROI",
+    },
+  },
+  {
+    id: "money",
+    href: "/dashboard/money",
+    label: "Aura Money Missions",
+    shortLabel: "Money",
+    description:
+      "Transforme metas financeiras em planos executáveis com IA — integrando todos os módulos da Aura.",
+    icon: Banknote,
+    accent: "text-emerald-400",
+    overview: {
+      metric: "Meta",
+      value: "—",
+      hint: "Nenhuma missão financeira ativa",
     },
   },
 ];

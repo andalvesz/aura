@@ -56,11 +56,17 @@ import {
   detectLaunchCoachMode,
 } from "@/utils/launch";
 import {
+  buildMoneyCoachReply,
+  computeMoneyDashboard,
+  detectMoneyCoachMode,
+} from "@/utils/money";
+import {
   buildResearchCoachReply,
   detectResearchCoachMode,
 } from "@/utils/research";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
+import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
@@ -343,6 +349,39 @@ export async function POST(req: Request) {
           identityCommand: identityResponse.command,
         });
       }
+    }
+
+    const moneyMode = detectMoneyCoachMode(message);
+    if (moneyMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { plan, tasks } = await getMoneyDashboard();
+      const dashboard = computeMoneyDashboard(plan, tasks);
+
+      const text = buildMoneyCoachReply({
+        mode: moneyMode,
+        displayName,
+        plan,
+        tasks,
+        dashboard,
+        message,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: moneyMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: moneyMode,
+      });
     }
 
     const launchMode = detectLaunchCoachMode(message);

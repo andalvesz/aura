@@ -39,3 +39,5 @@ export {
 export { CreatorResearchRepository } from "./research.repository";
 export { CreatorCopylabRepository } from "./copylab.repository";
 export { CreatorLaunchPlansRepository } from "./launch.repository";
+export { MoneyMissionPlansRepository } from "./money.repository";
+export { MoneyMissionTasksRepository } from "./money-tasks.repository";

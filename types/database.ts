@@ -683,6 +683,53 @@ export type CreatorLaunchPlan = {
   updated_at: string;
 };
 
+export type MoneyMissionPlanStatus = "active" | "completed" | "archived";
+export type MoneyMissionPrazo = "30_dias" | "90_dias" | "6_meses" | "1_ano";
+export type MoneyMissionPrioridade = "seguranca" | "crescimento" | "escala";
+export type MoneyMissionTaskStatus = "pending" | "completed";
+export type MoneyMissionTaskTipo = "semanal" | "diaria";
+
+export type MoneyMissionPlan = {
+  id: string;
+  user_id: string;
+  valor_meta: number;
+  valor_conquistado: number;
+  prazo: MoneyMissionPrazo;
+  prioridade: MoneyMissionPrioridade;
+  data_inicio: string;
+  data_fim: string;
+  status: MoneyMissionPlanStatus;
+  plano_financeiro: string | null;
+  produtos_recomendados: Json;
+  servicos_recomendados: Json;
+  receita_estimada: number | null;
+  investimento_necessario: number | null;
+  roi_estimado: number | null;
+  riscos: Json;
+  probabilidade_sucesso: number | null;
+  cronograma: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MoneyMissionTask = {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  mission_key: string;
+  titulo: string;
+  descricao: string;
+  semana: number | null;
+  ordem: number;
+  tipo: MoneyMissionTaskTipo;
+  status: MoneyMissionTaskStatus;
+  mission_date: string | null;
+  completed_at: string | null;
+  xp_reward: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorCopylab = {
   id: string;
   user_id: string;
@@ -924,7 +971,12 @@ export type XpAcao =
   | "missao_analisar"
   | "criar_conteudo"
   | "gerar_roteiro"
-  | "publicar_conteudo";
+  | "publicar_conteudo"
+  | "missao_money_concluir"
+  | "money_primeira_venda"
+  | "money_primeiro_produto"
+  | "money_primeiro_lancamento"
+  | "money_meta_atingida";
 
 export type UserXp = {
   id: string;
@@ -1777,6 +1829,70 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      money_mission_plans: TableDef<
+        MoneyMissionPlan,
+        Omit<
+          MoneyMissionPlan,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "valor_conquistado"
+          | "status"
+          | "plano_financeiro"
+          | "produtos_recomendados"
+          | "servicos_recomendados"
+          | "receita_estimada"
+          | "investimento_necessario"
+          | "roi_estimado"
+          | "riscos"
+          | "probabilidade_sucesso"
+          | "cronograma"
+        > & {
+          id?: string;
+          valor_conquistado?: number;
+          status?: MoneyMissionPlanStatus;
+          plano_financeiro?: string | null;
+          produtos_recomendados?: Json;
+          servicos_recomendados?: Json;
+          receita_estimada?: number | null;
+          investimento_necessario?: number | null;
+          roi_estimado?: number | null;
+          riscos?: Json;
+          probabilidade_sucesso?: number | null;
+          cronograma?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      money_mission_tasks: TableDef<
+        MoneyMissionTask,
+        Omit<
+          MoneyMissionTask,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "descricao"
+          | "semana"
+          | "ordem"
+          | "tipo"
+          | "status"
+          | "mission_date"
+          | "completed_at"
+          | "xp_reward"
+        > & {
+          id?: string;
+          descricao?: string;
+          semana?: number | null;
+          ordem?: number;
+          tipo?: MoneyMissionTaskTipo;
+          status?: MoneyMissionTaskStatus;
+          mission_date?: string | null;
+          completed_at?: string | null;
+          xp_reward?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       creator_copylab: TableDef<
         CreatorCopylab,
         Omit<
@@ -1913,7 +2029,9 @@ export type UserScopedTable =
   | "creator_checklist_items"
   | "creator_research"
   | "creator_copylab"
-  | "creator_launch_plans";
+  | "creator_launch_plans"
+  | "money_mission_plans"
+  | "money_mission_tasks";
 
 export type AiModule =
   | "aura_central"

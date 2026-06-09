@@ -26,3 +26,4 @@ export * from "./creator.service";
 export * from "./research.service";
 export * from "./copylab.service";
 export * from "./launch.service";
+export * from "./money.service";
