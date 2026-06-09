@@ -32,6 +32,8 @@ export const XP_REWARDS: Record<XpAcao, number> = {
   money_primeiro_produto: 40,
   money_primeiro_lancamento: 60,
   money_meta_atingida: 200,
+  missao_execution_concluir: 20,
+  execution_plano_completo: 50,
 };
 
 export const XP_ACAO_LABELS: Record<XpAcao, string> = {
@@ -63,6 +65,8 @@ export const XP_ACAO_LABELS: Record<XpAcao, string> = {
   money_primeiro_produto: "Primeiro produto",
   money_primeiro_lancamento: "Primeiro lançamento",
   money_meta_atingida: "Meta financeira atingida",
+  missao_execution_concluir: "Missão Execution concluída",
+  execution_plano_completo: "Plano diário completo",
 };
 
 const LEVEL_THRESHOLDS = [0, 100, 250, 450, 700] as const;

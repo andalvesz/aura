@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Castle,
   Crown,
+  Cpu,
   Dumbbell,
   FileText,
   Home,
@@ -39,7 +40,8 @@ export type ModuleId =
   | "legado"
   | "creator"
   | "money"
-  | "ceo";
+  | "ceo"
+  | "execution";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -271,6 +273,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Score IA",
       value: "—",
       hint: "Faça uma pergunta estratégica",
+    },
+  },
+  {
+    id: "execution",
+    href: "/dashboard/execution",
+    label: "Aura Execution Engine",
+    shortLabel: "Execution",
+    description:
+      "Transforme planos da Aura em tarefas executáveis com Daily Briefing e Executive Memory.",
+    icon: Cpu,
+    accent: "text-cyan-400",
+    overview: {
+      metric: "Missões",
+      value: "0",
+      hint: "Gere seu plano diário",
     },
   },
 ];

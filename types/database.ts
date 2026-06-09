@@ -882,6 +882,86 @@ export type CreatorAdsCampaign = {
   updated_at: string;
 };
 
+export type ExecutionPlanStatus = "active" | "completed" | "archived";
+
+export type ExecutionTaskStatus = "pending" | "completed";
+
+export type ExecutionTaskCategoria = "diaria" | "semanal";
+
+export type ExecutionTaskArea =
+  | "marketing"
+  | "negocios"
+  | "saude"
+  | "desenvolvimento"
+  | "relacionamentos";
+
+export type ExecutionTaskModulo =
+  | "ceo"
+  | "money"
+  | "orchestrator"
+  | "launch"
+  | "creator"
+  | "social"
+  | "alvesz"
+  | "financeiro"
+  | "calendario"
+  | "saude"
+  | "idiomas";
+
+export type ExecutionPlan = {
+  id: string;
+  user_id: string;
+  plan_date: string;
+  titulo: string | null;
+  status: ExecutionPlanStatus;
+  briefing: Json;
+  score_execucao: number | null;
+  missoes_concluidas: number;
+  missoes_total: number;
+  resumo: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExecutionTask = {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  task_key: string;
+  titulo: string;
+  descricao: string;
+  categoria: ExecutionTaskCategoria;
+  area: ExecutionTaskArea;
+  modulo_origem: ExecutionTaskModulo;
+  prioridade: number;
+  impacto: number;
+  urgencia: number;
+  roi: number;
+  energia: number;
+  href: string | null;
+  source_ref: string | null;
+  status: ExecutionTaskStatus;
+  task_date: string | null;
+  semana: number | null;
+  ordem: number;
+  completed_at: string | null;
+  xp_reward: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExecutionHistoryEntry = {
+  id: string;
+  user_id: string;
+  plan_id: string | null;
+  task_id: string | null;
+  evento: string;
+  modulo: string | null;
+  detalhes: Json;
+  xp_ganho: number;
+  created_at: string;
+};
+
 export type OrchestrationStatus = "draft" | "prepared" | "completed";
 
 export type CreatorCampaignOrchestration = {
@@ -1125,7 +1205,9 @@ export type XpAcao =
   | "money_primeira_venda"
   | "money_primeiro_produto"
   | "money_primeiro_lancamento"
-  | "money_meta_atingida";
+  | "money_meta_atingida"
+  | "missao_execution_concluir"
+  | "execution_plano_completo";
 
 export type UserXp = {
   id: string;
@@ -2360,6 +2442,101 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      execution_plans: TableDef<
+        ExecutionPlan,
+        Omit<
+          ExecutionPlan,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "titulo"
+          | "status"
+          | "briefing"
+          | "score_execucao"
+          | "missoes_concluidas"
+          | "missoes_total"
+          | "resumo"
+        > & {
+          id?: string;
+          titulo?: string | null;
+          status?: ExecutionPlanStatus;
+          briefing?: Json;
+          score_execucao?: number | null;
+          missoes_concluidas?: number;
+          missoes_total?: number;
+          resumo?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      execution_tasks: TableDef<
+        ExecutionTask,
+        Omit<
+          ExecutionTask,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "descricao"
+          | "categoria"
+          | "area"
+          | "modulo_origem"
+          | "prioridade"
+          | "impacto"
+          | "urgencia"
+          | "roi"
+          | "energia"
+          | "href"
+          | "source_ref"
+          | "status"
+          | "task_date"
+          | "semana"
+          | "ordem"
+          | "completed_at"
+          | "xp_reward"
+        > & {
+          id?: string;
+          descricao?: string;
+          categoria?: ExecutionTaskCategoria;
+          area?: ExecutionTaskArea;
+          modulo_origem?: ExecutionTaskModulo;
+          prioridade?: number;
+          impacto?: number;
+          urgencia?: number;
+          roi?: number;
+          energia?: number;
+          href?: string | null;
+          source_ref?: string | null;
+          status?: ExecutionTaskStatus;
+          task_date?: string | null;
+          semana?: number | null;
+          ordem?: number;
+          completed_at?: string | null;
+          xp_reward?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      execution_history: TableDef<
+        ExecutionHistoryEntry,
+        Omit<
+          ExecutionHistoryEntry,
+          | "id"
+          | "created_at"
+          | "plan_id"
+          | "task_id"
+          | "modulo"
+          | "detalhes"
+          | "xp_ganho"
+        > & {
+          id?: string;
+          plan_id?: string | null;
+          task_id?: string | null;
+          modulo?: string | null;
+          detalhes?: Json;
+          xp_ganho?: number;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -2440,6 +2617,9 @@ export type UserScopedTable =
   | "creator_ads_campaigns"
   | "creator_campaign_orchestrations"
   | "creator_launch_plans"
+  | "execution_plans"
+  | "execution_tasks"
+  | "execution_history"
   | "money_mission_plans"
   | "money_mission_tasks"
   | "aura_ceo_sessions";
@@ -2452,4 +2632,5 @@ export type AiModule =
   | "social"
   | "idiomas"
   | "legado"
-  | "creator";
+  | "creator"
+  | "execution";

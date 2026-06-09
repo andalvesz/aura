@@ -46,3 +46,6 @@ export { CreatorLaunchPlansRepository } from "./launch.repository";
 export { MoneyMissionPlansRepository } from "./money.repository";
 export { MoneyMissionTasksRepository } from "./money-tasks.repository";
 export { AuraCeoSessionsRepository } from "./ceo.repository";
+export { ExecutionPlansRepository } from "./execution.repository";
+export { ExecutionTasksRepository } from "./execution-tasks.repository";
+export { ExecutionHistoryRepository } from "./execution-history.repository";
