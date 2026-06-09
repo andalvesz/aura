@@ -52,6 +52,10 @@ import {
   detectCopylabCoachMode,
 } from "@/utils/copylab";
 import {
+  buildStudioCoachReply,
+  detectStudioCoachMode,
+} from "@/utils/creative-studio";
+import {
   buildLaunchCoachReply,
   detectLaunchCoachMode,
 } from "@/utils/launch";
@@ -69,6 +73,7 @@ import {
   detectResearchCoachMode,
 } from "@/utils/research";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
+import { loadStudioAssets } from "@/lib/supabase/services/creative-studio.service";
 import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
 import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
@@ -500,6 +505,39 @@ export async function POST(req: Request) {
         module: "global",
         kind: "coach",
         coachMode: copylabMode,
+      });
+    }
+
+    const studioMode = detectStudioCoachMode(message);
+    if (studioMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const [{ records }, { bundles }] = await Promise.all([
+        loadStudioAssets(),
+        loadCreatorBundles(),
+      ]);
+
+      const text = buildStudioCoachReply({
+        mode: studioMode,
+        displayName,
+        records,
+        bundles,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: studioMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: studioMode,
       });
     }
 

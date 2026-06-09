@@ -5,11 +5,13 @@ import {
 } from "@/lib/ai/memory-runtime";
 import { getCopylabContext } from "@/lib/supabase/services/copylab.service";
 import { getCreatorContext } from "@/lib/supabase/services/creator.service";
+import { getStudioContext } from "@/lib/supabase/services/creative-studio.service";
 import { getLaunchContext } from "@/lib/supabase/services/launch.service";
 import { getResearchContext } from "@/lib/supabase/services/research.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import { COPYLAB_AI_CONTEXT, COPYLAB_IA_ACTIONS } from "@/utils/copylab";
 import { CREATOR_AI_CONTEXT, CREATOR_IA_ACTIONS } from "@/utils/creator";
+import { STUDIO_AI_CONTEXT, STUDIO_IA_ACTIONS } from "@/utils/creative-studio";
 import { LAUNCH_AI_CONTEXT, LAUNCH_IA_ACTIONS } from "@/utils/launch";
 import { RESEARCH_AI_CONTEXT, RESEARCH_IA_ACTIONS } from "@/utils/research";
 import { parseRequestJson } from "@/utils/safe-json";
@@ -27,6 +29,7 @@ const ACTION_PROMPTS: Record<string, string> = Object.fromEntries([
   ...CREATOR_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...RESEARCH_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...COPYLAB_IA_ACTIONS.map((a) => [a.id, a.prompt]),
+  ...STUDIO_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...LAUNCH_IA_ACTIONS.map((a) => [a.id, a.prompt]),
 ]);
 
@@ -60,6 +63,7 @@ export async function POST(req: Request) {
     let message = typeof body.message === "string" ? body.message.trim() : "";
     const isResearch = body.module === "research";
     const isCopylab = body.module === "copylab";
+    const isStudio = body.module === "studio";
     const isLaunch = body.module === "launch";
 
     if (actionId && ACTION_PROMPTS[actionId]) {
@@ -74,10 +78,11 @@ export async function POST(req: Request) {
       return Response.json({ error: "IA indisponível (OPENAI_API_KEY)." }, { status: 503 });
     }
 
-    const [creatorCtx, researchCtx, copylabCtx, launchCtx] = await Promise.all([
+    const [creatorCtx, researchCtx, copylabCtx, studioCtx, launchCtx] = await Promise.all([
       getCreatorContext(),
       getResearchContext(),
       getCopylabContext(),
+      getStudioContext(),
       getLaunchContext(),
     ]);
 
@@ -85,6 +90,7 @@ export async function POST(req: Request) {
       creatorCtx.error === "Usuário não autenticado." ||
       researchCtx.error === "Usuário não autenticado." ||
       copylabCtx.error === "Usuário não autenticado." ||
+      studioCtx.error === "Usuário não autenticado." ||
       launchCtx.error === "Usuário não autenticado."
     ) {
       return Response.json({ error: "Faça login para usar a Aura Creator." }, { status: 401 });
@@ -106,6 +112,7 @@ export async function POST(req: Request) {
       creatorCtx.context,
       researchCtx.context,
       copylabCtx.context,
+      studioCtx.context,
       launchCtx.context,
     ]
       .filter(Boolean)
@@ -114,9 +121,11 @@ export async function POST(req: Request) {
       ? `${RESEARCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
       : isCopylab
         ? `${COPYLAB_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
-        : isLaunch
-          ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
-          : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
+        : isStudio
+          ? `${STUDIO_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+          : isLaunch
+            ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+            : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
 
     const mergedHistory = await resolveMergedHistory("creator", history);
 
@@ -140,9 +149,11 @@ export async function POST(req: Request) {
       ? "research"
       : isCopylab
         ? "copylab"
-        : isLaunch
-          ? "launch"
-          : "creator";
+        : isStudio
+          ? "studio"
+          : isLaunch
+            ? "launch"
+            : "creator";
 
     await persistAiTurn("creator", message, text, {
       kind,

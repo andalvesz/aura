@@ -782,6 +782,35 @@ export type CreatorCopylab = {
   updated_at: string;
 };
 
+export type CreatorAsset = {
+  id: string;
+  user_id: string;
+  product_id: string | null;
+  copylab_id: string | null;
+  nome: string | null;
+  avatar: string | null;
+  problema: string | null;
+  solucao: string | null;
+  promessa: string | null;
+  diferencial: string | null;
+  preco: number | null;
+  criativo_facebook: string | null;
+  criativo_instagram: string | null;
+  capa_ebook: string | null;
+  thumbnail_youtube: string | null;
+  mockup_produto: string | null;
+  roteiro_reels: string | null;
+  roteiro_shorts: string | null;
+  roteiro_tiktok: string | null;
+  vsl: string | null;
+  carrossel_instagram: Json;
+  stories: Json;
+  legendas: string | null;
+  cta: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiMessage = {
   id: string;
   user_id: string;
@@ -2010,6 +2039,63 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creator_assets: TableDef<
+        CreatorAsset,
+        Omit<
+          CreatorAsset,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "product_id"
+          | "copylab_id"
+          | "nome"
+          | "avatar"
+          | "problema"
+          | "solucao"
+          | "promessa"
+          | "diferencial"
+          | "preco"
+          | "criativo_facebook"
+          | "criativo_instagram"
+          | "capa_ebook"
+          | "thumbnail_youtube"
+          | "mockup_produto"
+          | "roteiro_reels"
+          | "roteiro_shorts"
+          | "roteiro_tiktok"
+          | "vsl"
+          | "carrossel_instagram"
+          | "stories"
+          | "legendas"
+          | "cta"
+        > & {
+          id?: string;
+          product_id?: string | null;
+          copylab_id?: string | null;
+          nome?: string | null;
+          avatar?: string | null;
+          problema?: string | null;
+          solucao?: string | null;
+          promessa?: string | null;
+          diferencial?: string | null;
+          preco?: number | null;
+          criativo_facebook?: string | null;
+          criativo_instagram?: string | null;
+          capa_ebook?: string | null;
+          thumbnail_youtube?: string | null;
+          mockup_produto?: string | null;
+          roteiro_reels?: string | null;
+          roteiro_shorts?: string | null;
+          roteiro_tiktok?: string | null;
+          vsl?: string | null;
+          carrossel_instagram?: Json;
+          stories?: Json;
+          legendas?: string | null;
+          cta?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -2085,6 +2171,7 @@ export type UserScopedTable =
   | "creator_checklist_items"
   | "creator_research"
   | "creator_copylab"
+  | "creator_assets"
   | "creator_launch_plans"
   | "money_mission_plans"
   | "money_mission_tasks"
