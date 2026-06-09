@@ -667,6 +667,22 @@ export type CreatorResearch = {
   updated_at: string;
 };
 
+export type CreatorLaunchPlan = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  titulo: string | null;
+  estagio_atual: string | null;
+  score_ia: number | null;
+  receita_estimada: number | null;
+  data_prevista_lancamento: string | null;
+  tarefas: Json;
+  cronograma: Json;
+  prioridades: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorCopylab = {
   id: string;
   user_id: string;
@@ -1732,6 +1748,35 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creator_launch_plans: TableDef<
+        CreatorLaunchPlan,
+        Omit<
+          CreatorLaunchPlan,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "titulo"
+          | "estagio_atual"
+          | "score_ia"
+          | "receita_estimada"
+          | "data_prevista_lancamento"
+          | "tarefas"
+          | "cronograma"
+          | "prioridades"
+        > & {
+          id?: string;
+          titulo?: string | null;
+          estagio_atual?: string | null;
+          score_ia?: number | null;
+          receita_estimada?: number | null;
+          data_prevista_lancamento?: string | null;
+          tarefas?: Json;
+          cronograma?: Json;
+          prioridades?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       creator_copylab: TableDef<
         CreatorCopylab,
         Omit<
@@ -1867,7 +1912,8 @@ export type UserScopedTable =
   | "creator_launches"
   | "creator_checklist_items"
   | "creator_research"
-  | "creator_copylab";
+  | "creator_copylab"
+  | "creator_launch_plans";
 
 export type AiModule =
   | "aura_central"

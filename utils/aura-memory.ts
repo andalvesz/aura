@@ -40,6 +40,7 @@ const PERSIST_KINDS = new Set([
   "creator",
   "research",
   "copylab",
+  "launch",
 ]);
 
 const KIND_TITLES: Record<string, string> = {
@@ -60,6 +61,7 @@ const KIND_TITLES: Record<string, string> = {
   creator: "Produto digital",
   research: "Pesquisa de mercado",
   copylab: "Copy de produto",
+  launch: "Plano de lançamento",
 };
 
 const COACH_MODE_TITLES: Record<string, string> = {
@@ -80,6 +82,9 @@ const COACH_MODE_TITLES: Record<string, string> = {
   "copylab-create": "Criar copy",
   "copylab-improve": "Melhorar oferta",
   "copylab-vsl": "Criar VSL",
+  "launch-next": "Próximo passo",
+  "launch-missing": "O que falta para lançar",
+  "launch-monetize": "Quanto falta para monetizar",
 };
 
 export function shouldPersistAuraMemory(
@@ -117,7 +122,8 @@ export function resolveAuraMemoryCategoria(
   if (kind === "coach") return "coach";
   if (module === "aura_central") return "coach";
   if (module === "legado" || kind === "legado") return "legado";
-  if (module === "creator" || kind === "creator" || kind === "copylab") return "mentor";
+  if (module === "creator" || kind === "creator" || kind === "copylab" || kind === "launch")
+    return "mentor";
   return "mentor";
 }
 

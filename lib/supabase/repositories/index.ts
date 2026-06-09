@@ -38,3 +38,4 @@ export {
 } from "./creator.repository";
 export { CreatorResearchRepository } from "./research.repository";
 export { CreatorCopylabRepository } from "./copylab.repository";
+export { CreatorLaunchPlansRepository } from "./launch.repository";

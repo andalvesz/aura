@@ -52,10 +52,15 @@ import {
   detectCopylabCoachMode,
 } from "@/utils/copylab";
 import {
+  buildLaunchCoachReply,
+  detectLaunchCoachMode,
+} from "@/utils/launch";
+import {
   buildResearchCoachReply,
   detectResearchCoachMode,
 } from "@/utils/research";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
+import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
@@ -338,6 +343,51 @@ export async function POST(req: Request) {
           identityCommand: identityResponse.command,
         });
       }
+    }
+
+    const launchMode = detectLaunchCoachMode(message);
+    if (launchMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { center, plans } = await getLaunchDashboard();
+
+      const text = buildLaunchCoachReply({
+        mode: launchMode,
+        displayName,
+        center: center ?? {
+          bundle: null,
+          pipelineStep: "pesquisa",
+          pipelineProgress: {
+            pesquisa: false,
+            produto: false,
+            copy: false,
+            criativos: false,
+            landing: false,
+            anuncios: false,
+            lancado: false,
+          },
+          research: null,
+          copy: null,
+          plan: null,
+        },
+        plans: plans ?? [],
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: launchMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: launchMode,
+      });
     }
 
     const copylabMode = detectCopylabCoachMode(message);

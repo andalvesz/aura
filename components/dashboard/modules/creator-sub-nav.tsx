@@ -8,6 +8,7 @@ const TABS = [
   { href: "/dashboard/creator", label: "Creator" },
   { href: "/dashboard/creator/research", label: "Market Research" },
   { href: "/dashboard/creator/copy", label: "CopyLab" },
+  { href: "/dashboard/creator/launch", label: "Launch Center" },
 ] as const;
 
 export function CreatorSubNav() {

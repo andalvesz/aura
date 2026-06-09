@@ -25,3 +25,4 @@ export * from "./language.service";
 export * from "./creator.service";
 export * from "./research.service";
 export * from "./copylab.service";
+export * from "./launch.service";
