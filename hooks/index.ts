@@ -37,6 +37,7 @@ export { useResearch } from "./use-research";
 export { useCopylab } from "./use-copylab";
 export { useCreativeStudio } from "./use-creative-studio";
 export { useLandingBuilder } from "./use-landing-builder";
+export { useAdsManager } from "./use-ads-manager";
 export { useLaunch } from "./use-launch";
 export { useMoney } from "./use-money";
 export { useCeo } from "./use-ceo";

@@ -40,6 +40,7 @@ export { CreatorResearchRepository } from "./research.repository";
 export { CreatorCopylabRepository } from "./copylab.repository";
 export { CreatorAssetsRepository } from "./creator-assets.repository";
 export { CreatorLandingsRepository } from "./creator-landings.repository";
+export { CreatorAdsCampaignsRepository } from "./creator-ads.repository";
 export { CreatorLaunchPlansRepository } from "./launch.repository";
 export { MoneyMissionPlansRepository } from "./money.repository";
 export { MoneyMissionTasksRepository } from "./money-tasks.repository";

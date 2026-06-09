@@ -847,6 +847,41 @@ export type CreatorLanding = {
   updated_at: string;
 };
 
+export type AdsCampaignStatus = "draft";
+
+export type AdsObjetivo = "conversao" | "leads" | "trafego" | "engajamento";
+
+export type AdsOrcamentoNivel = "baixo" | "medio" | "escala";
+
+export type CreatorAdsCampaign = {
+  id: string;
+  user_id: string;
+  product_id: string | null;
+  asset_id: string | null;
+  landing_id: string | null;
+  copylab_id: string | null;
+  status: AdsCampaignStatus;
+  nome: string | null;
+  avatar: string | null;
+  problema: string | null;
+  solucao: string | null;
+  promessa: string | null;
+  diferencial: string | null;
+  preco: number | null;
+  objetivo: AdsObjetivo | null;
+  orcamento_nivel: AdsOrcamentoNivel | null;
+  investimento_diario_min: number | null;
+  investimento_diario_max: number | null;
+  investimento_mensal_previsto: number | null;
+  campanha_nome: string | null;
+  campanha_estrategia: string | null;
+  publicos: Json;
+  conjuntos_anuncios: Json;
+  anuncios: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiMessage = {
   id: string;
   user_id: string;
@@ -2189,6 +2224,63 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creator_ads_campaigns: TableDef<
+        CreatorAdsCampaign,
+        Omit<
+          CreatorAdsCampaign,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "product_id"
+          | "asset_id"
+          | "landing_id"
+          | "copylab_id"
+          | "status"
+          | "nome"
+          | "avatar"
+          | "problema"
+          | "solucao"
+          | "promessa"
+          | "diferencial"
+          | "preco"
+          | "objetivo"
+          | "orcamento_nivel"
+          | "investimento_diario_min"
+          | "investimento_diario_max"
+          | "investimento_mensal_previsto"
+          | "campanha_nome"
+          | "campanha_estrategia"
+          | "publicos"
+          | "conjuntos_anuncios"
+          | "anuncios"
+        > & {
+          id?: string;
+          product_id?: string | null;
+          asset_id?: string | null;
+          landing_id?: string | null;
+          copylab_id?: string | null;
+          status?: AdsCampaignStatus;
+          nome?: string | null;
+          avatar?: string | null;
+          problema?: string | null;
+          solucao?: string | null;
+          promessa?: string | null;
+          diferencial?: string | null;
+          preco?: number | null;
+          objetivo?: AdsObjetivo | null;
+          orcamento_nivel?: AdsOrcamentoNivel | null;
+          investimento_diario_min?: number | null;
+          investimento_diario_max?: number | null;
+          investimento_mensal_previsto?: number | null;
+          campanha_nome?: string | null;
+          campanha_estrategia?: string | null;
+          publicos?: Json;
+          conjuntos_anuncios?: Json;
+          anuncios?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -2266,6 +2358,7 @@ export type UserScopedTable =
   | "creator_copylab"
   | "creator_assets"
   | "creator_landings"
+  | "creator_ads_campaigns"
   | "creator_launch_plans"
   | "money_mission_plans"
   | "money_mission_tasks"

@@ -8,6 +8,7 @@ import { getCreatorContext } from "@/lib/supabase/services/creator.service";
 import { getStudioContext } from "@/lib/supabase/services/creative-studio.service";
 import { getLaunchContext } from "@/lib/supabase/services/launch.service";
 import { getLandingContext } from "@/lib/supabase/services/landing-builder.service";
+import { getAdsContext } from "@/lib/supabase/services/ads-manager.service";
 import { getResearchContext } from "@/lib/supabase/services/research.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import { COPYLAB_AI_CONTEXT, COPYLAB_IA_ACTIONS } from "@/utils/copylab";
@@ -15,6 +16,7 @@ import { CREATOR_AI_CONTEXT, CREATOR_IA_ACTIONS } from "@/utils/creator";
 import { STUDIO_AI_CONTEXT, STUDIO_IA_ACTIONS } from "@/utils/creative-studio";
 import { LAUNCH_AI_CONTEXT, LAUNCH_IA_ACTIONS } from "@/utils/launch";
 import { LANDING_AI_CONTEXT, LANDING_IA_ACTIONS } from "@/utils/landing-builder";
+import { ADS_AI_CONTEXT, ADS_IA_ACTIONS } from "@/utils/ads-manager";
 import { RESEARCH_AI_CONTEXT, RESEARCH_IA_ACTIONS } from "@/utils/research";
 import { parseRequestJson } from "@/utils/safe-json";
 
@@ -33,6 +35,7 @@ const ACTION_PROMPTS: Record<string, string> = Object.fromEntries([
   ...COPYLAB_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...STUDIO_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...LANDING_IA_ACTIONS.map((a) => [a.id, a.prompt]),
+  ...ADS_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...LAUNCH_IA_ACTIONS.map((a) => [a.id, a.prompt]),
 ]);
 
@@ -68,6 +71,7 @@ export async function POST(req: Request) {
     const isCopylab = body.module === "copylab";
     const isStudio = body.module === "studio";
     const isLanding = body.module === "landing";
+    const isAds = body.module === "ads";
     const isLaunch = body.module === "launch";
 
     if (actionId && ACTION_PROMPTS[actionId]) {
@@ -82,13 +86,14 @@ export async function POST(req: Request) {
       return Response.json({ error: "IA indisponível (OPENAI_API_KEY)." }, { status: 503 });
     }
 
-    const [creatorCtx, researchCtx, copylabCtx, studioCtx, landingCtx, launchCtx] =
+    const [creatorCtx, researchCtx, copylabCtx, studioCtx, landingCtx, adsCtx, launchCtx] =
       await Promise.all([
         getCreatorContext(),
         getResearchContext(),
         getCopylabContext(),
         getStudioContext(),
         getLandingContext(),
+        getAdsContext(),
         getLaunchContext(),
       ]);
 
@@ -98,6 +103,7 @@ export async function POST(req: Request) {
       copylabCtx.error === "Usuário não autenticado." ||
       studioCtx.error === "Usuário não autenticado." ||
       landingCtx.error === "Usuário não autenticado." ||
+      adsCtx.error === "Usuário não autenticado." ||
       launchCtx.error === "Usuário não autenticado."
     ) {
       return Response.json({ error: "Faça login para usar a Aura Creator." }, { status: 401 });
@@ -121,6 +127,7 @@ export async function POST(req: Request) {
       copylabCtx.context,
       studioCtx.context,
       landingCtx.context,
+      adsCtx.context,
       launchCtx.context,
     ]
       .filter(Boolean)
@@ -133,9 +140,11 @@ export async function POST(req: Request) {
           ? `${STUDIO_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
           : isLanding
             ? `${LANDING_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
-            : isLaunch
-              ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
-              : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
+            : isAds
+              ? `${ADS_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+              : isLaunch
+                ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+                : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
 
     const mergedHistory = await resolveMergedHistory("creator", history);
 
@@ -163,9 +172,11 @@ export async function POST(req: Request) {
           ? "studio"
           : isLanding
             ? "landing"
-            : isLaunch
-              ? "launch"
-              : "creator";
+            : isAds
+              ? "ads"
+              : isLaunch
+                ? "launch"
+                : "creator";
 
     await persistAiTurn("creator", message, text, {
       kind,
