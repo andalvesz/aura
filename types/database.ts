@@ -811,6 +811,42 @@ export type CreatorAsset = {
   updated_at: string;
 };
 
+export type LandingModelo =
+  | "pagina_simples"
+  | "pagina_longa"
+  | "captura_leads"
+  | "webinar"
+  | "produto_digital";
+
+export type CreatorLanding = {
+  id: string;
+  user_id: string;
+  product_id: string | null;
+  copylab_id: string | null;
+  modelo: LandingModelo;
+  nome: string | null;
+  avatar: string | null;
+  problema: string | null;
+  solucao: string | null;
+  promessa: string | null;
+  diferencial: string | null;
+  preco: number | null;
+  hero_section: string | null;
+  headline: string | null;
+  subheadline: string | null;
+  beneficios: Json;
+  section_problema: string | null;
+  section_solucao: string | null;
+  depoimentos: Json;
+  garantia: string | null;
+  bonus: string | null;
+  faq: Json;
+  cta: string | null;
+  rodape: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type AiMessage = {
   id: string;
   user_id: string;
@@ -2096,6 +2132,63 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creator_landings: TableDef<
+        CreatorLanding,
+        Omit<
+          CreatorLanding,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "product_id"
+          | "copylab_id"
+          | "modelo"
+          | "nome"
+          | "avatar"
+          | "problema"
+          | "solucao"
+          | "promessa"
+          | "diferencial"
+          | "preco"
+          | "hero_section"
+          | "headline"
+          | "subheadline"
+          | "beneficios"
+          | "section_problema"
+          | "section_solucao"
+          | "depoimentos"
+          | "garantia"
+          | "bonus"
+          | "faq"
+          | "cta"
+          | "rodape"
+        > & {
+          id?: string;
+          product_id?: string | null;
+          copylab_id?: string | null;
+          modelo?: LandingModelo;
+          nome?: string | null;
+          avatar?: string | null;
+          problema?: string | null;
+          solucao?: string | null;
+          promessa?: string | null;
+          diferencial?: string | null;
+          preco?: number | null;
+          hero_section?: string | null;
+          headline?: string | null;
+          subheadline?: string | null;
+          beneficios?: Json;
+          section_problema?: string | null;
+          section_solucao?: string | null;
+          depoimentos?: Json;
+          garantia?: string | null;
+          bonus?: string | null;
+          faq?: Json;
+          cta?: string | null;
+          rodape?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -2172,6 +2265,7 @@ export type UserScopedTable =
   | "creator_research"
   | "creator_copylab"
   | "creator_assets"
+  | "creator_landings"
   | "creator_launch_plans"
   | "money_mission_plans"
   | "money_mission_tasks"
