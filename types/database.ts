@@ -730,6 +730,27 @@ export type MoneyMissionTask = {
   updated_at: string;
 };
 
+export type AuraCeoSessionStatus = "active" | "archived";
+
+export type AuraCeoSession = {
+  id: string;
+  user_id: string;
+  pergunta: string;
+  resumo_executivo: string | null;
+  prioridades: Json;
+  riscos: Json;
+  oportunidades: Json;
+  plano_acao: string | null;
+  cronograma: Json;
+  missoes_recomendadas: Json;
+  probabilidade_sucesso: number | null;
+  opportunity_radar: Json;
+  score_ia: number | null;
+  status: AuraCeoSessionStatus;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorCopylab = {
   id: string;
   user_id: string;
@@ -1893,6 +1914,41 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      aura_ceo_sessions: TableDef<
+        AuraCeoSession,
+        Omit<
+          AuraCeoSession,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "resumo_executivo"
+          | "prioridades"
+          | "riscos"
+          | "oportunidades"
+          | "plano_acao"
+          | "cronograma"
+          | "missoes_recomendadas"
+          | "probabilidade_sucesso"
+          | "opportunity_radar"
+          | "score_ia"
+          | "status"
+        > & {
+          id?: string;
+          resumo_executivo?: string | null;
+          prioridades?: Json;
+          riscos?: Json;
+          oportunidades?: Json;
+          plano_acao?: string | null;
+          cronograma?: Json;
+          missoes_recomendadas?: Json;
+          probabilidade_sucesso?: number | null;
+          opportunity_radar?: Json;
+          score_ia?: number | null;
+          status?: AuraCeoSessionStatus;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       creator_copylab: TableDef<
         CreatorCopylab,
         Omit<
@@ -2031,7 +2087,8 @@ export type UserScopedTable =
   | "creator_copylab"
   | "creator_launch_plans"
   | "money_mission_plans"
-  | "money_mission_tasks";
+  | "money_mission_tasks"
+  | "aura_ceo_sessions";
 
 export type AiModule =
   | "aura_central"

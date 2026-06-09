@@ -61,12 +61,17 @@ import {
   detectMoneyCoachMode,
 } from "@/utils/money";
 import {
+  buildCeoCoachReply,
+  detectCeoCoachMode,
+} from "@/utils/ceo";
+import {
   buildResearchCoachReply,
   detectResearchCoachMode,
 } from "@/utils/research";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
+import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
@@ -349,6 +354,41 @@ export async function POST(req: Request) {
           identityCommand: identityResponse.command,
         });
       }
+    }
+
+    const ceoMode = detectCeoCoachMode(message);
+    if (ceoMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { session, dashboard, radar } = await getCeoDashboard();
+
+      if (!dashboard || !radar) {
+        return Response.json({ error: "Erro ao carregar dados CEO." }, { status: 500 });
+      }
+
+      const text = buildCeoCoachReply({
+        mode: ceoMode,
+        displayName,
+        session,
+        dashboard,
+        radar,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: ceoMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: ceoMode,
+      });
     }
 
     const moneyMode = detectMoneyCoachMode(message);

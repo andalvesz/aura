@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarDays,
   Castle,
+  Crown,
   Dumbbell,
   FileText,
   Home,
@@ -37,7 +38,8 @@ export type ModuleId =
   | "disney-nba"
   | "legado"
   | "creator"
-  | "money";
+  | "money"
+  | "ceo";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -254,6 +256,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Meta",
       value: "—",
       hint: "Nenhuma missão financeira ativa",
+    },
+  },
+  {
+    id: "ceo",
+    href: "/dashboard/ceo",
+    label: "Aura CEO",
+    shortLabel: "CEO",
+    description:
+      "Inteligência central — estratégias e planos de ação integrando todos os módulos da Aura.",
+    icon: Crown,
+    accent: "text-violet-400",
+    overview: {
+      metric: "Score IA",
+      value: "—",
+      hint: "Faça uma pergunta estratégica",
     },
   },
 ];

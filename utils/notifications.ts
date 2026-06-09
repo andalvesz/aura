@@ -84,6 +84,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   legado: "/dashboard/legado",
   creator: "/dashboard/creator",
   money: "/dashboard/money",
+  ceo: "/dashboard/ceo",
 };
 
 export function isNotificationRead(notification: Pick<Notification, "status">): boolean {

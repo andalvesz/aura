@@ -37,3 +37,4 @@ export { useResearch } from "./use-research";
 export { useCopylab } from "./use-copylab";
 export { useLaunch } from "./use-launch";
 export { useMoney } from "./use-money";
+export { useCeo } from "./use-ceo";
