@@ -230,13 +230,13 @@ export const MODULES: ModuleConfig[] = [
     label: "Aura Creator",
     shortLabel: "Creator",
     description:
-      "Crie, valide e lance produtos digitais com IA — integrado ao Legado e Aura Coach.",
+      "Pipeline completo: ideia → lançamento → escala. Checklists, scores IA e integração Legado + Financeiro.",
     icon: Sparkles,
     accent: "text-violet-400",
     overview: {
       metric: "Produtos",
       value: "0",
-      hint: "Valide oportunidades digitais com IA",
+      hint: "Pipeline inteligente com checklist e ROI",
     },
   },
 ];

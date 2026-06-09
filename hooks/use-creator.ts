@@ -5,6 +5,7 @@ import type {
   CreatorDashboardMetrics,
   CreatorProductBundle,
   CreatorProductIntake,
+  GeneratedCreatorPlan,
 } from "@/utils/creator";
 import { parseJsonResponse } from "@/utils/safe-json";
 
@@ -129,6 +130,83 @@ export function useCreator() {
     }
   }
 
+  async function advanceStage(productId: string) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/creator/advance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        bundle?: CreatorProductBundle;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok || !data || data.error || !data.bundle) {
+        return { bundle: null, error: data?.error ?? parseError ?? "Erro ao avançar." };
+      }
+
+      await refresh();
+      return { bundle: data.bundle, error: null };
+    } catch {
+      return { bundle: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleChecklistItem(itemId: string, status: "pendente" | "feito") {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/creator/checklist", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, status }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        bundle?: CreatorProductBundle;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok || !data || data.error || !data.bundle) {
+        return { bundle: null, error: data?.error ?? parseError ?? "Erro no checklist." };
+      }
+
+      await refresh();
+      return { bundle: data.bundle, error: null };
+    } catch {
+      return { bundle: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generatePlan(productId: string) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/creator/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        plan?: GeneratedCreatorPlan;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok || !data || data.error || !data.plan) {
+        return { plan: null, error: data?.error ?? parseError ?? "Erro ao gerar plano." };
+      }
+
+      return { plan: data.plan, error: null };
+    } catch {
+      return { plan: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function removeProduct(productId: string) {
     setBusy(true);
     try {
@@ -160,6 +238,9 @@ export function useCreator() {
     generateProduct,
     validateProduct,
     generateOffer,
+    advanceStage,
+    toggleChecklistItem,
+    generatePlan,
     removeProduct,
   };
 }

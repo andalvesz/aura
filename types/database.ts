@@ -535,7 +535,18 @@ export type LegacyMilestone = {
   updated_at: string;
 };
 
-export type CreatorProductStatus = "draft" | "validated" | "offered" | "launched";
+export type CreatorProductStatus =
+  | "ideia"
+  | "pesquisa"
+  | "validacao"
+  | "producao"
+  | "pagina_vendas"
+  | "criativos"
+  | "lancamento"
+  | "trafego"
+  | "escala";
+
+export type CreatorPipelineStage = CreatorProductStatus;
 
 export type CreatorProduct = {
   id: string;
@@ -559,6 +570,9 @@ export type CreatorProduct = {
   faixa_preco_max: number | null;
   formato: string | null;
   probabilidade_venda: number | null;
+  investimento_previsto: number | null;
+  receita_prevista: number | null;
+  roi_estimado: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -572,7 +586,25 @@ export type CreatorValidation = {
   facilidade_criacao: number;
   facilidade_venda: number;
   escalabilidade: number;
+  viabilidade: number | null;
+  lucro_potencial: number | null;
+  tempo_lancar: number | null;
+  compatibilidade_perfil: number | null;
   nota_final: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreatorChecklistStatus = "pendente" | "feito";
+
+export type CreatorChecklistItem = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  estagio: CreatorPipelineStage;
+  titulo: string;
+  status: CreatorChecklistStatus;
+  ordem: number;
   created_at: string;
   updated_at: string;
 };
@@ -1493,14 +1525,30 @@ export type Database = {
           faixa_preco_max?: number | null;
           formato?: string | null;
           probabilidade_venda?: number | null;
+          investimento_previsto?: number | null;
+          receita_prevista?: number | null;
+          roi_estimado?: number | null;
           created_at?: string;
           updated_at?: string;
         }
       >;
       creator_validation: TableDef<
         CreatorValidation,
-        Omit<CreatorValidation, "id" | "created_at" | "updated_at"> & {
+        Omit<
+          CreatorValidation,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "viabilidade"
+          | "lucro_potencial"
+          | "tempo_lancar"
+          | "compatibilidade_perfil"
+        > & {
           id?: string;
+          viabilidade?: number | null;
+          lucro_potencial?: number | null;
+          tempo_lancar?: number | null;
+          compatibilidade_perfil?: number | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -1547,6 +1595,19 @@ export type Database = {
           potencial_estimado?: number | null;
           launched_at?: string | null;
           notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      creator_checklist_items: TableDef<
+        CreatorChecklistItem,
+        Omit<
+          CreatorChecklistItem,
+          "id" | "created_at" | "updated_at" | "status" | "ordem"
+        > & {
+          id?: string;
+          status?: CreatorChecklistStatus;
+          ordem?: number;
           created_at?: string;
           updated_at?: string;
         }
@@ -1622,7 +1683,8 @@ export type UserScopedTable =
   | "creator_products"
   | "creator_validation"
   | "creator_offers"
-  | "creator_launches";
+  | "creator_launches"
+  | "creator_checklist_items";
 
 export type AiModule =
   | "aura_central"

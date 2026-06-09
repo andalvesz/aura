@@ -3,8 +3,18 @@
 create table if not exists public.creator_products (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
-  status text not null default 'draft' check (
-    status in ('draft', 'validated', 'offered', 'launched')
+  status text not null default 'ideia' check (
+    status in (
+      'ideia',
+      'pesquisa',
+      'validacao',
+      'producao',
+      'pagina_vendas',
+      'criativos',
+      'lancamento',
+      'trafego',
+      'escala'
+    )
   ),
   nicho text,
   conhecimento text,
@@ -27,6 +37,9 @@ create table if not exists public.creator_products (
     probabilidade_venda is null
     or (probabilidade_venda >= 0 and probabilidade_venda <= 100)
   ),
+  investimento_previsto numeric(12, 2),
+  receita_prevista numeric(12, 2),
+  roi_estimado numeric(8, 2),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -45,6 +58,12 @@ create table if not exists public.creator_validation (
   ),
   escalabilidade integer not null check (
     escalabilidade >= 0 and escalabilidade <= 100
+  ),
+  viabilidade integer check (viabilidade >= 0 and viabilidade <= 100),
+  lucro_potencial integer check (lucro_potencial >= 0 and lucro_potencial <= 100),
+  tempo_lancar integer check (tempo_lancar >= 0 and tempo_lancar <= 100),
+  compatibilidade_perfil integer check (
+    compatibilidade_perfil >= 0 and compatibilidade_perfil <= 100
   ),
   nota_final integer not null check (nota_final >= 0 and nota_final <= 100),
   created_at timestamptz not null default now(),

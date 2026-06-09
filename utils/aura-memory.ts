@@ -65,6 +65,11 @@ const COACH_MODE_TITLES: Record<string, string> = {
   alerts: "Alertas executivos",
   opportunity: "Oportunidade recomendada",
   intro: "Apresentação da Aura Coach",
+  "creator-product": "Criar produto digital",
+  "creator-launch": "Produto para lançar",
+  "creator-best-seller": "Maior chance de venda",
+  "creator-plan": "Plano de 30 dias",
+  "creator-niche": "Nicho mais forte",
 };
 
 export function shouldPersistAuraMemory(

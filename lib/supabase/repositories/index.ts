@@ -30,6 +30,7 @@ export { LanguageProgressRepository } from "./language-progress.repository";
 export { LanguageSessionsRepository } from "./language-sessions.repository";
 export { LanguageLessonsRepository } from "./language-lessons.repository";
 export {
+  CreatorChecklistRepository,
   CreatorLaunchesRepository,
   CreatorOffersRepository,
   CreatorProductsRepository,

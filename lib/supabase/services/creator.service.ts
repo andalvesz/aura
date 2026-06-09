@@ -1,24 +1,33 @@
 import OpenAI from "openai";
 import {
+  CreatorChecklistRepository,
   CreatorLaunchesRepository,
   CreatorOffersRepository,
   CreatorProductsRepository,
   CreatorValidationRepository,
 } from "@/lib/supabase/repositories/creator.repository";
+import { FinancialGoalsRepository } from "@/lib/supabase/repositories";
 import { getLegacyContext } from "@/lib/supabase/services/legado.service";
 import type {
   CreatorLaunch,
   CreatorOffer,
+  CreatorPipelineStage,
   CreatorProduct,
   CreatorValidation,
   TableInsert,
 } from "@/types/database";
 import {
   buildCreatorAuraContext,
+  computeChecklistProgress,
   computeCreatorDashboard,
+  computeRoi,
+  CREATOR_PIPELINE_STAGES,
+  getNextPipelineStage,
+  scoreNicheAlignment,
   type CreatorProductBundle,
   type CreatorProductIntake,
   type GeneratedCreatorOffer,
+  type GeneratedCreatorPlan,
   type GeneratedCreatorProduct,
   type GeneratedCreatorValidation,
 } from "@/utils/creator";
@@ -64,6 +73,28 @@ async function callCreatorAi<T>(system: string, user: string): Promise<T | null>
   return parseJsonBlock<T>(content);
 }
 
+async function getFinanceContext(): Promise<string> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return "";
+
+  const goalsRepo = new FinancialGoalsRepository(ctx.supabase, ctx.userId);
+  const { data: goals } = await goalsRepo.findAll("data_fim");
+  if (!goals?.length) return "Nenhuma meta financeira cadastrada.";
+
+  return goals
+    .slice(0, 5)
+    .map(
+      (g) =>
+        `• ${g.titulo}: meta ${g.valor_meta} · atual ${g.valor_atual} (${g.data_inicio} → ${g.data_fim})`
+    )
+    .join("\n");
+}
+
+async function loadBundleById(productId: string): Promise<CreatorProductBundle | null> {
+  const { bundles } = await loadCreatorBundles();
+  return bundles.find((b) => b.product.id === productId) ?? null;
+}
+
 export async function loadCreatorBundles(): Promise<{
   bundles: CreatorProductBundle[];
   error: string | null;
@@ -98,15 +129,17 @@ export async function getCreatorContext(): Promise<{
     return { context: "", error: "Usuário não autenticado." };
   }
 
-  const [{ bundles }, legacy] = await Promise.all([
+  const [{ bundles }, legacy, financeContext] = await Promise.all([
     loadCreatorBundles(),
     getLegacyContext(),
+    getFinanceContext(),
   ]);
 
   const lines = [
-    "## AURA CREATOR — Produtos digitais",
+    "## AURA CREATOR — Pipeline de produtos",
     buildCreatorAuraContext(bundles),
-    legacy.context ?? "",
+    legacy.context ? `## LEGADO\n${legacy.context}` : "",
+    financeContext ? `## FINANCEIRO\n${financeContext}` : "",
   ].filter(Boolean);
 
   return { context: lines.join("\n\n"), error: legacy.error };
@@ -134,8 +167,11 @@ export async function generateCreatorProduct(input: {
     auraContext = legacy.context ?? "";
   }
 
+  const financeContext = await getFinanceContext();
+
   const generated = await callCreatorAi<GeneratedCreatorProduct>(
-    `Você é a Aura Creator — especialista em produtos digitais validados.
+    `Você é a Aura Creator — especialista em produtos digitais executáveis.
+Priorize nichos alinhados à trajetória do usuário: esporte, dança, teatro, desenvolvimento pessoal, empreendedorismo, bartender, IA e produtividade.
 Responda APENAS com JSON válido no formato:
 {
   "nome": string,
@@ -149,12 +185,16 @@ Responda APENAS com JSON válido no formato:
   "faixa_preco_min": number,
   "faixa_preco_max": number,
   "formato": string,
-  "probabilidade_venda": number
+  "probabilidade_venda": number,
+  "investimento_previsto": number,
+  "receita_prevista": number
 }
-Use português do Brasil. probabilidade_venda de 0 a 100.`,
+Use português do Brasil. probabilidade_venda de 0 a 100.
+Estime investimento_previsto (produção, ads, ferramentas) e receita_prevista (primeiro ciclo de vendas).`,
     JSON.stringify({
       intake: input.intake,
       auraContext: auraContext || null,
+      financeContext: financeContext || null,
     })
   );
 
@@ -162,9 +202,11 @@ Use português do Brasil. probabilidade_venda de 0 a 100.`,
     return { bundle: null, error: "Não foi possível gerar o produto." };
   }
 
+  const roi = computeRoi(generated.investimento_previsto, generated.receita_prevista);
+
   const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
   const { data: product, error: createError } = await productsRepo.create({
-    status: "draft",
+    status: "ideia",
     nicho: input.intake.nicho,
     conhecimento: input.intake.conhecimento,
     publico_alvo_input: input.intake.publico_alvo,
@@ -183,11 +225,17 @@ Use português do Brasil. probabilidade_venda de 0 a 100.`,
     faixa_preco_max: generated.faixa_preco_max,
     formato: generated.formato,
     probabilidade_venda: generated.probabilidade_venda,
+    investimento_previsto: generated.investimento_previsto,
+    receita_prevista: generated.receita_prevista,
+    roi_estimado: roi,
   } satisfies Omit<TableInsert<"creator_products">, "user_id">);
 
   if (createError || !product) {
     return { bundle: null, error: createError ?? "Erro ao salvar produto." };
   }
+
+  const checklistRepo = new CreatorChecklistRepository(ctx.supabase, ctx.userId);
+  const { data: checklist } = await checklistRepo.seedForProduct(product.id);
 
   return {
     bundle: {
@@ -195,6 +243,7 @@ Use português do Brasil. probabilidade_venda de 0 a 100.`,
       validation: null,
       offer: null,
       launch: null,
+      checklist: checklist ?? [],
     },
     error: null,
   };
@@ -219,75 +268,97 @@ export async function validateCreatorProduct(productId: string): Promise<{
     return { bundle: null, error: productError ?? "Produto não encontrado." };
   }
 
+  const [legacy, financeContext] = await Promise.all([
+    getLegacyContext(),
+    getFinanceContext(),
+  ]);
+
+  const nicheBoost = scoreNicheAlignment(product.nicho);
+
   const generated = await callCreatorAi<GeneratedCreatorValidation>(
-    `Você valida produtos digitais. Responda APENAS JSON:
+    `Você valida produtos digitais com scores estratégicos.
+Priorize nichos de esporte, dança, teatro, desenvolvimento pessoal, empreendedorismo, bartender, IA e produtividade quando alinhados ao perfil.
+Responda APENAS JSON:
 {
+  "viabilidade": number,
+  "lucro_potencial": number,
+  "tempo_lancar": number,
+  "compatibilidade_perfil": number,
+  "escalabilidade": number,
+  "nota_final": number,
   "demanda": number,
   "concorrencia": number,
   "facilidade_criacao": number,
-  "facilidade_venda": number,
-  "escalabilidade": number,
-  "nota_final": number
+  "facilidade_venda": number
 }
-Cada score de 0 a 100. nota_final = média ponderada (demanda e escalabilidade peso 1.2).`,
-    JSON.stringify({ product })
+Cada score de 0 a 100. tempo_lancar: quanto MAIOR, mais RÁPIDO para lançar.
+nota_final = média ponderada (viabilidade, lucro_potencial, compatibilidade_perfil peso 1.3; escalabilidade 1.2).`,
+    JSON.stringify({
+      product,
+      legacyContext: legacy.context ?? null,
+      financeContext,
+      nicheAlignmentHint: nicheBoost,
+    })
   );
 
   if (generated == null || typeof generated.nota_final !== "number") {
     return { bundle: null, error: "Não foi possível validar o produto." };
   }
 
+  const compat = Math.min(
+    100,
+    Math.round((generated.compatibilidade_perfil + nicheBoost) / 2)
+  );
+
   const validationRepo = new CreatorValidationRepository(ctx.supabase, ctx.userId);
   const { data: validation, error: validationError } =
     await validationRepo.upsertForProduct(productId, {
+      viabilidade: generated.viabilidade,
+      lucro_potencial: generated.lucro_potencial,
+      tempo_lancar: generated.tempo_lancar,
+      compatibilidade_perfil: compat,
+      escalabilidade: generated.escalabilidade,
+      nota_final: generated.nota_final,
       demanda: generated.demanda,
       concorrencia: generated.concorrencia,
       facilidade_criacao: generated.facilidade_criacao,
       facilidade_venda: generated.facilidade_venda,
-      escalabilidade: generated.escalabilidade,
-      nota_final: generated.nota_final,
     });
 
   if (validationError || !validation) {
     return { bundle: null, error: validationError ?? "Erro ao salvar validação." };
   }
 
-  const potencial =
-    ((product.faixa_preco_min ?? 0) + (product.faixa_preco_max ?? 0)) / 2;
+  const avgPrice = ((product.faixa_preco_min ?? 0) + (product.faixa_preco_max ?? 0)) / 2;
+  const receitaPrevista =
+    product.receita_prevista ??
+    (avgPrice > 0 ? avgPrice * (generated.nota_final / 100) * 10 : null);
+  const investimento = product.investimento_previsto ?? avgPrice * 0.2;
+  const roi = computeRoi(investimento, receitaPrevista);
 
   await new CreatorLaunchesRepository(ctx.supabase, ctx.userId).upsertForProduct(
     productId,
     {
       status: "planned",
-      potencial_estimado: potencial > 0 ? potencial * (generated.nota_final / 100) * 10 : null,
+      potencial_estimado: receitaPrevista,
     }
   );
 
   const { data: updatedProduct, error: updateError } = await productsRepo.update(
     productId,
-    { status: "validated" }
+    {
+      status: "validacao",
+      receita_prevista: receitaPrevista,
+      investimento_previsto: investimento,
+      roi_estimado: roi,
+    }
   );
 
   if (updateError) {
     return { bundle: null, error: updateError };
   }
 
-  const { data: launchRow } = await ctx.supabase
-    .from("creator_launches")
-    .select("*")
-    .eq("user_id", ctx.userId)
-    .eq("product_id", productId)
-    .maybeSingle();
-
-  return {
-    bundle: {
-      product: (updatedProduct ?? product) as CreatorProduct,
-      validation: validation as CreatorValidation,
-      offer: null,
-      launch: (launchRow as CreatorLaunch | null) ?? null,
-    },
-    error: null,
-  };
+  return { bundle: await loadBundleById(productId), error: null };
 }
 
 export async function generateCreatorOffer(productId: string): Promise<{
@@ -347,31 +418,141 @@ export async function generateCreatorOffer(productId: string): Promise<{
     return { bundle: null, error: offerError ?? "Erro ao salvar oferta." };
   }
 
-  const { data: updatedProduct, error: updateError } = await productsRepo.update(
-    productId,
-    { status: "offered" }
-  );
+  const { error: updateError } = await productsRepo.update(productId, {
+    status: "pagina_vendas",
+  });
 
   if (updateError) {
     return { bundle: null, error: updateError };
   }
 
-  const { data: launchRow } = await ctx.supabase
-    .from("creator_launches")
-    .select("*")
+  return { bundle: await loadBundleById(productId), error: null };
+}
+
+export async function advanceCreatorStage(productId: string): Promise<{
+  bundle: CreatorProductBundle | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { bundle: null, error: "Usuário não autenticado." };
+  }
+
+  const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
+  const { data: product, error: productError } = await productsRepo.findById(productId);
+  if (productError || !product) {
+    return { bundle: null, error: productError ?? "Produto não encontrado." };
+  }
+
+  const next = getNextPipelineStage(product.status);
+  if (!next) {
+    return { bundle: null, error: "Produto já está no estágio final." };
+  }
+
+  const checklistRepo = new CreatorChecklistRepository(ctx.supabase, ctx.userId);
+  const { data: checklist } = await checklistRepo.findByProductId(productId);
+  const progress = computeChecklistProgress(checklist ?? [], product.status);
+  if (progress.total > 0 && progress.percent < 100) {
+    return {
+      bundle: null,
+      error: `Complete o checklist de ${product.status} (${progress.done}/${progress.total}) antes de avançar.`,
+    };
+  }
+
+  const updates: Partial<CreatorProduct> = { status: next };
+
+  if (next === "lancamento") {
+    await new CreatorLaunchesRepository(ctx.supabase, ctx.userId).upsertForProduct(
+      productId,
+      { status: "active", launched_at: new Date().toISOString() }
+    );
+  }
+
+  if (next === "escala") {
+    await new CreatorLaunchesRepository(ctx.supabase, ctx.userId).upsertForProduct(
+      productId,
+      { status: "completed" }
+    );
+  }
+
+  const { error: updateError } = await productsRepo.update(productId, updates);
+  if (updateError) {
+    return { bundle: null, error: updateError };
+  }
+
+  return { bundle: await loadBundleById(productId), error: null };
+}
+
+export async function toggleCreatorChecklistItem(
+  itemId: string,
+  status: "pendente" | "feito"
+): Promise<{ bundle: CreatorProductBundle | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { bundle: null, error: "Usuário não autenticado." };
+  }
+
+  const checklistRepo = new CreatorChecklistRepository(ctx.supabase, ctx.userId);
+  const { data: item } = await ctx.supabase
+    .from("creator_checklist_items")
+    .select("product_id")
     .eq("user_id", ctx.userId)
-    .eq("product_id", productId)
+    .eq("id", itemId)
     .maybeSingle();
 
-  return {
-    bundle: {
-      product: (updatedProduct ?? product) as CreatorProduct,
-      validation: validation as CreatorValidation | null,
-      offer: offer as CreatorOffer,
-      launch: (launchRow as CreatorLaunch | null) ?? null,
-    },
-    error: null,
-  };
+  if (!item) {
+    return { bundle: null, error: "Item não encontrado." };
+  }
+
+  const { error } = await checklistRepo.toggleItem(itemId, status);
+  if (error) {
+    return { bundle: null, error };
+  }
+
+  return { bundle: await loadBundleById(item.product_id), error: null };
+}
+
+export async function generateCreatorPlan(productId: string): Promise<{
+  plan: GeneratedCreatorPlan | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { plan: null, error: "Usuário não autenticado." };
+  }
+
+  if (!getOpenAi()) {
+    return { plan: null, error: "IA indisponível (OPENAI_API_KEY)." };
+  }
+
+  const bundle = await loadBundleById(productId);
+  if (!bundle) {
+    return { plan: null, error: "Produto não encontrado." };
+  }
+
+  const plan = await callCreatorAi<GeneratedCreatorPlan>(
+    `Crie um plano de 30 dias para lançar o produto digital.
+Responda APENAS JSON:
+{
+  "titulo": string,
+  "semanas": [
+    { "semana": number, "foco": string, "tarefas": string[] }
+  ]
+}
+4 semanas, 3-5 tarefas por semana. Português do Brasil.`,
+    JSON.stringify({
+      product: bundle.product,
+      validation: bundle.validation,
+      currentStage: bundle.product.status,
+      pipeline: CREATOR_PIPELINE_STAGES.map((s) => s.label),
+    })
+  );
+
+  if (!plan?.semanas?.length) {
+    return { plan: null, error: "Não foi possível gerar o plano." };
+  }
+
+  return { plan, error: null };
 }
 
 export async function deleteCreatorProduct(productId: string): Promise<{ error: string | null }> {
