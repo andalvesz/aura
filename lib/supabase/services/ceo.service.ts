@@ -32,6 +32,7 @@ import { formatBRL } from "@/utils/format";
 import { rankProductsForLaunch } from "@/utils/creator";
 import {
   buildBudgetAiRules,
+  buildBudgetAskReply,
   mentionsCampaignInvestment,
 } from "@/utils/campaign-budget";
 import { buildCeoAiContext } from "@/utils/creator-locale";
@@ -343,6 +344,10 @@ export async function createCeoPlan(pergunta: string): Promise<{
   const { budget } = await getResolvedUserBudget();
   const budgetBlock = buildBudgetContextBlock(budget.orcamento);
   const campaignQuestion = mentionsCampaignInvestment(trimmed);
+
+  if (campaignQuestion && (budget.orcamento == null || budget.orcamento <= 0)) {
+    return { session: null, radar: null, error: buildBudgetAskReply() };
+  }
 
   const generated = await callCeoAi<GeneratedCeoPlan>(
     `${buildCeoAiContext()}

@@ -144,8 +144,7 @@ export async function POST(req: Request) {
       isAds || isOrchestrator || isLaunch || mentionsCampaignInvestment(message);
 
     if (
-      needsBudget &&
-      investmentAction &&
+      (investmentAction || mentionsCampaignInvestment(message)) &&
       (budget.orcamento == null || budget.orcamento <= 0)
     ) {
       const kind = isResearch

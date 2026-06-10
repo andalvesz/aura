@@ -4,8 +4,13 @@ import {
   persistAiTurn,
 } from "@/lib/ai/memory-runtime";
 import { getCeoContext } from "@/lib/supabase/services/ceo.service";
+import {
+  buildBudgetContextBlock,
+  getResolvedUserBudget,
+} from "@/lib/supabase/services/campaign-budget.service";
 import { getPerformanceContext } from "@/lib/supabase/services/performance.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
+import { buildBudgetAskReply, mentionsCampaignInvestment } from "@/utils/campaign-budget";
 import { PERFORMANCE_AI_CONTEXT, PERFORMANCE_IA_ACTIONS } from "@/utils/performance";
 import { parseRequestJson } from "@/utils/safe-json";
 
@@ -85,8 +90,16 @@ export async function POST(req: Request) {
         )
       : [];
 
+    const { budget } = await getResolvedUserBudget();
+    if (
+      mentionsCampaignInvestment(message) &&
+      (budget.orcamento == null || budget.orcamento <= 0)
+    ) {
+      return Response.json({ text: buildBudgetAskReply() });
+    }
+
     const baseContext = [performanceCtx.context, ceoCtx.context].filter(Boolean).join("\n\n");
-    const systemPrompt = `${PERFORMANCE_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
+    const systemPrompt = `${PERFORMANCE_AI_CONTEXT}\n\n${buildBudgetContextBlock(budget.orcamento)}\n\n${baseContext || "Sem dados."}`;
     const mergedHistory = await resolveMergedHistory("performance", history);
 
     const messages = await buildOpenAiMessagesWithMemory({

@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
+import { AvailableBudgetField } from "@/components/dashboard/available-budget-field";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -825,6 +826,15 @@ export function CreatorView() {
               </div>
             ))
           )}
+        </PanelContent>
+      </Panel>
+
+      <Panel className="border-violet-500/10">
+        <PanelHeader>
+          <PanelTitle>Orçamento para campanhas</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          <AvailableBudgetField scope="money" persistOnBlur />
         </PanelContent>
       </Panel>
 

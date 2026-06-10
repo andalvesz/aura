@@ -8,7 +8,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
 import { AvailableBudgetField } from "@/components/dashboard/available-budget-field";
@@ -227,6 +227,12 @@ export function MoneyView() {
 
   const todayMissions = getTodayMissions(tasks);
   const weeklyMissions = getWeeklyMissions(tasks);
+
+  useEffect(() => {
+    if (plan?.orcamento_disponivel != null && Number(plan.orcamento_disponivel) > 0) {
+      setOrcamentoDisponivel(Number(plan.orcamento_disponivel));
+    }
+  }, [plan?.id, plan?.orcamento_disponivel]);
 
   async function handleStartMission() {
     const meta = customMeta ? Number(customMeta.replace(/\D/g, "")) : valorMeta;
@@ -523,6 +529,21 @@ export function MoneyView() {
               Excluir
             </button>
           </div>
+
+          <Panel className="border-emerald-500/15">
+            <PanelHeader>
+              <PanelTitle>Orçamento para campanhas</PanelTitle>
+            </PanelHeader>
+            <PanelContent>
+              <AvailableBudgetField
+                scope="money"
+                entityId={plan.id}
+                value={orcamentoDisponivel}
+                onChange={setOrcamentoDisponivel}
+                persistOnBlur
+              />
+            </PanelContent>
+          </Panel>
 
           <Panel className="border-emerald-500/15">
             <PanelHeader>
