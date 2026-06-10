@@ -526,15 +526,29 @@ function evaluateMetricsAgainstRules(
 
   if (
     rules.pause_low_ctr.enabled &&
+    metrics.ctr < rules.pause_low_ctr.threshold
+  ) {
+    hits.push({
+      ruleKey: "pause_low_ctr",
+      actionType: "generate_creative",
+      metricDetected: "CTR",
+      metricValue: metrics.ctr,
+      reason: `CTR ${metrics.ctr}% abaixo de ${rules.pause_low_ctr.threshold}%`,
+      suggestion: "CTR baixo — gere novo criativo e revise a copy no Creative Studio.",
+    });
+  }
+
+  if (
+    rules.pause_low_ctr.enabled &&
     isCtrLowForHours(metrics, rules.pause_low_ctr.threshold)
   ) {
     hits.push({
       ruleKey: "pause_low_ctr",
-      actionType: "pause_campaign",
+      actionType: "alert_ctr",
       metricDetected: "CTR",
       metricValue: metrics.ctr,
       reason: `CTR ${metrics.ctr}% abaixo de ${rules.pause_low_ctr.threshold}% por 48h`,
-      suggestion: "Pausar campanha e revisar criativo/copy com IA.",
+      suggestion: "CTR persistente baixo — avalie pausar a campanha manualmente.",
     });
   }
 
@@ -545,7 +559,7 @@ function evaluateMetricsAgainstRules(
       metricDetected: "CPA",
       metricValue: metrics.cpa,
       reason: `CPA R$${metrics.cpa} acima do limite R$${rules.pause_high_cpa.threshold}`,
-      suggestion: "Pausar campanha e ajustar público ou oferta.",
+      suggestion: "CPA alto — considere pausar a campanha após aprovação.",
     });
   }
 
@@ -634,7 +648,9 @@ export async function evaluateAutopilotRules(): Promise<{
       const status = resolveActionStatus(settings.control_level, hit.actionType, "rule");
       const requiresApproval =
         actionRequiresApproval(hit.actionType) ||
-        (hit.actionType === "pause_campaign" && settings.control_level !== "execute_approved");
+        hit.actionType === "pause_campaign" ||
+        hit.actionType === "generate_creative" ||
+        hit.actionType === "publish_campaign";
 
       const { data: action, error } = await actionsRepo.create({
         campaign_id: monitor.campaign_id,
@@ -691,18 +707,7 @@ export async function evaluateAutopilotRules(): Promise<{
         actionId: action.id,
       });
 
-      if (
-        status === "auto_executed" &&
-        hit.actionType === "pause_campaign" &&
-        rules[hit.ruleKey]?.enabled &&
-        campaign
-      ) {
-        await executeActionBody(ctx, action, campaign);
-        await actionsRepo.update(action.id, {
-          status: "auto_executed",
-          executed_at: new Date().toISOString(),
-        });
-      }
+      // Autopilot defensivo: nenhuma regra executa pausa/escala/publicação sem aprovação explícita.
     }
   }
 

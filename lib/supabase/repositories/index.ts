@@ -16,6 +16,18 @@ export { AiMessagesRepository } from "./ai-messages.repository";
 export { AiMemoriesRepository } from "./ai-memories.repository";
 export { AgentHistoryRepository } from "./agent-history.repository";
 export {
+  MetaConnectionsRepository,
+  MetaAdAccountsRepository,
+  MetaCampaignsRepository,
+  MetaCampaignMetricsRepository,
+} from "./meta.repository";
+export {
+  KiwifyConnectionsRepository,
+  KiwifyProductsRepository,
+  KiwifySalesRepository,
+  KiwifyCommissionsRepository,
+} from "./kiwify-connect.repository";
+export {
   GrowthGoalsRepository,
   GrowthMissionsRepository,
   GrowthActionsRepository,

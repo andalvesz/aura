@@ -117,7 +117,7 @@ Responda em português do Brasil, de forma executiva e prática.`;
 
 export const DEFAULT_AUTOPILOT_RULES: AutopilotRules = {
   pause_low_ctr: { enabled: false, threshold: 1.0 },
-  pause_high_cpa: { enabled: false, threshold: 150 },
+  pause_high_cpa: { enabled: true, threshold: 150 },
   alert_fast_budget: { enabled: true, threshold: 70 },
   suggest_scale_roas: { enabled: true, threshold: 3.0 },
   suggest_new_creative: { enabled: true, threshold: 3.5 },

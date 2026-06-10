@@ -1748,6 +1748,177 @@ export type AgentHistory = {
   created_at: string;
 };
 
+export type IntegrationConnectionStatus = "connected" | "disconnected" | "error";
+export type MetaCampaignStatus = "draft" | "active" | "paused" | "archived" | "pending_review";
+export type PlatformResultType =
+  | "revenue"
+  | "commission"
+  | "campaign_metrics"
+  | "affiliate_analysis"
+  | "sync_summary";
+export type PlatformResultPlatform = "meta" | "kiwify" | "hotmart" | "eduzz" | "monetizze";
+
+export type MetaConnection = {
+  id: string;
+  user_id: string;
+  business_id: string | null;
+  business_name: string | null;
+  access_token_encrypted: string;
+  token_expires_at: string | null;
+  status: IntegrationConnectionStatus;
+  scopes: string[];
+  metadata: Json;
+  last_sync_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MetaAdAccount = {
+  id: string;
+  user_id: string;
+  connection_id: string;
+  external_account_id: string;
+  name: string;
+  currency: string;
+  timezone: string | null;
+  status: string;
+  metadata: Json;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MetaCampaign = {
+  id: string;
+  user_id: string;
+  connection_id: string;
+  ad_account_id: string | null;
+  external_campaign_id: string | null;
+  creator_campaign_id: string | null;
+  name: string;
+  status: MetaCampaignStatus;
+  effective_status: string | null;
+  objective: string | null;
+  daily_budget_cents: number | null;
+  currency: string;
+  aura_created: boolean;
+  requires_approval: boolean;
+  metadata: Json;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MetaCampaignMetric = {
+  id: string;
+  user_id: string;
+  campaign_id: string;
+  ctr: number;
+  cpa: number;
+  roas: number;
+  spend_cents: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  frequency: number;
+  budget_spent_pct: number;
+  metrics_date: string;
+  raw_metrics: Json;
+  created_at: string;
+};
+
+export type KiwifyConnection = {
+  id: string;
+  user_id: string;
+  account_id: string;
+  credentials_encrypted: string;
+  status: IntegrationConnectionStatus;
+  account_label: string | null;
+  last_sync_at: string | null;
+  last_error: string | null;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KiwifyProduct = {
+  id: string;
+  user_id: string;
+  connection_id: string;
+  external_product_id: string;
+  name: string;
+  price_cents: number | null;
+  currency: string;
+  status: string;
+  affiliate_enabled: boolean;
+  affiliate_score: number | null;
+  metadata: Json;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KiwifySale = {
+  id: string;
+  user_id: string;
+  connection_id: string;
+  external_sale_id: string;
+  product_id: string | null;
+  external_product_id: string | null;
+  product_name: string | null;
+  status: string;
+  gross_cents: number;
+  net_cents: number;
+  commission_cents: number;
+  currency: string;
+  sold_at: string;
+  metadata: Json;
+  created_at: string;
+};
+
+export type KiwifyCommission = {
+  id: string;
+  user_id: string;
+  connection_id: string;
+  sale_id: string | null;
+  external_commission_id: string | null;
+  product_name: string | null;
+  amount_cents: number;
+  currency: string;
+  status: string;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlatformResult = {
+  id: string;
+  user_id: string;
+  platform: PlatformResultPlatform;
+  result_type: PlatformResultType;
+  title: string;
+  summary: string | null;
+  value_cents: number | null;
+  currency: string;
+  metrics: Json;
+  source_id: string | null;
+  source_table: string | null;
+  routed_to: Json;
+  created_at: string;
+};
+
+export type IntegrationActionLog = {
+  id: string;
+  user_id: string;
+  platform: "meta" | "kiwify";
+  action_type: string;
+  status: "success" | "error" | "pending_approval";
+  message: string;
+  details: Json;
+  created_at: string;
+};
+
 export type XpAcao =
   | "registrar_despesa"
   | "registrar_receita"
@@ -3798,6 +3969,124 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      meta_connections: TableDef<
+        MetaConnection,
+        Omit<MetaConnection, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          business_id?: string | null;
+          business_name?: string | null;
+          token_expires_at?: string | null;
+          scopes?: string[];
+          metadata?: Json;
+          last_sync_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      meta_ad_accounts: TableDef<
+        MetaAdAccount,
+        Omit<MetaAdAccount, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          timezone?: string | null;
+          metadata?: Json;
+          last_synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      meta_campaigns: TableDef<
+        MetaCampaign,
+        Omit<MetaCampaign, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          ad_account_id?: string | null;
+          external_campaign_id?: string | null;
+          creator_campaign_id?: string | null;
+          effective_status?: string | null;
+          objective?: string | null;
+          daily_budget_cents?: number | null;
+          metadata?: Json;
+          last_synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      meta_campaign_metrics: TableDef<
+        MetaCampaignMetric,
+        Omit<MetaCampaignMetric, "id" | "created_at"> & {
+          id?: string;
+          raw_metrics?: Json;
+          created_at?: string;
+        }
+      >;
+      kiwify_connections: TableDef<
+        KiwifyConnection,
+        Omit<KiwifyConnection, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          account_label?: string | null;
+          last_sync_at?: string | null;
+          last_error?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      kiwify_products: TableDef<
+        KiwifyProduct,
+        Omit<KiwifyProduct, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          price_cents?: number | null;
+          affiliate_score?: number | null;
+          metadata?: Json;
+          last_synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      kiwify_sales: TableDef<
+        KiwifySale,
+        Omit<KiwifySale, "id" | "created_at"> & {
+          id?: string;
+          product_id?: string | null;
+          external_product_id?: string | null;
+          product_name?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      kiwify_commissions: TableDef<
+        KiwifyCommission,
+        Omit<KiwifyCommission, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          sale_id?: string | null;
+          external_commission_id?: string | null;
+          product_name?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      platform_results: TableDef<
+        PlatformResult,
+        Omit<PlatformResult, "id" | "created_at"> & {
+          id?: string;
+          summary?: string | null;
+          value_cents?: number | null;
+          metrics?: Json;
+          source_id?: string | null;
+          source_table?: string | null;
+          routed_to?: Json;
+          created_at?: string;
+        }
+      >;
+      integration_action_logs: TableDef<
+        IntegrationActionLog,
+        Omit<IntegrationActionLog, "id" | "created_at"> & {
+          id?: string;
+          details?: Json;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -3905,7 +4194,17 @@ export type UserScopedTable =
   | "knowledge_entries"
   | "knowledge_insights"
   | "knowledge_patterns"
-  | "market_history";
+  | "market_history"
+  | "meta_connections"
+  | "meta_ad_accounts"
+  | "meta_campaigns"
+  | "meta_campaign_metrics"
+  | "kiwify_connections"
+  | "kiwify_products"
+  | "kiwify_sales"
+  | "kiwify_commissions"
+  | "platform_results"
+  | "integration_action_logs";
 
 export type AiModule =
   | "aura_central"

@@ -114,7 +114,7 @@ export function PlatformsView() {
   const [iaMessages, setIaMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([
     {
       role: "assistant",
-      text: "Sou a Aura Platform Hub — conecte Kiwify, Hotmart, Eduzz ou Monetizze e sincronize vendas, comissões e Score IA de afiliados.",
+      text: "Sou a Aura Platform Hub — conecte Kiwify, Hotmart, Eduzz ou Monetizze. Para integração dedicada Kiwify, use Kiwify Connect.",
     },
   ]);
 
@@ -244,6 +244,12 @@ export function PlatformsView() {
           {busy ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
           Sincronizar tudo
         </ActionButton>
+        <Link
+          href="/dashboard/platforms/kiwify"
+          className="inline-flex h-8 items-center rounded-md border border-violet-500/30 px-3 text-[11px] text-violet-300 hover:bg-violet-500/10"
+        >
+          Kiwify Connect →
+        </Link>
         <ActionButton variant="ghost" onClick={() => void handleAnalyze()} disabled={busy}>
           <Sparkles className="size-3" />
           Gerar Score IA
