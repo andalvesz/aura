@@ -9,6 +9,7 @@ import {
   Castle,
   Crown,
   Cpu,
+  Bot,
   Dumbbell,
   FileText,
   Home,
@@ -43,7 +44,8 @@ export type ModuleId =
   | "money"
   | "ceo"
   | "execution"
-  | "performance";
+  | "performance"
+  | "autopilot";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -305,6 +307,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Score",
       value: "—",
       hint: "Gere sua análise de performance",
+    },
+  },
+  {
+    id: "autopilot",
+    href: "/dashboard/autopilot",
+    label: "Aura Autopilot",
+    shortLabel: "Autopilot",
+    description:
+      "Monitore campanhas, tome decisões seguras e peça aprovação para ações sensíveis.",
+    icon: Bot,
+    accent: "text-orange-400",
+    overview: {
+      metric: "Pendentes",
+      value: "0",
+      hint: "Nenhuma ação pendente",
     },
   },
 ];

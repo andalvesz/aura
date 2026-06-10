@@ -52,3 +52,6 @@ export { ExecutionHistoryRepository } from "./execution-history.repository";
 export { PerformanceReportsRepository } from "./performance-reports.repository";
 export { PerformanceMetricsRepository } from "./performance-metrics.repository";
 export { PerformanceInsightsRepository } from "./performance-insights.repository";
+export { AutopilotSettingsRepository } from "./autopilot-settings.repository";
+export { AutopilotMonitorsRepository } from "./autopilot-monitors.repository";
+export { AutopilotActionsRepository } from "./autopilot-actions.repository";

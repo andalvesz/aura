@@ -35,6 +35,8 @@ export const XP_REWARDS: Record<XpAcao, number> = {
   missao_execution_concluir: 20,
   execution_plano_completo: 50,
   performance_analise_gerar: 30,
+  autopilot_acao_executar: 10,
+  autopilot_regras_avaliar: 5,
 };
 
 export const XP_ACAO_LABELS: Record<XpAcao, string> = {
@@ -69,6 +71,8 @@ export const XP_ACAO_LABELS: Record<XpAcao, string> = {
   missao_execution_concluir: "Missão Execution concluída",
   execution_plano_completo: "Plano diário completo",
   performance_analise_gerar: "Análise de performance gerada",
+  autopilot_acao_executar: "Ação Autopilot executada",
+  autopilot_regras_avaliar: "Regras Autopilot avaliadas",
 };
 
 const LEVEL_THRESHOLDS = [0, 100, 250, 450, 700] as const;

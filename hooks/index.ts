@@ -44,3 +44,4 @@ export { useMoney } from "./use-money";
 export { useCeo } from "./use-ceo";
 export { useExecution } from "./use-execution";
 export { usePerformance } from "./use-performance";
+export { useAutopilot } from "./use-autopilot";

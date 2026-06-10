@@ -50,6 +50,9 @@ export const AURA_PRIORITY_NOTIFICATION_TYPES: NotificationType[] = [
   "budget_negotiation",
   "revenue_below_target",
   "financial_goal_behind",
+  "autopilot_action_required",
+  "autopilot_rule_triggered",
+  "autopilot_campaign_paused",
 ];
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
@@ -67,6 +70,9 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   financial_goal_behind: "Meta financeira atrasada",
   financial_expense_spike: "Despesa acima do normal",
   financial_goal_reached: "Meta financeira atingida",
+  autopilot_action_required: "Autopilot: aprovação necessária",
+  autopilot_rule_triggered: "Autopilot: regra acionada",
+  autopilot_campaign_paused: "Autopilot: campanha pausada",
 };
 
 export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
@@ -87,6 +93,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   ceo: "/dashboard/ceo",
   execution: "/dashboard/execution",
   performance: "/dashboard/performance",
+  autopilot: "/dashboard/autopilot",
 };
 
 export function isNotificationRead(notification: Pick<Notification, "status">): boolean {
@@ -96,6 +103,13 @@ export function isNotificationRead(notification: Pick<Notification, "status">): 
 export function getNotificationHref(notification: Notification): string {
   if (notification.type === "goal_behind") {
     return "/dashboard/metas";
+  }
+  if (
+    notification.type === "autopilot_action_required" ||
+    notification.type === "autopilot_rule_triggered" ||
+    notification.type === "autopilot_campaign_paused"
+  ) {
+    return "/dashboard/autopilot";
   }
   if (notification.related_module) {
     return NOTIFICATION_MODULE_HREFS[notification.related_module as ModuleId];

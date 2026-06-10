@@ -847,7 +847,78 @@ export type CreatorLanding = {
   updated_at: string;
 };
 
-export type AdsCampaignStatus = "draft";
+export type AdsCampaignStatus = "draft" | "active" | "paused";
+
+export type AutopilotControlLevel =
+  | "manual"
+  | "suggest"
+  | "prepare"
+  | "execute_approved";
+
+export type AutopilotMonitorStatus = "active" | "paused";
+
+export type AutopilotActionType =
+  | "start_campaign"
+  | "pause_campaign"
+  | "resume_campaign"
+  | "duplicate_campaign"
+  | "generate_creative"
+  | "generate_copy"
+  | "suggest_scale"
+  | "alert_budget"
+  | "alert_ctr"
+  | "alert_cpa"
+  | "alert_frequency"
+  | "increase_budget"
+  | "publish_campaign";
+
+export type AutopilotTriggerType = "manual" | "rule" | "ai";
+
+export type AutopilotActionStatus =
+  | "suggested"
+  | "pending_approval"
+  | "approved"
+  | "rejected"
+  | "executed"
+  | "auto_executed";
+
+export type AutopilotSettings = {
+  user_id: string;
+  control_level: AutopilotControlLevel;
+  rules: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AutopilotMonitor = {
+  id: string;
+  user_id: string;
+  campaign_id: string;
+  monitor_status: AutopilotMonitorStatus;
+  metrics: Json;
+  last_evaluated_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AutopilotAction = {
+  id: string;
+  user_id: string;
+  campaign_id: string | null;
+  action_type: AutopilotActionType;
+  trigger_type: AutopilotTriggerType;
+  rule_key: string | null;
+  status: AutopilotActionStatus;
+  requires_approval: boolean;
+  metric_detected: string | null;
+  metric_value: number | null;
+  reason: string | null;
+  suggestion: string | null;
+  payload: Json;
+  executed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export type AdsObjetivo = "conversao" | "leads" | "trafego" | "engajamento";
 
@@ -1199,7 +1270,10 @@ export type NotificationType =
   | "revenue_below_target"
   | "financial_goal_behind"
   | "financial_expense_spike"
-  | "financial_goal_reached";
+  | "financial_goal_reached"
+  | "autopilot_action_required"
+  | "autopilot_rule_triggered"
+  | "autopilot_campaign_paused";
 
 export type NotificationStatus = "unread" | "read";
 
@@ -1263,7 +1337,9 @@ export type XpAcao =
   | "money_meta_atingida"
   | "missao_execution_concluir"
   | "execution_plano_completo"
-  | "performance_analise_gerar";
+  | "performance_analise_gerar"
+  | "autopilot_acao_executar"
+  | "autopilot_regras_avaliar";
 
 export type UserXp = {
   id: string;
@@ -2656,6 +2732,69 @@ export type Database = {
           created_at?: string;
         }
       >;
+      autopilot_settings: TableDef<
+        AutopilotSettings,
+        Omit<AutopilotSettings, "created_at" | "updated_at" | "control_level" | "rules"> & {
+          control_level?: AutopilotControlLevel;
+          rules?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      autopilot_monitors: TableDef<
+        AutopilotMonitor,
+        Omit<
+          AutopilotMonitor,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "monitor_status"
+          | "metrics"
+          | "last_evaluated_at"
+        > & {
+          id?: string;
+          monitor_status?: AutopilotMonitorStatus;
+          metrics?: Json;
+          last_evaluated_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      autopilot_actions: TableDef<
+        AutopilotAction,
+        Omit<
+          AutopilotAction,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "campaign_id"
+          | "trigger_type"
+          | "rule_key"
+          | "status"
+          | "requires_approval"
+          | "metric_detected"
+          | "metric_value"
+          | "reason"
+          | "suggestion"
+          | "payload"
+          | "executed_at"
+        > & {
+          id?: string;
+          campaign_id?: string | null;
+          trigger_type?: AutopilotTriggerType;
+          rule_key?: string | null;
+          status?: AutopilotActionStatus;
+          requires_approval?: boolean;
+          metric_detected?: string | null;
+          metric_value?: number | null;
+          reason?: string | null;
+          suggestion?: string | null;
+          payload?: Json;
+          executed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -2744,7 +2883,9 @@ export type UserScopedTable =
   | "performance_insights"
   | "money_mission_plans"
   | "money_mission_tasks"
-  | "aura_ceo_sessions";
+  | "aura_ceo_sessions"
+  | "autopilot_monitors"
+  | "autopilot_actions";
 
 export type AiModule =
   | "aura_central"
@@ -2756,4 +2897,5 @@ export type AiModule =
   | "legado"
   | "creator"
   | "execution"
-  | "performance";
+  | "performance"
+  | "autopilot";
