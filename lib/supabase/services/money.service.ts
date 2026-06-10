@@ -39,6 +39,7 @@ import {
   type CreatorCurrency,
 } from "@/utils/creator-locale";
 import { getOptionalDataContext } from "./context";
+import { getPlatformsContext } from "./platform-hub.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -110,6 +111,7 @@ async function loadAllModuleContexts() {
     launch,
     social,
     alvesz,
+    platforms,
   ] = await Promise.all([
     getLegacyContext(),
     getAuraCentralFinanceContext(),
@@ -120,6 +122,7 @@ async function loadAllModuleContexts() {
     loadLaunchPlans(),
     getSocialIaMentorContext(),
     getNexusAlveszMentorContext(),
+    getPlatformsContext(),
   ]);
 
   return {
@@ -147,6 +150,7 @@ async function loadAllModuleContexts() {
         .join("\n") || "Nenhum plano de lançamento.",
     social: social.context ?? "",
     alvesz: alvesz.context ?? "",
+    platforms: platforms.context ?? "",
   };
 }
 
@@ -235,6 +239,7 @@ export async function getMoneyContext(): Promise<{ context: string; error: strin
     moduleContexts.launch ? `## LAUNCH CENTER\n${moduleContexts.launch}` : "",
     moduleContexts.social ? `## SOCIAL MEDIA\n${moduleContexts.social}` : "",
     moduleContexts.alvesz ? `## ALVESZ EXPERIENCE\n${moduleContexts.alvesz}` : "",
+    moduleContexts.platforms ? `## PLATFORM HUB\n${moduleContexts.platforms}` : "",
   ].filter(Boolean);
 
   return { context: lines.join("\n\n"), error: null };

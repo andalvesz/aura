@@ -14,6 +14,7 @@ import {
   Dumbbell,
   FileText,
   Home,
+  Link2,
   Mail,
   Languages,
   MapPin,
@@ -47,7 +48,8 @@ export type ModuleId =
   | "execution"
   | "performance"
   | "autopilot"
-  | "product-factory";
+  | "product-factory"
+  | "platforms";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -339,6 +341,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Produtos",
       value: "0",
       hint: "Nenhum produto digital criado",
+    },
+  },
+  {
+    id: "platforms",
+    href: "/dashboard/platforms",
+    label: "Aura Platform Hub",
+    shortLabel: "Platforms",
+    description:
+      "Centralize integrações com Kiwify, Hotmart, Eduzz, Monetizze — vendas, afiliados e Score IA.",
+    icon: Link2,
+    accent: "text-indigo-400",
+    overview: {
+      metric: "Plataformas",
+      value: "0",
+      hint: "Conecte sua primeira plataforma de vendas",
     },
   },
 ];

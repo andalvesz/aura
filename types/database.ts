@@ -888,6 +888,102 @@ export type ProductComplianceCheck = {
   updated_at: string;
 };
 
+export type PlatformId =
+  | "kiwify"
+  | "hotmart"
+  | "eduzz"
+  | "monetizze"
+  | "meta_business"
+  | "google_ads"
+  | "tiktok_ads"
+  | "stripe"
+  | "paypal";
+
+export type PlatformAuthType = "api_key" | "token" | "oauth";
+
+export type PlatformConnectionStatus = "connected" | "disconnected" | "error";
+
+export type PlatformSyncStatus = "pending" | "running" | "success" | "error";
+
+export type PlatformSyncType =
+  | "full"
+  | "products"
+  | "sales"
+  | "commissions"
+  | "affiliates"
+  | "metrics";
+
+export type AffiliateAnalysisType =
+  | "affiliate_score"
+  | "product_ranking"
+  | "import_summary";
+
+export type PlatformConnection = {
+  id: string;
+  user_id: string;
+  platform: PlatformId;
+  auth_type: PlatformAuthType;
+  status: PlatformConnectionStatus;
+  account_label: string | null;
+  external_account_id: string | null;
+  credentials_encrypted: string;
+  metadata: Json;
+  last_sync_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlatformSyncLog = {
+  id: string;
+  user_id: string;
+  connection_id: string;
+  platform: string;
+  sync_type: PlatformSyncType;
+  status: PlatformSyncStatus;
+  records_synced: number;
+  payload_summary: Json;
+  error_message: string | null;
+  created_at: string;
+};
+
+export type AffiliateProduct = {
+  id: string;
+  user_id: string;
+  connection_id: string | null;
+  platform: string;
+  external_product_id: string;
+  name: string;
+  price_cents: number | null;
+  commission_cents: number | null;
+  commission_pct: number | null;
+  currency: string;
+  status: string;
+  affiliate_enabled: boolean;
+  metadata: Json;
+  last_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AffiliateAnalysis = {
+  id: string;
+  user_id: string;
+  platform: string | null;
+  affiliate_product_id: string | null;
+  analysis_type: AffiliateAnalysisType;
+  ai_score: number | null;
+  ticket_medio: number | null;
+  potencial_venda: number | null;
+  concorrencia: string | null;
+  legado_compat: string | null;
+  summary: string | null;
+  insights: Json;
+  raw_input: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorAsset = {
   id: string;
   user_id: string;
@@ -3114,6 +3210,134 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      platform_connections: TableDef<
+        PlatformConnection,
+        Omit<
+          PlatformConnection,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "platform"
+          | "auth_type"
+          | "status"
+          | "account_label"
+          | "external_account_id"
+          | "credentials_encrypted"
+          | "metadata"
+          | "last_sync_at"
+          | "last_error"
+        > & {
+          id?: string;
+          platform?: PlatformId;
+          auth_type?: PlatformAuthType;
+          status?: PlatformConnectionStatus;
+          account_label?: string | null;
+          external_account_id?: string | null;
+          credentials_encrypted?: string;
+          metadata?: Json;
+          last_sync_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      platform_sync_logs: TableDef<
+        PlatformSyncLog,
+        Omit<
+          PlatformSyncLog,
+          | "id"
+          | "created_at"
+          | "connection_id"
+          | "platform"
+          | "sync_type"
+          | "status"
+          | "records_synced"
+          | "payload_summary"
+          | "error_message"
+        > & {
+          id?: string;
+          connection_id?: string;
+          platform?: string;
+          sync_type?: PlatformSyncType;
+          status?: PlatformSyncStatus;
+          records_synced?: number;
+          payload_summary?: Json;
+          error_message?: string | null;
+          created_at?: string;
+        }
+      >;
+      affiliate_products: TableDef<
+        AffiliateProduct,
+        Omit<
+          AffiliateProduct,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "connection_id"
+          | "platform"
+          | "external_product_id"
+          | "name"
+          | "price_cents"
+          | "commission_cents"
+          | "commission_pct"
+          | "currency"
+          | "status"
+          | "affiliate_enabled"
+          | "metadata"
+          | "last_synced_at"
+        > & {
+          id?: string;
+          connection_id?: string | null;
+          platform?: string;
+          external_product_id?: string;
+          name?: string;
+          price_cents?: number | null;
+          commission_cents?: number | null;
+          commission_pct?: number | null;
+          currency?: string;
+          status?: string;
+          affiliate_enabled?: boolean;
+          metadata?: Json;
+          last_synced_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      affiliate_analysis: TableDef<
+        AffiliateAnalysis,
+        Omit<
+          AffiliateAnalysis,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "platform"
+          | "affiliate_product_id"
+          | "analysis_type"
+          | "ai_score"
+          | "ticket_medio"
+          | "potencial_venda"
+          | "concorrencia"
+          | "legado_compat"
+          | "summary"
+          | "insights"
+          | "raw_input"
+        > & {
+          id?: string;
+          platform?: string | null;
+          affiliate_product_id?: string | null;
+          analysis_type?: AffiliateAnalysisType;
+          ai_score?: number | null;
+          ticket_medio?: number | null;
+          potencial_venda?: number | null;
+          concorrencia?: string | null;
+          legado_compat?: string | null;
+          summary?: string | null;
+          insights?: Json;
+          raw_input?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -3209,7 +3433,11 @@ export type UserScopedTable =
   | "product_factory"
   | "product_files"
   | "product_versions"
-  | "product_compliance_checks";
+  | "product_compliance_checks"
+  | "platform_connections"
+  | "platform_sync_logs"
+  | "affiliate_products"
+  | "affiliate_analysis";
 
 export type AiModule =
   | "aura_central"

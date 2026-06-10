@@ -42,6 +42,7 @@ import {
 import { todayIsoDate } from "@/utils/health";
 import { getOptionalDataContext } from "./context";
 import { buildBudgetContextBlock, getResolvedUserBudget } from "./campaign-budget.service";
+import { getPlatformsContext } from "./platform-hub.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -415,13 +416,17 @@ export async function getPerformanceDashboard(): Promise<{
 }
 
 export async function getPerformanceContext(): Promise<{ context: string; error: string | null }> {
-  const { dashboard, panel, analysis, error } = await getPerformanceDashboard();
+  const [{ dashboard, panel, analysis, error }, { context: platformsContext }] = await Promise.all([
+    getPerformanceDashboard(),
+    getPlatformsContext(),
+  ]);
   if (error || !dashboard) {
     return { context: "", error: error ?? "Erro ao carregar Performance AI." };
   }
 
+  const base = buildPerformanceAuraContext(dashboard, panel, analysis);
   return {
-    context: buildPerformanceAuraContext(dashboard, panel, analysis),
+    context: platformsContext ? `${base}\n\n${platformsContext}` : base,
     error: null,
   };
 }
@@ -451,6 +456,7 @@ export async function generatePerformanceReport(): Promise<{
 
   if (getOpenAi()) {
     const { budget } = await getResolvedUserBudget();
+    const { context: platformsContext } = await getPlatformsContext();
     generated = await callPerformanceAi<GeneratedPerformanceReport>(
       `${SYSTEM_PROMPT}\n\n${buildBudgetContextBlock(budget.orcamento)}`,
       JSON.stringify({
@@ -466,6 +472,7 @@ export async function generatePerformanceReport(): Promise<{
           execution: input.executionDashboard,
           ceo: input.ceoDashboard,
           social: { conteudosPublicados: preDashboard.conteudosPublicados },
+          platforms: platformsContext || "Nenhuma plataforma conectada.",
         },
         fallback: { panel: fallbackPanel, analysis: fallbackAnalysis },
       })

@@ -88,6 +88,10 @@ import {
   buildFactoryCoachReply,
   detectFactoryCoachMode,
 } from "@/utils/product-factory";
+import {
+  buildPlatformsCoachReply,
+  detectPlatformsCoachMode,
+} from "@/utils/platforms";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { loadStudioAssets } from "@/lib/supabase/services/creative-studio.service";
 import { loadLandingRecords } from "@/lib/supabase/services/landing-builder.service";
@@ -99,6 +103,7 @@ import { getPerformanceDashboard } from "@/lib/supabase/services/performance.ser
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadProductFactoryBundles } from "@/lib/supabase/services/product-factory.service";
+import { getPlatformsDashboard } from "@/lib/supabase/services/platform-hub.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
 import { runGlobalSearch } from "@/lib/search/global-search";
 import {
@@ -590,6 +595,38 @@ export async function POST(req: Request) {
         module: "global",
         kind: "coach",
         coachMode: factoryMode,
+      });
+    }
+
+    const platformsMode = detectPlatformsCoachMode(message);
+    if (platformsMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { dashboard, products, connections, analyses } = await getPlatformsDashboard();
+
+      const text = buildPlatformsCoachReply({
+        mode: platformsMode,
+        displayName,
+        dashboard,
+        products,
+        connections,
+        analyses,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: platformsMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: platformsMode,
       });
     }
 
