@@ -42,9 +42,7 @@ import {
 import { todayIsoDate } from "@/utils/health";
 import { getOptionalDataContext } from "./context";
 import { buildBudgetContextBlock, getResolvedUserBudget } from "./campaign-budget.service";
-import { getPlatformsContext } from "./platform-hub.service";
-import { getGlobalContext } from "./global-intelligence.service";
-import { getKnowledgeContext } from "./knowledge.service";
+import { buildAuraContext } from "./aura-brain.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -418,14 +416,22 @@ export async function getPerformanceDashboard(): Promise<{
 }
 
 export async function getPerformanceContext(): Promise<{ context: string; error: string | null }> {
-  const [{ dashboard, panel, analysis, error }, { context: platformsContext }, { context: globalContext }, { context: knowledgeContext }] =
-    await Promise.all([getPerformanceDashboard(), getPlatformsContext(), getGlobalContext(), getKnowledgeContext()]);
+  const [{ dashboard, panel, analysis, error }, brain] = await Promise.all([
+    getPerformanceDashboard(),
+    buildAuraContext(),
+  ]);
   if (error || !dashboard) {
     return { context: "", error: error ?? "Erro ao carregar Performance AI." };
   }
 
   const base = buildPerformanceAuraContext(dashboard, panel, analysis);
-  const parts = [base, platformsContext, globalContext, knowledgeContext].filter(Boolean);
+  const parts = [
+    brain.context,
+    base,
+    brain.moduleData.platforms,
+    brain.moduleData.global,
+    brain.moduleData.knowledge,
+  ].filter(Boolean);
   return {
     context: parts.join("\n\n"),
     error: null,
@@ -456,14 +462,17 @@ export async function generatePerformanceReport(): Promise<{
   let generated: GeneratedPerformanceReport | null = null;
 
   if (getOpenAi()) {
-    const { budget } = await getResolvedUserBudget();
-    const { context: platformsContext } = await getPlatformsContext();
+    const [{ budget }, brain] = await Promise.all([
+      getResolvedUserBudget(),
+      buildAuraContext(),
+    ]);
     generated = await callPerformanceAi<GeneratedPerformanceReport>(
       `${SYSTEM_PROMPT}\n\n${buildBudgetContextBlock(budget.orcamento)}`,
       JSON.stringify({
         data: todayIsoDate(),
         orcamento_disponivel: budget.orcamento,
         metricas: preDashboard,
+        auraBrain: brain.context,
         modulos: {
           financeiro: { receita: preDashboard.receitaFormatted, meta: preDashboard.metaAtingidaFormatted },
           money: input.moneyDashboard,
@@ -473,7 +482,8 @@ export async function generatePerformanceReport(): Promise<{
           execution: input.executionDashboard,
           ceo: input.ceoDashboard,
           social: { conteudosPublicados: preDashboard.conteudosPublicados },
-          platforms: platformsContext || "Nenhuma plataforma conectada.",
+          platforms: brain.moduleData.platforms || "Nenhuma plataforma conectada.",
+          memoria: brain.memoryContext,
         },
         fallback: { panel: fallbackPanel, analysis: fallbackAnalysis },
       })

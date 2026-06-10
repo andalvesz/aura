@@ -27,6 +27,7 @@ import {
   type GlobalDashboardMetrics,
   type GlobalMarketIntake,
 } from "@/utils/global";
+import { buildAuraContext } from "./aura-brain.service";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -172,12 +173,13 @@ export async function getGlobalDashboard(): Promise<{
 }
 
 export async function getGlobalContext(): Promise<{ context: string; error: string | null }> {
-  const state = await loadGlobalState();
+  const [state, brain] = await Promise.all([loadGlobalState(), buildAuraContext()]);
   if (state.error) return { context: "", error: state.error };
 
   const dashboard = computeGlobalDashboard(state);
+  const globalBlock = buildGlobalAuraContext(dashboard, state.markets, state.strategies);
   return {
-    context: buildGlobalAuraContext(dashboard, state.markets, state.strategies),
+    context: [brain.context, globalBlock].filter(Boolean).join("\n\n"),
     error: null,
   };
 }
@@ -424,12 +426,18 @@ export async function getGlobalIaReply(params: {
   message: string;
   actionId?: string;
 }): Promise<{ text: string; error: string | null }> {
-  const { dashboard, markets, strategies, error } = await getGlobalDashboard();
+  const [{ dashboard, markets, strategies, error }, brain, integrationContext] =
+    await Promise.all([
+      getGlobalDashboard(),
+      buildAuraContext(),
+      buildIntegrationContext(),
+    ]);
   if (error) return { text: "", error };
 
   const openai = getOpenAi();
-  const context = buildGlobalAuraContext(dashboard, markets, strategies);
-  const integrationContext = await buildIntegrationContext();
+  const context = [brain.context, buildGlobalAuraContext(dashboard, markets, strategies)]
+    .filter(Boolean)
+    .join("\n\n");
 
   if (!openai) {
     const best = markets.sort((a, b) => (b.global_score ?? 0) - (a.global_score ?? 0))[0];

@@ -1,21 +1,8 @@
 import OpenAI from "openai";
 import { GoalsRepository } from "@/lib/supabase/repositories/goals.repository";
 import { AuraCeoSessionsRepository } from "@/lib/supabase/repositories/ceo.repository";
-import { getAuraCentralFinanceContext } from "@/lib/supabase/services/central.service";
-import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
-import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
-import { getEnglishCoachMentorContext } from "@/lib/supabase/services/english-coach.service";
-import { listUpcomingEventos } from "@/lib/supabase/services/eventos.service";
-import { listGrowthMissions } from "@/lib/supabase/services/growth.service";
-import { getHealthCoachMentorContext } from "@/lib/supabase/services/health-coach.service";
-import { getLegacyContext } from "@/lib/supabase/services/legado.service";
-import { loadLaunchPlans } from "@/lib/supabase/services/launch.service";
+import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
-import { getNexusAlveszMentorContext } from "@/lib/supabase/services/nexus.service";
-import { getAutopilotContext } from "@/lib/supabase/services/autopilot.service";
-import { loadResearchRecords } from "@/lib/supabase/services/research.service";
-import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
-import { listTrips } from "@/lib/supabase/services/travel.service";
 import { getAuraXpState } from "@/lib/supabase/services/xp.service";
 import type { AuraCeoSession, TableInsert } from "@/types/database";
 import {
@@ -27,7 +14,6 @@ import {
   type CeoOpportunityRadar,
   type GeneratedCeoPlan,
 } from "@/utils/ceo";
-import { getTodayMissions } from "@/utils/money";
 import { formatBRL } from "@/utils/format";
 import { rankProductsForLaunch } from "@/utils/creator";
 import {
@@ -41,9 +27,6 @@ import {
   getResolvedUserBudget,
 } from "./campaign-budget.service";
 import { getOptionalDataContext } from "./context";
-import { getPlatformsContext } from "./platform-hub.service";
-import { getGlobalContext } from "./global-intelligence.service";
-import { getKnowledgeContext } from "./knowledge.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -102,104 +85,8 @@ async function getMetasContext(): Promise<string> {
 }
 
 async function loadAllModuleContexts() {
-  const [
-    legacy,
-    finance,
-    money,
-    metas,
-    creator,
-    research,
-    copylab,
-    launch,
-    social,
-    alvesz,
-    health,
-    english,
-    trips,
-    eventos,
-    growthMissions,
-    autopilot,
-    platforms,
-    globalIntel,
-    knowledgeIntel,
-  ] = await Promise.all([
-    getLegacyContext(),
-    getAuraCentralFinanceContext(),
-    getMoneyDashboard(),
-    getMetasContext(),
-    loadCreatorBundles(),
-    loadResearchRecords(),
-    loadCopylabRecords(),
-    loadLaunchPlans(),
-    getSocialIaMentorContext(),
-    getNexusAlveszMentorContext(),
-    getHealthCoachMentorContext(),
-    getEnglishCoachMentorContext(),
-    listTrips(),
-    listUpcomingEventos(5),
-    listGrowthMissions(),
-    getAutopilotContext(),
-    getPlatformsContext(),
-    getGlobalContext(),
-    getKnowledgeContext(),
-  ]);
-
-  return {
-    legacy: legacy.context ?? "",
-    finance: finance.context ?? "",
-    money: money.plan
-      ? `Meta: ${formatBRL(Number(money.plan.valor_meta))} · Progresso: ${formatBRL(Number(money.plan.valor_conquistado))}`
-      : "Nenhum plano Money Missions ativo.",
-    moneyTasks: getTodayMissions(money.tasks)
-      .map((t) => t.titulo)
-      .join(", "),
-    metas,
-    creator: creator.bundles,
-    creatorSummary: creator.bundles
-      .slice(0, 5)
-      .map((b) => `• ${b.product.nome} (${b.product.status})`)
-      .join("\n") || "Nenhum produto Creator.",
-    research: research.records,
-    researchSummary:
-      research.records
-        .slice(0, 3)
-        .map((r) => `• ${r.nicho ?? r.ideia_input}: nota ${r.nota_final ?? "—"}`)
-        .join("\n") || "Nenhuma pesquisa.",
-    copylab:
-      copylab.records
-        .slice(0, 3)
-        .map((c) => `• ${c.nome ?? c.headline ?? "Copy"}`)
-        .join("\n") || "Nenhum copy.",
-    launch:
-      launch.plans
-        .slice(0, 3)
-        .map((p) => `• ${p.titulo ?? "Plano"}`)
-        .join("\n") || "Nenhum plano de lançamento.",
-    social: social.context ?? "",
-    alvesz: alvesz.context ?? "",
-    health: health.context ?? "",
-    english: english.context ?? "",
-    trips:
-      trips.trips
-        .slice(0, 3)
-        .map((t) => `• ${t.destino ?? t.nome} (${t.data_ida ?? "—"})`)
-        .join("\n") || "Nenhuma viagem.",
-    eventos:
-      eventos.data
-        ?.slice(0, 5)
-        .map((e) => `• ${e.titulo} — ${e.data_inicio}`)
-        .join("\n") || "Nenhum evento próximo.",
-    growthMissions:
-      growthMissions.data
-        ?.filter((m) => m.status === "pending" && m.mission_date === new Date().toISOString().slice(0, 10))
-        .slice(0, 3)
-        .map((m) => m.titulo)
-        .join(", ") || "",
-    autopilot: autopilot.context ?? "Nenhuma campanha no Autopilot.",
-    platforms: platforms.context ?? "",
-    global: globalIntel.context ?? "",
-    knowledge: knowledgeIntel.context ?? "",
-  };
+  const brain = await buildAuraContext();
+  return brain.moduleData;
 }
 
 async function computeDashboard(
@@ -307,7 +194,10 @@ export async function getCeoContext(): Promise<{ context: string; error: string 
     return { context: "", error: "Erro ao carregar dashboard CEO." };
   }
 
+  const brain = await buildAuraContext();
+
   const lines = [
+    brain.context ? brain.context : "",
     "## AURA CEO",
     buildCeoAuraContext(session, dashboard, radar),
     moduleData.legacy ? `## LEGADO\n${moduleData.legacy}` : "",

@@ -1,19 +1,11 @@
 import OpenAI from "openai";
-import { GoalsRepository } from "@/lib/supabase/repositories/goals.repository";
 import {
   MoneyMissionPlansRepository,
 } from "@/lib/supabase/repositories/money.repository";
 import {
   MoneyMissionTasksRepository,
 } from "@/lib/supabase/repositories/money-tasks.repository";
-import { getAuraCentralFinanceContext } from "@/lib/supabase/services/central.service";
-import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
-import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
-import { getLegacyContext } from "@/lib/supabase/services/legado.service";
-import { loadLaunchPlans } from "@/lib/supabase/services/launch.service";
-import { getNexusAlveszMentorContext } from "@/lib/supabase/services/nexus.service";
-import { loadResearchRecords } from "@/lib/supabase/services/research.service";
-import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
+import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
 import type {
   MoneyMissionPlan,
   MoneyMissionTask,
@@ -39,9 +31,6 @@ import {
   type CreatorCurrency,
 } from "@/utils/creator-locale";
 import { getOptionalDataContext } from "./context";
-import { getPlatformsContext } from "./platform-hub.service";
-import { getGlobalContext } from "./global-intelligence.service";
-import { getKnowledgeContext } from "./knowledge.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -83,83 +72,9 @@ async function callMoneyAi<T>(system: string, user: string): Promise<T | null> {
   return parseJsonBlock<T>(content);
 }
 
-async function getMetasContext(): Promise<string> {
-  const ctx = await getOptionalDataContext();
-  if (!ctx) return "";
-
-  const today = new Date().toISOString().slice(0, 10);
-  const goalsRepo = new GoalsRepository(ctx.supabase, ctx.userId);
-  const { data: goals } = await goalsRepo.findActive(today);
-  const vendas = (goals ?? []).filter(
-    (g) => g.tipo === "vendas" || g.tipo === "financeira"
-  );
-
-  if (!vendas.length) return "Nenhuma meta de vendas ativa.";
-
-  return vendas
-    .slice(0, 5)
-    .map((g) => `• ${g.titulo}: ${g.atual}/${g.meta} (${g.data_inicio} → ${g.data_fim})`)
-    .join("\n");
-}
-
 async function loadAllModuleContexts() {
-  const [
-    legacy,
-    finance,
-    metas,
-    creator,
-    research,
-    copylab,
-    launch,
-    social,
-    alvesz,
-    platforms,
-    globalIntel,
-    knowledgeIntel,
-  ] = await Promise.all([
-    getLegacyContext(),
-    getAuraCentralFinanceContext(),
-    getMetasContext(),
-    loadCreatorBundles(),
-    loadResearchRecords(),
-    loadCopylabRecords(),
-    loadLaunchPlans(),
-    getSocialIaMentorContext(),
-    getNexusAlveszMentorContext(),
-    getPlatformsContext(),
-    getGlobalContext(),
-    getKnowledgeContext(),
-  ]);
-
-  return {
-    legacy: legacy.context ?? "",
-    finance: finance.context ?? "",
-    metas,
-    creator: creator.bundles
-      .slice(0, 5)
-      .map((b) => `• ${b.product.nome} (${b.product.status})`)
-      .join("\n") || "Nenhum produto Creator.",
-    research:
-      research.records
-        .slice(0, 3)
-        .map((r) => `• ${r.nicho ?? r.ideia_input ?? "Ideia"}: nota ${r.nota_final ?? "—"}`)
-        .join("\n") || "Nenhuma pesquisa.",
-    copylab:
-      copylab.records
-        .slice(0, 3)
-        .map((c) => `• ${c.nome ?? c.headline ?? "Copy"}: ${c.preco ? `R$ ${c.preco}` : "—"}`)
-        .join("\n") || "Nenhum copy.",
-    launch:
-      launch.plans
-        .slice(0, 3)
-        .map((p) => `• ${p.titulo ?? "Plano"}: score ${p.score_ia ?? "—"}`)
-        .join("\n") || "Nenhum plano de lançamento.",
-    social: social.context ?? "",
-    alvesz: alvesz.context ?? "",
-    platforms: platforms.context ?? "",
-    global: globalIntel.context ?? "",
-    knowledge: knowledgeIntel.context ?? "",
-  };
+  const brain = await buildAuraContext();
+  return brain.moduleData;
 }
 
 export async function loadMoneyPlans(): Promise<{
@@ -229,20 +144,22 @@ export async function getMoneyContext(): Promise<{ context: string; error: strin
   const ctx = await getOptionalDataContext();
   if (!ctx) return { context: "", error: "Usuário não autenticado." };
 
-  const [{ plan, tasks }, moduleContexts] = await Promise.all([
+  const [{ plan, tasks }, brain] = await Promise.all([
     loadMoneyState(),
-    loadAllModuleContexts(),
+    buildAuraContext(),
   ]);
 
+  const moduleContexts = brain.moduleData;
   const dashboard = computeMoneyDashboard(plan, tasks);
   const lines = [
+    brain.context ? brain.context : "",
     "## AURA MONEY MISSIONS",
     buildMoneyAuraContext(plan, tasks, dashboard),
     moduleContexts.legacy ? `## LEGADO\n${moduleContexts.legacy}` : "",
     moduleContexts.finance ? `## FINANCEIRO\n${moduleContexts.finance}` : "",
     moduleContexts.metas ? `## METAS\n${moduleContexts.metas}` : "",
-    moduleContexts.creator ? `## CREATOR\n${moduleContexts.creator}` : "",
-    moduleContexts.research ? `## MARKET RESEARCH\n${moduleContexts.research}` : "",
+    moduleContexts.creatorSummary ? `## CREATOR\n${moduleContexts.creatorSummary}` : "",
+    moduleContexts.researchSummary ? `## MARKET RESEARCH\n${moduleContexts.researchSummary}` : "",
     moduleContexts.copylab ? `## COPYLAB\n${moduleContexts.copylab}` : "",
     moduleContexts.launch ? `## LAUNCH CENTER\n${moduleContexts.launch}` : "",
     moduleContexts.social ? `## SOCIAL MEDIA\n${moduleContexts.social}` : "",

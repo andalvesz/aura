@@ -8,6 +8,7 @@ import { CreatorAdsCampaignsRepository } from "@/lib/supabase/repositories/creat
 import { NotificationsRepository } from "@/lib/supabase/repositories/notifications.repository";
 import { generateCopylab } from "@/lib/supabase/services/copylab.service";
 import { generateStudioAssets } from "@/lib/supabase/services/creative-studio.service";
+import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
 import { getPerformanceDashboard } from "@/lib/supabase/services/performance.service";
 import { awardAuraXp } from "@/lib/supabase/services/xp.service";
 import type {
@@ -725,10 +726,15 @@ export async function fixAutopilotWithAi(input: {
   if (!ctx) return { text: "", error: "Usuário não autenticado." };
 
   const openai = getOpenAi();
-  const dash = await getAutopilotDashboard();
-  const perf = await getPerformanceDashboard().catch(() => null);
+  const [dash, brain, perf] = await Promise.all([
+    getAutopilotDashboard(),
+    buildAuraContext(),
+    getPerformanceDashboard().catch(() => null),
+  ]);
 
-  const context = buildAutopilotAuraContext({
+  const context = [
+    brain.context,
+    buildAutopilotAuraContext({
     dashboard: dash.dashboard ?? computeAutopilotDashboard({
       campaigns: dash.campaigns,
       monitors: dash.monitors,
@@ -739,7 +745,8 @@ export async function fixAutopilotWithAi(input: {
     monitors: dash.monitors,
     actions: dash.actions,
     settings: dash.settings,
-  });
+    }),
+  ].join("\n\n");
 
   const actionContext = input.actionId
     ? dash.actions.find((a) => a.id === input.actionId)
@@ -788,22 +795,27 @@ export async function fixAutopilotWithAi(input: {
 }
 
 export async function getAutopilotContext(): Promise<{ context: string; error: string | null }> {
-  const dash = await getAutopilotDashboard();
+  const [dash, brain] = await Promise.all([
+    getAutopilotDashboard(),
+    buildAuraContext(),
+  ]);
   if (dash.error) return { context: "", error: dash.error };
 
-  return {
-    context: buildAutopilotAuraContext({
-      dashboard: dash.dashboard ?? computeAutopilotDashboard({
-        campaigns: dash.campaigns,
-        monitors: dash.monitors,
-        actions: dash.actions,
-        settings: dash.settings,
-      }),
+  const autopilotBlock = buildAutopilotAuraContext({
+    dashboard: dash.dashboard ?? computeAutopilotDashboard({
       campaigns: dash.campaigns,
       monitors: dash.monitors,
       actions: dash.actions,
       settings: dash.settings,
     }),
+    campaigns: dash.campaigns,
+    monitors: dash.monitors,
+    actions: dash.actions,
+    settings: dash.settings,
+  });
+
+  return {
+    context: [brain.context, autopilotBlock].filter(Boolean).join("\n\n"),
     error: null,
   };
 }

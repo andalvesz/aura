@@ -135,6 +135,12 @@ import {
   detectAuraCentralIntent,
   type AuraCentralModule,
 } from "@/utils/orchestrator";
+import {
+  AURA_BRAIN_AI_CONTEXT,
+  isAuraBrainFullContextQuery,
+  isAuraBrainLearnedContextQuery,
+} from "@/utils/aura-brain";
+import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
 import { SOCIAL_AI_CONTEXT } from "@/utils/social";
 import { parseRequestJson } from "@/utils/safe-json";
 import {
@@ -1042,6 +1048,72 @@ export async function POST(req: Request) {
         module: "global",
         kind: "comms",
         commsQuery,
+      });
+    }
+
+    const brainFullQuery = isAuraBrainFullContextQuery(message);
+    const brainLearnedQuery = isAuraBrainLearnedContextQuery(message);
+
+    if (brainFullQuery || brainLearnedQuery) {
+      if (!process.env.OPENAI_API_KEY) {
+        return Response.json(
+          { error: "OPENAI_API_KEY não configurada." },
+          { status: 500 }
+        );
+      }
+
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Brain." }, { status: 401 });
+      }
+
+      const brain = await buildAuraContext();
+      if (brain.error) {
+        return Response.json({ error: brain.error }, { status: 500 });
+      }
+
+      const mergedHistory = await resolveMergedHistory("aura_central", history);
+      const dataContext = brainFullQuery ? brain.context : brain.memoryContext;
+      const instruction = brainFullQuery
+        ? "Analise TODO o contexto do usuário e responda com visão estratégica integrada."
+        : "Use TUDO que já aprendemos — memórias, padrões vencedores e erros — para orientar a resposta.";
+
+      const systemPrompt = await injectIdentityIntoPrompt(`${AURA_BRAIN_AI_CONTEXT}
+
+${AURA_CENTRAL_CONTEXT}
+
+## INSTRUÇÃO
+${instruction}
+
+${dataContext || "Nenhum contexto disponível ainda."}`);
+
+      const messages = await buildOpenAiMessagesWithMemory({
+        module: "aura_central",
+        userMessage: message,
+        systemPrompt: `${systemPrompt}
+Responda como Aura Brain com inteligência centralizada. Data de hoje: ${todayIsoDate()}.`,
+        clientHistory: history,
+        mergedHistory,
+      });
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages,
+      });
+
+      const text =
+        response.choices[0]?.message?.content ?? "Não consegui responder agora.";
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "brain",
+        brainMode: brainFullQuery ? "full" : "memory",
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "brain",
+        brainMode: brainFullQuery ? "full" : "memory",
       });
     }
 

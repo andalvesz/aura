@@ -7,7 +7,7 @@ import {
   CreatorValidationRepository,
 } from "@/lib/supabase/repositories/creator.repository";
 import { FinancialGoalsRepository } from "@/lib/supabase/repositories";
-import { getLegacyContext } from "@/lib/supabase/services/legado.service";
+import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
 import type {
   CreatorLaunch,
   CreatorOffer,
@@ -135,20 +135,20 @@ export async function getCreatorContext(): Promise<{
     return { context: "", error: "Usuário não autenticado." };
   }
 
-  const [{ bundles }, legacy, financeContext] = await Promise.all([
+  const [{ bundles }, brain] = await Promise.all([
     loadCreatorBundles(),
-    getLegacyContext(),
-    getFinanceContext(),
+    buildAuraContext(),
   ]);
 
   const lines = [
+    brain.context ? brain.context : "",
     "## AURA CREATOR — Pipeline de produtos",
     buildCreatorAuraContext(bundles),
-    legacy.context ? `## LEGADO\n${legacy.context}` : "",
-    financeContext ? `## FINANCEIRO\n${financeContext}` : "",
+    brain.moduleData.legacy ? `## LEGADO\n${brain.moduleData.legacy}` : "",
+    brain.sections.financeiro ? `## FINANCEIRO\n${brain.sections.financeiro}` : "",
   ].filter(Boolean);
 
-  return { context: lines.join("\n\n"), error: legacy.error };
+  return { context: lines.join("\n\n"), error: brain.error };
 }
 
 export async function generateCreatorProduct(input: {
@@ -168,12 +168,14 @@ export async function generateCreatorProduct(input: {
   }
 
   let auraContext = "";
+  let financeContext = "";
   if (input.useAuraData) {
-    const legacy = await getLegacyContext();
-    auraContext = legacy.context ?? "";
+    const brain = await buildAuraContext();
+    auraContext = brain.context || brain.moduleData.legacy;
+    financeContext = brain.sections.financeiro;
+  } else {
+    financeContext = await getFinanceContext();
   }
-
-  const financeContext = await getFinanceContext();
 
   const locale = resolveCreatorLocale(input.intake);
 
@@ -277,10 +279,9 @@ export async function validateCreatorProduct(productId: string): Promise<{
     return { bundle: null, error: productError ?? "Produto não encontrado." };
   }
 
-  const [legacy, financeContext] = await Promise.all([
-    getLegacyContext(),
-    getFinanceContext(),
-  ]);
+  const brain = await buildAuraContext();
+  const legacy = { context: brain.moduleData.legacy };
+  const financeContext = brain.sections.financeiro;
 
   const nicheBoost = scoreNicheAlignment(product.nicho);
   const locale = resolveCreatorLocale(product);

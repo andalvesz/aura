@@ -1,21 +1,10 @@
 import OpenAI from "openai";
 import { saveAuraMemory } from "@/lib/supabase/services/ai-memories.service";
 import { getOrchestratorContext } from "@/lib/supabase/services/campaign-orchestrator.service";
-import { getAuraCentralFinanceContext } from "@/lib/supabase/services/central.service";
-import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
-import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
-import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
-import { getEnglishCoachMentorContext } from "@/lib/supabase/services/english-coach.service";
-import { listUpcomingEventos } from "@/lib/supabase/services/eventos.service";
-import { getHealthCoachMentorContext } from "@/lib/supabase/services/health-coach.service";
-import { loadLaunchPlans } from "@/lib/supabase/services/launch.service";
+import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
 import {
   completeMoneyMissionTask,
-  getMoneyDashboard,
 } from "@/lib/supabase/services/money.service";
-import { getNexusAlveszMentorContext } from "@/lib/supabase/services/nexus.service";
-import { loadResearchRecords } from "@/lib/supabase/services/research.service";
-import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
 import { awardAuraXp } from "@/lib/supabase/services/xp.service";
 import { ExecutionHistoryRepository } from "@/lib/supabase/repositories/execution-history.repository";
 import { ExecutionTasksRepository } from "@/lib/supabase/repositories/execution-tasks.repository";
@@ -38,9 +27,6 @@ import {
 } from "@/utils/execution";
 import { todayIsoDate } from "@/utils/health";
 import { getOptionalDataContext, resolveUserDisplayName } from "./context";
-import { getPlatformsContext } from "./platform-hub.service";
-import { getGlobalContext } from "./global-intelligence.service";
-import { getKnowledgeContext } from "./knowledge.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -140,87 +126,34 @@ Regras:
 - Português do Brasil`;
 
 async function loadAllModuleContexts() {
-  const [
-    ceo,
-    money,
-    orchestrator,
-    creator,
-    research,
-    copylab,
-    launch,
-    social,
-    alvesz,
-    finance,
-    eventosRes,
-    health,
-    english,
-  ] = await Promise.all([
-    getCeoDashboard(),
-    getMoneyDashboard(),
+  const [brain, orchestrator] = await Promise.all([
+    buildAuraContext(),
     getOrchestratorContext(),
-    loadCreatorBundles(),
-    loadResearchRecords(),
-    loadCopylabRecords(),
-    loadLaunchPlans(),
-    getSocialIaMentorContext(),
-    getNexusAlveszMentorContext(),
-    getAuraCentralFinanceContext(),
-    listUpcomingEventos(7),
-    getHealthCoachMentorContext(),
-    getEnglishCoachMentorContext(),
   ]);
 
-  const latestCeo = ceo.session ?? ceo.sessions[0];
-  const eventos = eventosRes.data ?? [];
-  const topProduct = rankProductsForLaunch(creator.bundles)[0];
+  const md = brain.moduleData;
+  const topProduct = rankProductsForLaunch(md.creator)[0];
 
   return {
-    ceo: latestCeo
-      ? `Sessão: ${latestCeo.resumo_executivo?.slice(0, 200) ?? "—"} · Prioridades: ${JSON.stringify(latestCeo.prioridades)?.slice(0, 150) ?? "—"}`
-      : "Nenhuma sessão CEO.",
-    money: money.plan
-      ? `Meta R$ ${money.plan.valor_meta} · Conquistado R$ ${money.plan.valor_conquistado} · Prob ${money.plan.probabilidade_sucesso ?? "—"}%`
-      : "Nenhuma Money Mission ativa.",
-    moneyTasks: money.tasks
-      .filter((t) => t.status === "pending")
-      .slice(0, 5)
-      .map((t) => `• ${t.titulo}`)
-      .join("\n"),
+    ceo: brain.sections.execucao.split("\n")[0] ?? "Nenhuma sessão CEO.",
+    money: md.money,
+    moneyTasks: md.moneyTasks,
     orchestrator: orchestrator.context?.slice(0, 400) ?? "Sem orquestração.",
     creator: topProduct
       ? `Produto prioritário: ${topProduct.product.nome} (${topProduct.product.status})`
       : "Nenhum produto Creator.",
-    research:
-      research.records
-        .slice(0, 2)
-        .map((r) => `• ${r.nicho ?? "—"}`)
-        .join("\n") || "—",
-    copylab:
-      copylab.records
-        .slice(0, 2)
-        .map((c) => `• ${c.nome ?? c.headline ?? "—"}`)
-        .join("\n") || "—",
-    launch:
-      launch.plans
-        .slice(0, 2)
-        .map((p) => `• ${p.titulo ?? "—"} score ${p.score_ia ?? "—"}`)
-        .join("\n") || "—",
-    social: social.context?.slice(0, 300) ?? "—",
-    alvesz: alvesz.context?.slice(0, 300) ?? "—",
-    financeiro: finance.context?.slice(0, 300) ?? "—",
-    calendario:
-      eventos
-        .slice(0, 3)
-        .map((e) => `• ${e.titulo} (${e.data_inicio?.slice(0, 10)})`)
-        .join("\n") || "—",
-    saude: health.context?.slice(0, 300) ?? "—",
-    idiomas: english.context?.slice(0, 300) ?? "—",
-    metaFinanceira: money.plan?.valor_meta ?? topProduct?.product.objetivo_financeiro ?? null,
-    probabilidade:
-      money.plan?.probabilidade_sucesso ??
-      money.dashboard?.probabilidadeSucesso ??
-      topProduct?.validation?.nota_final ??
-      0,
+    research: md.researchSummary,
+    copylab: md.copylab,
+    launch: md.launch,
+    social: md.social.slice(0, 300),
+    alvesz: md.alvesz.slice(0, 300),
+    financeiro: md.finance.slice(0, 300),
+    calendario: md.eventos,
+    saude: md.health.slice(0, 300),
+    idiomas: md.english.slice(0, 300),
+    metaFinanceira: topProduct?.product.objetivo_financeiro ?? null,
+    probabilidade: topProduct?.validation?.nota_final ?? 0,
+    brain: brain.context,
   };
 }
 
@@ -287,16 +220,20 @@ export async function getExecutionContext(): Promise<{ context: string; error: s
   const ctx = await getOptionalDataContext();
   if (!ctx) return { context: "", error: "Usuário não autenticado." };
 
-  const [{ plan, tasks, history }, { context: platformsContext }, { context: globalContext }, { context: knowledgeContext }] =
-    await Promise.all([loadExecutionState(), getPlatformsContext(), getGlobalContext(), getKnowledgeContext()]);
+  const [{ plan, tasks, history }, brain] = await Promise.all([
+    loadExecutionState(),
+    buildAuraContext(),
+  ]);
   const dashboard = computeExecutionDashboard(plan, tasks, history);
+  const md = brain.moduleData;
 
   const lines = [
+    brain.context ? brain.context : "",
     "## AURA EXECUTION ENGINE",
     buildExecutionAuraContext(plan, tasks, dashboard),
-    platformsContext ? `## PLATFORM HUB\n${platformsContext}` : "",
-    globalContext ? `## GLOBAL INTELLIGENCE\n${globalContext}` : "",
-    knowledgeContext ? `## KNOWLEDGE & CONNECT\n${knowledgeContext}` : "",
+    md.platforms ? `## PLATFORM HUB\n${md.platforms}` : "",
+    md.global ? `## GLOBAL INTELLIGENCE\n${md.global}` : "",
+    md.knowledge ? `## KNOWLEDGE & CONNECT\n${md.knowledge}` : "",
   ].filter(Boolean);
 
   return { context: lines.join("\n\n"), error: null };

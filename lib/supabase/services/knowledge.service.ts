@@ -27,6 +27,7 @@ import {
   type KnowledgeDashboardMetrics,
   KNOWLEDGE_CONNECTORS,
 } from "@/utils/knowledge";
+import { buildAuraContext } from "./aura-brain.service";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -341,10 +342,14 @@ export async function getKnowledgeDashboard(): Promise<{
 }
 
 export async function getKnowledgeContext(): Promise<{ context: string; error: string | null }> {
-  const { dashboard, entries, patterns, error } = await getKnowledgeDashboard();
+  const [{ dashboard, entries, patterns, error }, brain] = await Promise.all([
+    getKnowledgeDashboard(),
+    buildAuraContext(),
+  ]);
   if (error) return { context: "", error };
+  const knowledgeBlock = buildKnowledgeAuraContext(dashboard, entries, patterns);
   return {
-    context: buildKnowledgeAuraContext(dashboard, entries, patterns),
+    context: [brain.context, knowledgeBlock].filter(Boolean).join("\n\n"),
     error: null,
   };
 }
@@ -571,11 +576,16 @@ export async function getKnowledgeIaReply(params: {
   message: string;
   actionId?: string;
 }): Promise<{ text: string; error: string | null }> {
-  const { dashboard, entries, patterns, insights, error } = await getKnowledgeDashboard();
+  const [{ dashboard, entries, patterns, insights, error }, brain] = await Promise.all([
+    getKnowledgeDashboard(),
+    buildAuraContext(),
+  ]);
   if (error) return { text: "", error };
 
   const openai = getOpenAi();
-  const context = buildKnowledgeAuraContext(dashboard, entries, patterns);
+  const context = [brain.memoryContext, buildKnowledgeAuraContext(dashboard, entries, patterns)]
+    .filter(Boolean)
+    .join("\n\n");
 
   if (!openai) {
     if (params.actionId === "best-market") {
