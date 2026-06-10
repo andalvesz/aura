@@ -28,6 +28,12 @@ import {
   type OrchestratorIntake,
   ORCHESTRATOR_STEPS,
 } from "@/utils/campaign-orchestrator";
+import {
+  buildBudgetAiRules,
+  clampInvestimentoToBudget,
+  computeInvestimentoFromBudget,
+  parseBudgetInput,
+} from "@/utils/campaign-budget";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -103,7 +109,7 @@ Regras:
 - roi_estimado em percentual (ex: 150 = 150% ROI)
 - 3-4 fases no plano, cronograma de 14 dias
 - 3-5 riscos com mitigação
-- Orçamento baixo: R$20-50/dia · médio: R$50-150/dia · escala: R$150-500/dia
+- Use SOMENTE o orçamento disponível informado — nunca R$ 2.000 ou valores padrão
 - Português do Brasil, estratégia prática`;
 
 function resolveLinkedArtifacts(
@@ -255,6 +261,15 @@ export async function prepareLaunch(
     return { orchestration: null, center: null, error: "Selecione um produto." };
   }
 
+  const orcamentoDisponivel = parseBudgetInput(input.orcamento_disponivel ?? null);
+  if (orcamentoDisponivel == null) {
+    return {
+      orchestration: null,
+      center: null,
+      error: "Informe seu Orçamento disponível antes de preparar o lançamento.",
+    };
+  }
+
   const [
     { bundles },
     { records: research },
@@ -287,7 +302,8 @@ export async function prepareLaunch(
       asset_id: linked.asset_id,
       landing_id: linked.landing_id,
       objetivo: "conversao" as const,
-      orcamento_nivel: "medio" as const,
+      orcamento_nivel: computeInvestimentoFromBudget(orcamentoDisponivel).orcamento_nivel,
+      orcamento_disponivel: orcamentoDisponivel,
     };
 
     const { record: generatedAds, error: adsError } = await generateAdsCampaign(adsIntake);
@@ -306,6 +322,7 @@ export async function prepareLaunch(
       landing_id: linked.landing_id ?? adsCampaign.landing_id,
       objetivo: adsCampaign.objetivo,
       orcamento_nivel: adsCampaign.orcamento_nivel,
+      orcamento_disponivel: orcamentoDisponivel,
     };
 
     const { record: updatedAds } = await generateAdsCampaign(adsIntake);
@@ -327,9 +344,10 @@ export async function prepareLaunch(
   );
 
   const generated = await callOrchestratorAi<GeneratedOrchestration>(
-    SYSTEM_PROMPT,
+    `${SYSTEM_PROMPT}\n\n${buildBudgetAiRules(orcamentoDisponivel)}`,
     JSON.stringify({
       product: bundle.product,
+      orcamento_disponivel: orcamentoDisponivel,
       validation: bundle.validation,
       checklist: centerBefore.checklist,
       connections: {
@@ -361,6 +379,12 @@ export async function prepareLaunch(
     return { orchestration: null, center: null, error: "Não foi possível preparar o lançamento." };
   }
 
+  const budgetInvestimento = computeInvestimentoFromBudget(orcamentoDisponivel);
+  const investimentoNecessario = clampInvestimentoToBudget(
+    generated.investimento_necessario,
+    orcamentoDisponivel
+  );
+
   const connections: OrchestratorConnections = {
     research_id: linked.research_id,
     copylab_id: linked.copylab_id,
@@ -383,10 +407,17 @@ export async function prepareLaunch(
     pipeline_step: ORCHESTRATOR_STEPS.find((s) => centerBefore.checklist[s.id] !== "concluido")?.id ?? "campanha",
     score_lancamento: generated.score_lancamento,
     probabilidade_sucesso: generated.probabilidade_sucesso,
-    investimento_necessario: generated.investimento_necessario,
+    investimento_necessario: investimentoNecessario,
+    orcamento_disponivel: orcamentoDisponivel,
     receita_prevista: generated.receita_prevista,
     roi_estimado: generated.roi_estimado,
-    orcamento_sugerido: generated.orcamento_sugerido,
+    orcamento_sugerido: {
+      ...generated.orcamento_sugerido,
+      nivel: budgetInvestimento.orcamento_nivel,
+      diario_min: budgetInvestimento.investimento_diario_min,
+      diario_max: budgetInvestimento.investimento_diario_max,
+      mensal: budgetInvestimento.investimento_mensal_previsto,
+    },
     plano_lancamento: generated.plano_lancamento,
     conexoes: connections,
     riscos: generated.riscos,

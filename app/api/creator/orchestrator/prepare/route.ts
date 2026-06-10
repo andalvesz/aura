@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     const { orchestration, center, error } = await prepareLaunch({
       product_id: productId,
       orchestration_id: body.orchestration_id ?? null,
+      orcamento_disponivel: body.orcamento_disponivel ?? null,
     });
 
     if (error) {

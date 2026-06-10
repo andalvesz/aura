@@ -20,6 +20,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
+import { AvailableBudgetField } from "@/components/dashboard/available-budget-field";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -288,6 +289,7 @@ export function CampaignOrchestratorView() {
 
   const [activeRecord, setActiveRecord] = useState<CreatorCampaignOrchestration | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [orcamentoDisponivel, setOrcamentoDisponivel] = useState<number | null>(null);
 
   const [iaInput, setIaInput] = useState("");
   const [iaLoading, setIaLoading] = useState(false);
@@ -307,7 +309,12 @@ export function CampaignOrchestratorView() {
   }, [searchParams, bundles, selectedProductId]);
 
   useEffect(() => {
-    if (center?.orchestration) setActiveRecord(center.orchestration);
+    if (center?.orchestration) {
+      setActiveRecord(center.orchestration);
+      if (center.orchestration.orcamento_disponivel != null) {
+        setOrcamentoDisponivel(Number(center.orchestration.orcamento_disponivel));
+      }
+    }
   }, [center?.orchestration]);
 
   async function handlePrepare() {
@@ -315,10 +322,15 @@ export function CampaignOrchestratorView() {
       toast.error("Selecione um produto.");
       return;
     }
+    if (!orcamentoDisponivel || orcamentoDisponivel <= 0) {
+      toast.error("Informe seu Orçamento disponível.");
+      return;
+    }
 
     const { orchestration, error: prepError } = await prepare({
       product_id: selectedProductId,
       orchestration_id: activeRecord?.id ?? null,
+      orcamento_disponivel: orcamentoDisponivel,
     });
 
     if (prepError || !orchestration) {
@@ -503,6 +515,20 @@ export function CampaignOrchestratorView() {
           </PanelHeader>
           <PanelContent className="pt-0">
             <ChecklistPanel checklist={checklist} />
+          </PanelContent>
+        </Panel>
+      )}
+
+      {selectedProductId && (
+        <Panel className="border-violet-500/15">
+          <PanelContent className="pt-3">
+            <AvailableBudgetField
+              scope="orchestration"
+              entityId={activeRecord?.id ?? null}
+              value={orcamentoDisponivel}
+              onChange={setOrcamentoDisponivel}
+              persistOnBlur={Boolean(activeRecord?.id)}
+            />
           </PanelContent>
         </Panel>
       )}

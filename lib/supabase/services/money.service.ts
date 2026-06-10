@@ -28,6 +28,11 @@ import {
   type MoneyPrazo,
   type MoneyPrioridade,
 } from "@/utils/money";
+import {
+  buildBudgetAiRules,
+  clampInvestimentoToBudget,
+  parseBudgetInput,
+} from "@/utils/campaign-budget";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -275,6 +280,7 @@ export async function startMoneyMission(params: {
   valorMeta: number;
   prazo: MoneyPrazo;
   prioridade: MoneyPrioridade;
+  orcamento_disponivel?: number | null;
 }): Promise<{
   plan: MoneyMissionPlan | null;
   tasks: MoneyMissionTask[];
@@ -291,6 +297,15 @@ export async function startMoneyMission(params: {
     return { plan: null, tasks: [], error: "Informe um valor meta válido." };
   }
 
+  const orcamentoDisponivel = parseBudgetInput(params.orcamento_disponivel ?? null);
+  if (orcamentoDisponivel == null) {
+    return {
+      plan: null,
+      tasks: [],
+      error: "Informe seu Orçamento disponível antes de gerar o plano.",
+    };
+  }
+
   const moduleContexts = await loadAllModuleContexts();
   const dataInicio = new Date().toISOString().slice(0, 10);
   const dataFim = computeDataFim(dataInicio, prazo);
@@ -298,6 +313,7 @@ export async function startMoneyMission(params: {
   const generated = await callMoneyAi<GeneratedMoneyPlan>(
     `Você é a Aura Money Missions — transforma metas financeiras em planos executáveis.
 Analise todos os módulos da Aura (Legado, Creator, Research, CopyLab, Launch, Financeiro, Metas, Social Media, Alvesz).
+${buildBudgetAiRules(orcamentoDisponivel)}
 Responda APENAS JSON:
 {
   "plano_financeiro": string,
@@ -323,6 +339,7 @@ Regras:
       valorMeta,
       prazo,
       prioridade,
+      orcamento_disponivel: orcamentoDisponivel,
       dataInicio,
       dataFim,
       ...moduleContexts,
@@ -332,6 +349,11 @@ Regras:
   if (!generated?.plano_financeiro) {
     return { plan: null, tasks: [], error: "Não foi possível gerar o plano financeiro." };
   }
+
+  const investimentoNecessario = clampInvestimentoToBudget(
+    generated.investimento_necessario,
+    orcamentoDisponivel
+  );
 
   const plansRepo = new MoneyMissionPlansRepository(ctx.supabase, ctx.userId);
   await plansRepo.archiveActive();
@@ -347,7 +369,8 @@ Regras:
     produtos_recomendados: generated.produtos_recomendados,
     servicos_recomendados: generated.servicos_recomendados,
     receita_estimada: generated.receita_estimada,
-    investimento_necessario: generated.investimento_necessario,
+    investimento_necessario: investimentoNecessario,
+    orcamento_disponivel: orcamentoDisponivel,
     roi_estimado: generated.roi_estimado,
     riscos: generated.riscos,
     probabilidade_sucesso: generated.probabilidade_sucesso,

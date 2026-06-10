@@ -11,6 +11,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
+import { AvailableBudgetField } from "@/components/dashboard/available-budget-field";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -102,7 +103,15 @@ function PlanDisplay({ plan }: { plan: MoneyMissionPlan }) {
           </p>
         </div>
         <div className="rounded-md border border-white/[0.06] p-2">
-          <p className="text-[10px] text-zinc-500">Investimento</p>
+          <p className="text-[10px] text-zinc-500">Orçamento disponível</p>
+          <p className="font-medium text-zinc-200">
+            {plan.orcamento_disponivel != null
+              ? formatBRL(Number(plan.orcamento_disponivel))
+              : "—"}
+          </p>
+        </div>
+        <div className="rounded-md border border-white/[0.06] p-2">
+          <p className="text-[10px] text-zinc-500">Investimento sugerido</p>
           <p className="font-medium text-zinc-200">
             {plan.investimento_necessario != null
               ? formatBRL(Number(plan.investimento_necessario))
@@ -195,6 +204,7 @@ export function MoneyView() {
   const [customMeta, setCustomMeta] = useState("");
   const [prazo, setPrazo] = useState<MoneyPrazo>("90_dias");
   const [prioridade, setPrioridade] = useState<MoneyPrioridade>("crescimento");
+  const [orcamentoDisponivel, setOrcamentoDisponivel] = useState<number | null>(null);
 
   const [iaInput, setIaInput] = useState("");
   const [iaLoading, setIaLoading] = useState(false);
@@ -214,11 +224,16 @@ export function MoneyView() {
       toast.error("Informe um valor meta válido.");
       return;
     }
+    if (!orcamentoDisponivel || orcamentoDisponivel <= 0) {
+      toast.error("Informe seu Orçamento disponível.");
+      return;
+    }
 
     const { plan: newPlan, error: startError } = await startMission({
       valorMeta: meta,
       prazo,
       prioridade,
+      orcamento_disponivel: orcamentoDisponivel,
     });
 
     if (startError || !newPlan) {
@@ -375,6 +390,12 @@ export function MoneyView() {
                 className="mt-2 w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600"
               />
             </div>
+
+            <AvailableBudgetField
+              scope="money"
+              value={orcamentoDisponivel}
+              onChange={setOrcamentoDisponivel}
+            />
 
             <div>
               <p className="mb-2 text-[11px] font-medium text-zinc-400">Prazo</p>

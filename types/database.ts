@@ -676,6 +676,7 @@ export type CreatorLaunchPlan = {
   score_ia: number | null;
   receita_estimada: number | null;
   data_prevista_lancamento: string | null;
+  orcamento_disponivel: number | null;
   tarefas: Json;
   cronograma: Json;
   prioridades: Json;
@@ -708,6 +709,7 @@ export type MoneyMissionPlan = {
   riscos: Json;
   probabilidade_sucesso: number | null;
   cronograma: Json;
+  orcamento_disponivel: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -1043,6 +1045,7 @@ export type CreatorAdsCampaign = {
   investimento_diario_min: number | null;
   investimento_diario_max: number | null;
   investimento_mensal_previsto: number | null;
+  orcamento_disponivel: number | null;
   campanha_nome: string | null;
   campanha_estrategia: string | null;
   publicos: Json;
@@ -1207,6 +1210,7 @@ export type CreatorCampaignOrchestration = {
   receita_prevista: number | null;
   roi_estimado: number | null;
   orcamento_sugerido: Json;
+  orcamento_disponivel: number | null;
   plano_lancamento: Json;
   conexoes: Json;
   riscos: Json;
@@ -2275,6 +2279,7 @@ export type Database = {
           | "score_ia"
           | "receita_estimada"
           | "data_prevista_lancamento"
+          | "orcamento_disponivel"
           | "tarefas"
           | "cronograma"
           | "prioridades"
@@ -2285,6 +2290,7 @@ export type Database = {
           score_ia?: number | null;
           receita_estimada?: number | null;
           data_prevista_lancamento?: string | null;
+          orcamento_disponivel?: number | null;
           tarefas?: Json;
           cronograma?: Json;
           prioridades?: Json;
@@ -2310,6 +2316,7 @@ export type Database = {
           | "riscos"
           | "probabilidade_sucesso"
           | "cronograma"
+          | "orcamento_disponivel"
         > & {
           id?: string;
           valor_conquistado?: number;
@@ -2323,6 +2330,7 @@ export type Database = {
           riscos?: Json;
           probabilidade_sucesso?: number | null;
           cronograma?: Json;
+          orcamento_disponivel?: number | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -2590,6 +2598,7 @@ export type Database = {
           | "investimento_diario_min"
           | "investimento_diario_max"
           | "investimento_mensal_previsto"
+          | "orcamento_disponivel"
           | "campanha_nome"
           | "campanha_estrategia"
           | "publicos"
@@ -2614,6 +2623,7 @@ export type Database = {
           investimento_diario_min?: number | null;
           investimento_diario_max?: number | null;
           investimento_mensal_previsto?: number | null;
+          orcamento_disponivel?: number | null;
           campanha_nome?: string | null;
           campanha_estrategia?: string | null;
           publicos?: Json;
@@ -2645,6 +2655,7 @@ export type Database = {
           | "receita_prevista"
           | "roi_estimado"
           | "orcamento_sugerido"
+          | "orcamento_disponivel"
           | "plano_lancamento"
           | "conexoes"
           | "riscos"
@@ -2666,6 +2677,7 @@ export type Database = {
           receita_prevista?: number | null;
           roi_estimado?: number | null;
           orcamento_sugerido?: Json;
+          orcamento_disponivel?: number | null;
           plano_lancamento?: Json;
           conexoes?: Json;
           riscos?: Json;

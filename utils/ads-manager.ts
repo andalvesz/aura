@@ -1,5 +1,9 @@
 import type { AdsObjetivo, AdsOrcamentoNivel, CreatorAdsCampaign } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
+import {
+  buildBudgetAskReply,
+  buildBudgetSuggestion,
+} from "@/utils/campaign-budget";
 import { formatBRL } from "@/utils/creator";
 
 export type AdsIntake = {
@@ -17,6 +21,7 @@ export type AdsIntake = {
   campaign_id?: string | null;
   objetivo?: AdsObjetivo | null;
   orcamento_nivel?: AdsOrcamentoNivel | null;
+  orcamento_disponivel?: number | null;
 };
 
 export type AdsPublicoTipo = "interesse" | "lookalike" | "remarketing";
@@ -79,9 +84,9 @@ export const ADS_ORCAMENTO_NIVEIS: {
   label: string;
   description: string;
 }[] = [
-  { id: "baixo", label: "Baixo", description: "R$ 20–50/dia · teste inicial" },
-  { id: "medio", label: "Médio", description: "R$ 50–150/dia · validação" },
-  { id: "escala", label: "Escala", description: "R$ 150–500/dia · crescimento" },
+  { id: "baixo", label: "Baixo", description: "Teste inicial — escala conforme orçamento" },
+  { id: "medio", label: "Médio", description: "Validação — múltiplos criativos/públicos" },
+  { id: "escala", label: "Escala", description: "Crescimento — estrutura ampliada" },
 ];
 
 export const ADS_AI_CONTEXT = `Você é a Aura Ads Manager — estrategista de tráfego pago (Meta Ads) no Brasil.
@@ -174,6 +179,7 @@ export function intakeFromProductBundle(bundle: CreatorProductBundle): AdsIntake
     landing_id: null,
     objetivo: null,
     orcamento_nivel: null,
+    orcamento_disponivel: null,
   };
 }
 
@@ -311,27 +317,20 @@ A IA sugere:
   }
 
   if (mode === "ads-budget") {
-    if (latest?.investimento_mensal_previsto) {
-      return `${greeting}investimento sugerido para **${latest.nome ?? "campanha"}**:
+    const budget = latest?.orcamento_disponivel ?? null;
+    if (budget != null && Number(budget) > 0) {
+      return `${greeting}com base no seu orçamento de **${formatBRL(Number(budget))}**:
 
-**Nível:** ${getOrcamentoLabel(latest.orcamento_nivel)}
-**Diário:** ${formatInvestimentoRange(latest.investimento_diario_min, latest.investimento_diario_max)}
-**Mensal previsto:** ${formatBRL(latest.investimento_mensal_previsto)}
+${buildBudgetSuggestion(Number(budget))}
 
-Referência:
-• Baixo: R$ 20–50/dia (teste)
-• Médio: R$ 50–150/dia (validação)
-• Escala: R$ 150–500/dia (crescimento)`;
+**Campanha:** ${latest.nome ?? "rascunho"}
+**Diário sugerido:** ${formatInvestimentoRange(latest.investimento_diario_min, latest.investimento_diario_max)}
+**Mensal previsto:** ${latest.investimento_mensal_previsto ? formatBRL(latest.investimento_mensal_previsto) : "—"}
+
+Abra o Ads Manager para ajustar ou gerar nova campanha.`;
     }
 
-    return `${greeting}para estimar investimento:
-
-1. Abra **Ads Manager** (/dashboard/creator/ads)
-2. Gere uma campanha — a IA sugere orçamento por nível
-
-**Baixo:** ~R$ 600–1.500/mês
-**Médio:** ~R$ 1.500–4.500/mês
-**Escala:** ~R$ 4.500–15.000/mês`;
+    return buildBudgetAskReply(displayName);
   }
 
   return `${greeting}abra o Ads Manager em /dashboard/creator/ads.`;

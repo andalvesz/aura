@@ -41,6 +41,7 @@ import {
 } from "@/utils/performance";
 import { todayIsoDate } from "@/utils/health";
 import { getOptionalDataContext } from "./context";
+import { buildBudgetContextBlock, getResolvedUserBudget } from "./campaign-budget.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -122,6 +123,7 @@ Regras:
 - score_performance: 0-100 baseado em execução, metas e ROI
 - insights: 6-10 itens cobrindo painel e análise
 - executive_memory: aprenda padrões de campanhas, produtos, hábitos e erros
+- Nunca assuma R$ 2.000 ou orçamento padrão — use apenas o orçamento informado pelo usuário
 - Português do Brasil, tom executivo`;
 
 const DEFAULT_CEO_DASHBOARD: CeoDashboardMetrics = {
@@ -448,10 +450,12 @@ export async function generatePerformanceReport(): Promise<{
   let generated: GeneratedPerformanceReport | null = null;
 
   if (getOpenAi()) {
+    const { budget } = await getResolvedUserBudget();
     generated = await callPerformanceAi<GeneratedPerformanceReport>(
-      SYSTEM_PROMPT,
+      `${SYSTEM_PROMPT}\n\n${buildBudgetContextBlock(budget.orcamento)}`,
       JSON.stringify({
         data: todayIsoDate(),
+        orcamento_disponivel: budget.orcamento,
         metricas: preDashboard,
         modulos: {
           financeiro: { receita: preDashboard.receitaFormatted, meta: preDashboard.metaAtingidaFormatted },

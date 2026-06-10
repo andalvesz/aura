@@ -17,6 +17,7 @@ import {
   type LaunchDashboardMetrics,
 } from "@/utils/launch";
 import { rankProductsForLaunch } from "@/utils/creator";
+import { buildBudgetAiRules, parseBudgetInput } from "@/utils/campaign-budget";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -171,7 +172,10 @@ export async function getLaunchContext(): Promise<{ context: string; error: stri
   return { context: lines.join("\n\n"), error: legacy.error };
 }
 
-export async function startLaunch(productId?: string): Promise<{
+export async function startLaunch(
+  productId?: string,
+  orcamentoDisponivelInput?: number | null
+): Promise<{
   plan: CreatorLaunchPlan | null;
   center: LaunchCenterData | null;
   error: string | null;
@@ -179,6 +183,15 @@ export async function startLaunch(productId?: string): Promise<{
   const ctx = await getOptionalDataContext();
   if (!ctx) return { plan: null, center: null, error: "Usuário não autenticado." };
   if (!getOpenAi()) return { plan: null, center: null, error: "IA indisponível (OPENAI_API_KEY)." };
+
+  const orcamentoDisponivel = parseBudgetInput(orcamentoDisponivelInput ?? null);
+  if (orcamentoDisponivel == null) {
+    return {
+      plan: null,
+      center: null,
+      error: "Informe seu Orçamento disponível antes de iniciar o lançamento.",
+    };
+  }
 
   const [{ bundles }, { records: research }, { records: copy }, legacy, financeContext, metasContext] =
     await Promise.all([
@@ -208,6 +221,7 @@ export async function startLaunch(productId?: string): Promise<{
   const generated = await callLaunchAi<GeneratedLaunchPlan>(
     `Você é a Aura Launch Center — orquestra Research, Creator e CopyLab.
 Crie plano de lançamento completo com tarefas, cronograma e prioridades.
+${buildBudgetAiRules(orcamentoDisponivel)}
 Responda APENAS JSON:
 {
   "titulo": string,
@@ -243,6 +257,7 @@ Regras:
       legacyContext: legacy.context ?? null,
       financeContext,
       metasContext,
+      orcamento_disponivel: orcamentoDisponivel,
       pipeline: LAUNCH_PIPELINE_STEPS.map((s) => s.label),
     })
   );
@@ -259,6 +274,7 @@ Regras:
     score_ia: generated.score_ia,
     receita_estimada: generated.receita_estimada,
     data_prevista_lancamento: generated.data_prevista_lancamento,
+    orcamento_disponivel: orcamentoDisponivel,
     tarefas: generated.tarefas,
     cronograma: generated.cronograma,
     prioridades: generated.prioridades,

@@ -27,6 +27,8 @@ export async function POST(request: Request) {
     const orcamento_nivel = VALID_ORCAMENTOS.includes(body.orcamento_nivel as AdsOrcamentoNivel)
       ? (body.orcamento_nivel as AdsOrcamentoNivel)
       : null;
+    const orcamento_disponivel =
+      typeof body.orcamento_disponivel === "number" ? body.orcamento_disponivel : null;
 
     if (!nome && !problema) {
       return Response.json(
@@ -50,6 +52,7 @@ export async function POST(request: Request) {
       campaign_id,
       objetivo,
       orcamento_nivel,
+      orcamento_disponivel,
     });
 
     if (error) {

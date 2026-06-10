@@ -19,6 +19,12 @@ import {
   type AdsIntake,
   type GeneratedAdsCampaign,
 } from "@/utils/ads-manager";
+import {
+  buildBudgetAiRules,
+  clampInvestimentoToBudget,
+  computeInvestimentoFromBudget,
+  parseBudgetInput,
+} from "@/utils/campaign-budget";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -84,8 +90,9 @@ Responda APENAS JSON:
 }
 Regras:
 - Sugira 3 públicos: interesse, lookalike e remarketing
-- Orçamento baixo: R$20-50/dia · médio: R$50-150/dia · escala: R$150-500/dia
-- investimento_mensal_previsto = média diária × 30
+- Use SOMENTE o orçamento disponível informado pelo usuário — nunca R$ 2.000 ou valores padrão
+- Se não houver orçamento informado, não preencha investimento_* — retorne zeros e explique na estrategia que falta orçamento
+- investimento_mensal_previsto deve respeitar o teto do orçamento disponível
 - Mínimo 2 conjuntos de anúncios e 3 anúncios
 - Use copy dos criativos/landing quando disponível
 - Português do Brasil, estratégia prática`;
@@ -271,6 +278,14 @@ export async function generateAdsCampaign(
     return { record: null, error: "Informe o nome ou o problema do produto." };
   }
 
+  const orcamentoDisponivel = parseBudgetInput(input.orcamento_disponivel ?? null);
+  if (orcamentoDisponivel == null) {
+    return {
+      record: null,
+      error: "Informe seu Orçamento disponível antes de gerar a campanha.",
+    };
+  }
+
   const [moduleCtx, { records: assets }, { records: landings }] = await Promise.all([
     loadModuleContext(),
     loadStudioAssets(),
@@ -285,9 +300,10 @@ export async function generateAdsCampaign(
   );
 
   const generated = await callAdsAi<GeneratedAdsCampaign>(
-    SYSTEM_PROMPT,
+    `${SYSTEM_PROMPT}\n\n${buildBudgetAiRules(orcamentoDisponivel)}`,
     JSON.stringify({
       intake: input,
+      orcamento_disponivel: orcamentoDisponivel,
       objetivoPreferido: input.objetivo,
       orcamentoPreferido: input.orcamento_nivel,
       criativoVinculado: asset
@@ -318,6 +334,12 @@ export async function generateAdsCampaign(
     return { record: null, error: "Não foi possível gerar a campanha." };
   }
 
+  const budgetInvestimento = computeInvestimentoFromBudget(orcamentoDisponivel);
+  const investimentoMensal = clampInvestimentoToBudget(
+    generated.investimento_mensal_previsto,
+    orcamentoDisponivel
+  );
+
   const repo = new CreatorAdsCampaignsRepository(ctx.supabase, ctx.userId);
 
   const payload = {
@@ -334,10 +356,11 @@ export async function generateAdsCampaign(
     diferencial: input.diferencial || null,
     preco: input.preco,
     objetivo: generated.objetivo,
-    orcamento_nivel: generated.orcamento_nivel,
-    investimento_diario_min: generated.investimento_diario_min,
-    investimento_diario_max: generated.investimento_diario_max,
-    investimento_mensal_previsto: generated.investimento_mensal_previsto,
+    orcamento_nivel: budgetInvestimento.orcamento_nivel,
+    orcamento_disponivel: orcamentoDisponivel,
+    investimento_diario_min: budgetInvestimento.investimento_diario_min,
+    investimento_diario_max: budgetInvestimento.investimento_diario_max,
+    investimento_mensal_previsto: investimentoMensal ?? budgetInvestimento.investimento_mensal_previsto,
     campanha_nome: generated.campanha_nome,
     campanha_estrategia: generated.campanha_estrategia,
     publicos: generated.publicos,

@@ -3,8 +3,13 @@ import {
   buildOpenAiMessagesWithMemory,
   persistAiTurn,
 } from "@/lib/ai/memory-runtime";
+import {
+  buildBudgetContextBlock,
+  getResolvedUserBudget,
+} from "@/lib/supabase/services/campaign-budget.service";
 import { getMoneyContext } from "@/lib/supabase/services/money.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
+import { buildBudgetAskReply, mentionsCampaignInvestment } from "@/utils/campaign-budget";
 import { MONEY_AI_CONTEXT, MONEY_IA_ACTIONS } from "@/utils/money";
 import { parseRequestJson } from "@/utils/safe-json";
 
@@ -66,6 +71,14 @@ export async function POST(req: Request) {
       return Response.json({ error: "Faça login para usar Money Missions." }, { status: 401 });
     }
 
+    const { budget } = await getResolvedUserBudget();
+    if (
+      (actionId === "criar-plano" || mentionsCampaignInvestment(message)) &&
+      (budget.orcamento == null || budget.orcamento <= 0)
+    ) {
+      return Response.json({ text: buildBudgetAskReply() });
+    }
+
     const history: ChatMessage[] = Array.isArray(body.history)
       ? body.history.filter(
           (m: unknown): m is ChatMessage =>
@@ -78,7 +91,7 @@ export async function POST(req: Request) {
         )
       : [];
 
-    const systemPrompt = `${MONEY_AI_CONTEXT}\n\n${moneyCtx.context || "Sem dados."}`;
+    const systemPrompt = `${MONEY_AI_CONTEXT}\n\n${buildBudgetContextBlock(budget.orcamento)}\n\n${moneyCtx.context || "Sem dados."}`;
 
     const mergedHistory = await resolveMergedHistory("creator", history);
 

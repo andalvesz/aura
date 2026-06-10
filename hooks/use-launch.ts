@@ -50,13 +50,13 @@ export function useLaunch() {
     void refresh();
   }, [refresh]);
 
-  async function startLaunch(productId?: string) {
+  async function startLaunch(productId?: string, orcamentoDisponivel?: number | null) {
     setBusy(true);
     try {
       const res = await fetch("/api/creator/launch/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId }),
+        body: JSON.stringify({ productId, orcamento_disponivel: orcamentoDisponivel ?? null }),
       });
       const { data, error: parseError } = await parseJsonResponse<{
         plan?: CreatorLaunchPlan;

@@ -10,6 +10,10 @@ import { getLaunchContext } from "@/lib/supabase/services/launch.service";
 import { getLandingContext } from "@/lib/supabase/services/landing-builder.service";
 import { getAdsContext } from "@/lib/supabase/services/ads-manager.service";
 import { getOrchestratorContext } from "@/lib/supabase/services/campaign-orchestrator.service";
+import {
+  buildBudgetContextBlock,
+  getResolvedUserBudget,
+} from "@/lib/supabase/services/campaign-budget.service";
 import { getResearchContext } from "@/lib/supabase/services/research.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import { COPYLAB_AI_CONTEXT, COPYLAB_IA_ACTIONS } from "@/utils/copylab";
@@ -23,6 +27,7 @@ import {
   ORCHESTRATOR_IA_ACTIONS,
 } from "@/utils/campaign-orchestrator";
 import { RESEARCH_AI_CONTEXT, RESEARCH_IA_ACTIONS } from "@/utils/research";
+import { buildBudgetAskReply, mentionsCampaignInvestment } from "@/utils/campaign-budget";
 import { parseRequestJson } from "@/utils/safe-json";
 
 const openai = new OpenAI({
@@ -130,6 +135,37 @@ export async function POST(req: Request) {
         )
       : [];
 
+    const { budget } = await getResolvedUserBudget();
+    const budgetBlock = buildBudgetContextBlock(budget.orcamento);
+    const investmentAction =
+      actionId === "sugerir-investimento" ||
+      actionId === "criar-campanha";
+    const needsBudget =
+      isAds || isOrchestrator || isLaunch || mentionsCampaignInvestment(message);
+
+    if (
+      needsBudget &&
+      investmentAction &&
+      (budget.orcamento == null || budget.orcamento <= 0)
+    ) {
+      const kind = isResearch
+        ? "research"
+        : isCopylab
+          ? "copylab"
+          : isStudio
+            ? "studio"
+            : isLanding
+              ? "landing"
+              : isAds
+                ? "ads"
+                : isOrchestrator
+                  ? "orchestrator"
+                  : isLaunch
+                    ? "launch"
+                    : "creator";
+      return Response.json({ text: buildBudgetAskReply(), kind });
+    }
+
     const baseContext = [
       creatorCtx.context,
       researchCtx.context,
@@ -142,21 +178,22 @@ export async function POST(req: Request) {
     ]
       .filter(Boolean)
       .join("\n\n");
+    const budgetSuffix = needsBudget ? `\n\n${budgetBlock}` : "";
     const systemPrompt = isResearch
-      ? `${RESEARCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+      ? `${RESEARCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
       : isCopylab
-        ? `${COPYLAB_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+        ? `${COPYLAB_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
         : isStudio
-          ? `${STUDIO_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+          ? `${STUDIO_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
           : isLanding
-            ? `${LANDING_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+            ? `${LANDING_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
             : isAds
-              ? `${ADS_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+              ? `${ADS_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
               : isOrchestrator
-                ? `${ORCHESTRATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
+                ? `${ORCHESTRATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
                 : isLaunch
-                  ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`
-                  : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}`;
+                  ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
+                  : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`;
 
     const mergedHistory = await resolveMergedHistory("creator", history);
 

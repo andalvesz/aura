@@ -30,7 +30,15 @@ import {
 import { getTodayMissions } from "@/utils/money";
 import { formatBRL } from "@/utils/format";
 import { rankProductsForLaunch } from "@/utils/creator";
+import {
+  buildBudgetAiRules,
+  mentionsCampaignInvestment,
+} from "@/utils/campaign-budget";
 import { getOptionalDataContext } from "./context";
+import {
+  buildBudgetContextBlock,
+  getResolvedUserBudget,
+} from "./campaign-budget.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -331,8 +339,13 @@ export async function createCeoPlan(pergunta: string): Promise<{
     legacySummary: moduleData.legacy.slice(0, 200),
   });
 
+  const { budget } = await getResolvedUserBudget();
+  const budgetBlock = buildBudgetContextBlock(budget.orcamento);
+  const campaignQuestion = mentionsCampaignInvestment(trimmed);
+
   const generated = await callCeoAi<GeneratedCeoPlan>(
     `Você é a Aura CEO — inteligência central que orquestra todos os módulos da Aura.
+${campaignQuestion ? buildBudgetAiRules(budget.orcamento) : ""}
 Responda APENAS JSON:
 {
   "resumo_executivo": string,
@@ -363,6 +376,7 @@ Regras:
     JSON.stringify({
       pergunta: trimmed,
       radarBase: baseRadar,
+      budget: budgetBlock,
       ...moduleData,
     })
   );

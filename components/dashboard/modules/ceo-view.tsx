@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
+import { AvailableBudgetField } from "@/components/dashboard/available-budget-field";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
@@ -274,6 +275,15 @@ export function CeoView() {
       )}
 
       {radar && <OpportunityRadarPanel radar={radar} />}
+
+      <Panel className="border-violet-500/15">
+        <PanelHeader>
+          <PanelTitle>Orçamento para campanhas</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          <AvailableBudgetField scope="money" persistOnBlur />
+        </PanelContent>
+      </Panel>
 
       <Panel className="border-violet-500/15">
         <PanelHeader>

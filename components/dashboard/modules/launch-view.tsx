@@ -14,9 +14,10 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
+import { AvailableBudgetField } from "@/components/dashboard/available-budget-field";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -235,6 +236,14 @@ export function LaunchView() {
   } = useLaunch();
 
   const [activePlan, setActivePlan] = useState<CreatorLaunchPlan | null>(null);
+  const [orcamentoDisponivel, setOrcamentoDisponivel] = useState<number | null>(null);
+
+  useEffect(() => {
+    const plan = activePlan ?? center?.plan ?? null;
+    if (plan?.orcamento_disponivel != null && Number(plan.orcamento_disponivel) > 0) {
+      setOrcamentoDisponivel(Number(plan.orcamento_disponivel));
+    }
+  }, [activePlan, center?.plan]);
 
   const [iaInput, setIaInput] = useState("");
   const [iaLoading, setIaLoading] = useState(false);
@@ -247,7 +256,11 @@ export function LaunchView() {
 
   async function handleStartLaunch() {
     const productId = center?.bundle?.product.id;
-    const { plan, error: startError } = await startLaunch(productId);
+    if (!orcamentoDisponivel || orcamentoDisponivel <= 0) {
+      toast.error("Informe seu Orçamento disponível.");
+      return;
+    }
+    const { plan, error: startError } = await startLaunch(productId, orcamentoDisponivel);
     if (startError || !plan) {
       toast.error(startError ?? "Erro ao iniciar lançamento.");
       return;
@@ -392,6 +405,14 @@ export function LaunchView() {
               description="Crie um produto no Creator para iniciar o fluxo."
             />
           )}
+
+          <AvailableBudgetField
+            scope="launch"
+            entityId={activePlan?.id ?? null}
+            value={orcamentoDisponivel}
+            onChange={setOrcamentoDisponivel}
+            persistOnBlur={Boolean(activePlan?.id)}
+          />
 
           <div className="flex flex-wrap gap-2">
             <ActionButton

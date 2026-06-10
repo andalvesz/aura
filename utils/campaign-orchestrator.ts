@@ -43,6 +43,7 @@ export const ORCHESTRATOR_STEP_LINKS: Record<OrchestratorStep, string> = {
 export type OrchestratorIntake = {
   product_id: string;
   orchestration_id?: string | null;
+  orcamento_disponivel?: number | null;
 };
 
 export type OrchestratorConnections = {
@@ -283,7 +284,9 @@ export function computeOrchestratorDashboard(
     Math.min(95, Math.round(scoreLancamento * 0.85 + etapasConcluidas * 3));
 
   const investimento =
+    orch?.orcamento_disponivel ??
     orch?.investimento_necessario ??
+    center.adsCampaign?.orcamento_disponivel ??
     center.adsCampaign?.investimento_mensal_previsto ??
     0;
 
@@ -330,7 +333,13 @@ export function buildOrchestratorAuraContext(
     asset ? `Creative Studio: ${asset.nome ?? "ativo"}` : "Criativos: pendente",
     landing ? `Landing: ${landing.headline?.slice(0, 50) ?? "gerada"}` : "Landing: pendente",
     adsCampaign
-      ? `Ads: ${adsCampaign.campanha_nome ?? "rascunho"} · ${adsCampaign.investimento_mensal_previsto ? formatBRL(adsCampaign.investimento_mensal_previsto) + "/mês" : "—"}`
+      ? `Ads: ${adsCampaign.campanha_nome ?? "rascunho"} · ${
+          adsCampaign.orcamento_disponivel
+            ? formatBRL(Number(adsCampaign.orcamento_disponivel))
+            : adsCampaign.investimento_mensal_previsto
+              ? formatBRL(adsCampaign.investimento_mensal_previsto) + "/mês"
+              : "—"
+        }`
       : "Campanha: pendente",
     orchestration
       ? `Orquestração: score ${orchestration.score_lancamento ?? "—"} · ROI ${orchestration.roi_estimado ?? "—"}%`

@@ -15,6 +15,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
+import { AvailableBudgetField } from "@/components/dashboard/available-budget-field";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -53,6 +54,7 @@ const EMPTY_INTAKE: AdsIntake = {
   landing_id: null,
   objetivo: null,
   orcamento_nivel: null,
+  orcamento_disponivel: null,
 };
 
 function CampaignDetail({
@@ -259,6 +261,11 @@ export function AdsManagerView() {
   }, [searchParams, bundles]);
 
   async function handleGenerate() {
+    if (!intake.orcamento_disponivel || intake.orcamento_disponivel <= 0) {
+      toast.error("Informe seu Orçamento disponível.");
+      return;
+    }
+
     const payload: AdsIntake = {
       ...intake,
       campaign_id: activeRecord?.id ?? intake.campaign_id,
@@ -442,9 +449,17 @@ export function AdsManagerView() {
               </div>
             </div>
 
+            <AvailableBudgetField
+              scope="ads"
+              entityId={activeRecord?.id ?? null}
+              value={intake.orcamento_disponivel}
+              onChange={(value) => setIntake((c) => ({ ...c, orcamento_disponivel: value }))}
+              persistOnBlur={Boolean(activeRecord?.id)}
+            />
+
             <div>
               <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
-                Orçamento sugerido
+                Perfil de escala (opcional)
               </p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {ADS_ORCAMENTO_NIVEIS.map((n) => (

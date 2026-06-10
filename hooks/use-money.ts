@@ -54,6 +54,7 @@ export function useMoney() {
     valorMeta: number;
     prazo: MoneyPrazo;
     prioridade: MoneyPrioridade;
+    orcamento_disponivel?: number | null;
   }) {
     setBusy(true);
     try {

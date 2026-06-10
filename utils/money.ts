@@ -47,6 +47,7 @@ export type MoneyDashboardMetrics = {
 export const MONEY_AI_CONTEXT = `Você é a Aura Money Missions — transforma metas financeiras em planos executáveis.
 Analise Legado, Creator, Research, CopyLab, Launch, Financeiro, Metas, Social Media e Alvesz Experience.
 Gere planos práticos com produtos, serviços, receita, investimento, ROI, riscos e cronograma semanal.
+Nunca assuma orçamento padrão — use apenas o "Orçamento disponível" informado pelo usuário.
 Tom executivo, orientado a ação, em português do Brasil.`;
 
 export const MONEY_IA_ACTIONS = [
@@ -292,6 +293,9 @@ export function buildMoneyAuraContext(
     produtos.length ? `\nProdutos: ${produtos.join("; ")}` : "",
     servicos.length ? `Serviços: ${servicos.join("; ")}` : "",
     plan.receita_estimada ? `Receita estimada: ${formatBRL(Number(plan.receita_estimada))}` : "",
+    plan.orcamento_disponivel
+      ? `Orçamento disponível: ${formatBRL(Number(plan.orcamento_disponivel))}`
+      : "",
     plan.investimento_necessario
       ? `Investimento: ${formatBRL(Number(plan.investimento_necessario))}`
       : "",
