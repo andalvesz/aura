@@ -1,6 +1,7 @@
 import type { CreatorCopylab } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
 import { formatBRL } from "@/utils/creator";
+import type { CreatorLocalePartial } from "@/utils/creator-locale";
 import { parseJsonStringArray } from "@/utils/research";
 
 export type CopylabIntake = {
@@ -12,7 +13,7 @@ export type CopylabIntake = {
   diferencial: string;
   preco: number | null;
   product_id?: string | null;
-};
+} & CreatorLocalePartial;
 
 export type GeneratedCopylab = {
   headline: string;
@@ -40,9 +41,9 @@ export type CopylabDashboardMetrics = {
   vinculados: number;
 };
 
-export const COPYLAB_AI_CONTEXT = `Você é a Aura CopyLab — especialista em copywriting e comunicação de vendas para produtos digitais.
-Gere headlines magnéticas, ofertas irresistíveis, VSLs, storytelling e criativos para tráfego pago.
-Tom persuasivo, direto, em português do Brasil. Alinhado à trajetória de Anderson (esporte, dança, teatro, desenvolvimento pessoal, empreendedorismo, bartender, IA).`;
+export const COPYLAB_AI_CONTEXT = `Você é a Aura CopyLab — copywriting e comunicação de vendas para produtos digitais globais.
+Gere copy no idioma do produto, adaptada ao país e cultura do mercado alvo.
+Headlines magnéticas, ofertas irresistíveis, VSLs, storytelling e criativos para tráfego pago.`;
 
 export const COPYLAB_IA_ACTIONS = [
   {

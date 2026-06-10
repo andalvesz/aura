@@ -21,14 +21,19 @@ import { useMoney } from "@/hooks/use-money";
 import type { MoneyMissionPlan, MoneyMissionTask } from "@/types/database";
 import { awardAuraXpClient } from "@/lib/xp/client";
 import { cn } from "@/utils/cn";
-import { formatBRL } from "@/utils/format";
+import {
+  CREATOR_CURRENCY_OPTIONS,
+  DEFAULT_CREATOR_LOCALE,
+  type CreatorCurrency,
+} from "@/utils/creator-locale";
 import {
   getTodayMissions,
   getWeeklyMissions,
   MONEY_IA_ACTIONS,
-  MONEY_META_OPTIONS,
+  getMoneyMetaOptions,
   MONEY_PRAZO_OPTIONS,
   MONEY_PRIORIDADE_OPTIONS,
+  formatMoneyValue,
   parseCronograma,
   parseJsonStringArray,
   resolvePrioridadeLabel,
@@ -81,6 +86,9 @@ function MissionItem({
 }
 
 function PlanDisplay({ plan }: { plan: MoneyMissionPlan }) {
+  const currency = (plan.currency ?? "BRL") as CreatorCurrency;
+  const fmt = (v: number | null | undefined) =>
+    v != null ? formatMoneyValue(Number(v), currency) : "—";
   const produtos = parseJsonStringArray(plan.produtos_recomendados);
   const servicos = parseJsonStringArray(plan.servicos_recomendados);
   const riscos = parseJsonStringArray(plan.riscos);
@@ -99,14 +107,14 @@ function PlanDisplay({ plan }: { plan: MoneyMissionPlan }) {
         <div className="rounded-md border border-white/[0.06] p-2">
           <p className="text-[10px] text-zinc-500">Receita estimada</p>
           <p className="font-medium text-emerald-300">
-            {plan.receita_estimada != null ? formatBRL(Number(plan.receita_estimada)) : "—"}
+            {fmt(plan.receita_estimada)}
           </p>
         </div>
         <div className="rounded-md border border-white/[0.06] p-2">
           <p className="text-[10px] text-zinc-500">Orçamento disponível</p>
           <p className="font-medium text-zinc-200">
             {plan.orcamento_disponivel != null
-              ? formatBRL(Number(plan.orcamento_disponivel))
+              ? fmt(plan.orcamento_disponivel)
               : "—"}
           </p>
         </div>
@@ -114,7 +122,7 @@ function PlanDisplay({ plan }: { plan: MoneyMissionPlan }) {
           <p className="text-[10px] text-zinc-500">Investimento sugerido</p>
           <p className="font-medium text-zinc-200">
             {plan.investimento_necessario != null
-              ? formatBRL(Number(plan.investimento_necessario))
+              ? fmt(plan.investimento_necessario)
               : "—"}
           </p>
         </div>
@@ -200,6 +208,8 @@ export function MoneyView() {
   } = useMoney();
   const { refresh: refreshAuraXp } = useAuraXp();
 
+  const [currency, setCurrency] = useState<CreatorCurrency>(DEFAULT_CREATOR_LOCALE.currency);
+  const metaOptions = getMoneyMetaOptions(currency);
   const [valorMeta, setValorMeta] = useState<number>(20000);
   const [customMeta, setCustomMeta] = useState("");
   const [prazo, setPrazo] = useState<MoneyPrazo>("90_dias");
@@ -234,6 +244,7 @@ export function MoneyView() {
       prazo,
       prioridade,
       orcamento_disponivel: orcamentoDisponivel,
+      currency,
     });
 
     if (startError || !newPlan) {
@@ -299,6 +310,8 @@ export function MoneyView() {
     }
   }
 
+  const planCurrency = (plan?.currency ?? currency) as CreatorCurrency;
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -331,17 +344,17 @@ export function MoneyView() {
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard
             label="Meta financeira"
-            value={formatBRL(dashboard.valorMeta)}
+            value={formatMoneyValue(dashboard.valorMeta, planCurrency)}
             hint={plan ? resolvePrazoLabel(plan.prazo as MoneyPrazo) : ""}
           />
           <MetricCard
             label="Valor conquistado"
-            value={formatBRL(dashboard.valorConquistado)}
+            value={formatMoneyValue(dashboard.valorConquistado, planCurrency)}
             hint={`${dashboard.progressoPct}% da meta`}
           />
           <MetricCard
             label="Valor restante"
-            value={formatBRL(dashboard.valorRestante)}
+            value={formatMoneyValue(dashboard.valorRestante, planCurrency)}
             hint={`${dashboard.diasRestantes} dias restantes`}
           />
           <MetricCard
@@ -359,11 +372,36 @@ export function MoneyView() {
           </PanelHeader>
           <PanelContent className="space-y-4">
             <div>
+              <p className="mb-2 text-[11px] font-medium text-zinc-400">Moeda da meta</p>
+              <div className="flex flex-wrap gap-2">
+                {CREATOR_CURRENCY_OPTIONS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      setCurrency(c);
+                      setValorMeta(getMoneyMetaOptions(c)[1] ?? getMoneyMetaOptions(c)[0]);
+                      setCustomMeta("");
+                    }}
+                    className={cn(
+                      "rounded-md border px-3 py-1.5 text-[11px] transition-colors",
+                      currency === c
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                        : "border-white/[0.06] text-zinc-400 hover:border-white/10"
+                    )}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
               <p className="mb-2 text-[11px] font-medium text-zinc-400">
                 Quanto você quer ganhar?
               </p>
               <div className="flex flex-wrap gap-2">
-                {MONEY_META_OPTIONS.map((v) => (
+                {metaOptions.map((v) => (
                   <button
                     key={v}
                     type="button"
@@ -378,13 +416,13 @@ export function MoneyView() {
                         : "border-white/[0.06] text-zinc-400 hover:border-white/10"
                     )}
                   >
-                    {formatBRL(v)}
+                    {formatMoneyValue(v, currency)}
                   </button>
                 ))}
               </div>
               <input
                 type="text"
-                placeholder="Outro valor (ex: R$ 15.000)"
+                placeholder={`Outro valor (ex: ${formatMoneyValue(15000, currency)})`}
                 value={customMeta}
                 onChange={(e) => setCustomMeta(e.target.value)}
                 className="mt-2 w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600"

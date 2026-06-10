@@ -1,6 +1,7 @@
 import type { CreatorLanding, LandingModelo } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
 import { formatBRL } from "@/utils/creator";
+import type { CreatorLocalePartial } from "@/utils/creator-locale";
 import { parseJsonStringArray } from "@/utils/research";
 
 export type LandingIntake = {
@@ -15,7 +16,7 @@ export type LandingIntake = {
   copylab_id?: string | null;
   landing_id?: string | null;
   modelo: LandingModelo;
-};
+} & CreatorLocalePartial;
 
 export type LandingGenerateKind = "generate" | "improve" | "optimize";
 
@@ -81,9 +82,9 @@ export const LANDING_MODELS: { id: LandingModelo; label: string; description: st
   },
 ];
 
-export const LANDING_AI_CONTEXT = `Você é a Aura Landing Builder — especialista em páginas de vendas de alta conversão no Brasil.
-Gere estruturas completas de landing pages com copy persuasiva, hierarquia visual clara e CTAs fortes.
-Tom direto, autêntico, em português do Brasil.`;
+export const LANDING_AI_CONTEXT = `Você é a Aura Landing Builder — páginas de vendas de alta conversão para mercados globais.
+Gere landing pages completas no idioma e cultura do mercado alvo.
+Copy persuasiva, hierarquia visual clara e CTAs fortes.`;
 
 export const LANDING_IA_ACTIONS = [
   {

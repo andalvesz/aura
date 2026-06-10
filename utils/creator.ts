@@ -9,6 +9,11 @@ import type {
 } from "@/types/database";
 import { LEGACY_CATEGORY_LABELS } from "@/utils/legado";
 import type { LegacyData } from "@/utils/legado";
+import {
+  DEFAULT_CREATOR_LOCALE,
+  formatCreatorMoney,
+  type CreatorLocale,
+} from "@/utils/creator-locale";
 
 export type CreatorProductIntake = {
   nicho: string;
@@ -16,6 +21,9 @@ export type CreatorProductIntake = {
   publico_alvo: string;
   objetivo_financeiro: number | null;
   prazo: string;
+  target_country: CreatorLocale["target_country"];
+  target_language: CreatorLocale["target_language"];
+  currency: CreatorLocale["currency"];
 };
 
 export type GeneratedCreatorProduct = {
@@ -168,10 +176,11 @@ export const LEGACY_PRIORITY_NICHES: {
   { keywords: ["ia", "inteligencia artificial", "produtividade", "aura"], categoria: "tecnologia", weight: 1.2 },
 ];
 
-export const CREATOR_AI_CONTEXT = `Você é a Aura Creator — especialista em transformar ideias em projetos executáveis.
+export const CREATOR_AI_CONTEXT = `Você é a Aura Creator — especialista em transformar ideias em projetos executáveis para mercados globais.
 Use dados reais da Aura (Legado, produtos já criados, Financeiro) quando disponíveis.
-Responda em português do Brasil, tom estratégico e orientado a lançamento.
-Priorize nichos alinhados à trajetória de Anderson: esporte, dança, teatro, desenvolvimento pessoal, empreendedorismo, bartender, IA e produtividade.`;
+Adapte avatar, dores, promessa, preço, moeda, copy, cultura local, objeções e canais ao país/idioma/moeda do produto.
+Responda no idioma do produto, tom estratégico e orientado a lançamento.
+Priorize nichos alinhados à trajetória do usuário quando disponível no Legado.`;
 
 export const CREATOR_IA_ACTIONS = [
   {
@@ -586,12 +595,18 @@ export function parseBulletPoints(value: unknown): string[] {
 
 export function formatBRL(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatCreatorMoney(value, DEFAULT_CREATOR_LOCALE);
 }
+
+export function formatProductMoney(
+  value: number | null | undefined,
+  product?: Pick<CreatorProduct, "target_country" | "target_language" | "currency"> | null
+): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  return formatCreatorMoney(value, product ?? DEFAULT_CREATOR_LOCALE);
+}
+
+export { DEFAULT_CREATOR_LOCALE, formatCreatorMoney, formatLocaleLabel } from "@/utils/creator-locale";
 
 export function formatPercent(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "—";

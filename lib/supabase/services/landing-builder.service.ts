@@ -14,6 +14,13 @@ import {
   type LandingGenerateKind,
   type LandingIntake,
 } from "@/utils/landing-builder";
+import {
+  buildLandingAiContext,
+  buildLocaleAiRules,
+  pickLocaleFields,
+  resolveCreatorLocale,
+} from "@/utils/creator-locale";
+import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -77,8 +84,12 @@ const KIND_INSTRUCTIONS: Record<LandingGenerateKind, string> = {
     "Otimize para conversão: hierarquia visual, prova social, redução de objeções no FAQ, CTAs repetidos estrategicamente.",
 };
 
-function buildSystemPrompt(modelo: LandingModelo, kind: LandingGenerateKind): string {
-  return `Você é a Aura Landing Builder — especialista em páginas de vendas de alta conversão no Brasil.
+function buildSystemPrompt(
+  modelo: LandingModelo,
+  kind: LandingGenerateKind,
+  locale: ReturnType<typeof resolveCreatorLocale>
+): string {
+  return `${buildLandingAiContext(locale)}
 ${MODELO_INSTRUCTIONS[modelo]}
 ${KIND_INSTRUCTIONS[kind]}
 
@@ -105,7 +116,7 @@ Regras:
 - faq: 4-8 perguntas que quebram objeções
 - cta: texto do botão + microcopy abaixo
 - rodape: links, copyright, disclaimer
-- Português do Brasil, persuasivo e autêntico`;
+${buildLocaleAiRules(locale)}`;
 }
 
 async function loadModuleContext(): Promise<{
@@ -251,8 +262,17 @@ export async function generateLanding(
 
   const modelo = input.modelo ?? existing?.modelo ?? "pagina_simples";
 
+  let locale = resolveCreatorLocale(input);
+  if (input.product_id) {
+    const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
+    const { data: product } = await productsRepo.findById(input.product_id);
+    if (product) locale = resolveCreatorLocale(product);
+  } else if (existing) {
+    locale = resolveCreatorLocale(existing);
+  }
+
   const generated = await callLandingAi<GeneratedLanding>(
-    buildSystemPrompt(modelo, kind),
+    buildSystemPrompt(modelo, kind, locale),
     JSON.stringify({
       intake: input,
       modelo,
@@ -301,6 +321,7 @@ export async function generateLanding(
     faq: generated.faq,
     cta: generated.cta,
     rodape: generated.rodape,
+    ...pickLocaleFields(locale),
   };
 
   if (existing && (kind === "improve" || kind === "optimize")) {

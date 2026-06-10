@@ -34,11 +34,12 @@ import {
   buildBudgetAiRules,
   mentionsCampaignInvestment,
 } from "@/utils/campaign-budget";
-import { getOptionalDataContext } from "./context";
+import { buildCeoAiContext } from "@/utils/creator-locale";
 import {
   buildBudgetContextBlock,
   getResolvedUserBudget,
 } from "./campaign-budget.service";
+import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -344,7 +345,7 @@ export async function createCeoPlan(pergunta: string): Promise<{
   const campaignQuestion = mentionsCampaignInvestment(trimmed);
 
   const generated = await callCeoAi<GeneratedCeoPlan>(
-    `Você é a Aura CEO — inteligência central que orquestra todos os módulos da Aura.
+    `${buildCeoAiContext()}
 ${campaignQuestion ? buildBudgetAiRules(budget.orcamento) : ""}
 Responda APENAS JSON:
 {
@@ -357,11 +358,11 @@ Responda APENAS JSON:
   "missoes_recomendadas": [{ "titulo": string, "descricao": string, "modulo": string }],
   "probabilidade_sucesso": number,
   "opportunity_radar": {
-    "melhor_oportunidade": { "titulo": string, "descricao": string, "score": number, "modulo": string },
-    "mais_lucrativo": { "titulo": string, "descricao": string, "score": number, "modulo": string },
-    "mais_rapido": { "titulo": string, "descricao": string, "score": number, "modulo": string },
-    "mais_alinhado_legado": { "titulo": string, "descricao": string, "score": number, "modulo": string },
-    "mais_escalavel": { "titulo": string, "descricao": string, "score": number, "modulo": string },
+    "melhor_oportunidade": { "titulo": string, "descricao": string, "score": number, "modulo": string, "pais_recomendado": string, "idioma_recomendado": string, "moeda_recomendada": string, "motivo_estrategico": string },
+    "mais_lucrativo": { "titulo": string, "descricao": string, "score": number, "modulo": string, "pais_recomendado": string, "idioma_recomendado": string, "moeda_recomendada": string, "motivo_estrategico": string },
+    "mais_rapido": { "titulo": string, "descricao": string, "score": number, "modulo": string, "pais_recomendado": string, "idioma_recomendado": string, "moeda_recomendada": string, "motivo_estrategico": string },
+    "mais_alinhado_legado": { "titulo": string, "descricao": string, "score": number, "modulo": string, "pais_recomendado": string, "idioma_recomendado": string, "moeda_recomendada": string, "motivo_estrategico": string },
+    "mais_escalavel": { "titulo": string, "descricao": string, "score": number, "modulo": string, "pais_recomendado": string, "idioma_recomendado": string, "moeda_recomendada": string, "motivo_estrategico": string },
     "score_ia": number
   }
 }
@@ -372,7 +373,7 @@ Regras:
 - 5-8 missões recomendadas com módulo (creator, money, alvesz, etc.)
 - scores 0-100 no radar
 - probabilidade_sucesso 0-100
-- Português do Brasil`,
+- Ao sugerir produtos internacionais no radar, preencha pais_recomendado, idioma_recomendado, moeda_recomendada e motivo_estrategico`,
     JSON.stringify({
       pergunta: trimmed,
       radarBase: baseRadar,

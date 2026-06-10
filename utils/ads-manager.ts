@@ -6,6 +6,8 @@ import {
 } from "@/utils/campaign-budget";
 import { formatBRL } from "@/utils/creator";
 
+import type { CreatorLocalePartial } from "@/utils/creator-locale";
+
 export type AdsIntake = {
   nome: string;
   avatar: string;
@@ -22,7 +24,7 @@ export type AdsIntake = {
   objetivo?: AdsObjetivo | null;
   orcamento_nivel?: AdsOrcamentoNivel | null;
   orcamento_disponivel?: number | null;
-};
+} & CreatorLocalePartial;
 
 export type AdsPublicoTipo = "interesse" | "lookalike" | "remarketing";
 
@@ -89,10 +91,10 @@ export const ADS_ORCAMENTO_NIVEIS: {
   { id: "escala", label: "Escala", description: "Crescimento — estrutura ampliada" },
 ];
 
-export const ADS_AI_CONTEXT = `Você é a Aura Ads Manager — estrategista de tráfego pago (Meta Ads) no Brasil.
-Monte campanhas completas em RASCUNHO: campanha, conjuntos e anúncios.
+export const ADS_AI_CONTEXT = `Você é a Aura Ads Manager — estrategista de tráfego pago para mercados globais.
+Monte campanhas em RASCUNHO com país, idioma, moeda, público local e orçamento na moeda escolhida.
 Sugira objetivo, públicos (interesse, lookalike, remarketing) e orçamento realista.
-NUNCA publique — apenas estruture o plano de mídia. Português do Brasil.`;
+NUNCA publique — apenas estruture o plano de mídia.`;
 
 export const ADS_IA_ACTIONS = [
   {

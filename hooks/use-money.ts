@@ -55,6 +55,7 @@ export function useMoney() {
     prazo: MoneyPrazo;
     prioridade: MoneyPrioridade;
     orcamento_disponivel?: number | null;
+    currency?: import("@/utils/creator-locale").CreatorCurrency;
   }) {
     setBusy(true);
     try {

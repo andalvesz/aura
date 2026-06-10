@@ -25,6 +25,14 @@ import {
   computeInvestimentoFromBudget,
   parseBudgetInput,
 } from "@/utils/campaign-budget";
+import {
+  buildAdsAiContext,
+  buildLocaleAiRules,
+  pickLocaleFields,
+  resolveCreatorLocale,
+  type CreatorCurrency,
+} from "@/utils/creator-locale";
+import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -67,7 +75,8 @@ async function callAdsAi<T>(system: string, user: string): Promise<T | null> {
   return parseJsonBlock<T>(content);
 }
 
-const SYSTEM_PROMPT = `Você é a Aura Ads Manager — estrategista de Meta Ads no Brasil.
+function buildAdsSystemPrompt(locale: ReturnType<typeof resolveCreatorLocale>): string {
+  return `${buildAdsAiContext(locale)}
 Monte campanhas COMPLETAS em RASCUNHO (nunca publique).
 Responda APENAS JSON:
 {
@@ -89,13 +98,27 @@ Responda APENAS JSON:
   ]
 }
 Regras:
-- Sugira 3 públicos: interesse, lookalike e remarketing
-- Use SOMENTE o orçamento disponível informado pelo usuário — nunca R$ 2.000 ou valores padrão
-- Se não houver orçamento informado, não preencha investimento_* — retorne zeros e explique na estrategia que falta orçamento
+- Sugira 3 públicos locais: interesse, lookalike e remarketing para ${locale.target_country}
+- Copy e targeting em ${locale.target_language}
+- Orçamento e investimentos em ${locale.currency}
+- Use SOMENTE o orçamento disponível informado pelo usuário
 - investimento_mensal_previsto deve respeitar o teto do orçamento disponível
 - Mínimo 2 conjuntos de anúncios e 3 anúncios
 - Use copy dos criativos/landing quando disponível
-- Português do Brasil, estratégia prática`;
+${buildLocaleAiRules(locale)}`;
+}
+
+async function resolveAdsLocale(
+  ctx: NonNullable<Awaited<ReturnType<typeof getOptionalDataContext>>>,
+  input: AdsIntake
+) {
+  if (input.product_id) {
+    const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
+    const { data: product } = await productsRepo.findById(input.product_id);
+    if (product) return resolveCreatorLocale(product);
+  }
+  return resolveCreatorLocale(input);
+}
 
 async function loadModuleContext(): Promise<{
   creatorSummary: string;
@@ -286,6 +309,9 @@ export async function generateAdsCampaign(
     };
   }
 
+  const locale = await resolveAdsLocale(ctx, input);
+  const currency = locale.currency as CreatorCurrency;
+
   const [moduleCtx, { records: assets }, { records: landings }] = await Promise.all([
     loadModuleContext(),
     loadStudioAssets(),
@@ -300,7 +326,7 @@ export async function generateAdsCampaign(
   );
 
   const generated = await callAdsAi<GeneratedAdsCampaign>(
-    `${SYSTEM_PROMPT}\n\n${buildBudgetAiRules(orcamentoDisponivel)}`,
+    `${buildAdsSystemPrompt(locale)}\n\n${buildBudgetAiRules(orcamentoDisponivel, currency)}`,
     JSON.stringify({
       intake: input,
       orcamento_disponivel: orcamentoDisponivel,
@@ -366,6 +392,7 @@ export async function generateAdsCampaign(
     publicos: generated.publicos,
     conjuntos_anuncios: generated.conjuntos_anuncios,
     anuncios: generated.anuncios,
+    ...pickLocaleFields(locale),
   } satisfies Omit<TableInsert<"creator_ads_campaigns">, "user_id">;
 
   if (input.campaign_id) {

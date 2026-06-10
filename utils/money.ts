@@ -1,5 +1,7 @@
 import type { MoneyMissionPlan, MoneyMissionTask } from "@/types/database";
 import { formatBRL } from "@/utils/format";
+import type { CreatorCurrency } from "@/utils/creator-locale";
+import { formatCreatorMoney } from "@/utils/creator-locale";
 
 export type MoneyPrazo = "30_dias" | "90_dias" | "6_meses" | "1_ano";
 export type MoneyPrioridade = "seguranca" | "crescimento" | "escala";
@@ -13,6 +15,22 @@ export const MONEY_PRAZO_OPTIONS: { id: MoneyPrazo; label: string; days: number 
 ];
 
 export const MONEY_META_OPTIONS = [5000, 20000, 50000, 100000] as const;
+
+export const MONEY_META_OPTIONS_BY_CURRENCY: Record<CreatorCurrency, readonly number[]> = {
+  BRL: [5000, 20000, 50000, 100000],
+  USD: [1000, 5000, 10000, 25000],
+  EUR: [1000, 5000, 10000, 25000],
+  GBP: [1000, 5000, 10000, 20000],
+  CAD: [1500, 7500, 15000, 30000],
+};
+
+export function getMoneyMetaOptions(currency: CreatorCurrency = "BRL") {
+  return MONEY_META_OPTIONS_BY_CURRENCY[currency] ?? MONEY_META_OPTIONS_BY_CURRENCY.BRL;
+}
+
+export function formatMoneyValue(value: number, currency: CreatorCurrency = "BRL") {
+  return formatCreatorMoney(value, { currency });
+}
 
 export const MONEY_PRIORIDADE_OPTIONS: { id: MoneyPrioridade; label: string; desc: string }[] = [
   { id: "seguranca", label: "Segurança", desc: "Renda estável e previsível" },
@@ -47,8 +65,9 @@ export type MoneyDashboardMetrics = {
 export const MONEY_AI_CONTEXT = `Você é a Aura Money Missions — transforma metas financeiras em planos executáveis.
 Analise Legado, Creator, Research, CopyLab, Launch, Financeiro, Metas, Social Media e Alvesz Experience.
 Gere planos práticos com produtos, serviços, receita, investimento, ROI, riscos e cronograma semanal.
+Metas e valores na moeda escolhida (BRL, USD, EUR, GBP ou CAD).
 Nunca assuma orçamento padrão — use apenas o "Orçamento disponível" informado pelo usuário.
-Tom executivo, orientado a ação, em português do Brasil.`;
+Tom executivo, orientado a ação.`;
 
 export const MONEY_IA_ACTIONS = [
   {

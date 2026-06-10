@@ -12,6 +12,13 @@ import {
   type CopylabIntake,
   type GeneratedCopylab,
 } from "@/utils/copylab";
+import {
+  buildCopylabAiContext,
+  buildLocaleAiRules,
+  pickLocaleFields,
+  resolveCreatorLocale,
+} from "@/utils/creator-locale";
+import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
 import { getOptionalDataContext } from "./context";
 
 async function getFinanceContext(): Promise<string> {
@@ -160,8 +167,15 @@ export async function generateCopylab(input: CopylabIntake): Promise<{
     loadResearchRecords(),
   ]);
 
+  let locale = resolveCreatorLocale(input);
+  if (input.product_id) {
+    const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
+    const { data: product } = await productsRepo.findById(input.product_id);
+    if (product) locale = resolveCreatorLocale(product);
+  }
+
   const generated = await callCopylabAi<GeneratedCopylab>(
-    `Você é a Aura CopyLab — copywriter de elite para produtos digitais no Brasil.
+    `${buildCopylabAiContext(locale)}
 Gere toda a comunicação de vendas com base nos dados do produto.
 Responda APENAS JSON:
 {
@@ -190,7 +204,7 @@ Regras:
 - storytelling: narrativa emocional do avatar
 - email_lancamento, whatsapp_venda: textos prontos para enviar
 - instagram_post, facebook_ad, google_ad: criativos com headline + corpo + CTA
-- Português do Brasil, tom persuasivo e autêntico`,
+${buildLocaleAiRules(locale)}`,
     JSON.stringify({
       intake: input,
       legacyContext: legacy.context ?? null,

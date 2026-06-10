@@ -6,11 +6,19 @@ import {
   rankLegacyNiches,
   scoreNicheAlignment,
 } from "@/utils/creator";
+import {
+  DEFAULT_CREATOR_LOCALE,
+  formatCreatorMoney,
+  type CreatorLocale,
+} from "@/utils/creator-locale";
 
 export type ResearchIntake = {
   ideia: string;
   nicho: string;
   publico: string;
+  target_country: CreatorLocale["target_country"];
+  target_language: CreatorLocale["target_language"];
+  currency: CreatorLocale["currency"];
 };
 
 export type GeneratedMarketResearch = {
@@ -44,9 +52,10 @@ export type ResearchDashboardMetrics = {
   convertidos: number;
 };
 
-export const RESEARCH_AI_CONTEXT = `Você é a Aura Market Research — especialista em validar oportunidades de mercado antes da criação de produtos digitais.
-Analise nicho, público, problema, solução, concorrência e viabilidade com base na trajetória de Anderson (esporte, dança, teatro, desenvolvimento pessoal, empreendedorismo, bartender, IA e produtividade).
-Responda em português do Brasil, tom analítico e orientado a decisão.`;
+export const RESEARCH_AI_CONTEXT = `Você é a Aura Market Research — valida oportunidades de mercado antes da criação de produtos digitais.
+Avalie oportunidade considerando país de destino, idioma, moeda e cultura local.
+Adapte avatar, dores, concorrência, preços e objeções ao mercado alvo.
+Responda no idioma do produto, tom analítico e orientado a decisão.`;
 
 export const RESEARCH_IA_ACTIONS = [
   {
@@ -263,4 +272,5 @@ Para descobrir produtos viáveis em um mercado:
 Com base no Legado, comece explorando **${topLabel}**.`;
 }
 
+export { DEFAULT_CREATOR_LOCALE } from "@/utils/creator-locale";
 export { formatBRL };

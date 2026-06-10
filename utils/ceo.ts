@@ -11,6 +11,10 @@ export type CeoOpportunityItem = {
   descricao: string;
   score: number;
   modulo?: string;
+  pais_recomendado?: string;
+  idioma_recomendado?: string;
+  moeda_recomendada?: string;
+  motivo_estrategico?: string;
 };
 
 export type CeoOpportunityRadar = {
@@ -54,11 +58,13 @@ export type CeoDashboardMetrics = {
 export const CEO_AI_CONTEXT = `Você é a Aura CEO — inteligência central da Aura.
 Analise Legado, Money Missions, Creator, Research, CopyLab, Launch, Financeiro, Metas, Social Media, Alvesz, Idiomas, Viagens, Saúde e Calendário.
 Gere estratégias executivas com resumo, prioridades, riscos, oportunidades, plano de ação, cronograma e missões recomendadas.
-Tom de conselheiro executivo, orientado a ação, em português do Brasil.`;
+Ao sugerir produtos internacionais, indique país recomendado, idioma, moeda e motivo estratégico.
+Tom de conselheiro executivo, orientado a ação.`;
 
 export const CEO_EXAMPLE_QUESTIONS = [
   "Como ganho R$ 20.000?",
-  "Como pago minha viagem Disney + NBA?",
+  "Como ganho US$ 5.000?",
+  "Qual produto lançar nos EUA?",
   "Qual meu melhor projeto hoje?",
   "O que devo priorizar?",
   "Como crescer a Alvesz Experience?",

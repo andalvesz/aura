@@ -33,6 +33,11 @@ import {
   clampInvestimentoToBudget,
   parseBudgetInput,
 } from "@/utils/campaign-budget";
+import {
+  buildMoneyAiContext,
+  resolveCreatorLocale,
+  type CreatorCurrency,
+} from "@/utils/creator-locale";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -281,6 +286,7 @@ export async function startMoneyMission(params: {
   prazo: MoneyPrazo;
   prioridade: MoneyPrioridade;
   orcamento_disponivel?: number | null;
+  currency?: CreatorCurrency;
 }): Promise<{
   plan: MoneyMissionPlan | null;
   tasks: MoneyMissionTask[];
@@ -293,6 +299,7 @@ export async function startMoneyMission(params: {
   }
 
   const { valorMeta, prazo, prioridade } = params;
+  const currency = resolveCreatorLocale({ currency: params.currency }).currency;
   if (!valorMeta || valorMeta <= 0) {
     return { plan: null, tasks: [], error: "Informe um valor meta válido." };
   }
@@ -311,9 +318,9 @@ export async function startMoneyMission(params: {
   const dataFim = computeDataFim(dataInicio, prazo);
 
   const generated = await callMoneyAi<GeneratedMoneyPlan>(
-    `Você é a Aura Money Missions — transforma metas financeiras em planos executáveis.
+    `${buildMoneyAiContext(currency)}
 Analise todos os módulos da Aura (Legado, Creator, Research, CopyLab, Launch, Financeiro, Metas, Social Media, Alvesz).
-${buildBudgetAiRules(orcamentoDisponivel)}
+${buildBudgetAiRules(orcamentoDisponivel, currency)}
 Responda APENAS JSON:
 {
   "plano_financeiro": string,
@@ -331,10 +338,9 @@ Regras:
 - cronograma com 4 semanas, 3-4 tarefas por semana
 - missoes_diarias com 3-5 missões para hoje
 - probabilidade_sucesso 0-100
-- valores em reais
+- valores em ${currency}
 - prioridade do usuário: ${prioridade}
-- meta: R$ ${valorMeta} em ${prazo}
-- Português do Brasil`,
+- meta: ${valorMeta} ${currency} em ${prazo}`,
     JSON.stringify({
       valorMeta,
       prazo,
@@ -375,6 +381,7 @@ Regras:
     riscos: generated.riscos,
     probabilidade_sucesso: generated.probabilidade_sucesso,
     cronograma: generated.cronograma,
+    currency,
   } satisfies Omit<TableInsert<"money_mission_plans">, "user_id">);
 
   if (createError || !plan) {

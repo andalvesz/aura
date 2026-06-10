@@ -557,6 +557,9 @@ export type CreatorProduct = {
   publico_alvo_input: string | null;
   objetivo_financeiro: number | null;
   prazo: string | null;
+  target_country: string | null;
+  target_language: string | null;
+  currency: string | null;
   used_aura_data: boolean;
   nome: string | null;
   problema: string | null;
@@ -633,6 +636,9 @@ export type CreatorLaunch = {
   potencial_estimado: number | null;
   launched_at: string | null;
   notes: string | null;
+  target_country: string | null;
+  target_language: string | null;
+  currency: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -642,6 +648,9 @@ export type CreatorResearch = {
   user_id: string;
   ideia_input: string | null;
   nicho: string | null;
+  target_country: string | null;
+  target_language: string | null;
+  currency: string | null;
   publico: string | null;
   problema: string | null;
   solucao: string | null;
@@ -695,6 +704,7 @@ export type MoneyMissionPlan = {
   user_id: string;
   valor_meta: number;
   valor_conquistado: number;
+  currency: string | null;
   prazo: MoneyMissionPrazo;
   prioridade: MoneyMissionPrioridade;
   data_inicio: string;
@@ -903,6 +913,9 @@ export type CreatorLanding = {
   user_id: string;
   product_id: string | null;
   copylab_id: string | null;
+  target_country: string | null;
+  target_language: string | null;
+  currency: string | null;
   modelo: LandingModelo;
   nome: string | null;
   avatar: string | null;
@@ -1032,6 +1045,9 @@ export type CreatorAdsCampaign = {
   asset_id: string | null;
   landing_id: string | null;
   copylab_id: string | null;
+  target_country: string | null;
+  target_language: string | null;
+  currency: string | null;
   status: AdsCampaignStatus;
   nome: string | null;
   avatar: string | null;
@@ -2088,6 +2104,9 @@ export type Database = {
           | "publico_alvo_input"
           | "objetivo_financeiro"
           | "prazo"
+          | "target_country"
+          | "target_language"
+          | "currency"
           | "nome"
           | "problema"
           | "solucao"
@@ -2109,6 +2128,9 @@ export type Database = {
           publico_alvo_input?: string | null;
           objetivo_financeiro?: number | null;
           prazo?: string | null;
+          target_country?: string | null;
+          target_language?: string | null;
+          currency?: string | null;
           nome?: string | null;
           problema?: string | null;
           solucao?: string | null;
@@ -2185,12 +2207,18 @@ export type Database = {
           | "potencial_estimado"
           | "launched_at"
           | "notes"
+          | "target_country"
+          | "target_language"
+          | "currency"
         > & {
           id?: string;
           status?: CreatorLaunchStatus;
           potencial_estimado?: number | null;
           launched_at?: string | null;
           notes?: string | null;
+          target_country?: string | null;
+          target_language?: string | null;
+          currency?: string | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -2217,6 +2245,9 @@ export type Database = {
           | "updated_at"
           | "ideia_input"
           | "nicho"
+          | "target_country"
+          | "target_language"
+          | "currency"
           | "publico"
           | "problema"
           | "solucao"
@@ -2242,6 +2273,9 @@ export type Database = {
           id?: string;
           ideia_input?: string | null;
           nicho?: string | null;
+          target_country?: string | null;
+          target_language?: string | null;
+          currency?: string | null;
           publico?: string | null;
           problema?: string | null;
           solucao?: string | null;
@@ -2307,6 +2341,7 @@ export type Database = {
           | "updated_at"
           | "valor_conquistado"
           | "status"
+          | "currency"
           | "plano_financeiro"
           | "produtos_recomendados"
           | "servicos_recomendados"
@@ -2320,6 +2355,7 @@ export type Database = {
         > & {
           id?: string;
           valor_conquistado?: number;
+          currency?: string | null;
           status?: MoneyMissionPlanStatus;
           plano_financeiro?: string | null;
           produtos_recomendados?: Json;
@@ -2526,6 +2562,9 @@ export type Database = {
           | "updated_at"
           | "product_id"
           | "copylab_id"
+          | "target_country"
+          | "target_language"
+          | "currency"
           | "modelo"
           | "nome"
           | "avatar"
@@ -2550,6 +2589,9 @@ export type Database = {
           id?: string;
           product_id?: string | null;
           copylab_id?: string | null;
+          target_country?: string | null;
+          target_language?: string | null;
+          currency?: string | null;
           modelo?: LandingModelo;
           nome?: string | null;
           avatar?: string | null;
@@ -2585,6 +2627,9 @@ export type Database = {
           | "asset_id"
           | "landing_id"
           | "copylab_id"
+          | "target_country"
+          | "target_language"
+          | "currency"
           | "status"
           | "nome"
           | "avatar"
@@ -2610,6 +2655,9 @@ export type Database = {
           asset_id?: string | null;
           landing_id?: string | null;
           copylab_id?: string | null;
+          target_country?: string | null;
+          target_language?: string | null;
+          currency?: string | null;
           status?: AdsCampaignStatus;
           nome?: string | null;
           avatar?: string | null;

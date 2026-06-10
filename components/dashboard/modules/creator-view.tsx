@@ -37,12 +37,14 @@ import {
   getNextPipelineStage,
   getPipelineStageLabel,
   parseBulletPoints,
+  formatLocaleLabel,
   type CreatorProductBundle,
   type CreatorProductIntake,
   type GeneratedCreatorPlan,
 } from "@/utils/creator";
 import { intakeFromProductBundle } from "@/utils/copylab";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { CreatorLocaleFields, DEFAULT_CREATOR_LOCALE } from "@/components/dashboard/creator-locale-fields";
 import { cn } from "@/utils/cn";
 
 function buildCopylabHref(bundle: CreatorProductBundle): string {
@@ -67,6 +69,7 @@ const EMPTY_INTAKE: CreatorProductIntake = {
   publico_alvo: "",
   objetivo_financeiro: null,
   prazo: "",
+  ...DEFAULT_CREATOR_LOCALE,
 };
 
 function ScoreBar({ label, value }: { label: string; value: number | null | undefined }) {
@@ -540,6 +543,11 @@ export function CreatorView() {
               Pipeline completo: Ideia → Pesquisa → Validação → Produção → Página de vendas →
               Criativos → Lançamento → Tráfego → Escala
             </p>
+            <CreatorLocaleFields
+              value={intake}
+              onChange={(locale) => setIntake((c) => ({ ...c, ...locale }))}
+            />
+
             <div className="grid gap-2 sm:grid-cols-2">
               {(
                 [
@@ -560,7 +568,7 @@ export function CreatorView() {
               ))}
               <label className="block sm:col-span-2">
                 <span className="mb-1 block text-[10px] text-zinc-500">
-                  Objetivo financeiro (R$)
+                  Objetivo financeiro ({intake.currency})
                 </span>
                 <input
                   type="number"
@@ -638,6 +646,13 @@ export function CreatorView() {
               <PanelTitle>{activeBundle.product.nome ?? "Produto"}</PanelTitle>
               <p className="mt-0.5 text-[11px] text-zinc-500">
                 {getPipelineStageLabel(activeBundle.product.status)}
+                {activeBundle.product.target_country
+                  ? ` · ${formatLocaleLabel({
+                      target_country: activeBundle.product.target_country as CreatorProductIntake["target_country"],
+                      target_language: activeBundle.product.target_language as CreatorProductIntake["target_language"],
+                      currency: activeBundle.product.currency as CreatorProductIntake["currency"],
+                    })}`
+                  : ""}
                 {stageProgress && stageProgress.total > 0
                   ? ` · checklist ${stageProgress.percent}%`
                   : ""}

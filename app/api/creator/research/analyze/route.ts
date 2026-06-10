@@ -1,4 +1,5 @@
 import { analyzeMarketOpportunity } from "@/lib/supabase/services/research.service";
+import { resolveCreatorLocale } from "@/utils/creator-locale";
 import type { ResearchIntake } from "@/utils/research";
 
 export async function POST(request: Request) {
@@ -7,6 +8,7 @@ export async function POST(request: Request) {
     const ideia = body.ideia?.trim() ?? "";
     const nicho = body.nicho?.trim() ?? "";
     const publico = body.publico?.trim() ?? "";
+    const locale = resolveCreatorLocale(body);
 
     if (!ideia && !nicho) {
       return Response.json(
@@ -15,7 +17,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const { record, error } = await analyzeMarketOpportunity({ ideia, nicho, publico });
+    const { record, error } = await analyzeMarketOpportunity({
+      ideia,
+      nicho,
+      publico,
+      ...locale,
+    });
     if (error) {
       return Response.json({ error }, { status: 400 });
     }

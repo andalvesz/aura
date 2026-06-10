@@ -25,6 +25,9 @@ export async function POST(req: Request) {
           ? body.intake.objetivo_financeiro
           : null,
       prazo: body.intake?.prazo?.trim() ?? "",
+      target_country: body.intake?.target_country ?? "Brasil",
+      target_language: body.intake?.target_language ?? "Português",
+      currency: body.intake?.currency ?? "BRL",
     };
 
     if (

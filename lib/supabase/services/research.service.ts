@@ -20,6 +20,12 @@ import {
   type ResearchDashboardMetrics,
   type ResearchIntake,
 } from "@/utils/research";
+import {
+  buildLocaleAiRules,
+  buildResearchAiContext,
+  pickLocaleFields,
+  resolveCreatorLocale,
+} from "@/utils/creator-locale";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -117,10 +123,10 @@ export async function analyzeMarketOpportunity(input: ResearchIntake): Promise<{
 
   const legacy = await getLegacyContext();
   const nicheBoost = scoreNicheAlignment(input.nicho);
+  const locale = resolveCreatorLocale(input);
 
   const generated = await callResearchAi<GeneratedMarketResearch>(
-    `Você é a Aura Market Research — valida oportunidades antes da criação de produtos digitais.
-Priorize nichos alinhados a Anderson: esporte, dança, teatro, desenvolvimento pessoal, empreendedorismo, bartender, IA e produtividade.
+    `${buildResearchAiContext(locale)}
 Responda APENAS JSON:
 {
   "nicho": string,
@@ -145,8 +151,10 @@ Responda APENAS JSON:
   "faixa_preco_min": number,
   "faixa_preco_max": number
 }
+${buildLocaleAiRules(locale)}
 Scores 0-100. competicao: quanto MAIOR, mais CONCORRIDO (invertido na nota).
-nota_final = média ponderada (demanda, potencial_lucro, compatibilidade_perfil peso 1.3).`,
+nota_final = média ponderada (demanda, potencial_lucro, compatibilidade_perfil peso 1.3).
+Preços em ${locale.currency}.`,
     JSON.stringify({
       intake: input,
       legacyContext: legacy.context ?? null,
@@ -187,6 +195,7 @@ nota_final = média ponderada (demanda, potencial_lucro, compatibilidade_perfil 
     diferencial_sugerido: generated.diferencial_sugerido,
     faixa_preco_min: generated.faixa_preco_min,
     faixa_preco_max: generated.faixa_preco_max,
+    ...pickLocaleFields(locale),
   } satisfies Omit<TableInsert<"creator_research">, "user_id">);
 
   if (createError || !record) {
@@ -224,6 +233,8 @@ export async function createProductFromResearch(researchId: string): Promise<{
     ((research.nota_final ?? 50) / 100) *
     10;
 
+  const locale = resolveCreatorLocale(research);
+
   const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
   const { data: product, error: createError } = await productsRepo.create({
     status: "pesquisa",
@@ -231,6 +242,7 @@ export async function createProductFromResearch(researchId: string): Promise<{
     conhecimento: research.diferencial_sugerido,
     publico_alvo_input: research.publico,
     used_aura_data: false,
+    ...pickLocaleFields(locale),
     nome,
     problema: research.problema,
     solucao: research.solucao,

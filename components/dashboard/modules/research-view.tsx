@@ -22,6 +22,7 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 import { useResearch } from "@/hooks/use-research";
 import type { CreatorResearch } from "@/types/database";
+import { CreatorLocaleFields, DEFAULT_CREATOR_LOCALE } from "@/components/dashboard/creator-locale-fields";
 import { CREATOR_NICHE_SUGGESTIONS } from "@/utils/creator";
 import {
   formatBRL,
@@ -36,6 +37,7 @@ const EMPTY_INTAKE: ResearchIntake = {
   ideia: "",
   nicho: "",
   publico: "",
+  ...DEFAULT_CREATOR_LOCALE,
 };
 
 function ScoreBar({ label, value }: { label: string; value: number | null | undefined }) {
@@ -256,6 +258,7 @@ export function ResearchView() {
         ideia: ideia ?? "",
         nicho: nicho ?? "",
         publico: publico ?? "",
+        ...DEFAULT_CREATOR_LOCALE,
       });
       setShowForm(true);
     }
@@ -421,6 +424,10 @@ export function ResearchView() {
                 className="w-full rounded-md border border-white/[0.08] bg-white/[0.03] px-2.5 py-2 text-[12px] text-zinc-100 outline-none focus:border-blue-500/40"
               />
             </label>
+            <CreatorLocaleFields
+              value={intake}
+              onChange={(locale) => setIntake((c) => ({ ...c, ...locale }))}
+            />
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-1 block text-[10px] text-zinc-500">Nicho</span>

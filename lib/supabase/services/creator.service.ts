@@ -31,6 +31,12 @@ import {
   type GeneratedCreatorProduct,
   type GeneratedCreatorValidation,
 } from "@/utils/creator";
+import {
+  buildCreatorAiContext,
+  buildLocaleAiRules,
+  pickLocaleFields,
+  resolveCreatorLocale,
+} from "@/utils/creator-locale";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -169,9 +175,10 @@ export async function generateCreatorProduct(input: {
 
   const financeContext = await getFinanceContext();
 
+  const locale = resolveCreatorLocale(input.intake);
+
   const generated = await callCreatorAi<GeneratedCreatorProduct>(
-    `Você é a Aura Creator — especialista em produtos digitais executáveis.
-Priorize nichos alinhados à trajetória do usuário: esporte, dança, teatro, desenvolvimento pessoal, empreendedorismo, bartender, IA e produtividade.
+    `${buildCreatorAiContext(locale)}
 Responda APENAS com JSON válido no formato:
 {
   "nome": string,
@@ -189,8 +196,9 @@ Responda APENAS com JSON válido no formato:
   "investimento_previsto": number,
   "receita_prevista": number
 }
-Use português do Brasil. probabilidade_venda de 0 a 100.
-Estime investimento_previsto (produção, ads, ferramentas) e receita_prevista (primeiro ciclo de vendas).`,
+${buildLocaleAiRules(locale)}
+probabilidade_venda de 0 a 100.
+Estime investimento_previsto (produção, ads, ferramentas) e receita_prevista (primeiro ciclo de vendas) em ${locale.currency}.`,
     JSON.stringify({
       intake: input.intake,
       auraContext: auraContext || null,
@@ -212,6 +220,7 @@ Estime investimento_previsto (produção, ads, ferramentas) e receita_prevista (
     publico_alvo_input: input.intake.publico_alvo,
     objetivo_financeiro: input.intake.objetivo_financeiro,
     prazo: input.intake.prazo,
+    ...pickLocaleFields(locale),
     used_aura_data: input.useAuraData,
     nome: generated.nome,
     problema: generated.problema,
@@ -274,10 +283,11 @@ export async function validateCreatorProduct(productId: string): Promise<{
   ]);
 
   const nicheBoost = scoreNicheAlignment(product.nicho);
+  const locale = resolveCreatorLocale(product);
 
   const generated = await callCreatorAi<GeneratedCreatorValidation>(
-    `Você valida produtos digitais com scores estratégicos.
-Priorize nichos de esporte, dança, teatro, desenvolvimento pessoal, empreendedorismo, bartender, IA e produtividade quando alinhados ao perfil.
+    `${buildCreatorAiContext(locale)}
+Valide o produto com scores estratégicos para o mercado ${locale.target_country}.
 Responda APENAS JSON:
 {
   "viabilidade": number,
@@ -291,6 +301,7 @@ Responda APENAS JSON:
   "facilidade_criacao": number,
   "facilidade_venda": number
 }
+${buildLocaleAiRules(locale)}
 Cada score de 0 a 100. tempo_lancar: quanto MAIOR, mais RÁPIDO para lançar.
 nota_final = média ponderada (viabilidade, lucro_potencial, compatibilidade_perfil peso 1.3; escalabilidade 1.2).`,
     JSON.stringify({
@@ -341,6 +352,7 @@ nota_final = média ponderada (viabilidade, lucro_potencial, compatibilidade_per
     {
       status: "planned",
       potencial_estimado: receitaPrevista,
+      ...pickLocaleFields(locale),
     }
   );
 
@@ -383,9 +395,12 @@ export async function generateCreatorOffer(productId: string): Promise<{
   }
 
   const { data: validation } = await validationRepo.findByProductId(productId);
+  const locale = resolveCreatorLocale(product);
 
   const generated = await callCreatorAi<GeneratedCreatorOffer>(
-    `Você cria ofertas de produtos digitais. Responda APENAS JSON:
+    `${buildCreatorAiContext(locale)}
+Crie ofertas de produtos digitais. ${buildLocaleAiRules(locale)}
+Responda APENAS JSON:
 {
   "headline": string,
   "subheadline": string,
@@ -462,9 +477,14 @@ export async function advanceCreatorStage(productId: string): Promise<{
   const updates: Partial<CreatorProduct> = { status: next };
 
   if (next === "lancamento") {
+    const locale = resolveCreatorLocale(product);
     await new CreatorLaunchesRepository(ctx.supabase, ctx.userId).upsertForProduct(
       productId,
-      { status: "active", launched_at: new Date().toISOString() }
+      {
+        status: "active",
+        launched_at: new Date().toISOString(),
+        ...pickLocaleFields(locale),
+      }
     );
   }
 
@@ -530,8 +550,12 @@ export async function generateCreatorPlan(productId: string): Promise<{
     return { plan: null, error: "Produto não encontrado." };
   }
 
+  const locale = resolveCreatorLocale(bundle.product);
+
   const plan = await callCreatorAi<GeneratedCreatorPlan>(
-    `Crie um plano de 30 dias para lançar o produto digital.
+    `${buildCreatorAiContext(locale)}
+Crie um plano de 30 dias para lançar o produto digital no mercado ${locale.target_country}.
+${buildLocaleAiRules(locale)}
 Responda APENAS JSON:
 {
   "titulo": string,
@@ -539,7 +563,7 @@ Responda APENAS JSON:
     { "semana": number, "foco": string, "tarefas": string[] }
   ]
 }
-4 semanas, 3-5 tarefas por semana. Português do Brasil.`,
+4 semanas, 3-5 tarefas por semana.`,
     JSON.stringify({
       product: bundle.product,
       validation: bundle.validation,

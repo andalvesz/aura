@@ -8,6 +8,7 @@ export async function POST(request: Request) {
       prazo?: MoneyPrazo;
       prioridade?: MoneyPrioridade;
       orcamento_disponivel?: number | null;
+      currency?: import("@/utils/creator-locale").CreatorCurrency;
     };
 
     const valorMeta = Number(body.valorMeta);
@@ -23,6 +24,7 @@ export async function POST(request: Request) {
       prazo,
       prioridade,
       orcamento_disponivel: body.orcamento_disponivel ?? null,
+      currency: body.currency,
     });
 
     if (error) {
