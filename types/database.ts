@@ -890,6 +890,27 @@ export type AutopilotSettings = {
   updated_at: string;
 };
 
+export type AutopilotLogEventType =
+  | "manual_action"
+  | "rule_triggered"
+  | "action_approved"
+  | "action_rejected"
+  | "action_executed"
+  | "settings_updated"
+  | "bad_ad_detected"
+  | "opportunity_found";
+
+export type AutopilotLog = {
+  id: string;
+  user_id: string;
+  campaign_id: string | null;
+  action_id: string | null;
+  event_type: AutopilotLogEventType;
+  message: string;
+  details: Json;
+  created_at: string;
+};
+
 export type AutopilotMonitor = {
   id: string;
   user_id: string;
@@ -1273,7 +1294,8 @@ export type NotificationType =
   | "financial_goal_reached"
   | "autopilot_action_required"
   | "autopilot_rule_triggered"
-  | "autopilot_campaign_paused";
+  | "autopilot_campaign_paused"
+  | "autopilot_opportunity_found";
 
 export type NotificationStatus = "unread" | "read";
 
@@ -2732,7 +2754,7 @@ export type Database = {
           created_at?: string;
         }
       >;
-      autopilot_settings: TableDef<
+      autopilot_rules: TableDef<
         AutopilotSettings,
         Omit<AutopilotSettings, "created_at" | "updated_at" | "control_level" | "rules"> & {
           control_level?: AutopilotControlLevel;
@@ -2793,6 +2815,19 @@ export type Database = {
           executed_at?: string | null;
           created_at?: string;
           updated_at?: string;
+        }
+      >;
+      autopilot_logs: TableDef<
+        AutopilotLog,
+        Omit<
+          AutopilotLog,
+          "id" | "created_at" | "campaign_id" | "action_id" | "details"
+        > & {
+          id?: string;
+          campaign_id?: string | null;
+          action_id?: string | null;
+          details?: Json;
+          created_at?: string;
         }
       >;
     };
@@ -2885,7 +2920,8 @@ export type UserScopedTable =
   | "money_mission_tasks"
   | "aura_ceo_sessions"
   | "autopilot_monitors"
-  | "autopilot_actions";
+  | "autopilot_actions"
+  | "autopilot_logs";
 
 export type AiModule =
   | "aura_central"

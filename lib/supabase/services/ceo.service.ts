@@ -12,6 +12,7 @@ import { getLegacyContext } from "@/lib/supabase/services/legado.service";
 import { loadLaunchPlans } from "@/lib/supabase/services/launch.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
 import { getNexusAlveszMentorContext } from "@/lib/supabase/services/nexus.service";
+import { getAutopilotContext } from "@/lib/supabase/services/autopilot.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { getSocialIaMentorContext } from "@/lib/supabase/services/social-ia.service";
 import { listTrips } from "@/lib/supabase/services/travel.service";
@@ -104,6 +105,7 @@ async function loadAllModuleContexts() {
     trips,
     eventos,
     growthMissions,
+    autopilot,
   ] = await Promise.all([
     getLegacyContext(),
     getAuraCentralFinanceContext(),
@@ -120,6 +122,7 @@ async function loadAllModuleContexts() {
     listTrips(),
     listUpcomingEventos(5),
     listGrowthMissions(),
+    getAutopilotContext(),
   ]);
 
   return {
@@ -173,6 +176,7 @@ async function loadAllModuleContexts() {
         .slice(0, 3)
         .map((m) => m.titulo)
         .join(", ") || "",
+    autopilot: autopilot.context ?? "Nenhuma campanha no Autopilot.",
   };
 }
 
@@ -292,6 +296,7 @@ export async function getCeoContext(): Promise<{ context: string; error: string 
     moduleData.researchSummary ? `## MARKET RESEARCH\n${moduleData.researchSummary}` : "",
     moduleData.copylab ? `## COPYLAB\n${moduleData.copylab}` : "",
     moduleData.launch ? `## LAUNCH CENTER\n${moduleData.launch}` : "",
+    moduleData.autopilot ? `## AUTOPILOT\n${moduleData.autopilot}` : "",
     moduleData.social ? `## SOCIAL MEDIA\n${moduleData.social}` : "",
     moduleData.alvesz ? `## ALVESZ EXPERIENCE\n${moduleData.alvesz}` : "",
     moduleData.english ? `## IDIOMAS\n${moduleData.english}` : "",

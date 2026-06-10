@@ -53,6 +53,7 @@ export const AURA_PRIORITY_NOTIFICATION_TYPES: NotificationType[] = [
   "autopilot_action_required",
   "autopilot_rule_triggered",
   "autopilot_campaign_paused",
+  "autopilot_opportunity_found",
 ];
 
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
@@ -73,6 +74,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   autopilot_action_required: "Autopilot: aprovação necessária",
   autopilot_rule_triggered: "Autopilot: regra acionada",
   autopilot_campaign_paused: "Autopilot: campanha pausada",
+  autopilot_opportunity_found: "Autopilot: oportunidade encontrada",
 };
 
 export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
@@ -93,7 +95,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   ceo: "/dashboard/ceo",
   execution: "/dashboard/execution",
   performance: "/dashboard/performance",
-  autopilot: "/dashboard/autopilot",
+  autopilot: "/dashboard/creator/autopilot",
 };
 
 export function isNotificationRead(notification: Pick<Notification, "status">): boolean {
@@ -107,9 +109,10 @@ export function getNotificationHref(notification: Notification): string {
   if (
     notification.type === "autopilot_action_required" ||
     notification.type === "autopilot_rule_triggered" ||
-    notification.type === "autopilot_campaign_paused"
+    notification.type === "autopilot_campaign_paused" ||
+    notification.type === "autopilot_opportunity_found"
   ) {
-    return "/dashboard/autopilot";
+    return "/dashboard/creator/autopilot";
   }
   if (notification.related_module) {
     return NOTIFICATION_MODULE_HREFS[notification.related_module as ModuleId];

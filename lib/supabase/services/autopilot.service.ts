@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { recordSystemLog } from "@/lib/logs/record";
 import { AutopilotActionsRepository } from "@/lib/supabase/repositories/autopilot-actions.repository";
+import { AutopilotLogsRepository } from "@/lib/supabase/repositories/autopilot-logs.repository";
 import { AutopilotMonitorsRepository } from "@/lib/supabase/repositories/autopilot-monitors.repository";
 import { AutopilotSettingsRepository } from "@/lib/supabase/repositories/autopilot-settings.repository";
 import { CreatorAdsCampaignsRepository } from "@/lib/supabase/repositories/creator-ads.repository";
@@ -12,6 +13,8 @@ import { awardAuraXp } from "@/lib/supabase/services/xp.service";
 import type {
   AutopilotAction,
   AutopilotControlLevel,
+  AutopilotLog,
+  AutopilotLogEventType,
   AutopilotMonitor,
   AutopilotSettings,
   CreatorAdsCampaign,
@@ -27,9 +30,11 @@ import {
   DEFAULT_AUTOPILOT_RULES,
   evolveMetrics,
   intakeFromCampaign,
+  isCtrLowForHours,
   isSafeAutoAction,
   parseAutopilotRules,
   parseCampaignMetrics,
+  trackCtrLowSince,
   type AutopilotDashboardMetrics,
   type AutopilotRuleKey,
   type AutopilotRules,
@@ -46,12 +51,32 @@ function getOpenAi() {
   return new OpenAI({ apiKey });
 }
 
-function logAutopilot(
-  mensagem: string,
-  detalhes: Record<string, unknown>,
-  tipo: "info" | "success" | "warning" = "info"
+async function logAutopilot(
+  ctx: NonNullable<Awaited<ReturnType<typeof getOptionalDataContext>>>,
+  params: {
+    eventType: AutopilotLogEventType;
+    mensagem: string;
+    detalhes?: Record<string, unknown>;
+    campaignId?: string | null;
+    actionId?: string | null;
+    tipo?: "info" | "success" | "warning";
+  }
 ) {
-  recordSystemLog({ tipo, modulo: "autopilot", mensagem, detalhes });
+  recordSystemLog({
+    tipo: params.tipo ?? "info",
+    modulo: "autopilot",
+    mensagem: params.mensagem,
+    detalhes: params.detalhes ?? {},
+  });
+
+  const logsRepo = new AutopilotLogsRepository(ctx.supabase, ctx.userId);
+  await logsRepo.append({
+    event_type: params.eventType,
+    message: params.mensagem,
+    campaign_id: params.campaignId ?? null,
+    action_id: params.actionId ?? null,
+    details: (params.detalhes ?? {}) as Json,
+  });
 }
 
 async function createAutopilotNotification(params: {
@@ -239,6 +264,7 @@ export async function getAutopilotDashboard(): Promise<{
   campaigns: CreatorAdsCampaign[];
   monitors: AutopilotMonitor[];
   actions: AutopilotAction[];
+  logs: AutopilotLog[];
   error: string | null;
 }> {
   const ctx = await getOptionalDataContext();
@@ -250,6 +276,7 @@ export async function getAutopilotDashboard(): Promise<{
       campaigns: [],
       monitors: [],
       actions: [],
+      logs: [],
       error: "Usuário não autenticado.",
     };
   }
@@ -257,13 +284,15 @@ export async function getAutopilotDashboard(): Promise<{
   const settingsRepo = new AutopilotSettingsRepository(ctx.supabase, ctx.userId);
   const monitorsRepo = new AutopilotMonitorsRepository(ctx.supabase, ctx.userId);
   const actionsRepo = new AutopilotActionsRepository(ctx.supabase, ctx.userId);
+  const logsRepo = new AutopilotLogsRepository(ctx.supabase, ctx.userId);
 
-  const [settings, { records: campaigns, error: adsError }, monitorsRes, actionsRes] =
+  const [settings, { records: campaigns, error: adsError }, monitorsRes, actionsRes, logsRes] =
     await Promise.all([
       ensureSettings(settingsRepo),
       loadAdsCampaigns(),
       monitorsRepo.findAllOrdered(),
       actionsRepo.findAllOrdered(),
+      logsRepo.findAllOrdered(),
     ]);
 
   if (adsError) {
@@ -274,12 +303,14 @@ export async function getAutopilotDashboard(): Promise<{
       campaigns: [],
       monitors: monitorsRes.data ?? [],
       actions: actionsRes.data ?? [],
+      logs: logsRes.data ?? [],
       error: adsError,
     };
   }
 
   const monitors = monitorsRes.data ?? [];
   const actions = actionsRes.data ?? [];
+  const logs = logsRes.data ?? [];
   const rules = parseAutopilotRules(settings.rules);
   const dashboard = computeAutopilotDashboard({
     campaigns: campaigns ?? [],
@@ -295,6 +326,7 @@ export async function getAutopilotDashboard(): Promise<{
     campaigns: campaigns ?? [],
     monitors,
     actions,
+    logs,
     error: null,
   };
 }
@@ -315,8 +347,10 @@ export async function updateAutopilotSettings(input: {
   });
 
   if (error) return { settings: null, error };
-  logAutopilot("Configurações do Autopilot atualizadas", {
-    control_level: data?.control_level,
+  await logAutopilot(ctx, {
+    eventType: "settings_updated",
+    mensagem: "Configurações do Autopilot atualizadas",
+    detalhes: { control_level: data?.control_level },
   });
   return { settings: data, error: null };
 }
@@ -361,9 +395,12 @@ export async function runManualAutopilotAction(input: {
     return { action: null, error: createError ?? "Erro ao registrar ação." };
   }
 
-  logAutopilot(`Ação manual registrada: ${input.actionType}`, {
-    actionId: action.id,
+  await logAutopilot(ctx, {
+    eventType: "manual_action",
+    mensagem: `Ação manual registrada: ${input.actionType}`,
+    detalhes: { actionId: action.id, campaignId: campaign.id },
     campaignId: campaign.id,
+    actionId: action.id,
   });
 
   if (requiresApproval || status === "pending_approval") {
@@ -391,10 +428,14 @@ export async function runManualAutopilotAction(input: {
   });
 
   await awardAuraXp("autopilot_acao_executar", `autopilot-manual:${action.id}`);
-  logAutopilot(`Ação manual executada: ${input.actionType}`, {
+  await logAutopilot(ctx, {
+    eventType: "action_executed",
+    mensagem: `Ação manual executada: ${input.actionType}`,
+    detalhes: { actionId: action.id, result: exec.result },
+    campaignId: campaign.id,
     actionId: action.id,
-    result: exec.result,
-  }, "success");
+    tipo: "success",
+  });
 
   return { action, error: null };
 }
@@ -436,10 +477,14 @@ export async function approveAutopilotAction(
     payload: (exec.result ?? {}) as Json,
   });
 
-  logAutopilot(`Ação aprovada e executada: ${action.action_type}`, {
+  await logAutopilot(ctx, {
+    eventType: "action_approved",
+    mensagem: `Ação aprovada e executada: ${action.action_type}`,
+    detalhes: { actionId: action.id, result: exec.result },
+    campaignId: action.campaign_id,
     actionId: action.id,
-    result: exec.result,
-  }, "success");
+    tipo: "success",
+  });
 
   await awardAuraXp("autopilot_acao_executar", `autopilot-approved:${action.id}`);
   return { action: updated, error };
@@ -453,7 +498,13 @@ export async function rejectAutopilotAction(
 
   const actionsRepo = new AutopilotActionsRepository(ctx.supabase, ctx.userId);
   const { error } = await actionsRepo.update(actionId, { status: "rejected" });
-  logAutopilot("Ação rejeitada pelo usuário", { actionId }, "warning");
+  await logAutopilot(ctx, {
+    eventType: "action_rejected",
+    mensagem: "Ação rejeitada pelo usuário",
+    detalhes: { actionId },
+    actionId,
+    tipo: "warning",
+  });
   return { error };
 }
 
@@ -472,13 +523,16 @@ function evaluateMetricsAgainstRules(
 ): RuleEvaluation[] {
   const hits: RuleEvaluation[] = [];
 
-  if (rules.pause_low_ctr.enabled && metrics.ctr < rules.pause_low_ctr.threshold) {
+  if (
+    rules.pause_low_ctr.enabled &&
+    isCtrLowForHours(metrics, rules.pause_low_ctr.threshold)
+  ) {
     hits.push({
       ruleKey: "pause_low_ctr",
       actionType: "pause_campaign",
       metricDetected: "CTR",
       metricValue: metrics.ctr,
-      reason: `CTR ${metrics.ctr}% abaixo do limite ${rules.pause_low_ctr.threshold}%`,
+      reason: `CTR ${metrics.ctr}% abaixo de ${rules.pause_low_ctr.threshold}% por 48h`,
       suggestion: "Pausar campanha e revisar criativo/copy com IA.",
     });
   }
@@ -564,7 +618,8 @@ export async function evaluateAutopilotRules(): Promise<{
 
   for (const monitor of monitors) {
     const previous = parseCampaignMetrics(monitor.metrics);
-    const metrics = evolveMetrics(monitor.campaign_id, previous);
+    const evolved = evolveMetrics(monitor.campaign_id, previous);
+    const metrics = trackCtrLowSince(evolved, rules.pause_low_ctr.threshold);
 
     await monitorsRepo.update(monitor.id, {
       metrics: metrics as unknown as Json,
@@ -600,21 +655,39 @@ export async function evaluateAutopilotRules(): Promise<{
       const notifType: NotificationType =
         hit.actionType === "pause_campaign"
           ? "autopilot_campaign_paused"
-          : "autopilot_rule_triggered";
+          : hit.actionType === "suggest_scale"
+            ? "autopilot_opportunity_found"
+            : "autopilot_rule_triggered";
+
+      const notifTitle =
+        hit.actionType === "suggest_scale"
+          ? "Autopilot: oportunidade de escala"
+          : hit.actionType === "pause_campaign"
+            ? "Autopilot: anúncio com baixa performance"
+            : `Autopilot: ${hit.metricDetected} detectado`;
 
       await createAutopilotNotification({
         repo: notificationsRepo,
         type: notifType,
-        title: `Autopilot: ${hit.metricDetected} detectado`,
+        title: notifTitle,
         message: `${hit.reason}. ${hit.suggestion}`,
         actionId: action.id,
         campaignId: monitor.campaign_id,
       });
 
-      logAutopilot(`Regra acionada: ${hit.ruleKey}`, {
-        actionId: action.id,
+      const logEventType: AutopilotLogEventType =
+        hit.actionType === "suggest_scale"
+          ? "opportunity_found"
+          : hit.actionType === "pause_campaign" || hit.ruleKey === "pause_high_cpa"
+            ? "bad_ad_detected"
+            : "rule_triggered";
+
+      await logAutopilot(ctx, {
+        eventType: logEventType,
+        mensagem: `Regra acionada: ${hit.ruleKey}`,
+        detalhes: { actionId: action.id, campaignId: monitor.campaign_id, metrics },
         campaignId: monitor.campaign_id,
-        metrics,
+        actionId: action.id,
       });
 
       if (

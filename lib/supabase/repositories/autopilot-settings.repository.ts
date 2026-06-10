@@ -10,7 +10,7 @@ export class AutopilotSettingsRepository {
 
   async findForUser() {
     const { data, error } = await this.supabase
-      .from("autopilot_settings")
+      .from("autopilot_rules")
       .select("*")
       .eq("user_id", this.userId)
       .maybeSingle();
@@ -26,7 +26,7 @@ export class AutopilotSettingsRepository {
     rules: Json;
   }) {
     const { data, error } = await this.supabase
-      .from("autopilot_settings")
+      .from("autopilot_rules")
       .upsert(
         {
           user_id: this.userId,

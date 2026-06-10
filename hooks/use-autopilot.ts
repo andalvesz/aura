@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type {
   AutopilotAction,
   AutopilotControlLevel,
+  AutopilotLog,
   AutopilotMonitor,
   AutopilotSettings,
   CreatorAdsCampaign,
@@ -22,6 +23,7 @@ export function useAutopilot() {
   const [campaigns, setCampaigns] = useState<CreatorAdsCampaign[]>([]);
   const [monitors, setMonitors] = useState<AutopilotMonitor[]>([]);
   const [actions, setActions] = useState<AutopilotAction[]>([]);
+  const [logs, setLogs] = useState<AutopilotLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,6 +40,7 @@ export function useAutopilot() {
         campaigns?: CreatorAdsCampaign[];
         monitors?: AutopilotMonitor[];
         actions?: AutopilotAction[];
+        logs?: AutopilotLog[];
         error?: string;
       }>(res);
 
@@ -49,6 +52,7 @@ export function useAutopilot() {
         setCampaigns([]);
         setMonitors([]);
         setActions([]);
+        setLogs([]);
         return;
       }
 
@@ -58,6 +62,7 @@ export function useAutopilot() {
       setCampaigns(data.campaigns ?? []);
       setMonitors(data.monitors ?? []);
       setActions(data.actions ?? []);
+      setLogs(data.logs ?? []);
     } catch {
       setError("Erro de conexão.");
       setDashboard(null);
@@ -234,6 +239,7 @@ export function useAutopilot() {
     campaigns,
     monitors,
     actions,
+    logs,
     loading,
     error,
     busy,

@@ -31,8 +31,11 @@ export type CampaignMetrics = {
   clicks: number;
   spend: number;
   conversions: number;
+  ctr_low_since: string | null;
   updated_at: string;
 };
+
+export const CTR_LOW_HOURS_THRESHOLD = 48;
 
 export type AutopilotDashboardMetrics = {
   totalCampaigns: number;
@@ -81,7 +84,7 @@ export const AUTOPILOT_CONTROL_LEVELS: {
 ];
 
 export const AUTOPILOT_RULE_LABELS: Record<AutopilotRuleKey, string> = {
-  pause_low_ctr: "Pausar se CTR baixo",
+  pause_low_ctr: "Pausar se CTR < 1% por 48h",
   pause_high_cpa: "Pausar se CPA alto",
   alert_fast_budget: "Alertar se orçamento gastar rápido",
   suggest_scale_roas: "Sugerir escala se ROAS bom",
@@ -153,8 +156,35 @@ export function parseCampaignMetrics(raw: Json | null | undefined): CampaignMetr
     clicks: Number(m.clicks ?? 0),
     spend: Number(m.spend ?? 0),
     conversions: Number(m.conversions ?? 0),
+    ctr_low_since:
+      typeof m.ctr_low_since === "string" ? m.ctr_low_since : null,
     updated_at: String(m.updated_at ?? new Date().toISOString()),
   };
+}
+
+export function trackCtrLowSince(
+  metrics: CampaignMetrics,
+  threshold: number
+): CampaignMetrics {
+  const now = new Date().toISOString();
+  if (metrics.ctr < threshold) {
+    return {
+      ...metrics,
+      ctr_low_since: metrics.ctr_low_since ?? now,
+      updated_at: now,
+    };
+  }
+  return { ...metrics, ctr_low_since: null, updated_at: now };
+}
+
+export function isCtrLowForHours(
+  metrics: CampaignMetrics,
+  threshold: number,
+  hours = CTR_LOW_HOURS_THRESHOLD
+): boolean {
+  if (metrics.ctr >= threshold || !metrics.ctr_low_since) return false;
+  const elapsedMs = Date.now() - new Date(metrics.ctr_low_since).getTime();
+  return elapsedMs >= hours * 60 * 60 * 1000;
 }
 
 function hashSeed(input: string): number {
@@ -181,6 +211,7 @@ export function createInitialMetrics(campaignId: string): CampaignMetrics {
     clicks: Math.round((5000 + (seed % 15000)) * (ctr / 100)),
     spend: 200 + (seed % 800),
     conversions: 5 + (seed % 25),
+    ctr_low_since: null,
     updated_at: new Date().toISOString(),
   };
 }
@@ -201,8 +232,7 @@ export function evolveMetrics(
   const clicks = Math.round(impressions * (ctr / 100));
   const spend = base.spend + (seed % 100);
   const conversions = Math.max(0, base.conversions + (seed % 5 - 2));
-
-  return {
+  const next = {
     ctr: Math.round(ctr * 100) / 100,
     cpa,
     roas: Math.round(roas * 100) / 100,
@@ -212,8 +242,11 @@ export function evolveMetrics(
     clicks,
     spend,
     conversions,
+    ctr_low_since: base.ctr_low_since,
     updated_at: new Date().toISOString(),
   };
+
+  return trackCtrLowSince(next, 1.0);
 }
 
 export function computeAutopilotDashboard(params: {

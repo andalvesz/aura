@@ -114,6 +114,7 @@ export function AutopilotView() {
     campaigns,
     monitors,
     actions,
+    logs,
     loading,
     error,
     busy,
@@ -384,6 +385,29 @@ export function AutopilotView() {
           </PanelContent>
         </Panel>
       )}
+
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Logs de auditoria</PanelTitle>
+        </PanelHeader>
+        <PanelContent className="space-y-1.5">
+          {logs.length === 0 ? (
+            <p className="text-[11px] text-zinc-500">Nenhum evento registrado ainda.</p>
+          ) : (
+            logs.slice(0, 12).map((log) => (
+              <div
+                key={log.id}
+                className="rounded-md border border-white/[0.04] bg-white/[0.02] px-2.5 py-2"
+              >
+                <p className="text-[10px] text-zinc-300">{log.message}</p>
+                <p className="text-[9px] text-zinc-600">
+                  {log.event_type} · {new Date(log.created_at).toLocaleString("pt-BR")}
+                </p>
+              </div>
+            ))
+          )}
+        </PanelContent>
+      </Panel>
 
       <p className="text-[10px] text-zinc-600">
         Integrações: Ads Manager · Performance AI · Creative Studio · CopyLab · Notificações · Logs · Aura CEO

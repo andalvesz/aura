@@ -1,6 +1,7 @@
 -- Aura Autopilot — automação controlada de campanhas
+-- Regras por usuário: autopilot_rules · Ações: autopilot_actions · Auditoria: autopilot_logs
 
-create table if not exists public.autopilot_settings (
+create table if not exists public.autopilot_rules (
   user_id uuid primary key references auth.users (id) on delete cascade,
   control_level text not null default 'manual' check (
     control_level in ('manual', 'suggest', 'prepare', 'execute_approved')
@@ -88,20 +89,46 @@ create index if not exists autopilot_actions_user_idx
 create index if not exists autopilot_actions_status_idx
   on public.autopilot_actions (user_id, status);
 
-alter table public.autopilot_settings enable row level security;
+create table if not exists public.autopilot_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  campaign_id uuid references public.creator_ads_campaigns (id) on delete set null,
+  action_id uuid references public.autopilot_actions (id) on delete set null,
+  event_type text not null check (
+    event_type in (
+      'manual_action',
+      'rule_triggered',
+      'action_approved',
+      'action_rejected',
+      'action_executed',
+      'settings_updated',
+      'bad_ad_detected',
+      'opportunity_found'
+    )
+  ),
+  message text not null,
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists autopilot_logs_user_idx
+  on public.autopilot_logs (user_id, created_at desc);
+
+alter table public.autopilot_rules enable row level security;
 alter table public.autopilot_monitors enable row level security;
 alter table public.autopilot_actions enable row level security;
+alter table public.autopilot_logs enable row level security;
 
-drop policy if exists "autopilot_settings_select_own" on public.autopilot_settings;
-drop policy if exists "autopilot_settings_insert_own" on public.autopilot_settings;
-drop policy if exists "autopilot_settings_update_own" on public.autopilot_settings;
+drop policy if exists "autopilot_rules_select_own" on public.autopilot_rules;
+drop policy if exists "autopilot_rules_insert_own" on public.autopilot_rules;
+drop policy if exists "autopilot_rules_update_own" on public.autopilot_rules;
 
-create policy "autopilot_settings_select_own"
-  on public.autopilot_settings for select using (auth.uid() = user_id);
-create policy "autopilot_settings_insert_own"
-  on public.autopilot_settings for insert with check (auth.uid() = user_id);
-create policy "autopilot_settings_update_own"
-  on public.autopilot_settings for update using (auth.uid() = user_id);
+create policy "autopilot_rules_select_own"
+  on public.autopilot_rules for select using (auth.uid() = user_id);
+create policy "autopilot_rules_insert_own"
+  on public.autopilot_rules for insert with check (auth.uid() = user_id);
+create policy "autopilot_rules_update_own"
+  on public.autopilot_rules for update using (auth.uid() = user_id);
 
 drop policy if exists "autopilot_monitors_select_own" on public.autopilot_monitors;
 drop policy if exists "autopilot_monitors_insert_own" on public.autopilot_monitors;
@@ -131,9 +158,17 @@ create policy "autopilot_actions_update_own"
 create policy "autopilot_actions_delete_own"
   on public.autopilot_actions for delete using (auth.uid() = user_id);
 
-drop trigger if exists autopilot_settings_updated_at on public.autopilot_settings;
-create trigger autopilot_settings_updated_at
-  before update on public.autopilot_settings
+drop policy if exists "autopilot_logs_select_own" on public.autopilot_logs;
+drop policy if exists "autopilot_logs_insert_own" on public.autopilot_logs;
+
+create policy "autopilot_logs_select_own"
+  on public.autopilot_logs for select using (auth.uid() = user_id);
+create policy "autopilot_logs_insert_own"
+  on public.autopilot_logs for insert with check (auth.uid() = user_id);
+
+drop trigger if exists autopilot_rules_updated_at on public.autopilot_rules;
+create trigger autopilot_rules_updated_at
+  before update on public.autopilot_rules
   for each row execute function public.set_updated_at();
 
 drop trigger if exists autopilot_monitors_updated_at on public.autopilot_monitors;

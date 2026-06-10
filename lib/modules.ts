@@ -311,7 +311,7 @@ export const MODULES: ModuleConfig[] = [
   },
   {
     id: "autopilot",
-    href: "/dashboard/autopilot",
+    href: "/dashboard/creator/autopilot",
     label: "Aura Autopilot",
     shortLabel: "Autopilot",
     description:
