@@ -5,17 +5,26 @@ import {
   CREATOR_COUNTRY_OPTIONS,
   CREATOR_CURRENCY_OPTIONS,
   CREATOR_LANGUAGE_OPTIONS,
+  CREATOR_LOCALE_PRESETS,
   DEFAULT_CREATOR_LOCALE,
+  formatLocaleLabel,
   resolveCreatorLocale,
 } from "@/utils/creator-locale";
+import { cn } from "@/utils/cn";
 
 type CreatorLocaleFieldsProps = {
   value: CreatorLocalePartial;
   onChange: (next: CreatorLocale) => void;
   className?: string;
+  showPresets?: boolean;
 };
 
-export function CreatorLocaleFields({ value, onChange, className }: CreatorLocaleFieldsProps) {
+export function CreatorLocaleFields({
+  value,
+  onChange,
+  className,
+  showPresets = true,
+}: CreatorLocaleFieldsProps) {
   const resolved = resolveCreatorLocale(value);
 
   function update(partial: CreatorLocalePartial) {
@@ -27,6 +36,27 @@ export function CreatorLocaleFields({ value, onChange, className }: CreatorLocal
       <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
         Mercado de destino
       </p>
+      {showPresets && (
+        <div className="mb-2 flex flex-wrap gap-1.5">
+          {CREATOR_LOCALE_PRESETS.map((preset) => (
+            <button
+              key={formatLocaleLabel(preset)}
+              type="button"
+              onClick={() => onChange(preset)}
+              className={cn(
+                "rounded-md border px-2 py-1 text-[10px] transition-colors",
+                resolved.target_country === preset.target_country &&
+                  resolved.target_language === preset.target_language &&
+                  resolved.currency === preset.currency
+                  ? "border-violet-500/40 bg-violet-500/10 text-violet-200"
+                  : "border-white/[0.06] text-zinc-500 hover:border-white/10 hover:text-zinc-300"
+              )}
+            >
+              {formatLocaleLabel(preset)}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="grid gap-2 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1 block text-[10px] text-zinc-500">País de destino *</span>

@@ -232,3 +232,47 @@ Tom de conselheiro executivo, orientado a ação.`;
 export function formatLocaleLabel(locale: CreatorLocale): string {
   return `${locale.target_country} · ${locale.target_language} · ${locale.currency}`;
 }
+
+export const CREATOR_LOCALE_PRESETS: CreatorLocale[] = [
+  { target_country: "Brasil", target_language: "Português", currency: "BRL" },
+  { target_country: "Estados Unidos", target_language: "Inglês", currency: "USD" },
+  { target_country: "Portugal", target_language: "Português", currency: "EUR" },
+  { target_country: "Espanha", target_language: "Espanhol", currency: "EUR" },
+  { target_country: "Reino Unido", target_language: "Inglês", currency: "GBP" },
+];
+
+export function localeFieldsFromSource(
+  source?: CreatorLocalePartial | CreatorLocaleFields | null
+): Pick<CreatorLocale, "target_country" | "target_language" | "currency"> {
+  const resolved = resolveCreatorLocale(source);
+  return pickLocaleFields(resolved);
+}
+
+export function buildStudioAiContext(locale?: CreatorLocalePartial | null): string {
+  const resolved = resolveCreatorLocale(locale);
+  return `Você é a Aura Creative Studio — diretor de arte e conteúdo para produtos digitais.
+${buildLocaleAiRules(resolved)}
+Gere criativos, roteiros, carrosséis, thumbnails e VSL adaptados ao mercado local.`;
+}
+
+export function buildLaunchAiContext(locale?: CreatorLocalePartial | null): string {
+  const resolved = resolveCreatorLocale(locale);
+  return `Você é a Aura Launch Center — orquestra Research, Creator e CopyLab em lançamentos globais.
+${buildLocaleAiRules(resolved)}
+Monte planos de lançamento com tarefas, cronograma e prioridades no idioma do produto.`;
+}
+
+export function buildOrchestratorAiContext(locale?: CreatorLocalePartial | null): string {
+  const resolved = resolveCreatorLocale(locale);
+  return `Você é a Aura Campaign Orchestrator — prepara campanhas completas para lançamento.
+${buildLocaleAiRules(resolved)}
+Conecte criativos, landing e anúncios; calcule orçamento, ROI e plano de lançamento.
+NUNCA publique anúncios — apenas estruture em rascunho.`;
+}
+
+export function buildLocaleContextBlock(locale: CreatorLocale | null): string {
+  if (!locale) {
+    return "## MERCADO DE DESTINO\nNão informado — use Brasil/Português/BRL apenas se o usuário não especificar outro mercado.";
+  }
+  return `## MERCADO DE DESTINO\n${formatLocaleLabel(locale)}\n${buildLocaleAiRules(locale)}`;
+}

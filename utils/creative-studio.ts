@@ -1,6 +1,8 @@
 import type { CreatorAsset } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
 import { formatBRL } from "@/utils/creator";
+import type { CreatorLocalePartial } from "@/utils/creator-locale";
+import { localeFieldsFromSource } from "@/utils/creator-locale";
 import { parseJsonStringArray } from "@/utils/research";
 
 export type StudioIntake = {
@@ -14,7 +16,7 @@ export type StudioIntake = {
   product_id?: string | null;
   copylab_id?: string | null;
   asset_id?: string | null;
-};
+} & CreatorLocalePartial;
 
 export type StudioGenerateKind =
   | "criativo"
@@ -71,10 +73,10 @@ export type StudioDashboardMetrics = {
   vinculados: number;
 };
 
-export const STUDIO_AI_CONTEXT = `Você é a Aura Creative Studio — diretor de arte e conteúdo para produtos digitais no Brasil.
+export const STUDIO_AI_CONTEXT = `Você é a Aura Creative Studio — diretor de arte e conteúdo para produtos digitais globais.
 Gere briefings de criativos, roteiros de vídeo, carrosséis, thumbnails e copy para social media.
-Descreva visual, texto, CTA e estrutura com detalhes práticos para produção.
-Tom persuasivo, visual e autêntico, em português do Brasil.`;
+Adapte visual, texto, CTA e cultura local ao país, idioma e moeda do mercado alvo.
+Tom persuasivo, visual e autêntico no idioma do produto.`;
 
 export const STUDIO_IA_ACTIONS = [
   {
@@ -166,6 +168,7 @@ export function intakeFromProductBundle(bundle: CreatorProductBundle): StudioInt
     preco,
     product_id: product.id,
     copylab_id: null,
+    ...localeFieldsFromSource(product),
   };
 }
 

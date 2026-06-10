@@ -18,6 +18,11 @@ import {
 } from "@/utils/launch";
 import { rankProductsForLaunch } from "@/utils/creator";
 import { buildBudgetAiRules, parseBudgetInput } from "@/utils/campaign-budget";
+import {
+  buildLaunchAiContext,
+  buildLocaleAiRules,
+  resolveCreatorLocale,
+} from "@/utils/creator-locale";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -218,10 +223,12 @@ export async function startLaunch(
   const linkedResearch = research.find((r) => r.product_id === bundle.product.id) ?? null;
   const linkedCopy = copy.find((c) => c.product_id === bundle.product.id) ?? null;
 
+  const locale = resolveCreatorLocale(bundle.product);
+
   const generated = await callLaunchAi<GeneratedLaunchPlan>(
-    `Você é a Aura Launch Center — orquestra Research, Creator e CopyLab.
+    `${buildLaunchAiContext(locale)}
 Crie plano de lançamento completo com tarefas, cronograma e prioridades.
-${buildBudgetAiRules(orcamentoDisponivel)}
+${buildBudgetAiRules(orcamentoDisponivel, locale.currency)}
 Responda APENAS JSON:
 {
   "titulo": string,
@@ -239,9 +246,10 @@ Regras:
 - 3-5 prioridades ordenadas
 - data_prevista_lancamento em formato YYYY-MM-DD (30 dias a partir de hoje)
 - score_ia 0-100 baseado na validação
-- receita_estimada em reais
+- receita_estimada em ${locale.currency}
 - estagio_atual: um de ${LAUNCH_PIPELINE_STEPS.map((s) => s.label).join(", ")}
-- Português do Brasil`,
+- Conteúdo em ${locale.target_language} para ${locale.target_country}
+${buildLocaleAiRules(locale)}`,
     JSON.stringify({
       product: bundle.product,
       validation: bundle.validation,

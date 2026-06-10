@@ -14,6 +14,8 @@ import {
   buildBudgetContextBlock,
   getResolvedUserBudget,
 } from "@/lib/supabase/services/campaign-budget.service";
+import { getResolvedUserLocale } from "@/lib/supabase/services/creator-locale.service";
+import { buildLocaleContextBlock } from "@/utils/creator-locale";
 import { getResearchContext } from "@/lib/supabase/services/research.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import { COPYLAB_AI_CONTEXT, COPYLAB_IA_ACTIONS } from "@/utils/copylab";
@@ -136,7 +138,9 @@ export async function POST(req: Request) {
       : [];
 
     const { budget } = await getResolvedUserBudget();
+    const { locale } = await getResolvedUserLocale();
     const budgetBlock = buildBudgetContextBlock(budget.orcamento);
+    const localeBlock = buildLocaleContextBlock(locale);
     const investmentAction =
       actionId === "sugerir-investimento" ||
       actionId === "criar-campanha";
@@ -178,21 +182,22 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join("\n\n");
     const budgetSuffix = needsBudget ? `\n\n${budgetBlock}` : "";
+    const localeSuffix = `\n\n${localeBlock}`;
     const systemPrompt = isResearch
-      ? `${RESEARCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
+      ? `${RESEARCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
       : isCopylab
-        ? `${COPYLAB_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
+        ? `${COPYLAB_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
         : isStudio
-          ? `${STUDIO_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
+          ? `${STUDIO_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
           : isLanding
-            ? `${LANDING_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
+            ? `${LANDING_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
             : isAds
-              ? `${ADS_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
+              ? `${ADS_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
               : isOrchestrator
-                ? `${ORCHESTRATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
+                ? `${ORCHESTRATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
                 : isLaunch
-                  ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`
-                  : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${budgetSuffix}`;
+                  ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
+                  : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`;
 
     const mergedHistory = await resolveMergedHistory("creator", history);
 

@@ -56,9 +56,9 @@ export type LaunchCenterData = {
   plan: CreatorLaunchPlan | null;
 };
 
-export const LAUNCH_AI_CONTEXT = `Você é a Aura Launch Center — orquestra Research, Creator e CopyLab em um fluxo único de lançamento.
-Crie tarefas, cronogramas e prioridades para levar produtos digitais ao mercado com máxima conversão.
-Tom executivo, orientado a ação, em português do Brasil.`;
+export const LAUNCH_AI_CONTEXT = `Você é a Aura Launch Center — orquestra Research, Creator e CopyLab em lançamentos globais.
+Adapte plano, cronograma, tarefas e receita estimada ao país, idioma, moeda e cultura do mercado alvo.
+Tom executivo, orientado a ação, no idioma do produto.`;
 
 export const LAUNCH_IA_ACTIONS = [
   {

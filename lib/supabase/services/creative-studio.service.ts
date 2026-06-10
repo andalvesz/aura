@@ -20,6 +20,13 @@ import {
   type StudioGenerateKind,
   type StudioIntake,
 } from "@/utils/creative-studio";
+import {
+  buildLocaleAiRules,
+  buildStudioAiContext,
+  resolveCreatorLocale,
+  type CreatorLocale,
+} from "@/utils/creator-locale";
+import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -125,9 +132,12 @@ async function loadModuleContext(): Promise<{
   };
 }
 
-const GENERATION_PROMPTS: Record<StudioGenerateKind, { system: string; fields: string }> = {
-  criativo: {
-    system: `Você é a Aura Creative Studio — diretor de criativos para tráfego pago.
+const GENERATION_PROMPTS: Record<
+  StudioGenerateKind,
+  (locale: CreatorLocale) => { system: string; fields: string }
+> = {
+  criativo: (locale) => ({
+    system: `${buildStudioAiContext(locale)}
 Responda APENAS JSON:
 {
   "criativo_facebook": string,
@@ -138,11 +148,12 @@ Regras:
 - criativo_facebook: briefing completo (headline, corpo, visual, CTA, formato 1:1 ou 4:5)
 - criativo_instagram: briefing para feed/stories com hook visual
 - mockup_produto: descrição detalhada do mockup 3D ou flat design
-- Português do Brasil, persuasivo`,
+- Conteúdo em ${locale.target_language}, persuasivo para ${locale.target_country}
+${buildLocaleAiRules(locale)}`,
     fields: "criativo",
-  },
-  roteiro: {
-    system: `Você é a Aura Creative Studio — roteirista de vídeos curtos.
+  }),
+  roteiro: (locale) => ({
+    system: `${buildStudioAiContext(locale)}
 Responda APENAS JSON:
 {
   "roteiro_reels": string,
@@ -154,11 +165,12 @@ Regras:
 - roteiro_reels: 30-60s, formato vertical
 - roteiro_shorts: 15-45s, YouTube Shorts
 - roteiro_tiktok: 15-30s, linguagem nativa TikTok
-- Português do Brasil`,
+- Conteúdo em ${locale.target_language} para ${locale.target_country}
+${buildLocaleAiRules(locale)}`,
     fields: "roteiro",
-  },
-  carrossel: {
-    system: `Você é a Aura Creative Studio — especialista em carrosséis Instagram.
+  }),
+  carrossel: (locale) => ({
+    system: `${buildStudioAiContext(locale)}
 Responda APENAS JSON:
 {
   "carrossel_instagram": string[]
@@ -167,11 +179,12 @@ Regras:
 - 5 a 8 slides com texto de cada slide (headline + corpo)
 - Slide 1: hook magnético
 - Último slide: CTA forte
-- Português do Brasil`,
+- Conteúdo em ${locale.target_language}
+${buildLocaleAiRules(locale)}`,
     fields: "carrossel",
-  },
-  thumbnail: {
-    system: `Você é a Aura Creative Studio — designer de thumbnails e capas.
+  }),
+  thumbnail: (locale) => ({
+    system: `${buildStudioAiContext(locale)}
 Responda APENAS JSON:
 {
   "capa_ebook": string,
@@ -180,11 +193,12 @@ Responda APENAS JSON:
 Regras:
 - capa_ebook: briefing visual completo (título, cores, elementos, tipografia)
 - thumbnail_youtube: briefing 1280x720 com texto overlay, expressão, contraste
-- Português do Brasil`,
+- Conteúdo em ${locale.target_language}
+${buildLocaleAiRules(locale)}`,
     fields: "thumbnail",
-  },
-  vsl: {
-    system: `Você é a Aura Creative Studio — roteirista de VSL.
+  }),
+  vsl: (locale) => ({
+    system: `${buildStudioAiContext(locale)}
 Responda APENAS JSON:
 {
   "vsl": string
@@ -192,11 +206,12 @@ Responda APENAS JSON:
 Regras:
 - Roteiro completo: gancho, problema, agitação, solução, prova, oferta, garantia, CTA
 - Marcadores de tempo e indicações visuais
-- Português do Brasil, persuasivo`,
+- Conteúdo em ${locale.target_language}, persuasivo
+${buildLocaleAiRules(locale)}`,
     fields: "vsl",
-  },
-  social: {
-    system: `Você é a Aura Creative Studio — social media strategist.
+  }),
+  social: (locale) => ({
+    system: `${buildStudioAiContext(locale)}
 Responda APENAS JSON:
 {
   "stories": string[],
@@ -205,13 +220,14 @@ Responda APENAS JSON:
 }
 Regras:
 - stories: 3 a 5 frames com texto e indicação visual
-- legendas: texto para post com hashtags
+- legendas: texto para post com hashtags locais
 - cta: call-to-action direto e memorável
-- Português do Brasil`,
+- Conteúdo em ${locale.target_language}
+${buildLocaleAiRules(locale)}`,
     fields: "social",
-  },
-  full: {
-    system: `Você é a Aura Creative Studio — gera todos os ativos visuais e de conteúdo.
+  }),
+  full: (locale) => ({
+    system: `${buildStudioAiContext(locale)}
 Responda APENAS JSON:
 {
   "criativo_facebook": string,
@@ -228,9 +244,10 @@ Responda APENAS JSON:
   "legendas": string,
   "cta": string
 }
-Regras: briefings detalhados e prontos para produção. Português do Brasil.`,
+Regras: briefings detalhados e prontos para produção em ${locale.target_language}.
+${buildLocaleAiRules(locale)}`,
     fields: "full",
-  },
+  }),
 };
 
 export async function loadStudioAssets(): Promise<{
@@ -303,7 +320,14 @@ export async function generateStudioAssets(
     existing = data;
   }
 
-  const prompt = GENERATION_PROMPTS[kind];
+  let locale = resolveCreatorLocale(input);
+  if (input.product_id) {
+    const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
+    const { data: product } = await productsRepo.findById(input.product_id);
+    if (product) locale = resolveCreatorLocale(product);
+  }
+
+  const prompt = GENERATION_PROMPTS[kind](locale);
   const generated = await callStudioAi<
     | GeneratedStudioCriativo
     | GeneratedStudioRoteiro

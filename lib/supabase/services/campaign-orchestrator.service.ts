@@ -34,6 +34,11 @@ import {
   computeInvestimentoFromBudget,
   parseBudgetInput,
 } from "@/utils/campaign-budget";
+import {
+  buildLocaleAiRules,
+  buildOrchestratorAiContext,
+  resolveCreatorLocale,
+} from "@/utils/creator-locale";
 import { getOptionalDataContext } from "./context";
 
 function getOpenAi() {
@@ -76,10 +81,7 @@ async function callOrchestratorAi<T>(system: string, user: string): Promise<T | 
   return parseJsonBlock<T>(content);
 }
 
-const SYSTEM_PROMPT = `Você é a Aura Campaign Orchestrator — prepara campanhas completas para lançamento.
-Conecte criativos, landing e anúncios; calcule orçamento, ROI e plano de lançamento.
-NUNCA publique anúncios — apenas estruture em rascunho.
-Responda APENAS JSON:
+const SYSTEM_PROMPT_BASE = `Responda APENAS JSON:
 {
   "score_lancamento": number,
   "probabilidade_sucesso": number,
@@ -109,8 +111,14 @@ Regras:
 - roi_estimado em percentual (ex: 150 = 150% ROI)
 - 3-4 fases no plano, cronograma de 14 dias
 - 3-5 riscos com mitigação
-- Use SOMENTE o orçamento disponível informado — nunca R$ 2.000 ou valores padrão
-- Português do Brasil, estratégia prática`;
+- Use SOMENTE o orçamento disponível informado — nunca valores padrão
+- Estratégia prática no idioma do mercado alvo`;
+
+function buildOrchestratorSystemPrompt(locale: ReturnType<typeof resolveCreatorLocale>): string {
+  return `${buildOrchestratorAiContext(locale)}
+${SYSTEM_PROMPT_BASE}
+${buildLocaleAiRules(locale)}`;
+}
 
 function resolveLinkedArtifacts(
   bundle: CreatorProductBundle,
@@ -343,8 +351,10 @@ export async function prepareLaunch(
     input.product_id
   );
 
+  const locale = resolveCreatorLocale(bundle.product);
+
   const generated = await callOrchestratorAi<GeneratedOrchestration>(
-    `${SYSTEM_PROMPT}\n\n${buildBudgetAiRules(orcamentoDisponivel)}`,
+    `${buildOrchestratorSystemPrompt(locale)}\n\n${buildBudgetAiRules(orcamentoDisponivel, locale.currency)}`,
     JSON.stringify({
       product: bundle.product,
       orcamento_disponivel: orcamentoDisponivel,

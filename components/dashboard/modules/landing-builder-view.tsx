@@ -17,6 +17,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
+import { CreatorLocaleFields, DEFAULT_CREATOR_LOCALE } from "@/components/dashboard/creator-locale-fields";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -58,6 +59,7 @@ const EMPTY_INTAKE: LandingIntake = {
   product_id: null,
   copylab_id: null,
   modelo: "pagina_simples",
+  ...DEFAULT_CREATOR_LOCALE,
 };
 
 function LandingPreview({
@@ -451,6 +453,11 @@ export function LandingBuilderView() {
               Usa dados do Creator, Research, CopyLab, Creative Studio e Launch Center.
             </p>
 
+            <CreatorLocaleFields
+              value={intake}
+              onChange={(next) => setIntake((c) => ({ ...c, ...next }))}
+            />
+
             <div>
               <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
                 Modelo
@@ -496,7 +503,9 @@ export function LandingBuilderView() {
                 </label>
               ))}
               <label className="block">
-                <span className="mb-1 block text-[10px] text-zinc-500">Preço (R$)</span>
+                <span className="mb-1 block text-[10px] text-zinc-500">
+                  Preço ({intake.currency ?? DEFAULT_CREATOR_LOCALE.currency})
+                </span>
                 <input
                   type="number"
                   min={0}

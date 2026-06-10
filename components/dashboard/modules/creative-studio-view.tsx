@@ -15,6 +15,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
+import { CreatorLocaleFields, DEFAULT_CREATOR_LOCALE } from "@/components/dashboard/creator-locale-fields";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
@@ -42,6 +43,7 @@ const EMPTY_INTAKE: StudioIntake = {
   preco: null,
   product_id: null,
   copylab_id: null,
+  ...DEFAULT_CREATOR_LOCALE,
 };
 
 type AssetTab = "imagens" | "videos" | "social";
@@ -427,6 +429,10 @@ export function CreativeStudioView() {
               Integra dados de Legado, Research, Creator, CopyLab e Launch Center para gerar
               criativos, roteiros, carrosséis e thumbnails.
             </p>
+            <CreatorLocaleFields
+              value={intake}
+              onChange={(next) => setIntake((c) => ({ ...c, ...next }))}
+            />
             <div className="grid gap-2 sm:grid-cols-2">
               {(
                 [

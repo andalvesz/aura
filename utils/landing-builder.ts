@@ -2,6 +2,7 @@ import type { CreatorLanding, LandingModelo } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
 import { formatBRL } from "@/utils/creator";
 import type { CreatorLocalePartial } from "@/utils/creator-locale";
+import { localeFieldsFromSource } from "@/utils/creator-locale";
 import { parseJsonStringArray } from "@/utils/research";
 
 export type LandingIntake = {
@@ -172,6 +173,7 @@ export function intakeFromProductBundle(
     product_id: product.id,
     copylab_id: null,
     modelo,
+    ...localeFieldsFromSource(product),
   };
 }
 

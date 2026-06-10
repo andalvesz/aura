@@ -7,6 +7,7 @@ import {
 import { formatBRL } from "@/utils/creator";
 
 import type { CreatorLocalePartial } from "@/utils/creator-locale";
+import { localeFieldsFromSource } from "@/utils/creator-locale";
 
 export type AdsIntake = {
   nome: string;
@@ -182,6 +183,7 @@ export function intakeFromProductBundle(bundle: CreatorProductBundle): AdsIntake
     objetivo: null,
     orcamento_nivel: null,
     orcamento_disponivel: null,
+    ...localeFieldsFromSource(product),
   };
 }
 

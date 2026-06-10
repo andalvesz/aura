@@ -1,7 +1,7 @@
 import type { CreatorCopylab } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
 import { formatBRL } from "@/utils/creator";
-import type { CreatorLocalePartial } from "@/utils/creator-locale";
+import { localeFieldsFromSource, type CreatorLocalePartial } from "@/utils/creator-locale";
 import { parseJsonStringArray } from "@/utils/research";
 
 export type CopylabIntake = {
@@ -125,6 +125,7 @@ export function intakeFromProductBundle(bundle: CreatorProductBundle): CopylabIn
     diferencial: product.diferenciais ?? product.mecanismo_unico ?? "",
     preco,
     product_id: product.id,
+    ...localeFieldsFromSource(product),
   };
 }
 

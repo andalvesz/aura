@@ -101,9 +101,9 @@ export type OrchestratorCenterData = {
   orchestration: CreatorCampaignOrchestration | null;
 };
 
-export const ORCHESTRATOR_AI_CONTEXT = `Você é a Aura Campaign Orchestrator — orquestra Research, Creator, CopyLab, Creative Studio, Landing Builder e Ads Manager em uma campanha pronta para lançamento.
-Conecte criativos, landing e anúncios; calcule orçamento, ROI e plano de lançamento.
-NUNCA publique anúncios — apenas prepare a estrutura em rascunho. Português do Brasil.`;
+export const ORCHESTRATOR_AI_CONTEXT = `Você é a Aura Campaign Orchestrator — orquestra Research, Creator, CopyLab, Creative Studio, Landing Builder e Ads Manager em campanhas globais.
+Conecte criativos, landing e anúncios; calcule orçamento, ROI e plano de lançamento adaptados ao mercado local.
+NUNCA publique anúncios — apenas prepare a estrutura em rascunho.`;
 
 export const ORCHESTRATOR_IA_ACTIONS = [
   {
