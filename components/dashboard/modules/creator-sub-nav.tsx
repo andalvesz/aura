@@ -8,6 +8,7 @@ const TABS = [
   { href: "/dashboard/creator", label: "Creator" },
   { href: "/dashboard/creator/research", label: "Market Research" },
   { href: "/dashboard/creator/copy", label: "CopyLab" },
+  { href: "/dashboard/creator/factory", label: "Product Factory" },
   { href: "/dashboard/creator/studio", label: "Creative Studio" },
   { href: "/dashboard/creator/landing", label: "Landing Builder" },
   { href: "/dashboard/creator/ads", label: "Ads Manager" },

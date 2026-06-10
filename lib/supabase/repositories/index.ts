@@ -56,3 +56,9 @@ export { AutopilotSettingsRepository } from "./autopilot-settings.repository";
 export { AutopilotMonitorsRepository } from "./autopilot-monitors.repository";
 export { AutopilotActionsRepository } from "./autopilot-actions.repository";
 export { AutopilotLogsRepository } from "./autopilot-logs.repository";
+export {
+  ProductFactoryRepository,
+  ProductFilesRepository,
+  ProductVersionsRepository,
+  ProductComplianceChecksRepository,
+} from "./product-factory.repository";

@@ -35,3 +35,4 @@ export * from "./ceo.service";
 export * from "./execution.service";
 export * from "./performance.service";
 export * from "./autopilot.service";
+export * from "./product-factory.service";

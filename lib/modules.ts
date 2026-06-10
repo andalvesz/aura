@@ -10,6 +10,7 @@ import {
   Crown,
   Cpu,
   Bot,
+  Factory,
   Dumbbell,
   FileText,
   Home,
@@ -45,7 +46,8 @@ export type ModuleId =
   | "ceo"
   | "execution"
   | "performance"
-  | "autopilot";
+  | "autopilot"
+  | "product-factory";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -322,6 +324,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Pendentes",
       value: "0",
       hint: "Nenhuma ação pendente",
+    },
+  },
+  {
+    id: "product-factory",
+    href: "/dashboard/creator/factory",
+    label: "Aura Product Factory",
+    shortLabel: "Factory",
+    description:
+      "Crie e-books completos com conteúdo, design, PDF baixável e compliance para anúncios.",
+    icon: Factory,
+    accent: "text-pink-400",
+    overview: {
+      metric: "Produtos",
+      value: "0",
+      hint: "Nenhum produto digital criado",
     },
   },
 ];

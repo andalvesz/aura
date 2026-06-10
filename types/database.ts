@@ -782,6 +782,84 @@ export type CreatorCopylab = {
   updated_at: string;
 };
 
+export type ProductFactoryStatus =
+  | "draft"
+  | "content_ready"
+  | "design_ready"
+  | "pdf_ready"
+  | "published";
+
+export type ProductFileType = "pdf" | "cover" | "asset";
+
+export type ProductComplianceStatus = "pass" | "warning" | "fail";
+
+export type ProductComplianceRiskLevel = "low" | "medium" | "high";
+
+export type ProductFactory = {
+  id: string;
+  user_id: string;
+  product_id: string | null;
+  copylab_id: string | null;
+  research_id: string | null;
+  titulo: string | null;
+  promessa: string | null;
+  avatar: string | null;
+  problema: string | null;
+  solucao: string | null;
+  capitulos: Json;
+  conteudo: Json;
+  exercicios: Json;
+  bonus: string | null;
+  checklist: Json;
+  conclusao: string | null;
+  design: Json;
+  status: ProductFactoryStatus;
+  current_version: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProductFile = {
+  id: string;
+  user_id: string;
+  factory_id: string;
+  file_type: ProductFileType;
+  storage_path: string;
+  file_url: string | null;
+  file_name: string | null;
+  mime_type: string;
+  size_bytes: number | null;
+  version_number: number;
+  created_at: string;
+};
+
+export type ProductVersion = {
+  id: string;
+  user_id: string;
+  factory_id: string;
+  version_number: number;
+  snapshot: Json;
+  changelog: string | null;
+  file_id: string | null;
+  created_at: string;
+};
+
+export type ProductComplianceCheck = {
+  id: string;
+  user_id: string;
+  factory_id: string;
+  risk_score: number | null;
+  risk_level: ProductComplianceRiskLevel | null;
+  forbidden_claims: Json;
+  misleading_risks: Json;
+  ad_checklist: Json;
+  recommendations: Json;
+  status: ProductComplianceStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorAsset = {
   id: string;
   user_id: string;
@@ -2830,6 +2908,121 @@ export type Database = {
           created_at?: string;
         }
       >;
+      product_factory: TableDef<
+        ProductFactory,
+        Omit<
+          ProductFactory,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "product_id"
+          | "copylab_id"
+          | "research_id"
+          | "titulo"
+          | "promessa"
+          | "avatar"
+          | "problema"
+          | "solucao"
+          | "capitulos"
+          | "conteudo"
+          | "exercicios"
+          | "bonus"
+          | "checklist"
+          | "conclusao"
+          | "design"
+          | "status"
+          | "current_version"
+        > & {
+          id?: string;
+          product_id?: string | null;
+          copylab_id?: string | null;
+          research_id?: string | null;
+          titulo?: string | null;
+          promessa?: string | null;
+          avatar?: string | null;
+          problema?: string | null;
+          solucao?: string | null;
+          capitulos?: Json;
+          conteudo?: Json;
+          exercicios?: Json;
+          bonus?: string | null;
+          checklist?: Json;
+          conclusao?: string | null;
+          design?: Json;
+          status?: ProductFactoryStatus;
+          current_version?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      product_files: TableDef<
+        ProductFile,
+        Omit<
+          ProductFile,
+          | "id"
+          | "created_at"
+          | "file_type"
+          | "storage_path"
+          | "file_url"
+          | "file_name"
+          | "mime_type"
+          | "size_bytes"
+          | "version_number"
+        > & {
+          id?: string;
+          file_type?: ProductFileType;
+          storage_path?: string;
+          file_url?: string | null;
+          file_name?: string | null;
+          mime_type?: string;
+          size_bytes?: number | null;
+          version_number?: number;
+          created_at?: string;
+        }
+      >;
+      product_versions: TableDef<
+        ProductVersion,
+        Omit<
+          ProductVersion,
+          "id" | "created_at" | "snapshot" | "changelog" | "file_id" | "version_number"
+        > & {
+          id?: string;
+          version_number?: number;
+          snapshot?: Json;
+          changelog?: string | null;
+          file_id?: string | null;
+          created_at?: string;
+        }
+      >;
+      product_compliance_checks: TableDef<
+        ProductComplianceCheck,
+        Omit<
+          ProductComplianceCheck,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "risk_score"
+          | "risk_level"
+          | "forbidden_claims"
+          | "misleading_risks"
+          | "ad_checklist"
+          | "recommendations"
+          | "status"
+          | "notes"
+        > & {
+          id?: string;
+          risk_score?: number | null;
+          risk_level?: ProductComplianceRiskLevel | null;
+          forbidden_claims?: Json;
+          misleading_risks?: Json;
+          ad_checklist?: Json;
+          recommendations?: Json;
+          status?: ProductComplianceStatus;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -2921,7 +3114,11 @@ export type UserScopedTable =
   | "aura_ceo_sessions"
   | "autopilot_monitors"
   | "autopilot_actions"
-  | "autopilot_logs";
+  | "autopilot_logs"
+  | "product_factory"
+  | "product_files"
+  | "product_versions"
+  | "product_compliance_checks";
 
 export type AiModule =
   | "aura_central"
