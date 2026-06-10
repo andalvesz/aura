@@ -16,6 +16,7 @@ import {
   FileText,
   Home,
   Link2,
+  PlugZap,
   Mail,
   Languages,
   MapPin,
@@ -52,6 +53,7 @@ export type ModuleId =
   | "autopilot"
   | "product-factory"
   | "platforms"
+  | "integrations"
   | "global"
   | "knowledge";
 
@@ -360,6 +362,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Plataformas",
       value: "0",
       hint: "Conecte sua primeira plataforma de vendas",
+    },
+  },
+  {
+    id: "integrations",
+    href: "/dashboard/integrations",
+    label: "Aura Integration Center",
+    shortLabel: "Integrações",
+    description:
+      "Central de integrações externas — Meta, Kiwify, sync unificado, logs e status em um só lugar.",
+    icon: PlugZap,
+    accent: "text-cyan-400",
+    overview: {
+      metric: "Conectadas",
+      value: "0",
+      hint: "Conecte Meta Business ou Kiwify",
     },
   },
   {

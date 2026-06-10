@@ -28,6 +28,11 @@ export {
   KiwifyCommissionsRepository,
 } from "./kiwify-connect.repository";
 export {
+  IntegrationConnectionsRepository,
+  IntegrationEventsRepository,
+  IntegrationSyncLogsRepository,
+} from "./integration-center.repository";
+export {
   GrowthGoalsRepository,
   GrowthMissionsRepository,
   GrowthActionsRepository,

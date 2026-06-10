@@ -4,7 +4,14 @@ import {
   rankProductsForLaunch,
   type CreatorProductBundle,
 } from "@/utils/creator";
+import type { IntegrationCenterDashboard } from "@/lib/supabase/services/integration-center.service";
 import { formatBRL } from "@/utils/format";
+import {
+  formatIntegrationCents,
+  formatIntegrationDateTime,
+  integrationPlatformLabel,
+  integrationStatusLabel,
+} from "@/utils/integrations";
 
 export type CeoOpportunityItem = {
   titulo: string;
@@ -97,6 +104,27 @@ const CEO_PLAN_30_PHRASES = [
   "crie um plano para os proximos 30",
 ] as const;
 
+const CEO_SYNC_ALL_PHRASES = [
+  "sincronize tudo",
+  "sincronizar tudo",
+  "sync tudo",
+  "atualize minhas integracoes",
+] as const;
+
+const CEO_INTEGRATIONS_STATUS_PHRASES = [
+  "como estao minhas integracoes",
+  "status das integracoes",
+  "minhas integracoes",
+  "integracoes conectadas",
+] as const;
+
+const CEO_INTEGRATIONS_TODAY_PHRASES = [
+  "o que aconteceu hoje",
+  "o que aconteceu nas integracoes",
+  "eventos de hoje",
+  "logs de hoje",
+] as const;
+
 function normalize(text: string): string {
   return text
     .toLowerCase()
@@ -113,16 +141,30 @@ export type CeoCoachMode =
   | "ceo-focus"
   | "ceo-delay"
   | "ceo-opportunity"
-  | "ceo-plan-30";
+  | "ceo-plan-30"
+  | "ceo-sync-all"
+  | "ceo-integrations-status"
+  | "ceo-integrations-today";
 
 export function detectCeoCoachMode(message: string): CeoCoachMode | null {
   const normalized = normalize(message);
   if (!normalized) return null;
+  if (matchesAny(normalized, CEO_SYNC_ALL_PHRASES)) return "ceo-sync-all";
+  if (matchesAny(normalized, CEO_INTEGRATIONS_STATUS_PHRASES)) return "ceo-integrations-status";
+  if (matchesAny(normalized, CEO_INTEGRATIONS_TODAY_PHRASES)) return "ceo-integrations-today";
   if (matchesAny(normalized, CEO_PLAN_30_PHRASES)) return "ceo-plan-30";
   if (matchesAny(normalized, CEO_OPPORTUNITY_PHRASES)) return "ceo-opportunity";
   if (matchesAny(normalized, CEO_DELAY_PHRASES)) return "ceo-delay";
   if (matchesAny(normalized, CEO_FOCUS_PHRASES)) return "ceo-focus";
   return null;
+}
+
+export function isCeoIntegrationMode(mode: CeoCoachMode): boolean {
+  return (
+    mode === "ceo-sync-all" ||
+    mode === "ceo-integrations-status" ||
+    mode === "ceo-integrations-today"
+  );
 }
 
 export function parseJsonStringArray(value: unknown): string[] {
@@ -411,4 +453,82 @@ Com base nos seus dados:
     default:
       return `${firstName}, acesse /dashboard/ceo para inteligência central.`;
   }
+}
+
+export function buildCeoIntegrationReply(params: {
+  mode: Extract<
+    CeoCoachMode,
+    "ceo-sync-all" | "ceo-integrations-status" | "ceo-integrations-today"
+  >;
+  displayName: string;
+  center: IntegrationCenterDashboard | null;
+  syncMessage?: string | null;
+}): string {
+  const { mode, displayName, center, syncMessage } = params;
+  const firstName = displayName.split(" ")[0] ?? displayName;
+
+  if (!center) {
+    return `${firstName}, não consegui carregar o Integration Center. Acesse /dashboard/integrations.`;
+  }
+
+  const connected = center.connections.filter((c) => c.status === "connected" && !c.comingSoon);
+
+  if (mode === "ceo-sync-all") {
+    return `${firstName}, sincronização executada.
+
+${syncMessage ?? center.sync.lastLog?.message ?? "Integrações atualizadas."}
+
+**Conectadas:** ${connected.map((c) => c.label).join(", ") || "Nenhuma"}
+**Última sync:** ${formatIntegrationDateTime(center.sync.lastSyncAt)}
+**Receita importada:** ${formatIntegrationCents(center.metrics.importedRevenueCents)}
+
+Detalhes em /dashboard/integrations`;
+  }
+
+  if (mode === "ceo-integrations-status") {
+    const lines = center.connections
+      .filter((c) => !c.comingSoon)
+      .map(
+        (c) =>
+          `• **${c.label}:** ${integrationStatusLabel(c.status)}${
+            c.lastError ? ` (${c.lastError})` : ""
+          }`
+      );
+
+    return `${firstName}, status das integrações:
+
+${lines.join("\n")}
+
+**Dashboard**
+• Receita: ${formatIntegrationCents(center.metrics.importedRevenueCents)}
+• Comissões: ${formatIntegrationCents(center.metrics.commissionsCents)}
+• Campanhas ativas: ${center.metrics.activeCampaigns}
+• Produtos ativos: ${center.metrics.activeProducts}
+
+Última sync: ${formatIntegrationDateTime(center.sync.lastSyncAt)}
+Próxima: ${formatIntegrationDateTime(center.sync.nextSyncAt)}`;
+  }
+
+  const todayEvents = center.events.filter((event) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return new Date(event.created_at) >= today;
+  });
+
+  if (todayEvents.length === 0) {
+    return `${firstName}, nenhum evento de integração registrado hoje.
+
+Conecte plataformas em /dashboard/integrations ou diga **"Sincronize tudo"**.`;
+  }
+
+  const eventLines = todayEvents.slice(0, 8).map(
+    (event) =>
+      `• ${formatIntegrationDateTime(event.created_at)} — **${integrationPlatformLabel(event.platform)}** ${event.title}: ${event.message || event.event_type}`
+  );
+
+  return `${firstName}, o que aconteceu hoje nas integrações:
+
+${eventLines.join("\n")}
+
+${center.sync.errors.length > 0 ? `\n**Erros:**\n${center.sync.errors.map((e) => `• ${e}`).join("\n")}` : ""}`;
 }

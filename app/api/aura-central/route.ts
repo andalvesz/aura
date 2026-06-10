@@ -72,7 +72,9 @@ import {
 } from "@/utils/money";
 import {
   buildCeoCoachReply,
+  buildCeoIntegrationReply,
   detectCeoCoachMode,
+  isCeoIntegrationMode,
 } from "@/utils/ceo";
 import {
   buildPerformanceCoachReply,
@@ -105,6 +107,10 @@ import { loadAdsCampaigns } from "@/lib/supabase/services/ads-manager.service";
 import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
 import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
+import {
+  getIntegrationCenterSummaryForCeo,
+  syncAllIntegrations,
+} from "@/lib/supabase/services/integration-center.service";
 import { getPerformanceDashboard } from "@/lib/supabase/services/performance.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
@@ -447,6 +453,35 @@ export async function POST(req: Request) {
       }
 
       const displayName = await resolveUserDisplayName(ctx);
+
+      if (isCeoIntegrationMode(ceoMode)) {
+        let syncMessage: string | null = null;
+        if (ceoMode === "ceo-sync-all") {
+          const syncResult = await syncAllIntegrations();
+          syncMessage = syncResult.error ?? syncResult.data?.sync.lastLog?.message ?? null;
+        }
+
+        const center = await getIntegrationCenterSummaryForCeo();
+        const text = buildCeoIntegrationReply({
+          mode: ceoMode as "ceo-sync-all" | "ceo-integrations-status" | "ceo-integrations-today",
+          displayName,
+          center,
+          syncMessage,
+        });
+
+        await persistAiTurn("aura_central", message, text, {
+          kind: "coach",
+          coachMode: ceoMode,
+        });
+
+        return Response.json({
+          text,
+          module: "integrations",
+          kind: "coach",
+          coachMode: ceoMode,
+        });
+      }
+
       const { session, dashboard, radar } = await getCeoDashboard();
 
       if (!dashboard || !radar) {

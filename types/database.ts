@@ -1748,7 +1748,11 @@ export type AgentHistory = {
   created_at: string;
 };
 
-export type IntegrationConnectionStatus = "connected" | "disconnected" | "error";
+export type IntegrationConnectionStatus =
+  | "connected"
+  | "disconnected"
+  | "error"
+  | "coming_soon";
 export type MetaCampaignStatus = "draft" | "active" | "paused" | "archived" | "pending_review";
 export type PlatformResultType =
   | "revenue"
@@ -1914,6 +1918,62 @@ export type IntegrationActionLog = {
   platform: "meta" | "kiwify";
   action_type: string;
   status: "success" | "error" | "pending_approval";
+  message: string;
+  details: Json;
+  created_at: string;
+};
+
+export type IntegrationConnectionPlatform =
+  | "meta"
+  | "kiwify"
+  | "hotmart"
+  | "eduzz"
+  | "monetizze"
+  | "google_ads"
+  | "google_analytics"
+  | "stripe"
+  | "paypal";
+
+export type IntegrationConnection = {
+  id: string;
+  user_id: string;
+  platform: IntegrationConnectionPlatform;
+  status: IntegrationConnectionStatus;
+  account_label: string | null;
+  stats: Json;
+  metadata: Json;
+  last_sync_at: string | null;
+  next_sync_at: string | null;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type IntegrationSyncLogPlatform = IntegrationConnectionPlatform | "all";
+
+export type IntegrationSyncLog = {
+  id: string;
+  user_id: string;
+  platform: IntegrationSyncLogPlatform;
+  status: "success" | "partial" | "error";
+  started_at: string;
+  finished_at: string | null;
+  records_synced: number;
+  message: string;
+  errors: Json;
+  details: Json;
+  created_at: string;
+};
+
+export type IntegrationEventPlatform = IntegrationSyncLogPlatform;
+
+export type IntegrationEvent = {
+  id: string;
+  user_id: string;
+  platform: IntegrationEventPlatform;
+  event_type: "connection" | "sync" | "failure" | "auto_action";
+  status: "success" | "error" | "info";
+  title: string;
   message: string;
   details: Json;
   created_at: string;
@@ -4087,6 +4147,41 @@ export type Database = {
           created_at?: string;
         }
       >;
+      integration_connections: TableDef<
+        IntegrationConnection,
+        Omit<IntegrationConnection, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          account_label?: string | null;
+          stats?: Json;
+          metadata?: Json;
+          last_sync_at?: string | null;
+          next_sync_at?: string | null;
+          last_error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      integration_sync_logs: TableDef<
+        IntegrationSyncLog,
+        Omit<IntegrationSyncLog, "id" | "created_at"> & {
+          id?: string;
+          finished_at?: string | null;
+          records_synced?: number;
+          message?: string;
+          errors?: Json;
+          details?: Json;
+          created_at?: string;
+        }
+      >;
+      integration_events: TableDef<
+        IntegrationEvent,
+        Omit<IntegrationEvent, "id" | "created_at"> & {
+          id?: string;
+          message?: string;
+          details?: Json;
+          created_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -4204,7 +4299,10 @@ export type UserScopedTable =
   | "kiwify_sales"
   | "kiwify_commissions"
   | "platform_results"
-  | "integration_action_logs";
+  | "integration_action_logs"
+  | "integration_connections"
+  | "integration_sync_logs"
+  | "integration_events";
 
 export type AiModule =
   | "aura_central"
