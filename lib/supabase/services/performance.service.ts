@@ -44,6 +44,7 @@ import { getOptionalDataContext } from "./context";
 import { buildBudgetContextBlock, getResolvedUserBudget } from "./campaign-budget.service";
 import { getPlatformsContext } from "./platform-hub.service";
 import { getGlobalContext } from "./global-intelligence.service";
+import { getKnowledgeContext } from "./knowledge.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -417,14 +418,14 @@ export async function getPerformanceDashboard(): Promise<{
 }
 
 export async function getPerformanceContext(): Promise<{ context: string; error: string | null }> {
-  const [{ dashboard, panel, analysis, error }, { context: platformsContext }, { context: globalContext }] =
-    await Promise.all([getPerformanceDashboard(), getPlatformsContext(), getGlobalContext()]);
+  const [{ dashboard, panel, analysis, error }, { context: platformsContext }, { context: globalContext }, { context: knowledgeContext }] =
+    await Promise.all([getPerformanceDashboard(), getPlatformsContext(), getGlobalContext(), getKnowledgeContext()]);
   if (error || !dashboard) {
     return { context: "", error: error ?? "Erro ao carregar Performance AI." };
   }
 
   const base = buildPerformanceAuraContext(dashboard, panel, analysis);
-  const parts = [base, platformsContext, globalContext].filter(Boolean);
+  const parts = [base, platformsContext, globalContext, knowledgeContext].filter(Boolean);
   return {
     context: parts.join("\n\n"),
     error: null,

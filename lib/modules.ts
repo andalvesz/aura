@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   Bell,
+  BookOpen,
   Brain,
   Banknote,
   Building2,
@@ -51,7 +52,8 @@ export type ModuleId =
   | "autopilot"
   | "product-factory"
   | "platforms"
-  | "global";
+  | "global"
+  | "knowledge";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -373,6 +375,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Global Score",
       value: "—",
       hint: "Analise mercados internacionais",
+    },
+  },
+  {
+    id: "knowledge",
+    href: "/dashboard/knowledge",
+    label: "Aura Knowledge & Connect",
+    shortLabel: "Knowledge",
+    description:
+      "Aprenda com fontes externas — campanhas, produtos, copies e mercados vencedores com Executive Memory.",
+    icon: BookOpen,
+    accent: "text-amber-400",
+    overview: {
+      metric: "Entradas",
+      value: "0",
+      hint: "Conecte fontes e sincronize aprendizado",
     },
   },
 ];

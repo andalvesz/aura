@@ -96,6 +96,10 @@ import {
   buildGlobalCoachReply,
   detectGlobalCoachMode,
 } from "@/utils/global";
+import {
+  buildKnowledgeCoachReply,
+  detectKnowledgeCoachMode,
+} from "@/utils/knowledge";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { loadStudioAssets } from "@/lib/supabase/services/creative-studio.service";
 import { loadLandingRecords } from "@/lib/supabase/services/landing-builder.service";
@@ -109,6 +113,7 @@ import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadProductFactoryBundles } from "@/lib/supabase/services/product-factory.service";
 import { getPlatformsDashboard } from "@/lib/supabase/services/platform-hub.service";
 import { getGlobalDashboard } from "@/lib/supabase/services/global-intelligence.service";
+import { getKnowledgeDashboard } from "@/lib/supabase/services/knowledge.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
 import { runGlobalSearch } from "@/lib/search/global-search";
 import {
@@ -663,6 +668,38 @@ export async function POST(req: Request) {
         module: "global",
         kind: "coach",
         coachMode: globalMode,
+      });
+    }
+
+    const knowledgeMode = detectKnowledgeCoachMode(message);
+    if (knowledgeMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { dashboard, entries, patterns, insights } = await getKnowledgeDashboard();
+
+      const text = buildKnowledgeCoachReply({
+        mode: knowledgeMode,
+        displayName,
+        dashboard,
+        entries,
+        patterns,
+        insights,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: knowledgeMode,
+      });
+
+      return Response.json({
+        text,
+        module: "knowledge",
+        kind: "coach",
+        coachMode: knowledgeMode,
       });
     }
 

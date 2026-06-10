@@ -41,6 +41,7 @@ import {
 import { getOptionalDataContext } from "./context";
 import { getPlatformsContext } from "./platform-hub.service";
 import { getGlobalContext } from "./global-intelligence.service";
+import { getKnowledgeContext } from "./knowledge.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -114,6 +115,7 @@ async function loadAllModuleContexts() {
     alvesz,
     platforms,
     globalIntel,
+    knowledgeIntel,
   ] = await Promise.all([
     getLegacyContext(),
     getAuraCentralFinanceContext(),
@@ -126,6 +128,7 @@ async function loadAllModuleContexts() {
     getNexusAlveszMentorContext(),
     getPlatformsContext(),
     getGlobalContext(),
+    getKnowledgeContext(),
   ]);
 
   return {
@@ -155,6 +158,7 @@ async function loadAllModuleContexts() {
     alvesz: alvesz.context ?? "",
     platforms: platforms.context ?? "",
     global: globalIntel.context ?? "",
+    knowledge: knowledgeIntel.context ?? "",
   };
 }
 
@@ -245,6 +249,7 @@ export async function getMoneyContext(): Promise<{ context: string; error: strin
     moduleContexts.alvesz ? `## ALVESZ EXPERIENCE\n${moduleContexts.alvesz}` : "",
     moduleContexts.platforms ? `## PLATFORM HUB\n${moduleContexts.platforms}` : "",
     moduleContexts.global ? `## GLOBAL INTELLIGENCE\n${moduleContexts.global}` : "",
+    moduleContexts.knowledge ? `## KNOWLEDGE & CONNECT\n${moduleContexts.knowledge}` : "",
   ].filter(Boolean);
 
   return { context: lines.join("\n\n"), error: null };

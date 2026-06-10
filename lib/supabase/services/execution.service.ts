@@ -40,6 +40,7 @@ import { todayIsoDate } from "@/utils/health";
 import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 import { getPlatformsContext } from "./platform-hub.service";
 import { getGlobalContext } from "./global-intelligence.service";
+import { getKnowledgeContext } from "./knowledge.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -286,8 +287,8 @@ export async function getExecutionContext(): Promise<{ context: string; error: s
   const ctx = await getOptionalDataContext();
   if (!ctx) return { context: "", error: "Usuário não autenticado." };
 
-  const [{ plan, tasks, history }, { context: platformsContext }, { context: globalContext }] =
-    await Promise.all([loadExecutionState(), getPlatformsContext(), getGlobalContext()]);
+  const [{ plan, tasks, history }, { context: platformsContext }, { context: globalContext }, { context: knowledgeContext }] =
+    await Promise.all([loadExecutionState(), getPlatformsContext(), getGlobalContext(), getKnowledgeContext()]);
   const dashboard = computeExecutionDashboard(plan, tasks, history);
 
   const lines = [
@@ -295,6 +296,7 @@ export async function getExecutionContext(): Promise<{ context: string; error: s
     buildExecutionAuraContext(plan, tasks, dashboard),
     platformsContext ? `## PLATFORM HUB\n${platformsContext}` : "",
     globalContext ? `## GLOBAL INTELLIGENCE\n${globalContext}` : "",
+    knowledgeContext ? `## KNOWLEDGE & CONNECT\n${knowledgeContext}` : "",
   ].filter(Boolean);
 
   return { context: lines.join("\n\n"), error: null };

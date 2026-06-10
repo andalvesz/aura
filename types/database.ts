@@ -984,6 +984,122 @@ export type AffiliateAnalysis = {
   updated_at: string;
 };
 
+export type KnowledgeEntryType =
+  | "campaign"
+  | "product"
+  | "copy"
+  | "audience"
+  | "market"
+  | "success"
+  | "failure";
+
+export type KnowledgeEntryCategory = "winner" | "loser" | "neutral";
+
+export type KnowledgeConnector =
+  | "platform_hub"
+  | "meta_business"
+  | "kiwify"
+  | "hotmart"
+  | "eduzz"
+  | "monetizze"
+  | "google_analytics"
+  | "google_ads"
+  | "stripe"
+  | "paypal"
+  | "global"
+  | "creator"
+  | "manual";
+
+export type KnowledgeEntryStatus = "active" | "archived";
+
+export type KnowledgeInsightType =
+  | "opportunity"
+  | "risk"
+  | "trend"
+  | "emerging_market";
+
+export type KnowledgeInsightPriority = "low" | "medium" | "high";
+
+export type KnowledgeInsightStatus = "active" | "dismissed" | "archived";
+
+export type KnowledgePatternType =
+  | "what_worked"
+  | "what_failed"
+  | "best_country"
+  | "best_currency"
+  | "best_campaign"
+  | "best_market";
+
+export type KnowledgeCurrency = "BRL" | "USD" | "EUR" | "GBP" | "CAD";
+
+export type KnowledgeEntry = {
+  id: string;
+  user_id: string;
+  entry_type: KnowledgeEntryType;
+  category: KnowledgeEntryCategory;
+  connector: KnowledgeConnector;
+  title: string;
+  description: string | null;
+  country: string | null;
+  currency: KnowledgeCurrency | null;
+  performance_score: number | null;
+  metrics: Json;
+  source_ref: string | null;
+  status: KnowledgeEntryStatus;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KnowledgeInsight = {
+  id: string;
+  user_id: string;
+  insight_type: KnowledgeInsightType;
+  title: string;
+  summary: string;
+  priority: KnowledgeInsightPriority;
+  status: KnowledgeInsightStatus;
+  related_entry_ids: Json;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type KnowledgePattern = {
+  id: string;
+  user_id: string;
+  pattern_type: KnowledgePatternType;
+  label: string;
+  description: string | null;
+  country: string | null;
+  currency: KnowledgeCurrency | null;
+  confidence_score: number;
+  evidence_count: number;
+  metrics: Json;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MarketHistory = {
+  id: string;
+  user_id: string;
+  country: string;
+  currency: KnowledgeCurrency;
+  market_label: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  sales_amount: number;
+  sales_count: number;
+  roas: number | null;
+  ctr: number | null;
+  conversion_rate: number | null;
+  connector: KnowledgeConnector;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type GlobalMarketStatus = "active" | "paused" | "archived";
 
 export type GlobalProductType =
@@ -3530,6 +3646,138 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      knowledge_entries: TableDef<
+        KnowledgeEntry,
+        Omit<
+          KnowledgeEntry,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "entry_type"
+          | "category"
+          | "connector"
+          | "title"
+          | "description"
+          | "country"
+          | "currency"
+          | "performance_score"
+          | "metrics"
+          | "source_ref"
+          | "status"
+          | "metadata"
+        > & {
+          id?: string;
+          entry_type?: KnowledgeEntryType;
+          category?: KnowledgeEntryCategory;
+          connector?: KnowledgeConnector;
+          title?: string;
+          description?: string | null;
+          country?: string | null;
+          currency?: KnowledgeCurrency | null;
+          performance_score?: number | null;
+          metrics?: Json;
+          source_ref?: string | null;
+          status?: KnowledgeEntryStatus;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      knowledge_insights: TableDef<
+        KnowledgeInsight,
+        Omit<
+          KnowledgeInsight,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "insight_type"
+          | "title"
+          | "summary"
+          | "priority"
+          | "status"
+          | "related_entry_ids"
+          | "metadata"
+        > & {
+          id?: string;
+          insight_type?: KnowledgeInsightType;
+          title?: string;
+          summary?: string;
+          priority?: KnowledgeInsightPriority;
+          status?: KnowledgeInsightStatus;
+          related_entry_ids?: Json;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      knowledge_patterns: TableDef<
+        KnowledgePattern,
+        Omit<
+          KnowledgePattern,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "pattern_type"
+          | "label"
+          | "description"
+          | "country"
+          | "currency"
+          | "confidence_score"
+          | "evidence_count"
+          | "metrics"
+          | "metadata"
+        > & {
+          id?: string;
+          pattern_type?: KnowledgePatternType;
+          label?: string;
+          description?: string | null;
+          country?: string | null;
+          currency?: KnowledgeCurrency | null;
+          confidence_score?: number;
+          evidence_count?: number;
+          metrics?: Json;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      market_history: TableDef<
+        MarketHistory,
+        Omit<
+          MarketHistory,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "country"
+          | "currency"
+          | "market_label"
+          | "period_start"
+          | "period_end"
+          | "sales_amount"
+          | "sales_count"
+          | "roas"
+          | "ctr"
+          | "conversion_rate"
+          | "connector"
+          | "metadata"
+        > & {
+          id?: string;
+          country?: string;
+          currency?: KnowledgeCurrency;
+          market_label?: string | null;
+          period_start?: string | null;
+          period_end?: string | null;
+          sales_amount?: number;
+          sales_count?: number;
+          roas?: number | null;
+          ctr?: number | null;
+          conversion_rate?: number | null;
+          connector?: KnowledgeConnector;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -3632,7 +3880,11 @@ export type UserScopedTable =
   | "affiliate_analysis"
   | "global_markets"
   | "global_strategies"
-  | "global_results";
+  | "global_results"
+  | "knowledge_entries"
+  | "knowledge_insights"
+  | "knowledge_patterns"
+  | "market_history";
 
 export type AiModule =
   | "aura_central"
