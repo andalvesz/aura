@@ -1,13 +1,10 @@
-import {
-  publishProductFactoryPdf,
-} from "@/lib/supabase/services/product-factory.service";
+import { runProductFactoryCompliance } from "@/lib/supabase/services/product-factory.service";
 import { parseRequestJson } from "@/utils/safe-json";
 
 export async function POST(req: Request) {
   try {
     const { data: body, error: bodyError } = await parseRequestJson<{
       factory_id?: string;
-      pdf_base64?: string;
     }>(req);
 
     if (bodyError || !body) {
@@ -19,22 +16,13 @@ export async function POST(req: Request) {
       return Response.json({ error: "factory_id é obrigatório." }, { status: 400 });
     }
 
-    const pdfBase64 = body.pdf_base64?.trim();
-    if (!pdfBase64) {
-      return Response.json({ error: "pdf_base64 é obrigatório." }, { status: 400 });
-    }
-
-    const { file, bundle, error } = await publishProductFactoryPdf({
-      factory_id: factoryId,
-      pdf_base64: pdfBase64,
-    });
-
+    const { compliance, error } = await runProductFactoryCompliance(factoryId);
     if (error) {
       return Response.json({ error }, { status: 400 });
     }
 
-    return Response.json({ file, bundle });
+    return Response.json({ compliance });
   } catch {
-    return Response.json({ error: "Erro ao publicar PDF." }, { status: 500 });
+    return Response.json({ error: "Erro ao analisar compliance." }, { status: 500 });
   }
 }

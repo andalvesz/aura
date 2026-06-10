@@ -5,10 +5,14 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<ProductFactoryIntake>;
     const titulo = body.titulo?.trim() ?? "";
+    const subtitulo = body.subtitulo?.trim() ?? "";
     const promessa = body.promessa?.trim() ?? "";
     const avatar = body.avatar?.trim() ?? "";
+    const publico = body.publico?.trim() ?? "";
+    const objetivo = body.objetivo?.trim() ?? "";
     const problema = body.problema?.trim() ?? "";
     const solucao = body.solucao?.trim() ?? "";
+    const product_type = body.product_type ?? "ebook";
     const product_id = body.product_id?.trim() || null;
     const copylab_id = body.copylab_id?.trim() || null;
     const research_id = body.research_id?.trim() || null;
@@ -22,10 +26,14 @@ export async function POST(request: Request) {
 
     const { bundle, error } = await generateProductFactory({
       titulo,
+      subtitulo,
       promessa,
       avatar,
+      publico,
+      objetivo,
       problema,
       solucao,
+      product_type,
       product_id,
       copylab_id,
       research_id,

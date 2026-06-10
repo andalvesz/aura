@@ -17,6 +17,7 @@ import {
 import { getResolvedUserLocale } from "@/lib/supabase/services/creator-locale.service";
 import { buildLocaleContextBlock } from "@/utils/creator-locale";
 import { getResearchContext } from "@/lib/supabase/services/research.service";
+import { getProductFactoryContext } from "@/lib/supabase/services/product-factory.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import { COPYLAB_AI_CONTEXT, COPYLAB_IA_ACTIONS } from "@/utils/copylab";
 import { CREATOR_AI_CONTEXT, CREATOR_IA_ACTIONS } from "@/utils/creator";
@@ -29,6 +30,10 @@ import {
   ORCHESTRATOR_IA_ACTIONS,
 } from "@/utils/campaign-orchestrator";
 import { RESEARCH_AI_CONTEXT, RESEARCH_IA_ACTIONS } from "@/utils/research";
+import {
+  PRODUCT_FACTORY_AI_CONTEXT,
+  PRODUCT_FACTORY_IA_ACTIONS,
+} from "@/utils/product-factory";
 import { buildBudgetAskReply, mentionsCampaignInvestment } from "@/utils/campaign-budget";
 import { parseRequestJson } from "@/utils/safe-json";
 
@@ -50,6 +55,7 @@ const ACTION_PROMPTS: Record<string, string> = Object.fromEntries([
   ...ADS_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...ORCHESTRATOR_IA_ACTIONS.map((a) => [a.id, a.prompt]),
   ...LAUNCH_IA_ACTIONS.map((a) => [a.id, a.prompt]),
+  ...PRODUCT_FACTORY_IA_ACTIONS.map((a) => [a.id, a.prompt]),
 ]);
 
 function resolveError(error: unknown, fallback: string): string {
@@ -87,6 +93,7 @@ export async function POST(req: Request) {
     const isAds = body.module === "ads";
     const isOrchestrator = body.module === "orchestrator";
     const isLaunch = body.module === "launch";
+    const isFactory = body.module === "factory";
 
     if (actionId && ACTION_PROMPTS[actionId]) {
       message = ACTION_PROMPTS[actionId]!;
@@ -100,7 +107,7 @@ export async function POST(req: Request) {
       return Response.json({ error: "IA indisponível (OPENAI_API_KEY)." }, { status: 503 });
     }
 
-    const [creatorCtx, researchCtx, copylabCtx, studioCtx, landingCtx, adsCtx, orchestratorCtx, launchCtx] =
+    const [creatorCtx, researchCtx, copylabCtx, studioCtx, landingCtx, adsCtx, orchestratorCtx, launchCtx, factoryCtx] =
       await Promise.all([
         getCreatorContext(),
         getResearchContext(),
@@ -110,6 +117,7 @@ export async function POST(req: Request) {
         getAdsContext(),
         getOrchestratorContext(),
         getLaunchContext(),
+        getProductFactoryContext(),
       ]);
 
     if (
@@ -120,7 +128,8 @@ export async function POST(req: Request) {
       landingCtx.error === "Usuário não autenticado." ||
       adsCtx.error === "Usuário não autenticado." ||
       orchestratorCtx.error === "Usuário não autenticado." ||
-      launchCtx.error === "Usuário não autenticado."
+      launchCtx.error === "Usuário não autenticado." ||
+      factoryCtx.error === "Usuário não autenticado."
     ) {
       return Response.json({ error: "Faça login para usar a Aura Creator." }, { status: 401 });
     }
@@ -165,7 +174,9 @@ export async function POST(req: Request) {
                   ? "orchestrator"
                   : isLaunch
                     ? "launch"
-                    : "creator";
+                    : isFactory
+                      ? "factory"
+                      : "creator";
       return Response.json({ text: buildBudgetAskReply(), kind });
     }
 
@@ -178,6 +189,7 @@ export async function POST(req: Request) {
       adsCtx.context,
       orchestratorCtx.context,
       launchCtx.context,
+      factoryCtx.context,
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -197,7 +209,9 @@ export async function POST(req: Request) {
                 ? `${ORCHESTRATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
                 : isLaunch
                   ? `${LAUNCH_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
-                  : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`;
+                  : isFactory
+                    ? `${PRODUCT_FACTORY_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`
+                    : `${CREATOR_AI_CONTEXT}\n\n${baseContext || "Sem dados."}${localeSuffix}${budgetSuffix}`;
 
     const mergedHistory = await resolveMergedHistory("creator", history);
 
@@ -231,7 +245,9 @@ export async function POST(req: Request) {
                 ? "orchestrator"
                 : isLaunch
                   ? "launch"
-                  : "creator";
+                  : isFactory
+                    ? "factory"
+                    : "creator";
 
     await persistAiTurn("creator", message, text, {
       kind,

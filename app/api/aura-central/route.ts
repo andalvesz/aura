@@ -84,6 +84,10 @@ import {
   buildResearchCoachReply,
   detectResearchCoachMode,
 } from "@/utils/research";
+import {
+  buildFactoryCoachReply,
+  detectFactoryCoachMode,
+} from "@/utils/product-factory";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { loadStudioAssets } from "@/lib/supabase/services/creative-studio.service";
 import { loadLandingRecords } from "@/lib/supabase/services/landing-builder.service";
@@ -94,6 +98,7 @@ import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
 import { getPerformanceDashboard } from "@/lib/supabase/services/performance.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
+import { loadProductFactoryBundles } from "@/lib/supabase/services/product-factory.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
 import { runGlobalSearch } from "@/lib/search/global-search";
 import {
@@ -555,6 +560,36 @@ export async function POST(req: Request) {
         module: "global",
         kind: "coach",
         coachMode: copylabMode,
+      });
+    }
+
+    const factoryMode = detectFactoryCoachMode(message);
+    if (factoryMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { bundles } = await loadProductFactoryBundles();
+
+      const text = buildFactoryCoachReply({
+        mode: factoryMode,
+        displayName,
+        bundles,
+        message,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: factoryMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: factoryMode,
       });
     }
 

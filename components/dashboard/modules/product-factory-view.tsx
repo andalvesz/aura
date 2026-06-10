@@ -22,7 +22,8 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 import { useCreator } from "@/hooks/use-creator";
 import { useProductFactory } from "@/hooks/use-product-factory";
-import type { ProductComplianceCheck } from "@/types/database";
+import type { ProductComplianceCheck, ProductFactoryType } from "@/types/database";
+import { parseJsonResponse } from "@/utils/safe-json";
 import {
   generateProductFactoryPdf,
   pdfBytesToBase64,
@@ -36,21 +37,29 @@ import {
   parseDesign,
   parseJsonArray,
   PRODUCT_FACTORY_IA_ACTIONS,
+  PRODUCT_FACTORY_TYPES,
+  STORAGE_BUCKET_WARNING,
   type ProductFactoryBundle,
   type ProductFactoryChapter,
   type ProductFactoryChecklistItem,
   type ProductFactoryComplianceItem,
   type ProductFactoryExercise,
   type ProductFactoryIntake,
+  productTypeLabel,
+  versionLabelText,
 } from "@/utils/product-factory";
 import { cn } from "@/utils/cn";
 
 const EMPTY_INTAKE: ProductFactoryIntake = {
   titulo: "",
+  subtitulo: "",
   promessa: "",
   avatar: "",
+  publico: "",
+  objetivo: "",
   problema: "",
   solucao: "",
+  product_type: "ebook",
   product_id: null,
 };
 
@@ -194,7 +203,19 @@ function FactoryDetail({
         <span className="rounded-md bg-violet-500/15 px-2 py-0.5 text-[10px] text-violet-300">
           {factoryStatusLabel(factory.status)}
         </span>
-        <span className="text-[10px] text-zinc-500">v{factory.current_version}</span>
+        <span className="rounded-md bg-white/[0.04] px-2 py-0.5 text-[10px] text-zinc-400">
+          {productTypeLabel(factory.product_type)}
+        </span>
+        <span className="text-[10px] text-zinc-500">
+          {versionLabelText(
+            versions[0]?.version_label ??
+              (factory.current_version <= 1
+                ? "rascunho"
+                : factory.current_version === 2
+                  ? "revisado"
+                  : "final")
+          )}
+        </span>
         {factory.product_id && (
           <Link
             href="/dashboard/creator"
@@ -347,7 +368,9 @@ function FactoryDetail({
                 className="rounded-md border border-white/[0.06] bg-white/[0.02] p-2"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-medium text-zinc-200">v{v.version_number}</span>
+                  <span className="font-medium text-zinc-200">
+                    {versionLabelText(v.version_label ?? undefined) || `v${v.version_number}`}
+                  </span>
                   <span className="text-[10px] text-zinc-600">
                     {new Date(v.created_at).toLocaleDateString("pt-BR")}
                   </span>
@@ -404,11 +427,26 @@ function FactoryDetail({
 
 export function ProductFactoryView() {
   const searchParams = useSearchParams();
-  const { bundles, dashboard, loading, error, busy, generate, publishPdf, runCompliance, removeRecord } =
-    useProductFactory();
+  const {
+    bundles,
+    dashboard,
+    storageReady,
+    loading,
+    error,
+    busy,
+    generate,
+    publishPdf,
+    runCompliance,
+    removeRecord,
+  } = useProductFactory();
   const { bundles: creatorBundles } = useCreator();
   const [intake, setIntake] = useState<ProductFactoryIntake>(EMPTY_INTAKE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [iaMessages, setIaMessages] = useState<{ role: "user" | "assistant"; text: string }[]>(
+    []
+  );
+  const [iaInput, setIaInput] = useState("");
+  const [iaLoading, setIaLoading] = useState(false);
 
   const selected = bundles.find((b) => b.factory.id === selectedId) ?? bundles[0] ?? null;
 
@@ -475,6 +513,50 @@ export function ProductFactoryView() {
     toast.success("Produto excluído.");
   }
 
+  async function sendIaMessage(text: string, actionId?: string) {
+    const trimmed = text.trim();
+    if (!trimmed || iaLoading) return;
+
+    setIaInput("");
+    setIaLoading(true);
+    const history = iaMessages.map((m) => ({ role: m.role, content: m.text }));
+    setIaMessages((c) => [...c, { role: "user", text: trimmed }]);
+
+    try {
+      const res = await fetch("/api/creator-ia", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: trimmed,
+          history,
+          module: "factory",
+          ...(actionId ? { actionId } : {}),
+        }),
+      });
+      const { data: body, error: parseError } = await parseJsonResponse<{
+        text?: string;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok || body?.error) {
+        setIaMessages((c) => [
+          ...c,
+          { role: "assistant", text: body?.error ?? parseError ?? "Erro na IA." },
+        ]);
+        return;
+      }
+
+      setIaMessages((c) => [
+        ...c,
+        { role: "assistant", text: body?.text ?? "Sem resposta." },
+      ]);
+    } catch {
+      setIaMessages((c) => [...c, { role: "assistant", text: "Erro de conexão." }]);
+    } finally {
+      setIaLoading(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -495,6 +577,14 @@ export function ProductFactoryView() {
 
   return (
     <div className="space-y-3">
+      {!storageReady && (
+        <Panel className="border-amber-500/20 bg-amber-500/[0.04]">
+          <PanelContent className="py-3 text-[12px] text-amber-200">
+            {STORAGE_BUCKET_WARNING}
+          </PanelContent>
+        </Panel>
+      )}
+
       {dashboard && (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard label="Produtos" value={String(dashboard.totalProducts)} />
@@ -512,12 +602,37 @@ export function ProductFactoryView() {
           </PanelTitle>
         </PanelHeader>
         <PanelContent className="space-y-3">
+          <div>
+            <label className="text-[10px] uppercase tracking-wide text-zinc-600">
+              Tipo de produto
+            </label>
+            <select
+              value={intake.product_type ?? "ebook"}
+              onChange={(e) =>
+                setIntake((prev) => ({
+                  ...prev,
+                  product_type: e.target.value as ProductFactoryType,
+                }))
+              }
+              className="mt-1 w-full rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 text-[12px] text-zinc-200"
+            >
+              {PRODUCT_FACTORY_TYPES.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="grid gap-2 sm:grid-cols-2">
             {(
               [
                 ["titulo", "Título"],
+                ["subtitulo", "Subtítulo"],
                 ["promessa", "Promessa"],
                 ["avatar", "Avatar"],
+                ["publico", "Público"],
+                ["objetivo", "Objetivo"],
                 ["problema", "Problema"],
                 ["solucao", "Solução"],
               ] as const
@@ -568,17 +683,66 @@ export function ProductFactoryView() {
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              Gerar e-book + design + compliance
+              Gerar produto + design + compliance
             </ActionButton>
             {PRODUCT_FACTORY_IA_ACTIONS.map((action) => (
-              <span
+              <button
                 key={action.id}
-                className="rounded-md border border-white/[0.06] px-2 py-1 text-[10px] text-zinc-600"
+                type="button"
+                onClick={() => void sendIaMessage(action.prompt, action.id)}
+                disabled={iaLoading}
+                className="rounded-md border border-white/[0.06] px-2 py-1 text-[10px] text-zinc-400 hover:border-violet-500/30 hover:text-violet-300 disabled:opacity-50"
               >
                 {action.label}
-              </span>
+              </button>
             ))}
           </div>
+        </PanelContent>
+      </Panel>
+
+      <Panel>
+        <PanelHeader>
+          <PanelTitle className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-violet-400" />
+            Aura IA — Product Factory
+          </PanelTitle>
+        </PanelHeader>
+        <PanelContent className="space-y-2">
+          {iaMessages.length > 0 && (
+            <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-white/[0.06] bg-white/[0.02] p-2">
+              {iaMessages.map((msg, i) => (
+                <div
+                  key={`${msg.role}-${i}`}
+                  className={cn(
+                    "rounded-md px-2 py-1.5 text-[11px]",
+                    msg.role === "user"
+                      ? "bg-violet-500/10 text-violet-100"
+                      : "text-zinc-300"
+                  )}
+                >
+                  {msg.text}
+                </div>
+              ))}
+            </div>
+          )}
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void sendIaMessage(iaInput);
+            }}
+          >
+            <input
+              value={iaInput}
+              onChange={(e) => setIaInput(e.target.value)}
+              placeholder="Pergunte sobre e-books, PDF, compliance..."
+              disabled={iaLoading}
+              className="flex-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 text-[12px] text-zinc-200 outline-none focus:border-violet-500/40"
+            />
+            <ActionButton type="submit" disabled={iaLoading || !iaInput.trim()}>
+              {iaLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Enviar"}
+            </ActionButton>
+          </form>
         </PanelContent>
       </Panel>
 

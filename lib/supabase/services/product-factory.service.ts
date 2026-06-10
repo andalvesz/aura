@@ -8,6 +8,9 @@ import {
 import { loadAdsCampaigns } from "@/lib/supabase/services/ads-manager.service";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
+import { loadStudioAssets } from "@/lib/supabase/services/creative-studio.service";
+import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
+import { getLegacyContext } from "@/lib/supabase/services/legado.service";
 import { loadLandingRecords } from "@/lib/supabase/services/landing-builder.service";
 import { loadMoneyPlans } from "@/lib/supabase/services/money.service";
 import { loadPerformanceInputData } from "@/lib/supabase/services/performance.service";
@@ -15,11 +18,15 @@ import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import type {
   ProductComplianceCheck,
   ProductFactory,
+  ProductFactoryType,
   ProductFile,
+  ProductVersionLabel,
   TableInsert,
 } from "@/types/database";
 import {
   computeProductFactoryDashboard,
+  PRODUCT_FILES_BUCKET,
+  STORAGE_BUCKET_WARNING,
   type GeneratedProductFactory,
   type ProductFactoryBundle,
   type ProductFactoryDashboardMetrics,
@@ -27,7 +34,7 @@ import {
 } from "@/utils/product-factory";
 import { getOptionalDataContext } from "./context";
 
-const PDF_BUCKET = "product-factory-pdfs";
+const PDF_BUCKET = PRODUCT_FILES_BUCKET;
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -81,16 +88,22 @@ async function buildIntegrationContext(): Promise<Record<string, unknown>> {
     { records: copyRecords },
     { records: landingRecords },
     { records: adsRecords },
+    { records: studioRecords },
     { plans },
     { input: performanceInput },
+    { dashboard: launchDashboard, center: launchCenter },
+    { context: legacyContext },
   ] = await Promise.all([
     loadCreatorBundles(),
     loadResearchRecords(),
     loadCopylabRecords(),
     loadLandingRecords(),
     loadAdsCampaigns(),
+    loadStudioAssets(),
     loadMoneyPlans(),
     loadPerformanceInputData(),
+    getLaunchDashboard(),
+    getLegacyContext(),
   ]);
 
   return {
@@ -111,6 +124,18 @@ async function buildIntegrationContext(): Promise<Record<string, unknown>> {
       promessa: c.promessa,
       headline: c.headline,
     })),
+    launch: launchCenter
+      ? {
+          produto: launchDashboard?.produtoAtual ?? launchCenter.bundle?.product.nome,
+          estagio: launchDashboard?.estagio ?? launchCenter.pipelineStep,
+          checklist: launchDashboard?.checklistPercent,
+        }
+      : null,
+    studio: studioRecords.slice(0, 3).map((s) => ({
+      nome: s.nome,
+      promessa: s.promessa,
+      capa: s.capa_ebook ? "sim" : "não",
+    })),
     landings: landingRecords.slice(0, 3).map((l) => ({
       nome: l.nome,
       modelo: l.modelo,
@@ -126,6 +151,7 @@ async function buildIntegrationContext(): Promise<Record<string, unknown>> {
       prazo: p.prazo,
       status: p.status,
     })),
+    legado: legacyContext ? legacyContext.slice(0, 500) : null,
     performance: performanceInput
       ? {
           metaProgresso: performanceInput.moneyDashboard.progressoPct,
@@ -134,6 +160,15 @@ async function buildIntegrationContext(): Promise<Record<string, unknown>> {
         }
       : null,
   };
+}
+
+export async function checkProductFilesBucketReady(): Promise<boolean> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return false;
+
+  const { data, error } = await ctx.supabase.storage.listBuckets();
+  if (error || !data) return false;
+  return data.some((b) => b.id === PDF_BUCKET || b.name === PDF_BUCKET);
 }
 
 async function loadBundleForFactory(factory: ProductFactory): Promise<ProductFactoryBundle> {
@@ -181,13 +216,16 @@ export async function loadProductFactoryBundles(): Promise<{
 export async function getProductFactoryDashboard(): Promise<{
   dashboard: ProductFactoryDashboardMetrics | null;
   bundles: ProductFactoryBundle[];
+  storageReady: boolean;
   error: string | null;
 }> {
   const { bundles, error } = await loadProductFactoryBundles();
-  if (error) return { dashboard: null, bundles: [], error };
+  if (error) return { dashboard: null, bundles: [], storageReady: false, error };
+  const storageReady = await checkProductFilesBucketReady();
   return {
     dashboard: computeProductFactoryDashboard(bundles),
     bundles,
+    storageReady,
     error: null,
   };
 }
@@ -206,14 +244,20 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
 
   const integrations = await buildIntegrationContext();
 
+  const productType: ProductFactoryType = input.product_type ?? "ebook";
+
   const generated = await callProductFactoryAi<GeneratedProductFactory>(
-    `Você é a Aura Product Factory — cria e-books digitais completos para o mercado brasileiro.
+    `Você é a Aura Product Factory — cria produtos digitais completos para o mercado brasileiro.
+Tipo de produto: ${productType}
 Responda APENAS JSON:
 {
   "titulo": string,
+  "subtitulo": string,
   "promessa": string,
+  "publico": string,
+  "objetivo": string,
   "capitulos": [{ "titulo": string, "resumo": string, "conteudo": string }],
-  "conteudo": { "introducao": string, "metodologia": string },
+  "conteudo": { "introducao": string, "metodologia": string, "proximos_passos": string },
   "exercicios": [{ "titulo": string, "instrucao": string, "reflexao": string }],
   "bonus": string,
   "checklist": [{ "item": string, "descricao": string }],
@@ -239,14 +283,14 @@ Responda APENAS JSON:
   }
 }
 Regras:
-- Mínimo 4 capítulos com conteúdo prático e aplicável
-- Mínimo 3 exercícios
-- Checklist com 5+ itens acionáveis
-- Design com paleta de 3-5 cores hex e mockup textual descritivo
-- Compliance rigoroso: evitar "ganhe X em Y dias", curas milagrosas, renda garantida, claims médicos
-- Promessa ética, específica e verificável
+- Adapte estrutura ao tipo (${productType}): capítulos, dias ou módulos conforme o formato
+- Mínimo 4 seções/capítulos com conteúdo prático
+- Mínimo 3 exercícios quando aplicável
+- Checklist final com 5+ itens acionáveis
+- Design com paleta de 3-5 cores hex e layout textual
+- Compliance rigoroso: nunca prometa resultados garantidos; evite claims médicos/financeiros proibidos
 - Português do Brasil`,
-    JSON.stringify({ intake: input, integrations })
+    JSON.stringify({ intake: input, product_type: productType, integrations })
   );
 
   if (!generated?.titulo || !generated.capitulos?.length) {
@@ -257,17 +301,26 @@ Regras:
   const complianceRepo = new ProductComplianceChecksRepository(ctx.supabase, ctx.userId);
   const versionsRepo = new ProductVersionsRepository(ctx.supabase, ctx.userId);
 
+  const conteudo = {
+    ...generated.conteudo,
+    ...(generated.proximos_passos ? { proximos_passos: generated.proximos_passos } : {}),
+  };
+
   const { data: factory, error: createError } = await factoryRepo.create({
     product_id: input.product_id ?? null,
     copylab_id: input.copylab_id ?? null,
     research_id: input.research_id ?? null,
+    product_type: productType,
     titulo: generated.titulo,
+    subtitulo: generated.subtitulo ?? input.subtitulo ?? null,
     promessa: generated.promessa,
     avatar: input.avatar || null,
+    publico: generated.publico ?? input.publico ?? null,
+    objetivo: generated.objetivo ?? input.objetivo ?? null,
     problema: input.problema || null,
     solucao: input.solucao || null,
     capitulos: generated.capitulos,
-    conteudo: generated.conteudo,
+    conteudo,
     exercicios: generated.exercicios,
     bonus: generated.bonus,
     checklist: generated.checklist,
@@ -297,13 +350,14 @@ Regras:
   await versionsRepo.create({
     factory_id: factory.id,
     version_number: 1,
+    version_label: "rascunho",
     snapshot: {
       titulo: generated.titulo,
       promessa: generated.promessa,
       capitulos: generated.capitulos,
       design: generated.design,
     },
-    changelog: "Versão inicial gerada pela Aura Product Factory",
+    changelog: "v1 — Rascunho gerado pela Aura Product Factory",
     file_id: null,
   });
 
@@ -342,7 +396,13 @@ export async function publishProductFactoryPdf(input: {
     return { file: null, bundle: null, error: findError ?? "Produto não encontrado." };
   }
 
-  const nextVersion = factory.current_version + 1;
+  const storageReady = await checkProductFilesBucketReady();
+  if (!storageReady) {
+    return { file: null, bundle: null, error: STORAGE_BUCKET_WARNING };
+  }
+
+  const nextVersion = Math.max(factory.current_version + 1, 3);
+  const versionLabel: ProductVersionLabel = "final";
   const slug = (factory.titulo ?? "ebook")
     .toLowerCase()
     .normalize("NFD")
@@ -363,7 +423,7 @@ export async function publishProductFactoryPdf(input: {
     return {
       file: null,
       bundle: null,
-      error: "Não foi possível salvar o PDF. Verifique o bucket product-factory-pdfs.",
+      error: STORAGE_BUCKET_WARNING,
     };
   }
 
@@ -393,13 +453,14 @@ export async function publishProductFactoryPdf(input: {
   await versionsRepo.create({
     factory_id: factoryId,
     version_number: nextVersion,
+    version_label: versionLabel,
     snapshot: {
       titulo: factory.titulo,
       promessa: factory.promessa,
       capitulos: factory.capitulos,
       design: factory.design,
     },
-    changelog: `PDF v${nextVersion} publicado`,
+    changelog: `v${nextVersion} — Final · PDF publicado`,
     file_id: file.id,
   });
 
@@ -421,6 +482,7 @@ export async function runProductFactoryCompliance(factoryId: string): Promise<{
 
   const factoryRepo = new ProductFactoryRepository(ctx.supabase, ctx.userId);
   const complianceRepo = new ProductComplianceChecksRepository(ctx.supabase, ctx.userId);
+  const versionsRepo = new ProductVersionsRepository(ctx.supabase, ctx.userId);
 
   const { data: factory, error: findError } = await factoryRepo.findById(factoryId);
   if (findError || !factory) {
@@ -466,6 +528,23 @@ Analise promessa e conteúdo. Responda APENAS JSON com campos compliance:
 
   if (createError || !compliance) {
     return { compliance: null, error: createError ?? "Erro ao salvar compliance." };
+  }
+
+  if (factory.current_version < 2) {
+    await factoryRepo.update(factoryId, { current_version: 2, status: "content_ready" });
+    await versionsRepo.create({
+      factory_id: factoryId,
+      version_number: 2,
+      version_label: "revisado",
+      snapshot: {
+        titulo: factory.titulo,
+        promessa: factory.promessa,
+        capitulos: factory.capitulos,
+        compliance: generated,
+      },
+      changelog: "v2 — Revisado · compliance atualizado",
+      file_id: null,
+    });
   }
 
   return { compliance: compliance as ProductComplianceCheck, error: null };

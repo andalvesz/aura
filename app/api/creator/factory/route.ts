@@ -4,11 +4,11 @@ import {
 } from "@/lib/supabase/services/product-factory.service";
 
 export async function GET() {
-  const { dashboard, bundles, error } = await getProductFactoryDashboard();
+  const { dashboard, bundles, storageReady, error } = await getProductFactoryDashboard();
   if (error) {
     return Response.json({ error }, { status: error === "Usuário não autenticado." ? 401 : 500 });
   }
-  return Response.json({ dashboard, bundles });
+  return Response.json({ dashboard, bundles, storageReady });
 }
 
 export async function DELETE(request: Request) {

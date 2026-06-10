@@ -12,6 +12,7 @@ import { parseJsonResponse } from "@/utils/safe-json";
 export function useProductFactory() {
   const [dashboard, setDashboard] = useState<ProductFactoryDashboardMetrics | null>(null);
   const [bundles, setBundles] = useState<ProductFactoryBundle[]>([]);
+  const [storageReady, setStorageReady] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -24,6 +25,7 @@ export function useProductFactory() {
       const { data, error: parseError } = await parseJsonResponse<{
         dashboard?: ProductFactoryDashboardMetrics;
         bundles?: ProductFactoryBundle[];
+        storageReady?: boolean;
         error?: string;
       }>(res);
 
@@ -31,11 +33,13 @@ export function useProductFactory() {
         setError(data?.error ?? parseError ?? "Erro ao carregar Product Factory.");
         setDashboard(null);
         setBundles([]);
+        setStorageReady(false);
         return;
       }
 
       setDashboard(data.dashboard ?? null);
       setBundles(data.bundles ?? []);
+      setStorageReady(data.storageReady ?? true);
     } catch {
       setError("Erro de conexão.");
       setDashboard(null);
@@ -82,7 +86,6 @@ export function useProductFactory() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "pdf",
           factory_id: factoryId,
           pdf_base64: pdfBase64,
         }),
@@ -109,11 +112,10 @@ export function useProductFactory() {
   async function runCompliance(factoryId: string) {
     setBusy(true);
     try {
-      const res = await fetch("/api/creator/factory/pdf", {
+      const res = await fetch("/api/creator/factory/compliance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "compliance",
           factory_id: factoryId,
         }),
       });
@@ -159,6 +161,7 @@ export function useProductFactory() {
   return {
     dashboard,
     bundles,
+    storageReady,
     loading,
     error,
     busy,

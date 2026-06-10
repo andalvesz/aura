@@ -801,6 +801,17 @@ export type ProductFactoryStatus =
   | "pdf_ready"
   | "published";
 
+export type ProductFactoryType =
+  | "ebook"
+  | "checklist"
+  | "workbook"
+  | "guia_pratico"
+  | "plano_7_dias"
+  | "plano_30_dias"
+  | "mini_curso";
+
+export type ProductVersionLabel = "rascunho" | "revisado" | "final";
+
 export type ProductFileType = "pdf" | "cover" | "asset";
 
 export type ProductComplianceStatus = "pass" | "warning" | "fail";
@@ -813,9 +824,13 @@ export type ProductFactory = {
   product_id: string | null;
   copylab_id: string | null;
   research_id: string | null;
+  product_type: ProductFactoryType;
   titulo: string | null;
+  subtitulo: string | null;
   promessa: string | null;
   avatar: string | null;
+  publico: string | null;
+  objetivo: string | null;
   problema: string | null;
   solucao: string | null;
   capitulos: Json;
@@ -850,6 +865,7 @@ export type ProductVersion = {
   user_id: string;
   factory_id: string;
   version_number: number;
+  version_label: ProductVersionLabel | null;
   snapshot: Json;
   changelog: string | null;
   file_id: string | null;
@@ -2992,14 +3008,22 @@ export type Database = {
           | "design"
           | "status"
           | "current_version"
+          | "product_type"
+          | "subtitulo"
+          | "publico"
+          | "objetivo"
         > & {
           id?: string;
           product_id?: string | null;
           copylab_id?: string | null;
           research_id?: string | null;
+          product_type?: ProductFactoryType;
           titulo?: string | null;
+          subtitulo?: string | null;
           promessa?: string | null;
           avatar?: string | null;
+          publico?: string | null;
+          objetivo?: string | null;
           problema?: string | null;
           solucao?: string | null;
           capitulos?: Json;
@@ -3044,10 +3068,17 @@ export type Database = {
         ProductVersion,
         Omit<
           ProductVersion,
-          "id" | "created_at" | "snapshot" | "changelog" | "file_id" | "version_number"
+          | "id"
+          | "created_at"
+          | "snapshot"
+          | "changelog"
+          | "file_id"
+          | "version_number"
+          | "version_label"
         > & {
           id?: string;
           version_number?: number;
+          version_label?: ProductVersionLabel | null;
           snapshot?: Json;
           changelog?: string | null;
           file_id?: string | null;
