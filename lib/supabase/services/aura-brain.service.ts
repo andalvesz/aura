@@ -45,8 +45,16 @@ import { rankProductsForLaunch } from "@/utils/creator";
 import {
   buildAuraBrainMarkdown,
   buildAuraBrainMemoryMarkdown,
+  buildAuraBrainOpeningBriefing,
+  DEFAULT_BRAIN_DAILY_TASKS,
+  type AuraBrainOpeningBriefing,
   type AuraBrainSections,
 } from "@/utils/aura-brain";
+import {
+  computeOpportunityRadarFromData,
+  parseOpportunityRadar,
+} from "@/utils/ceo";
+import { isCtrLowForHours, parseCampaignMetrics } from "@/utils/autopilot";
 import { buildGlobalAuraContext, computeGlobalDashboard } from "@/utils/global";
 import {
   buildKnowledgeAuraContext,
@@ -59,7 +67,7 @@ import { parsePerformanceExecutiveMemory } from "@/utils/performance";
 import { todayIsoDate } from "@/utils/health";
 import { AI_MEMORY_CATEGORY_LABELS, formatAuraMemoryDate } from "@/utils/aura-memory";
 import { truncatePreview } from "@/utils/memory";
-import { getOptionalDataContext } from "./context";
+import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 
 const CACHE_TTL_MS = 60_000;
 
@@ -614,4 +622,164 @@ export async function buildAuraContext(): Promise<AuraBrainResult> {
 
   inflight.set(userId, promise);
   return promise;
+}
+
+function resolveMetaPrincipal(brain: AuraBrainResult): string {
+  const legacyBlob = `${brain.sections.legado} ${brain.moduleData.trips}`.toLowerCase();
+  if (legacyBlob.includes("disney") || legacyBlob.includes("nba")) {
+    return "Financiar Disney + NBA";
+  }
+
+  if (brain.moduleData.money && !brain.moduleData.money.includes("Nenhum")) {
+    const metaPart = brain.moduleData.money.split(" · ")[0]?.replace("Meta: ", "").trim();
+    if (metaPart) return metaPart;
+  }
+
+  const firstMeta = brain.moduleData.metas
+    .split("\n")
+    .find((line) => line.startsWith("•"));
+  if (firstMeta && !firstMeta.includes("Nenhuma")) {
+    return firstMeta.replace("• ", "").split(" (")[0] ?? firstMeta;
+  }
+
+  return "Defina sua meta principal em Metas ou Money Missions";
+}
+
+function resolveDailyTasks(brain: AuraBrainResult, executionTasks: string[]): string[] {
+  if (executionTasks.length > 0) return executionTasks;
+
+  const moneyTasks = brain.moduleData.moneyTasks
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (moneyTasks.length > 0) return moneyTasks.slice(0, 4);
+
+  const growth = brain.moduleData.growthMissions
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  if (growth.length > 0) return growth.slice(0, 4);
+
+  return [...DEFAULT_BRAIN_DAILY_TASKS];
+}
+
+function resolveMelhorOportunidade(
+  brain: AuraBrainResult,
+  ceoSession: Awaited<ReturnType<AuraCeoSessionsRepository["findActive"]>>["data"]
+): string {
+  if (ceoSession?.opportunity_radar) {
+    const radar = parseOpportunityRadar(ceoSession.opportunity_radar);
+    const item = radar?.melhorOportunidade;
+    if (item?.titulo && item.titulo !== "—") {
+      if (
+        item.moeda_recomendada === "USD" ||
+        item.titulo.toLowerCase().includes("dólar") ||
+        item.titulo.toLowerCase().includes("dolar") ||
+        item.descricao?.toLowerCase().includes("internacional")
+      ) {
+        return "Produto internacional em dólar.";
+      }
+      return item.titulo;
+    }
+  }
+
+  const computed = computeOpportunityRadarFromData({
+    bundles: brain.moduleData.creator,
+    research: brain.moduleData.research,
+    legacySummary: brain.moduleData.legacy.slice(0, 200),
+  });
+
+  if (computed.melhorOportunidade.titulo !== "—") {
+    return computed.melhorOportunidade.titulo;
+  }
+
+  if (brain.sections.global.toLowerCase().includes("usd") || brain.sections.global.includes("Estados Unidos")) {
+    return "Produto internacional em dólar.";
+  }
+
+  return "Validar produto no Creator e pesquisar mercado";
+}
+
+function resolveRiscoAtual(
+  monitors: Awaited<ReturnType<AutopilotMonitorsRepository["findAllOrdered"]>>["data"],
+  campaigns: Awaited<ReturnType<typeof loadAdsCampaigns>>["records"]
+): string {
+  for (const monitor of monitors ?? []) {
+    const metrics = parseCampaignMetrics(monitor.metrics);
+    if (!metrics) continue;
+
+    const campaign = campaigns.find((c) => c.id === monitor.campaign_id);
+    const name = campaign?.nome ?? "Campanha";
+
+    if (metrics.ctr < 1 || isCtrLowForHours(metrics, 1, 0)) {
+      return `${name} com CTR baixo.`;
+    }
+  }
+
+  return "Nenhum risco crítico detectado — monitore campanhas no Autopilot.";
+}
+
+function resolveSugestao(
+  actions: Awaited<ReturnType<AutopilotActionsRepository["findAllOrdered"]>>["data"]
+): string {
+  const pending = (actions ?? []).find(
+    (a) => a.status === "suggested" || a.status === "pending_approval"
+  );
+
+  if (pending?.suggestion?.trim()) return pending.suggestion.trim();
+  if (pending?.action_type === "generate_creative") return "Gerar novo criativo.";
+  if (pending?.action_type === "generate_copy") return "Gerar nova copy no CopyLab.";
+
+  return "Gerar novo criativo.";
+}
+
+export async function getAuraBrainOpeningSummary(): Promise<{
+  summary: AuraBrainOpeningBriefing | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { summary: null, error: "Usuário não autenticado." };
+  }
+
+  const displayName = await resolveUserDisplayName(ctx);
+  const brain = await buildAuraContext();
+  if (brain.error) {
+    return { summary: null, error: brain.error };
+  }
+
+  const today = todayIsoDate();
+  const { supabase, userId } = ctx;
+
+  const [ceoSessionRes, executionPlanRes, monitorsRes, adsRes, actionsRes] =
+    await Promise.all([
+      new AuraCeoSessionsRepository(supabase, userId).findActive(),
+      new ExecutionPlansRepository(supabase, userId).findByDate(today),
+      new AutopilotMonitorsRepository(supabase, userId).findAllOrdered(),
+      loadAdsCampaigns(),
+      new AutopilotActionsRepository(supabase, userId).findAllOrdered(),
+    ]);
+
+  let executionTaskTitles: string[] = [];
+  if (executionPlanRes.data) {
+    const tasksRes = await new ExecutionTasksRepository(supabase, userId).findByPlanId(
+      executionPlanRes.data.id
+    );
+    executionTaskTitles = (tasksRes.data ?? [])
+      .filter((t) => t.status === "pending")
+      .sort((a, b) => a.ordem - b.ordem)
+      .slice(0, 4)
+      .map((t) => t.titulo);
+  }
+
+  const summary = buildAuraBrainOpeningBriefing({
+    displayName,
+    metaPrincipal: resolveMetaPrincipal(brain),
+    tarefasHoje: resolveDailyTasks(brain, executionTaskTitles),
+    melhorOportunidade: resolveMelhorOportunidade(brain, ceoSessionRes.data),
+    riscoAtual: resolveRiscoAtual(monitorsRes.data, adsRes.records),
+    sugestao: resolveSugestao(actionsRes.data),
+  });
+
+  return { summary, error: null };
 }

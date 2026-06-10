@@ -60,6 +60,10 @@ describe("Aura Coach", () => {
     assert.equal(detectCoachMode("Tenho algo importante hoje?"), "important-today");
     assert.equal(detectCoachMode("Onde devo focar?"), "opportunity");
     assert.equal(detectCoachMode("alertas"), "alerts");
+    assert.equal(
+      detectCoachMode("Qual agente está cuidando disso?"),
+      "agent-owner"
+    );
     assert.equal(detectCoachMode("criar treino"), null);
   });
 

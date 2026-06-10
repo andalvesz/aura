@@ -9,10 +9,8 @@ import {
   resolveIdentityCommandResponse,
 } from "@/lib/ai/identity-runtime";
 import { getUserLegacyContext } from "@/lib/supabase/services/identity.service";
-import {
-  getAuraCentralFinanceContext,
-  getAuraCentralOpeningSummary,
-} from "@/lib/supabase/services/central.service";
+import { getAuraCentralFinanceContext } from "@/lib/supabase/services/central.service";
+import { getAuraBrainOpeningSummary } from "@/lib/supabase/services/aura-brain.service";
 import { buildAuraMemoryDirectReply } from "@/lib/supabase/services/ai-memories.service";
 import {
   getAuraEvolutionContext,
@@ -136,11 +134,15 @@ import {
   type AuraCentralModule,
 } from "@/utils/orchestrator";
 import {
-  AURA_BRAIN_AI_CONTEXT,
   isAuraBrainFullContextQuery,
   isAuraBrainLearnedContextQuery,
 } from "@/utils/aura-brain";
-import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
+import { runAuraBrainMultiAgent } from "@/lib/agents/aura-brain-router";
+import {
+  buildAgentOwnerReply,
+  isAuraBrainAgentRoutingQuery,
+  selectAgentsForQuery,
+} from "@/utils/agent-registry";
 import { SOCIAL_AI_CONTEXT } from "@/utils/social";
 import { parseRequestJson } from "@/utils/safe-json";
 import {
@@ -309,7 +311,7 @@ export async function GET(req: Request) {
       return Response.json({ entries });
     }
 
-    const { summary, error } = await getAuraCentralOpeningSummary();
+    const { summary, error } = await getAuraBrainOpeningSummary();
 
     if (error || !summary) {
       return Response.json(
@@ -876,6 +878,22 @@ export async function POST(req: Request) {
     }
 
     const coachMode = detectCoachMode(message, actionId);
+    if (coachMode === "agent-owner") {
+      const text = buildAgentOwnerReply(message);
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: "agent-owner",
+        consultedAgents: selectAgentsForQuery(message),
+      });
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: "agent-owner",
+        consultedAgents: selectAgentsForQuery(message),
+      });
+    }
+
     if (coachMode) {
       if (coachMode === "intro") {
         const ctx = await getOptionalDataContext();
@@ -1053,67 +1071,41 @@ export async function POST(req: Request) {
 
     const brainFullQuery = isAuraBrainFullContextQuery(message);
     const brainLearnedQuery = isAuraBrainLearnedContextQuery(message);
+    const useMultiAgentBrain =
+      brainFullQuery ||
+      brainLearnedQuery ||
+      isAuraBrainAgentRoutingQuery(message);
 
-    if (brainFullQuery || brainLearnedQuery) {
-      if (!process.env.OPENAI_API_KEY) {
-        return Response.json(
-          { error: "OPENAI_API_KEY não configurada." },
-          { status: 500 }
-        );
-      }
-
+    if (useMultiAgentBrain) {
       const ctx = await getOptionalDataContext();
       if (!ctx) {
         return Response.json({ error: "Faça login para usar a Aura Brain." }, { status: 401 });
       }
 
-      const brain = await buildAuraContext();
-      if (brain.error) {
-        return Response.json({ error: brain.error }, { status: 500 });
+      const brainMode = brainFullQuery ? "full" : brainLearnedQuery ? "memory" : "agents";
+      const result = await runAuraBrainMultiAgent({
+        message,
+        history,
+        agentIds: selectAgentsForQuery(message),
+        brainMode,
+      });
+
+      if (result.error) {
+        const status =
+          result.error === "OPENAI_API_KEY não configurada."
+            ? 500
+            : result.error === "Usuário não autenticado."
+              ? 401
+              : 500;
+        return Response.json({ error: result.error }, { status });
       }
 
-      const mergedHistory = await resolveMergedHistory("aura_central", history);
-      const dataContext = brainFullQuery ? brain.context : brain.memoryContext;
-      const instruction = brainFullQuery
-        ? "Analise TODO o contexto do usuário e responda com visão estratégica integrada."
-        : "Use TUDO que já aprendemos — memórias, padrões vencedores e erros — para orientar a resposta.";
-
-      const systemPrompt = await injectIdentityIntoPrompt(`${AURA_BRAIN_AI_CONTEXT}
-
-${AURA_CENTRAL_CONTEXT}
-
-## INSTRUÇÃO
-${instruction}
-
-${dataContext || "Nenhum contexto disponível ainda."}`);
-
-      const messages = await buildOpenAiMessagesWithMemory({
-        module: "aura_central",
-        userMessage: message,
-        systemPrompt: `${systemPrompt}
-Responda como Aura Brain com inteligência centralizada. Data de hoje: ${todayIsoDate()}.`,
-        clientHistory: history,
-        mergedHistory,
-      });
-
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages,
-      });
-
-      const text =
-        response.choices[0]?.message?.content ?? "Não consegui responder agora.";
-
-      await persistAiTurn("aura_central", message, text, {
-        kind: "brain",
-        brainMode: brainFullQuery ? "full" : "memory",
-      });
-
       return Response.json({
-        text,
+        text: result.text,
         module: "global",
         kind: "brain",
-        brainMode: brainFullQuery ? "full" : "memory",
+        brainMode: result.brainMode,
+        consultedAgents: result.consultedAgents,
       });
     }
 

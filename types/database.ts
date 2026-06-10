@@ -1737,6 +1737,17 @@ export type AuraCommandHistory = {
   created_at: string;
 };
 
+export type AgentHistory = {
+  id: string;
+  user_id: string;
+  agent_id: string;
+  user_message: string;
+  agent_response: string;
+  consulted_agents: Json;
+  metadata: Json;
+  created_at: string;
+};
+
 export type XpAcao =
   | "registrar_despesa"
   | "registrar_receita"
@@ -2307,6 +2318,15 @@ export type Database = {
           id?: string;
           result?: Json | null;
           error_message?: string | null;
+          created_at?: string;
+        }
+      >;
+      agent_history: TableDef<
+        AgentHistory,
+        Omit<AgentHistory, "id" | "created_at"> & {
+          id?: string;
+          consulted_agents?: Json;
+          metadata?: Json;
           created_at?: string;
         }
       >;
@@ -3837,6 +3857,7 @@ export type UserScopedTable =
   | "language_lessons"
   | "notifications"
   | "aura_command_history"
+  | "agent_history"
   | "communication_logs"
   | "user_xp"
   | "xp_history"

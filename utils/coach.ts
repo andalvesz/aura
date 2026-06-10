@@ -82,6 +82,7 @@ export type CoachMode =
   | "comms-contact"
   | "comms-stalled"
   | "comms-no-response"
+  | "agent-owner"
   | "intro";
 
 export const AURA_COACH_ACTION_ID = "aura-coach";
@@ -183,6 +184,17 @@ const XP_MISSIONS_PHRASES = [
   "missões do dia",
 ] as const;
 
+const AGENT_OWNER_PHRASES = [
+  "qual agente esta cuidando",
+  "qual agente está cuidando",
+  "quem esta cuidando",
+  "quem está cuidando",
+  "qual agente cuida",
+  "quem cuida disso",
+  "quem esta responsavel",
+  "quem está responsável",
+] as const;
+
 const IMPORTANT_TODAY_PHRASES = [
   "tenho algo importante hoje",
   "algo importante hoje",
@@ -236,6 +248,7 @@ export function detectCoachMode(
   if (matchesAny(normalized, XP_PROGRESS_PHRASES)) return "xp-progress";
   if (matchesAny(normalized, XP_MISSIONS_PHRASES)) return "xp-missions";
   if (matchesAny(normalized, IMPORTANT_TODAY_PHRASES)) return "important-today";
+  if (matchesAny(normalized, AGENT_OWNER_PHRASES)) return "agent-owner";
   if (matchesAny(normalized, FOCUS_PHRASES)) return "opportunity";
   if (matchesAny(normalized, ALERT_PHRASES)) return "alerts";
 

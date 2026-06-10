@@ -14,6 +14,7 @@ export { LeadsRepository } from "./leads.repository";
 export { NotificationsRepository } from "./notifications.repository";
 export { AiMessagesRepository } from "./ai-messages.repository";
 export { AiMemoriesRepository } from "./ai-memories.repository";
+export { AgentHistoryRepository } from "./agent-history.repository";
 export {
   GrowthGoalsRepository,
   GrowthMissionsRepository,

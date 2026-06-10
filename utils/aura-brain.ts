@@ -1,5 +1,7 @@
 import type { PerformanceExecutiveMemory } from "@/utils/performance";
 
+export type AuraBrainAgentMode = "full" | "memory" | "agents";
+
 export const AURA_BRAIN_AI_CONTEXT = `Você é a Aura Brain — inteligência central da Aura OS.
 Você tem acesso ao contexto completo do usuário: legado, negócios, financeiro, global, execução e memória.
 Use dados reais do contexto. Não invente métricas. Priorize ações de maior impacto.
@@ -13,6 +15,85 @@ export type AuraBrainSections = {
   execucao: string;
   memoria: string;
 };
+
+export const DEFAULT_BRAIN_DAILY_TASKS = [
+  "Criar produto",
+  "Publicar conteúdo",
+  "Revisar campanha",
+  "Prospectar clientes",
+] as const;
+
+export type AuraBrainOpeningBriefing = {
+  greeting: string;
+  metaPrincipal: string;
+  tarefasHoje: string[];
+  melhorOportunidade: string;
+  riscoAtual: string;
+  sugestao: string;
+  text: string;
+  bullets: string[];
+};
+
+export function buildAuraBrainOpeningBriefing(params: {
+  displayName: string;
+  metaPrincipal: string;
+  tarefasHoje: string[];
+  melhorOportunidade: string;
+  riscoAtual: string;
+  sugestao: string;
+}): AuraBrainOpeningBriefing {
+  const firstName = params.displayName.split(" ")[0] ?? params.displayName;
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12
+      ? `Bom dia, ${firstName}.`
+      : hour < 18
+        ? `Boa tarde, ${firstName}.`
+        : `Boa noite, ${firstName}.`;
+
+  const taskLines = params.tarefasHoje
+    .slice(0, 6)
+    .map((t) => `☐ ${t}`)
+    .join("\n");
+
+  const text = [
+    greeting,
+    "",
+    "Meta principal:",
+    params.metaPrincipal,
+    "",
+    "Hoje você deve:",
+    "",
+    taskLines,
+    "",
+    "Melhor oportunidade:",
+    params.melhorOportunidade,
+    "",
+    "Risco atual:",
+    params.riscoAtual,
+    "",
+    "Sugestão:",
+    params.sugestao,
+  ].join("\n");
+
+  const bullets = [
+    `Meta principal: ${params.metaPrincipal}`,
+    `Melhor oportunidade: ${params.melhorOportunidade}`,
+    `Risco atual: ${params.riscoAtual}`,
+    `Sugestão: ${params.sugestao}`,
+  ];
+
+  return {
+    greeting,
+    metaPrincipal: params.metaPrincipal,
+    tarefasHoje: params.tarefasHoje,
+    melhorOportunidade: params.melhorOportunidade,
+    riscoAtual: params.riscoAtual,
+    sugestao: params.sugestao,
+    text,
+    bullets,
+  };
+}
 
 export function isAuraBrainFullContextQuery(message: string): boolean {
   const normalized = message
