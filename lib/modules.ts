@@ -18,6 +18,7 @@ import {
   Mail,
   Languages,
   MapPin,
+  Globe,
   Rocket,
   Share2,
   Sparkles,
@@ -49,7 +50,8 @@ export type ModuleId =
   | "performance"
   | "autopilot"
   | "product-factory"
-  | "platforms";
+  | "platforms"
+  | "global";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -356,6 +358,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Plataformas",
       value: "0",
       hint: "Conecte sua primeira plataforma de vendas",
+    },
+  },
+  {
+    id: "global",
+    href: "/dashboard/global",
+    label: "Aura Global Intelligence",
+    shortLabel: "Global",
+    description:
+      "Escolha automaticamente a melhor estratégia para cada mercado internacional — país, idioma, moeda e Global Score.",
+    icon: Globe,
+    accent: "text-sky-400",
+    overview: {
+      metric: "Global Score",
+      value: "—",
+      hint: "Analise mercados internacionais",
     },
   },
 ];

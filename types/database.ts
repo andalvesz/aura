@@ -984,6 +984,89 @@ export type AffiliateAnalysis = {
   updated_at: string;
 };
 
+export type GlobalMarketStatus = "active" | "paused" | "archived";
+
+export type GlobalProductType =
+  | "curso"
+  | "ebook"
+  | "mentoria"
+  | "software"
+  | "afiliado"
+  | "servico"
+  | "outro";
+
+export type GlobalObjective = "proprio" | "afiliado";
+
+export type GlobalCurrency = "BRL" | "USD" | "EUR" | "GBP" | "CAD";
+
+export type GlobalDifficulty = "baixa" | "media" | "alta";
+
+export type GlobalProfitPotential = "baixo" | "medio" | "alto";
+
+export type GlobalStrategyStatus = "draft" | "active" | "archived";
+
+export type GlobalResultSource =
+  | "manual"
+  | "platform_hub"
+  | "creator"
+  | "money_missions";
+
+export type GlobalMarket = {
+  id: string;
+  user_id: string;
+  country: string;
+  language: string;
+  currency: GlobalCurrency;
+  product_type: GlobalProductType;
+  objective: GlobalObjective;
+  product_name: string | null;
+  creator_product_id: string | null;
+  status: GlobalMarketStatus;
+  global_score: number | null;
+  score_financial: number | null;
+  score_competition: number | null;
+  score_entry_ease: number | null;
+  score_skills_alignment: number | null;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GlobalStrategy = {
+  id: string;
+  user_id: string;
+  market_id: string;
+  suggested_price: number | null;
+  currency: GlobalCurrency;
+  audience: string | null;
+  channels: Json;
+  difficulty: GlobalDifficulty;
+  profit_potential: GlobalProfitPotential;
+  profit_potential_score: number | null;
+  ai_summary: string | null;
+  raw_analysis: Json;
+  status: GlobalStrategyStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type GlobalResult = {
+  id: string;
+  user_id: string;
+  market_id: string | null;
+  strategy_id: string | null;
+  currency: GlobalCurrency;
+  revenue_amount: number;
+  revenue_converted_brl: number;
+  product_name: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  source: GlobalResultSource;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorAsset = {
   id: string;
   user_id: string;
@@ -3338,6 +3421,115 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      global_markets: TableDef<
+        GlobalMarket,
+        Omit<
+          GlobalMarket,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "country"
+          | "language"
+          | "currency"
+          | "product_type"
+          | "objective"
+          | "product_name"
+          | "creator_product_id"
+          | "status"
+          | "global_score"
+          | "score_financial"
+          | "score_competition"
+          | "score_entry_ease"
+          | "score_skills_alignment"
+          | "metadata"
+        > & {
+          id?: string;
+          country?: string;
+          language?: string;
+          currency?: GlobalCurrency;
+          product_type?: GlobalProductType;
+          objective?: GlobalObjective;
+          product_name?: string | null;
+          creator_product_id?: string | null;
+          status?: GlobalMarketStatus;
+          global_score?: number | null;
+          score_financial?: number | null;
+          score_competition?: number | null;
+          score_entry_ease?: number | null;
+          score_skills_alignment?: number | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      global_strategies: TableDef<
+        GlobalStrategy,
+        Omit<
+          GlobalStrategy,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "market_id"
+          | "suggested_price"
+          | "currency"
+          | "audience"
+          | "channels"
+          | "difficulty"
+          | "profit_potential"
+          | "profit_potential_score"
+          | "ai_summary"
+          | "raw_analysis"
+          | "status"
+        > & {
+          id?: string;
+          market_id?: string;
+          suggested_price?: number | null;
+          currency?: GlobalCurrency;
+          audience?: string | null;
+          channels?: Json;
+          difficulty?: GlobalDifficulty;
+          profit_potential?: GlobalProfitPotential;
+          profit_potential_score?: number | null;
+          ai_summary?: string | null;
+          raw_analysis?: Json;
+          status?: GlobalStrategyStatus;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      global_results: TableDef<
+        GlobalResult,
+        Omit<
+          GlobalResult,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "market_id"
+          | "strategy_id"
+          | "currency"
+          | "revenue_amount"
+          | "revenue_converted_brl"
+          | "product_name"
+          | "period_start"
+          | "period_end"
+          | "source"
+          | "metadata"
+        > & {
+          id?: string;
+          market_id?: string | null;
+          strategy_id?: string | null;
+          currency?: GlobalCurrency;
+          revenue_amount?: number;
+          revenue_converted_brl?: number;
+          product_name?: string | null;
+          period_start?: string | null;
+          period_end?: string | null;
+          source?: GlobalResultSource;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -3437,7 +3629,10 @@ export type UserScopedTable =
   | "platform_connections"
   | "platform_sync_logs"
   | "affiliate_products"
-  | "affiliate_analysis";
+  | "affiliate_analysis"
+  | "global_markets"
+  | "global_strategies"
+  | "global_results";
 
 export type AiModule =
   | "aura_central"

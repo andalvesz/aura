@@ -42,6 +42,7 @@ import {
 } from "./campaign-budget.service";
 import { getOptionalDataContext } from "./context";
 import { getPlatformsContext } from "./platform-hub.service";
+import { getGlobalContext } from "./global-intelligence.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -118,6 +119,7 @@ async function loadAllModuleContexts() {
     growthMissions,
     autopilot,
     platforms,
+    globalIntel,
   ] = await Promise.all([
     getLegacyContext(),
     getAuraCentralFinanceContext(),
@@ -136,6 +138,7 @@ async function loadAllModuleContexts() {
     listGrowthMissions(),
     getAutopilotContext(),
     getPlatformsContext(),
+    getGlobalContext(),
   ]);
 
   return {
@@ -191,6 +194,7 @@ async function loadAllModuleContexts() {
         .join(", ") || "",
     autopilot: autopilot.context ?? "Nenhuma campanha no Autopilot.",
     platforms: platforms.context ?? "",
+    global: globalIntel.context ?? "",
   };
 }
 
@@ -312,6 +316,7 @@ export async function getCeoContext(): Promise<{ context: string; error: string 
     moduleData.launch ? `## LAUNCH CENTER\n${moduleData.launch}` : "",
     moduleData.autopilot ? `## AUTOPILOT\n${moduleData.autopilot}` : "",
     moduleData.platforms ? `## PLATFORM HUB\n${moduleData.platforms}` : "",
+    moduleData.global ? `## GLOBAL INTELLIGENCE\n${moduleData.global}` : "",
     moduleData.social ? `## SOCIAL MEDIA\n${moduleData.social}` : "",
     moduleData.alvesz ? `## ALVESZ EXPERIENCE\n${moduleData.alvesz}` : "",
     moduleData.english ? `## IDIOMAS\n${moduleData.english}` : "",

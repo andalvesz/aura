@@ -92,6 +92,10 @@ import {
   buildPlatformsCoachReply,
   detectPlatformsCoachMode,
 } from "@/utils/platforms";
+import {
+  buildGlobalCoachReply,
+  detectGlobalCoachMode,
+} from "@/utils/global";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { loadStudioAssets } from "@/lib/supabase/services/creative-studio.service";
 import { loadLandingRecords } from "@/lib/supabase/services/landing-builder.service";
@@ -104,6 +108,7 @@ import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import { loadProductFactoryBundles } from "@/lib/supabase/services/product-factory.service";
 import { getPlatformsDashboard } from "@/lib/supabase/services/platform-hub.service";
+import { getGlobalDashboard } from "@/lib/supabase/services/global-intelligence.service";
 import { loadLegacyData } from "@/lib/supabase/services/legado.service";
 import { runGlobalSearch } from "@/lib/search/global-search";
 import {
@@ -624,9 +629,40 @@ export async function POST(req: Request) {
 
       return Response.json({
         text,
-        module: "global",
+        module: "platforms",
         kind: "coach",
         coachMode: platformsMode,
+      });
+    }
+
+    const globalMode = detectGlobalCoachMode(message);
+    if (globalMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { dashboard, markets, strategies } = await getGlobalDashboard();
+
+      const text = buildGlobalCoachReply({
+        mode: globalMode,
+        displayName,
+        dashboard,
+        markets,
+        strategies,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: globalMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: globalMode,
       });
     }
 
