@@ -120,6 +120,10 @@ export function useMetaIntelligence() {
     }
   }
 
+  function connectOAuth() {
+    window.location.href = "/api/meta/login";
+  }
+
   async function disconnect() {
     setBusy(true);
     try {
@@ -178,6 +182,7 @@ export function useMetaIntelligence() {
     busy,
     refresh,
     connect,
+    connectOAuth,
     disconnect,
     sync,
     analyze,

@@ -1,4 +1,5 @@
 import { decryptCredentials, encryptCredentials } from "@/lib/crypto/credentials";
+import { META_OAUTH_SCOPES } from "@/lib/meta";
 import {
   duplicateMetaCampaign,
   fetchMetaCampaignInsights,
@@ -43,6 +44,32 @@ function getAccessToken(encrypted: string): string {
   const token = creds.access_token?.trim();
   if (!token) throw new Error("Token Meta inválido.");
   return token;
+}
+
+type MetaImportedMetadata = {
+  businessManagers?: MetaBusinessManager[];
+  pages?: MetaPage[];
+  pixels?: MetaPixel[];
+  importedAt?: string;
+};
+
+function readImportedFromMetadata(metadata: Json | null | undefined): MetaImportedMetadata {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return {};
+  }
+  const imported = (metadata as Record<string, unknown>).imported;
+  if (!imported || typeof imported !== "object" || Array.isArray(imported)) {
+    return {};
+  }
+  const record = imported as Record<string, unknown>;
+  return {
+    businessManagers: Array.isArray(record.businessManagers)
+      ? (record.businessManagers as MetaBusinessManager[])
+      : [],
+    pages: Array.isArray(record.pages) ? (record.pages as MetaPage[]) : [],
+    pixels: Array.isArray(record.pixels) ? (record.pixels as MetaPixel[]) : [],
+    importedAt: typeof record.importedAt === "string" ? record.importedAt : undefined,
+  };
 }
 
 async function fetchMetaLiveEntities(token: string, adAccountExternalIds: string[]) {
@@ -102,6 +129,8 @@ export async function getMetaConnectDashboard() {
   let ads: MetaAd[] = [];
   let audiences: MetaAudience[] = [];
 
+  const cached = readImportedFromMetadata(connection.data?.metadata);
+
   if (connection.data?.status === "connected" && connection.data.access_token_encrypted) {
     try {
       const token = getAccessToken(connection.data.access_token_encrypted);
@@ -116,7 +145,9 @@ export async function getMetaConnectDashboard() {
       ads = live.ads;
       audiences = live.audiences;
     } catch {
-      // Live fetch optional — DB data still returned
+      businessManagers = cached.businessManagers ?? [];
+      pages = cached.pages ?? [];
+      pixels = cached.pixels ?? [];
     }
   }
 
@@ -164,6 +195,8 @@ export async function connectMetaBusiness(params: {
   accessToken: string;
   businessId?: string;
   businessName?: string;
+  tokenExpiresAt?: string | null;
+  scopes?: string[];
 }) {
   const ctx = await getOptionalDataContext();
   if (!ctx) return { error: "Usuário não autenticado." };
@@ -181,12 +214,12 @@ export async function connectMetaBusiness(params: {
       business_id: params.businessId?.trim() || null,
       business_name: params.businessName?.trim() || test.label || null,
       access_token_encrypted: encrypted,
-      token_expires_at: null,
+      token_expires_at: params.tokenExpiresAt ?? null,
       status: "connected" as const,
       last_error: null,
       last_sync_at: null,
-      scopes: ["ads_management", "ads_read"],
-      metadata: {} as Json,
+      scopes: params.scopes ?? [...META_OAUTH_SCOPES],
+      metadata: (existing.data?.metadata ?? {}) as Json,
     };
 
     if (existing.data) {
@@ -214,6 +247,130 @@ export async function connectMetaBusiness(params: {
       message,
     });
     return { error: message };
+  }
+}
+
+export async function importMetaOAuthEntities(accessToken?: string) {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { error: "Usuário não autenticado.", businessManagers: 0, adAccounts: 0, pages: 0, pixels: 0 };
+  }
+
+  const connRepo = new MetaConnectionsRepository(ctx.supabase, ctx.userId);
+  const accountsRepo = new MetaAdAccountsRepository(ctx.supabase, ctx.userId);
+  const { data: connection } = await connRepo.findForUser();
+
+  if (!connection || connection.status !== "connected") {
+    return {
+      error: "Conecte Meta Business primeiro.",
+      businessManagers: 0,
+      adAccounts: 0,
+      pages: 0,
+      pixels: 0,
+    };
+  }
+
+  try {
+    const token =
+      accessToken?.trim() || getAccessToken(connection.access_token_encrypted);
+
+    const [businessManagers, pages, accounts] = await Promise.all([
+      listMetaBusinessManagers(token),
+      listMetaPages(token),
+      listMetaAdAccounts(token),
+    ]);
+
+    for (const account of accounts) {
+      const existing = await ctx.supabase
+        .from("meta_ad_accounts")
+        .select("id")
+        .eq("user_id", ctx.userId)
+        .eq("external_account_id", account.externalAccountId)
+        .maybeSingle();
+
+      const accountPayload = {
+        connection_id: connection.id,
+        external_account_id: account.externalAccountId,
+        name: account.name,
+        currency: account.currency,
+        timezone: account.timezone,
+        status: account.status,
+        last_synced_at: new Date().toISOString(),
+        metadata: {} as Json,
+      };
+
+      if (existing.data?.id) {
+        await accountsRepo.update(existing.data.id, accountPayload);
+      } else {
+        await accountsRepo.create(accountPayload);
+      }
+    }
+
+    const pixels: MetaPixel[] = [];
+    for (const account of accounts.slice(0, 10)) {
+      const accountPixels = await listMetaPixels(token, account.externalAccountId).catch(
+        () => [] as MetaPixel[]
+      );
+      pixels.push(...accountPixels);
+    }
+
+    const primaryBusiness = businessManagers[0];
+    const metadata = {
+      ...(typeof connection.metadata === "object" && connection.metadata && !Array.isArray(connection.metadata)
+        ? (connection.metadata as Record<string, unknown>)
+        : {}),
+      imported: {
+        businessManagers,
+        pages,
+        pixels,
+        importedAt: new Date().toISOString(),
+      },
+    } as Json;
+
+    await connRepo.update(connection.id, {
+      business_id: primaryBusiness?.id ?? connection.business_id,
+      business_name: primaryBusiness?.name ?? connection.business_name,
+      last_sync_at: new Date().toISOString(),
+      last_error: null,
+      metadata,
+    });
+
+    await logIntegrationAction({
+      platform: "meta",
+      actionType: "import",
+      status: "success",
+      message: "Importação OAuth Meta concluída.",
+      details: {
+        businessManagers: businessManagers.length,
+        adAccounts: accounts.length,
+        pages: pages.length,
+        pixels: pixels.length,
+      },
+    });
+
+    return {
+      error: null,
+      businessManagers: businessManagers.length,
+      adAccounts: accounts.length,
+      pages: pages.length,
+      pixels: pixels.length,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Erro na importação Meta.";
+    await connRepo.update(connection.id, { last_error: message });
+    await logIntegrationAction({
+      platform: "meta",
+      actionType: "import",
+      status: "error",
+      message,
+    });
+    return {
+      error: message,
+      businessManagers: 0,
+      adAccounts: 0,
+      pages: 0,
+      pixels: 0,
+    };
   }
 }
 

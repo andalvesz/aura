@@ -107,6 +107,10 @@ export function useMetaConnect() {
     }
   }
 
+  function connectOAuth() {
+    window.location.href = "/api/meta/login";
+  }
+
   async function disconnect() {
     setBusy(true);
     try {
@@ -149,6 +153,7 @@ export function useMetaConnect() {
     busy,
     refresh,
     connect,
+    connectOAuth,
     disconnect,
     sync,
   };

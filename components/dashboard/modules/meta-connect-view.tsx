@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Eye,
   Loader2,
@@ -9,7 +10,7 @@ import {
   Shield,
   Unplug,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -53,6 +54,7 @@ function EntityRow({ title, subtitle }: { title: string; subtitle: string }) {
 }
 
 export function MetaConnectView({ readOnly = META_READ_ONLY_MODE }: MetaConnectViewProps) {
+  const searchParams = useSearchParams();
   const {
     connection,
     adAccounts,
@@ -69,22 +71,41 @@ export function MetaConnectView({ readOnly = META_READ_ONLY_MODE }: MetaConnectV
     loading,
     error,
     busy,
-    connect,
+    connectOAuth,
     disconnect,
     sync,
   } = useMetaConnect();
 
-  const [accessToken, setAccessToken] = useState("");
-  const [businessName, setBusinessName] = useState("");
-
   const connected = connection?.status === "connected";
   const isReadOnly = readOnly || META_READ_ONLY_MODE;
 
-  async function handleConnect() {
-    const err = await connect({ accessToken, businessName });
-    if (err) toast.error(err);
-    else toast.success("Meta Business conectado.");
-  }
+  useEffect(() => {
+    const meta = searchParams.get("meta");
+    if (meta === "connected") {
+      const businessManagersCount = Number(searchParams.get("businessManagers") ?? "0");
+      const adAccountsCount = Number(searchParams.get("adAccounts") ?? "0");
+      const pagesCount = Number(searchParams.get("pages") ?? "0");
+      const pixelsCount = Number(searchParams.get("pixels") ?? "0");
+      const hasImport =
+        businessManagersCount > 0 ||
+        adAccountsCount > 0 ||
+        pagesCount > 0 ||
+        pixelsCount > 0;
+      if (hasImport) {
+        toast.success(
+          `Meta conectado. ${businessManagersCount} Business Manager(s), ${adAccountsCount} conta(s) de anúncio, ${pagesCount} página(s), ${pixelsCount} pixel(s) importados.`
+        );
+      } else {
+        toast.success("Meta conectado.");
+      }
+    } else if (meta === "unconfigured") {
+      toast.error("Meta Business não está configurado no servidor.");
+    } else if (meta === "save_error") {
+      toast.error("Não foi possível salvar a conexão Meta.");
+    } else if (meta === "error" || meta === "denied") {
+      toast.error("Não foi possível conectar à Meta.");
+    }
+  }, [searchParams]);
 
   async function handleSync() {
     const err = await sync();
@@ -141,25 +162,14 @@ export function MetaConnectView({ readOnly = META_READ_ONLY_MODE }: MetaConnectV
         </PanelHeader>
         <PanelContent className="space-y-3">
           {!connected ? (
-            <div className="grid gap-2 sm:grid-cols-2">
-              <input
-                type="password"
-                placeholder="Access Token (long-lived)"
-                value={accessToken}
-                onChange={(e) => setAccessToken(e.target.value)}
-                className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-zinc-200"
-              />
-              <input
-                type="text"
-                placeholder="Nome do Business (opcional)"
-                value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)}
-                className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-zinc-200"
-              />
-              <ActionButton disabled={busy} onClick={() => void handleConnect()}>
+            <div className="space-y-2">
+              <ActionButton disabled={busy} onClick={connectOAuth}>
                 {busy ? <Loader2 className="size-3 animate-spin" /> : <Plug className="size-3" />}
-                Conectar Meta Business
+                Conectar Meta
               </ActionButton>
+              <p className="text-[10px] text-zinc-500">
+                Login seguro via Facebook — consentimento e credenciais criptografadas no servidor.
+              </p>
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
