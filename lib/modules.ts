@@ -30,6 +30,7 @@ import {
   Target,
   TrendingUp,
   Wallet,
+  CircleDollarSign,
 } from "lucide-react";
 
 export type ModuleId =
@@ -47,6 +48,7 @@ export type ModuleId =
   | "legado"
   | "creator"
   | "money"
+  | "revenue"
   | "ceo"
   | "execution"
   | "performance"
@@ -272,6 +274,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Meta",
       value: "—",
       hint: "Nenhuma missão financeira ativa",
+    },
+  },
+  {
+    id: "revenue",
+    href: "/dashboard/revenue",
+    label: "Aura Revenue Center",
+    shortLabel: "Revenue",
+    description:
+      "Centralize receitas e despesas da operação digital — lucro, ROI e investimento em um só lugar.",
+    icon: CircleDollarSign,
+    accent: "text-emerald-400",
+    overview: {
+      metric: "Lucro mês",
+      value: "—",
+      hint: "Conecte fontes de receita e despesas",
     },
   },
   {

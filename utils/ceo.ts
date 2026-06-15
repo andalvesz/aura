@@ -70,7 +70,10 @@ Tom de conselheiro executivo, orientado a ação.`;
 
 export const CEO_EXAMPLE_QUESTIONS = [
   "Como ganho R$ 20.000?",
-  "Como ganho US$ 5.000?",
+  "Quanto lucrei esse mês?",
+  "Quanto posso investir?",
+  "Quanto devo colocar no Meta Ads?",
+  "Qual minha margem?",
   "Qual produto lançar nos EUA?",
   "Qual meu melhor projeto hoje?",
   "O que devo priorizar?",

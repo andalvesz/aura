@@ -7,6 +7,7 @@ import {
 import { MoneyMissionPlansRepository } from "@/lib/supabase/repositories/money.repository";
 import { getLegacyContext } from "@/lib/supabase/services/legado.service";
 import { syncKiwifyConnection } from "@/lib/supabase/services/kiwify-connect.service";
+import { getRevenueNetProfitMonth } from "@/lib/supabase/services/revenue.service";
 import type {
   KiwifyCommission,
   KiwifyConnection,
@@ -138,14 +139,11 @@ export async function syncMoneyMissionFromKiwify(): Promise<void> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return;
 
-  const intelligence = await getKiwifyIntelligence();
-  if (!intelligence.data?.connected) return;
-
   const plansRepo = new MoneyMissionPlansRepository(ctx.supabase, ctx.userId);
   const { data: plan } = await plansRepo.findActive();
   if (!plan) return;
 
-  const conquistado = intelligence.data.metrics.revenueMonthCents / 100;
+  const conquistado = await getRevenueNetProfitMonth();
   if (Math.abs(Number(plan.valor_conquistado) - conquistado) < 0.01) return;
 
   await plansRepo.update(plan.id, { valor_conquistado: conquistado });

@@ -63,6 +63,7 @@ import { ExecutiveReportsPanel } from "./executive-reports-panel";
 import { RecentMemoriesCard } from "./recent-memories-card";
 import { CommsDashboardCard } from "./comms-dashboard-card";
 import { GoalsDashboardCard } from "./goals-dashboard-card";
+import { RevenueDashboardCard } from "./revenue-dashboard-card";
 
 function PriorityBadge({ status }: { status: string }) {
   const priority = getGrowthLeadPriority(
@@ -372,6 +373,8 @@ export function ExecutiveDashboardView() {
       <RecentMemoriesCard />
 
       <GoalsDashboardCard />
+
+      <RevenueDashboardCard />
 
       <CommsDashboardCard />
 

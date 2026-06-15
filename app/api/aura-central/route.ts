@@ -71,6 +71,10 @@ import {
   detectMoneyCoachMode,
 } from "@/utils/money";
 import {
+  buildRevenueCoachReply,
+  detectRevenueCoachMode,
+} from "@/utils/revenue";
+import {
   buildCeoCoachReply,
   buildCeoIntegrationReply,
   detectCeoCoachMode,
@@ -112,6 +116,7 @@ import { loadLandingRecords } from "@/lib/supabase/services/landing-builder.serv
 import { loadAdsCampaigns } from "@/lib/supabase/services/ads-manager.service";
 import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
+import { getRevenueDashboard } from "@/lib/supabase/services/revenue.service";
 import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
 import {
   getIntegrationCenterSummaryForCeo,
@@ -546,6 +551,39 @@ export async function POST(req: Request) {
         module: "global",
         kind: "coach",
         coachMode: ceoMode,
+      });
+    }
+
+    const revenueMode = detectRevenueCoachMode(message);
+    if (revenueMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { dashboard } = await getRevenueDashboard();
+
+      if (!dashboard) {
+        return Response.json({ error: "Erro ao carregar Revenue Center." }, { status: 500 });
+      }
+
+      const text = buildRevenueCoachReply({
+        mode: revenueMode,
+        displayName,
+        metrics: dashboard,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: revenueMode,
+      });
+
+      return Response.json({
+        text,
+        module: "global",
+        kind: "coach",
+        coachMode: revenueMode,
       });
     }
 

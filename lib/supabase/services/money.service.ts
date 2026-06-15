@@ -10,6 +10,7 @@ import {
   getKiwifyMoneyContext,
   syncMoneyMissionFromKiwify,
 } from "@/lib/supabase/services/kiwify-intelligence.service";
+import { getRevenueContext } from "@/lib/supabase/services/revenue.service";
 import type {
   MoneyMissionPlan,
   MoneyMissionTask,
@@ -149,10 +150,11 @@ export async function getMoneyContext(): Promise<{ context: string; error: strin
   const ctx = await getOptionalDataContext();
   if (!ctx) return { context: "", error: "Usuário não autenticado." };
 
-  const [{ plan, tasks }, brain, kiwifyBlock] = await Promise.all([
+  const [{ plan, tasks }, brain, kiwifyBlock, revenueBlock] = await Promise.all([
     loadMoneyState(),
     buildAuraContext(),
     getKiwifyMoneyContext(),
+    getRevenueContext(),
   ]);
 
   const moduleContexts = brain.moduleData;
@@ -174,6 +176,7 @@ export async function getMoneyContext(): Promise<{ context: string; error: strin
     moduleContexts.global ? `## GLOBAL INTELLIGENCE\n${moduleContexts.global}` : "",
     moduleContexts.knowledge ? `## KNOWLEDGE & CONNECT\n${moduleContexts.knowledge}` : "",
     kiwifyBlock ? kiwifyBlock : "",
+    revenueBlock.context ? revenueBlock.context : "",
   ].filter(Boolean);
 
   return { context: lines.join("\n\n"), error: null };
