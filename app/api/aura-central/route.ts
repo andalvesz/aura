@@ -209,6 +209,25 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const AURA_CENTRAL_HISTORY_LIMIT = 10;
+const AURA_CENTRAL_HISTORY_TIMEOUT_MS = 5_000;
+
+async function loadAuraCentralHistoryEntries() {
+  try {
+    const result = await Promise.race([
+      listAuraCommandHistory(AURA_CENTRAL_HISTORY_LIMIT),
+      new Promise<{ entries: []; error: null }>((resolve) =>
+        setTimeout(() => resolve({ entries: [], error: null }), AURA_CENTRAL_HISTORY_TIMEOUT_MS)
+      ),
+    ]);
+
+    return result.entries ?? [];
+  } catch (historyError) {
+    console.error("[aura-central] history=1 failed:", historyError);
+    return [];
+  }
+}
+
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
@@ -339,16 +358,13 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     if (url.searchParams.get("history") === "1") {
-      try {
-        const { entries, error } = await listAuraCommandHistory(15);
-        if (error === "Usuário não autenticado.") {
-          return Response.json({ error }, { status: 401 });
-        }
-        return Response.json({ entries: entries ?? [] });
-      } catch (historyError) {
-        console.error("[aura-central] history=1 failed:", historyError);
-        return Response.json({ entries: [] });
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Usuário não autenticado." }, { status: 401 });
       }
+
+      const entries = await loadAuraCentralHistoryEntries();
+      return Response.json({ entries });
     }
 
     const { summary, error } = await getAuraBrainOpeningSummary();

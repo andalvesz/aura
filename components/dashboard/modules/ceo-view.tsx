@@ -190,8 +190,18 @@ function SessionDisplay({ session }: { session: AuraCeoSession }) {
 }
 
 export function CeoView() {
-  const { dashboard, session, radar, loading, error, busy, refresh, createPlan, removeSession } =
-    useCeo();
+  const {
+    dashboard,
+    session,
+    radar,
+    loading,
+    backgroundLoading,
+    error,
+    busy,
+    refresh,
+    createPlan,
+    removeSession,
+  } = useCeo();
   const [pergunta, setPergunta] = useState("");
 
   async function handleCreatePlan(text?: string) {
@@ -220,35 +230,20 @@ export function CeoView() {
     );
   }
 
-  if (error && !dashboard) {
-    return (
-      <Panel className="border-rose-500/15 bg-rose-500/[0.03]">
-        <PanelContent className="py-4 text-center text-[12px] text-rose-300">
-          {error}
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="ml-2 underline hover:text-rose-200"
-          >
-            Tentar novamente
-          </button>
-        </PanelContent>
-      </Panel>
-    );
-  }
-
   return (
     <div className="space-y-3">
-      {error && (
+      {(error || backgroundLoading) && (
         <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] text-amber-200/90">
-          {error}
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="ml-2 underline hover:text-amber-100"
-          >
-            Tentar novamente
-          </button>
+          {error ?? "Alguns dados ainda estão carregando em segundo plano."}
+          {error && (
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="ml-2 underline hover:text-amber-100"
+            >
+              Tentar novamente
+            </button>
+          )}
         </div>
       )}
       {dashboard && (

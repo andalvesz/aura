@@ -11,6 +11,10 @@ import { parseJsonResponse } from "@/utils/safe-json";
 
 export type OperationAssetType = "creatives" | "landing" | "both";
 
+export const OPERATION_CENTER_INITIAL_LOAD_TIMEOUT_MS = 8_000;
+export const OPERATION_CENTER_BACKGROUND_LOAD_MESSAGE =
+  "Alguns dados ainda estão carregando em segundo plano.";
+
 function emptyOperationDashboard(): OperationCenterDashboard {
   return computeOperationCenterDashboard({
     operation: null,
@@ -22,28 +26,41 @@ function emptyOperationDashboard(): OperationCenterDashboard {
 }
 
 export function useOperationCenter() {
-  const [dashboard, setDashboard] = useState<OperationCenterDashboard | null>(null);
+  const [dashboard, setDashboard] = useState<OperationCenterDashboard>(() =>
+    emptyOperationDashboard()
+  );
   const [loading, setLoading] = useState(true);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError(null);
+
     try {
       const { res, data, error: fetchError, timedOut } = await fetchJsonWithTimeout<{
         dashboard?: OperationCenterDashboard;
         error?: string;
-      }>("/api/operation-center");
+      }>("/api/operation-center", {
+        timeoutMs: OPERATION_CENTER_INITIAL_LOAD_TIMEOUT_MS,
+      });
 
-      if (fetchError || timedOut) {
+      if (timedOut) {
+        console.warn("[useOperationCenter] refresh timed out");
+        setDashboard(emptyOperationDashboard());
+        setError(OPERATION_CENTER_BACKGROUND_LOAD_MESSAGE);
+        return true;
+      }
+
+      if (fetchError) {
         console.error("[useOperationCenter] refresh failed:", fetchError, {
           status: res.status,
           timedOut,
         });
         setError(fetchError ?? "Erro ao carregar Operation Center.");
         setDashboard(emptyOperationDashboard());
-        return;
+        return false;
       }
 
       if (!res.ok) {
@@ -51,25 +68,59 @@ export function useOperationCenter() {
         console.error("[useOperationCenter] API error:", message, { status: res.status });
         setError(message);
         setDashboard(data?.dashboard ?? emptyOperationDashboard());
-        return;
+        return false;
       }
 
       setDashboard(data?.dashboard ?? emptyOperationDashboard());
       if (data?.error) {
         console.warn("[useOperationCenter] API warning:", data.error);
       }
+      return false;
     } catch (err) {
       console.error("[useOperationCenter] unexpected error:", err);
       setError("Erro de conexão.");
       setDashboard(emptyOperationDashboard());
+      return false;
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const refreshInBackground = useCallback(async () => {
+    setBackgroundLoading(true);
+    try {
+      const { res, data, error: fetchError, timedOut } = await fetchJsonWithTimeout<{
+        dashboard?: OperationCenterDashboard;
+        error?: string;
+      }>("/api/operation-center");
+
+      if (fetchError || timedOut || !res.ok) {
+        console.warn("[useOperationCenter] background refresh failed:", fetchError, {
+          status: res.status,
+          timedOut,
+        });
+        return;
+      }
+
+      setDashboard(data?.dashboard ?? emptyOperationDashboard());
+      setError((current) =>
+        current === OPERATION_CENTER_BACKGROUND_LOAD_MESSAGE ? null : current
+      );
+    } catch (err) {
+      console.warn("[useOperationCenter] background refresh unexpected error:", err);
+    } finally {
+      setBackgroundLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    void (async () => {
+      const timedOut = await refresh();
+      if (timedOut) {
+        await refreshInBackground();
+      }
+    })();
+  }, [refresh, refreshInBackground]);
 
   async function generateAssets(assetType: OperationAssetType = "both") {
     const operationId = dashboard?.operation?.id;
@@ -234,6 +285,7 @@ export function useOperationCenter() {
   return {
     dashboard,
     loading,
+    backgroundLoading,
     error,
     busy,
     refresh,

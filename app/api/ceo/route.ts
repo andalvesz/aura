@@ -1,9 +1,11 @@
 import { jsonServerError } from "@/lib/api/json-error";
 import { deleteCeoSession, getCeoDashboard } from "@/lib/supabase/services/ceo.service";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { dashboard, session, radar, sessions, error } = await getCeoDashboard();
+    const url = new URL(request.url);
+    const full = url.searchParams.get("full") === "1";
+    const { dashboard, session, radar, sessions, error } = await getCeoDashboard({ full });
     if (error === "Usuário não autenticado.") {
       return Response.json({ error }, { status: 401 });
     }

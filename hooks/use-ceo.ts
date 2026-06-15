@@ -2,9 +2,41 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { AuraCeoSession } from "@/types/database";
-import type { CeoDashboardMetrics, CeoOpportunityRadar } from "@/utils/ceo";
+import {
+  emptyCeoDashboard,
+  emptyCeoRadar,
+  type CeoDashboardMetrics,
+  type CeoOpportunityRadar,
+} from "@/utils/ceo";
 import { fetchJsonWithTimeout } from "@/utils/fetch-json";
 import { parseJsonResponse } from "@/utils/safe-json";
+
+export const CEO_INITIAL_LOAD_TIMEOUT_MS = 8_000;
+export const CEO_BACKGROUND_LOAD_MESSAGE =
+  "Alguns dados ainda estão carregando em segundo plano.";
+
+type CeoApiPayload = {
+  dashboard?: CeoDashboardMetrics;
+  session?: AuraCeoSession;
+  radar?: CeoOpportunityRadar;
+  sessions?: AuraCeoSession[];
+  error?: string;
+};
+
+function applyCeoPayload(
+  data: CeoApiPayload | null | undefined,
+  setters: {
+    setDashboard: (value: CeoDashboardMetrics) => void;
+    setSession: (value: AuraCeoSession | null) => void;
+    setRadar: (value: CeoOpportunityRadar) => void;
+    setSessions: (value: AuraCeoSession[]) => void;
+  }
+) {
+  setters.setDashboard(data?.dashboard ?? emptyCeoDashboard());
+  setters.setSession(data?.session ?? null);
+  setters.setRadar(data?.radar ?? emptyCeoRadar());
+  setters.setSessions(data?.sessions ?? []);
+}
 
 export function useCeo() {
   const [dashboard, setDashboard] = useState<CeoDashboardMetrics | null>(null);
@@ -12,57 +44,85 @@ export function useCeo() {
   const [radar, setRadar] = useState<CeoOpportunityRadar | null>(null);
   const [sessions, setSessions] = useState<AuraCeoSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const setters = {
+    setDashboard: (value: CeoDashboardMetrics) => setDashboard(value),
+    setSession,
+    setRadar: (value: CeoOpportunityRadar) => setRadar(value),
+    setSessions,
+  };
+
+  const loadFullDataInBackground = useCallback(async () => {
+    setBackgroundLoading(true);
+    try {
+      const { res, data, error: fetchError, timedOut } =
+        await fetchJsonWithTimeout<CeoApiPayload>("/api/ceo?full=1");
+
+      if (fetchError || timedOut || !res.ok || data?.error) {
+        console.warn("[useCeo] background load failed:", fetchError ?? data?.error, {
+          status: res.status,
+          timedOut,
+        });
+        return;
+      }
+
+      applyCeoPayload(data, setters);
+      setError((current) =>
+        current === CEO_BACKGROUND_LOAD_MESSAGE ? null : current
+      );
+    } catch (err) {
+      console.warn("[useCeo] background load unexpected error:", err);
+    } finally {
+      setBackgroundLoading(false);
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const { res, data, error: fetchError, timedOut } = await fetchJsonWithTimeout<{
-        dashboard?: CeoDashboardMetrics;
-        session?: AuraCeoSession;
-        radar?: CeoOpportunityRadar;
-        sessions?: AuraCeoSession[];
-        error?: string;
-      }>("/api/ceo");
 
-      if (fetchError || timedOut) {
-        console.error("[useCeo] refresh failed:", fetchError, { status: res.status, timedOut });
-        setError(fetchError ?? "Erro ao carregar Aura CEO.");
-        setDashboard(null);
-        setSession(null);
-        setRadar(null);
-        setSessions([]);
+    try {
+      const { res, data, error: fetchError, timedOut } =
+        await fetchJsonWithTimeout<CeoApiPayload>("/api/ceo", {
+          timeoutMs: CEO_INITIAL_LOAD_TIMEOUT_MS,
+        });
+
+      if (timedOut) {
+        console.warn("[useCeo] essential load timed out");
+        applyCeoPayload(null, setters);
+        setError(CEO_BACKGROUND_LOAD_MESSAGE);
+        return;
+      }
+
+      if (fetchError) {
+        console.error("[useCeo] refresh failed:", fetchError, { status: res.status });
+        applyCeoPayload(null, setters);
+        setError(fetchError);
         return;
       }
 
       if (!res.ok || data?.error) {
         const message = data?.error ?? `Erro ao carregar Aura CEO (${res.status}).`;
         console.error("[useCeo] API error:", message, { status: res.status });
+        applyCeoPayload(data, setters);
         setError(message);
-        setDashboard(data?.dashboard ?? null);
-        setSession(data?.session ?? null);
-        setRadar(data?.radar ?? null);
-        setSessions(data?.sessions ?? []);
         return;
       }
 
-      setDashboard(data?.dashboard ?? null);
-      setSession(data?.session ?? null);
-      setRadar(data?.radar ?? null);
-      setSessions(data?.sessions ?? []);
+      applyCeoPayload(data, setters);
     } catch (err) {
       console.error("[useCeo] unexpected error:", err);
+      applyCeoPayload(null, setters);
       setError("Erro de conexão.");
-      setDashboard(null);
-      setSession(null);
-      setRadar(null);
-      setSessions([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+
+    void loadFullDataInBackground();
+  }, [loadFullDataInBackground]);
 
   useEffect(() => {
     void refresh();
@@ -122,6 +182,7 @@ export function useCeo() {
     radar,
     sessions,
     loading,
+    backgroundLoading,
     error,
     busy,
     refresh,

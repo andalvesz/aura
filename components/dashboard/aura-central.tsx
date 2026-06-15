@@ -87,6 +87,7 @@ export function AuraCentral() {
     summaryLoading,
     openingMessage,
     commandHistory,
+    backgroundNotice,
     reloadHistory,
   } = useAuraCentral({ displayName });
   const [input, setInput] = useState("");
@@ -269,6 +270,11 @@ export function AuraCentral() {
       </PanelHeader>
 
       <PanelContent className="px-3 pt-0 sm:px-4">
+        {backgroundNotice && (
+          <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] text-amber-200/90">
+            {backgroundNotice}
+          </div>
+        )}
         {historyOpen && (
           <div className="mb-3 max-h-40 overflow-y-auto rounded-lg border border-white/[0.06] bg-zinc-950/50 p-2">
             {commandHistory.length === 0 ? (

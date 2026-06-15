@@ -49,6 +49,7 @@ export function OperationCenterView() {
   const {
     dashboard,
     loading,
+    backgroundLoading,
     error,
     busy,
     refresh,
@@ -142,16 +143,18 @@ export function OperationCenterView() {
 
   return (
     <div className="space-y-4">
-      {error && (
+      {(error || backgroundLoading) && (
         <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] text-amber-200/90">
-          {error}
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="ml-2 underline hover:text-amber-100"
-          >
-            Tentar novamente
-          </button>
+          {error ?? "Alguns dados ainda estão carregando em segundo plano."}
+          {error && (
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              className="ml-2 underline hover:text-amber-100"
+            >
+              Tentar novamente
+            </button>
+          )}
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-3 py-2">

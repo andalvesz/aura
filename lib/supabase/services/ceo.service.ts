@@ -1,13 +1,18 @@
 import OpenAI from "openai";
 import { GoalsRepository } from "@/lib/supabase/repositories/goals.repository";
+import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
 import { AuraCeoSessionsRepository } from "@/lib/supabase/repositories/ceo.repository";
 import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
+import { listUpcomingEventos } from "@/lib/supabase/services/eventos.service";
+import { listGrowthMissions } from "@/lib/supabase/services/growth.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
 import { getAuraXpState } from "@/lib/supabase/services/xp.service";
 import type { AuraCeoSession, TableInsert } from "@/types/database";
 import {
   buildCeoAuraContext,
   computeOpportunityRadarFromData,
+  emptyCeoDashboard,
+  emptyCeoRadar,
   normalizeGeneratedRadar,
   parseOpportunityRadar,
   type CeoDashboardMetrics,
@@ -15,7 +20,8 @@ import {
   type GeneratedCeoPlan,
 } from "@/utils/ceo";
 import { formatBRL } from "@/utils/format";
-import { rankProductsForLaunch } from "@/utils/creator";
+import { getTodayMissions } from "@/utils/money";
+import { rankProductsForLaunch, type CreatorProductBundle } from "@/utils/creator";
 import {
   buildBudgetAiRules,
   buildBudgetAskReply,
@@ -30,18 +36,6 @@ import { getOptionalDataContext } from "./context";
 import { upsertOperationFromCeo } from "./operation-center.service";
 import { recordSystemLog } from "@/lib/logs/record";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
-
-function emptyCeoDashboard(): CeoDashboardMetrics {
-  return {
-    metaFinanceiraAtiva: "Nenhuma meta ativa",
-    projetoPrincipal: "Nenhum projeto ativo",
-    missaoDoDia: "Defina prioridades no Aura CEO",
-    xpAtual: 0,
-    xpNivel: 1,
-    valorConquistado: 0,
-    proximoMarco: "—",
-  };
-}
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -104,6 +98,65 @@ async function loadAllModuleContexts() {
   return brain.moduleData;
 }
 
+async function computeDashboardEssential(
+  ctx: NonNullable<Awaited<ReturnType<typeof getOptionalDataContext>>>
+): Promise<{ dashboard: CeoDashboardMetrics; bundles: CreatorProductBundle[] }> {
+  const today = new Date().toISOString().slice(0, 10);
+  const [
+    { state: xpState },
+    { plan: moneyPlan, tasks: moneyTasks },
+    creatorRes,
+    goalsRes,
+    growthMissionsRes,
+    eventosRes,
+  ] = await Promise.all([
+    getAuraXpState(),
+    getMoneyDashboard(),
+    new CreatorProductsRepository(ctx.supabase, ctx.userId).findAllWithRelations(),
+    new GoalsRepository(ctx.supabase, ctx.userId).findActive(today),
+    listGrowthMissions(),
+    listUpcomingEventos(1),
+  ]);
+
+  const bundles = creatorRes.data ?? [];
+  const ranked = rankProductsForLaunch(bundles);
+  const mainProject =
+    ranked[0]?.product.nome ?? ranked[0]?.product.nicho ?? "Nenhum projeto ativo";
+
+  const moneyMissionTitles = getTodayMissions(moneyTasks ?? [])
+    .map((task) => task.titulo)
+    .join(", ");
+  const growthMissionTitle = growthMissionsRes.data?.[0]?.titulo ?? "";
+  const todayMission =
+    moneyMissionTitles || growthMissionTitle || "Defina prioridades no Aura CEO";
+
+  let proximoMarco = "—";
+  const next = goalsRes.data?.find((goal) => goal.atual < goal.meta);
+  if (next) {
+    proximoMarco = `${next.titulo} (${next.atual}/${next.meta})`;
+  }
+
+  const upcoming = eventosRes.data?.[0]?.titulo;
+  if (proximoMarco === "—" && upcoming) {
+    proximoMarco = upcoming;
+  }
+
+  return {
+    dashboard: {
+      metaFinanceiraAtiva: moneyPlan
+        ? `${formatBRL(Number(moneyPlan.valor_meta))} em ${moneyPlan.prazo.replace("_", " ")}`
+        : "Nenhuma meta ativa",
+      projetoPrincipal: mainProject,
+      missaoDoDia: todayMission,
+      xpAtual: xpState?.userXp.xp_total ?? 0,
+      xpNivel: xpState?.userXp.nivel ?? 1,
+      valorConquistado: moneyPlan ? Number(moneyPlan.valor_conquistado) : 0,
+      proximoMarco,
+    },
+    bundles,
+  };
+}
+
 async function computeDashboard(
   moduleData: Awaited<ReturnType<typeof loadAllModuleContexts>>
 ): Promise<CeoDashboardMetrics> {
@@ -148,12 +201,30 @@ async function computeDashboard(
   };
 }
 
-export async function getCeoDashboard(): Promise<{
+function mergeSessionRadar(
+  session: AuraCeoSession | null | undefined,
+  baseRadar: CeoOpportunityRadar
+): CeoOpportunityRadar {
+  const parsed = session?.opportunity_radar
+    ? parseOpportunityRadar(session.opportunity_radar)
+    : null;
+
+  if (!parsed) return baseRadar;
+
+  return {
+    ...baseRadar,
+    ...parsed,
+    scoreIa: session?.score_ia ?? baseRadar.scoreIa,
+  };
+}
+
+export async function getCeoDashboard(options?: { full?: boolean }): Promise<{
   dashboard: CeoDashboardMetrics | null;
   session: AuraCeoSession | null;
   radar: CeoOpportunityRadar | null;
   sessions: AuraCeoSession[];
   error: string | null;
+  partial?: boolean;
 }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) {
@@ -168,34 +239,41 @@ export async function getCeoDashboard(): Promise<{
 
   try {
     const repo = new AuraCeoSessionsRepository(ctx.supabase, ctx.userId);
-    const moduleData = await loadAllModuleContexts();
-
-    const [{ data: session }, { data: sessions }] = await Promise.all([
+    const [{ data: session }, { data: sessions }, essential] = await Promise.all([
       repo.findActive(),
       repo.findAllOrdered(),
+      computeDashboardEssential(ctx),
     ]);
 
-    const dashboard = await computeDashboard(moduleData);
+    if (!options?.full) {
+      const baseRadar = computeOpportunityRadarFromData({
+        bundles: essential.bundles,
+        research: [],
+        legacySummary: "",
+      });
 
+      return {
+        dashboard: essential.dashboard,
+        session: session ?? null,
+        radar: mergeSessionRadar(session, baseRadar),
+        sessions: sessions ?? [],
+        error: null,
+        partial: true,
+      };
+    }
+
+    const moduleData = await loadAllModuleContexts();
+    const dashboard = await computeDashboard(moduleData);
     const baseRadar = computeOpportunityRadarFromData({
       bundles: moduleData.creator,
       research: moduleData.research,
       legacySummary: moduleData.legacy.slice(0, 200),
     });
 
-    const radar =
-      session?.opportunity_radar && parseOpportunityRadar(session.opportunity_radar)
-        ? {
-            ...baseRadar,
-            ...parseOpportunityRadar(session.opportunity_radar)!,
-            scoreIa: session.score_ia ?? baseRadar.scoreIa,
-          }
-        : baseRadar;
-
     return {
       dashboard,
       session: session ?? null,
-      radar,
+      radar: mergeSessionRadar(session, baseRadar),
       sessions: sessions ?? [],
       error: null,
     };
@@ -207,11 +285,7 @@ export async function getCeoDashboard(): Promise<{
     return {
       dashboard: emptyCeoDashboard(),
       session: null,
-      radar: computeOpportunityRadarFromData({
-        bundles: [],
-        research: [],
-        legacySummary: "",
-      }),
+      radar: emptyCeoRadar(),
       sessions: [],
       error: null,
     };

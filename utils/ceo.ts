@@ -62,6 +62,18 @@ export type CeoDashboardMetrics = {
   proximoMarco: string;
 };
 
+export function emptyCeoDashboard(): CeoDashboardMetrics {
+  return {
+    metaFinanceiraAtiva: "Nenhuma meta ativa",
+    projetoPrincipal: "Nenhum projeto ativo",
+    missaoDoDia: "Defina prioridades no Aura CEO",
+    xpAtual: 0,
+    xpNivel: 1,
+    valorConquistado: 0,
+    proximoMarco: "—",
+  };
+}
+
 export const CEO_AI_CONTEXT = `Você é a Aura CEO — inteligência central da Aura.
 Analise Legado, Money Missions, Creator, Research, CopyLab, Launch, Financeiro, Metas, Social Media, Alvesz, Idiomas, Viagens, Saúde e Calendário.
 Gere estratégias executivas com resumo, prioridades, riscos, oportunidades, plano de ação, cronograma e missões recomendadas.
@@ -312,6 +324,14 @@ export function computeOpportunityRadarFromData(params: {
     maisEscalavel,
     scoreIa: Math.round(avgScore),
   };
+}
+
+export function emptyCeoRadar(): CeoOpportunityRadar {
+  return computeOpportunityRadarFromData({
+    bundles: [],
+    research: [],
+    legacySummary: "",
+  });
 }
 
 export function parseOpportunityRadar(value: unknown): CeoOpportunityRadar | null {

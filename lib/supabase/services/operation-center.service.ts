@@ -208,36 +208,27 @@ export async function getOperationCenterState(): Promise<{
 
   try {
     const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
-    const [{ data: operation, error: operationError }, integrations] = await Promise.all([
-      repo.findActive(),
-      loadIntegrations(),
-    ]);
+    const { data: operation, error: operationError } = await repo.findActive();
 
     if (operationError) {
       return { dashboard: emptyOperationDashboard(), error: null };
     }
 
-    const bundle = operation ? await loadBundleForOperation(operation) : null;
-
-    if (operation) {
-      await persistOperationUpdate(repo, operation, bundle, integrations);
-      const { data: refreshed } = await repo.findById(operation.id);
-      const dashboard = computeOperationCenterDashboard({
-        operation: refreshed ?? operation,
-        bundle,
-        ...integrations,
-      });
-      return { dashboard, error: null };
+    if (!operation) {
+      return { dashboard: emptyOperationDashboard(), error: null };
     }
 
-    return {
-      dashboard: computeOperationCenterDashboard({
-        operation: null,
-        bundle: null,
-        ...integrations,
-      }),
-      error: null,
-    };
+    const integrations = await loadIntegrations();
+    const bundle = await loadBundleForOperation(operation);
+
+    await persistOperationUpdate(repo, operation, bundle, integrations);
+    const { data: refreshed } = await repo.findById(operation.id);
+    const dashboard = computeOperationCenterDashboard({
+      operation: refreshed ?? operation,
+      bundle,
+      ...integrations,
+    });
+    return { dashboard, error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (isMissingSupabaseTableError(message)) {
