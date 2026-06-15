@@ -16,6 +16,10 @@ describe("aura-memory", () => {
   it("persiste treinos e coach", () => {
     assert.equal(shouldPersistAuraMemory("Treino de peito", { kind: "treino" }), true);
     assert.equal(shouldPersistAuraMemory("Prioridades...", { kind: "coach" }), true);
+    assert.equal(
+      shouldPersistAuraMemory("Operação aprovada.", { kind: "operation-center" }),
+      true
+    );
     assert.equal(shouldPersistAuraMemory("ok", { kind: "chat" }), false);
   });
 

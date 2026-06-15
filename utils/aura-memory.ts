@@ -44,6 +44,7 @@ const PERSIST_KINDS = new Set([
   "money",
   "ceo",
   "execution",
+  "operation-center",
   "performance",
 ]);
 
@@ -69,6 +70,7 @@ const KIND_TITLES: Record<string, string> = {
   money: "Plano financeiro",
   ceo: "Estratégia CEO",
   execution: "Execução diária",
+  "operation-center": "Operation Center",
   performance: "Análise de performance",
 };
 
@@ -142,7 +144,7 @@ export function resolveAuraMemoryCategoria(
   if (kind === "coach") return "coach";
   if (module === "aura_central") return "coach";
   if (module === "legado" || kind === "legado") return "legado";
-  if (module === "execution" || kind === "execution") return "coach";
+  if (module === "execution" || kind === "execution" || kind === "operation-center") return "coach";
   if (module === "performance" || kind === "performance") return "coach";
   if (module === "creator" || kind === "creator" || kind === "copylab" || kind === "launch" || kind === "money" || kind === "ceo")
     return "mentor";
