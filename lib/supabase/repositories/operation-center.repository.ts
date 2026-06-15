@@ -19,6 +19,10 @@ export class OperationCenterRepository extends BaseRepository<"operation_center"
       .limit(1)
       .maybeSingle();
 
+    if (error) {
+      console.warn("[operation-center] findActive query failed:", error.message);
+    }
+
     return {
       data: (data as OperationCenter | null) ?? null,
       error: error?.message ?? null,

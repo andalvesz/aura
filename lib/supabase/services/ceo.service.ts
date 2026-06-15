@@ -432,27 +432,55 @@ Regras:
 
   const ranked = rankProductsForLaunch(moduleData.creator);
   const mainProduct = ranked[0]?.product ?? null;
+
+  console.info("[ceo] createCeoPlan: syncing Operation Center", {
+    sessionId: session.id,
+    productId: mainProduct?.id ?? null,
+  });
+
   const { operation, error: operationError } = await upsertOperationFromCeo({
     session: session as AuraCeoSession,
     productId: mainProduct?.id ?? null,
     productName: mainProduct?.nome ?? mainProduct?.nicho ?? null,
   });
 
-  if (operationError) {
+  if (operationError || !operation) {
+    console.error("[ceo] createCeoPlan: Operation Center sync failed", {
+      sessionId: session.id,
+      operationError,
+    });
+    await repo.delete(session.id);
     recordSystemLog({
       tipo: "error",
       modulo: "ceo",
-      mensagem: `Falha ao sincronizar Operation Center: ${operationError}`,
+      mensagem: `Falha ao sincronizar Operation Center: ${operationError ?? "Operação não confirmada."}`,
       detalhes: { sessionId: session.id, productId: mainProduct?.id ?? null },
     });
-  } else if (operation) {
-    recordSystemLog({
-      tipo: "info",
-      modulo: "ceo",
-      mensagem: `Operation Center sincronizado: ${operation.titulo}`,
-      detalhes: { sessionId: session.id, operationId: operation.id },
-    });
+    return {
+      session: null,
+      radar: null,
+      error:
+        operationError ??
+        "Não foi possível ativar a operação no Operation Center. Tente gerar o plano novamente.",
+    };
   }
+
+  recordSystemLog({
+    tipo: "success",
+    modulo: "ceo",
+    mensagem: `Operation Center sincronizado: ${operation.titulo}`,
+    detalhes: {
+      sessionId: session.id,
+      operationId: operation.id,
+      operationStatus: operation.status,
+    },
+  });
+
+  console.info("[ceo] createCeoPlan: Operation Center synced", {
+    sessionId: session.id,
+    operationId: operation.id,
+    operationStatus: operation.status,
+  });
 
   return { session: session as AuraCeoSession, radar, error: null };
 }

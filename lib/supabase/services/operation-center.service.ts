@@ -121,6 +121,102 @@ async function loadIntegrations() {
   };
 }
 
+type OperationIntegrations = Awaited<ReturnType<typeof loadIntegrations>>;
+
+const DEFAULT_INTEGRATIONS: OperationIntegrations = {
+  metaConnected: false,
+  kiwifyConnected: false,
+  hasPerformanceReport: false,
+  performanceReportId: null,
+};
+
+async function loadIntegrationsSafely(): Promise<OperationIntegrations> {
+  try {
+    return await loadIntegrations();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[operation-center] loadIntegrations failed:", message);
+    recordSystemLog({
+      tipo: "warning",
+      modulo: "operation-center",
+      mensagem: "Integrações indisponíveis ao sincronizar operação — usando defaults.",
+      detalhes: { error: message },
+    });
+    return DEFAULT_INTEGRATIONS;
+  }
+}
+
+async function resolveCeoOperationTarget(
+  repo: OperationCenterRepository,
+  ceoSessionId: string
+): Promise<{ operation: OperationCenter | null; mode: "create" | "update" }> {
+  const { data: bySession, error: sessionLookupError } =
+    await repo.findByCeoSessionId(ceoSessionId);
+
+  if (sessionLookupError) {
+    console.warn("[operation-center] findByCeoSessionId failed:", sessionLookupError);
+  }
+
+  if (bySession && bySession.status !== "cancelled") {
+    console.info("[operation-center] resolveCeoOperationTarget: update by ceo_session_id", {
+      ceoSessionId,
+      operationId: bySession.id,
+    });
+    return { operation: bySession, mode: "update" };
+  }
+
+  const { data: active, error: activeLookupError } = await repo.findActive();
+
+  if (activeLookupError) {
+    console.warn("[operation-center] findActive failed:", activeLookupError);
+  }
+
+  if (active && isOperationMutable(active.status)) {
+    console.info("[operation-center] resolveCeoOperationTarget: update active operation", {
+      ceoSessionId,
+      operationId: active.id,
+      previousCeoSessionId: active.ceo_session_id,
+    });
+    return { operation: active, mode: "update" };
+  }
+
+  console.info("[operation-center] resolveCeoOperationTarget: create new operation", {
+    ceoSessionId,
+  });
+  return { operation: null, mode: "create" };
+}
+
+async function verifyActiveOperation(
+  repo: OperationCenterRepository,
+  operationId: string
+): Promise<{ operation: OperationCenter | null; error: string | null }> {
+  const { data, error } = await repo.findById(operationId);
+  if (error || !data) {
+    return { operation: null, error: error ?? "Operação não encontrada após gravação." };
+  }
+
+  const { data: active, error: activeError } = await repo.findActive();
+  if (activeError) {
+    console.warn("[operation-center] verifyActiveOperation findActive failed:", activeError);
+  }
+
+  if (active?.id === operationId) {
+    console.info("[operation-center] verifyActiveOperation: active operation confirmed", {
+      operationId,
+      status: active.status,
+    });
+    return { operation: active, error: null };
+  }
+
+  console.warn("[operation-center] verifyActiveOperation: operation saved but not active", {
+    operationId,
+    activeOperationId: active?.id ?? null,
+    status: data.status,
+  });
+
+  return { operation: data, error: null };
+}
+
 async function persistOperationUpdate(
   repo: OperationCenterRepository,
   operation: OperationCenter,
@@ -165,11 +261,35 @@ async function persistOperationUpdate(
   });
 
   const updated = data as OperationCenter | null;
-  if (updated) {
-    await syncOperationSideEffects(updated, bundle, integrations);
+  if (error || !updated) {
+    console.error("[operation-center] persistOperationUpdate failed:", error, {
+      operationId: operation.id,
+    });
+    recordSystemLog({
+      tipo: "error",
+      modulo: "operation-center",
+      mensagem: error ?? "Erro ao persistir steps da operação.",
+      detalhes: { operationId: operation.id },
+    });
+    return { data: null, error: error ?? "Erro ao persistir operação." };
   }
 
-  return { data: updated, error };
+  try {
+    await syncOperationSideEffects(updated, bundle, integrations);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[operation-center] syncOperationSideEffects failed:", message, {
+      operationId: updated.id,
+    });
+  }
+
+  console.info("[operation-center] persistOperationUpdate: saved", {
+    operationId: updated.id,
+    status: updated.status,
+    operationalScore,
+  });
+
+  return { data: updated, error: null };
 }
 
 async function logOperationAction(
@@ -180,12 +300,16 @@ async function logOperationAction(
 ): Promise<OperationExecutiveLogEntry[]> {
   const logs = appendExecutiveLog(parseExecutiveLogs(operation.executive_logs), action, message, details);
 
-  await saveAuraMemory({
-    module: "execution",
-    userMessage: action,
-    assistantContent: message,
-    metadata: { kind: "operation-center", operationId: operation.id, ...details },
-  });
+  try {
+    await saveAuraMemory({
+      module: "execution",
+      userMessage: action,
+      assistantContent: message,
+      metadata: { kind: "operation-center", operationId: operation.id, ...details },
+    });
+  } catch (err) {
+    console.warn("[operation-center] saveAuraMemory failed:", err);
+  }
 
   recordSystemLog({
     tipo: "info",
@@ -211,6 +335,7 @@ export async function getOperationCenterState(): Promise<{
     const { data: operation, error: operationError } = await repo.findActive();
 
     if (operationError) {
+      console.warn("[operation-center] getOperationCenterState findActive failed:", operationError);
       return { dashboard: emptyOperationDashboard(), error: null };
     }
 
@@ -259,7 +384,9 @@ export async function upsertOperationFromCeo(params: {
   if (!ctx) return { operation: null, error: "Usuário não autenticado." };
 
   const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
-  const integrations = await loadIntegrations();
+  console.info("[operation-center] upsertOperationFromCeo: start", {
+    ceoSessionId: params.session.id,
+  });
 
   let productId = params.productId ?? null;
   let productName = params.productName ?? null;
@@ -277,8 +404,6 @@ export async function upsertOperationFromCeo(params: {
     productName ??
     params.session.resumo_executivo?.slice(0, 80) ??
     "Operação estratégica CEO";
-
-  const { data: existing } = await repo.findByCeoSessionId(params.session.id);
 
   const previewBundle = productId
     ? (await loadCreatorBundles()).bundles.find((bundle) => bundle.product.id === productId) ?? null
@@ -305,29 +430,65 @@ export async function upsertOperationFromCeo(params: {
     },
   };
 
-  let operation: OperationCenter | null = null;
-  let created = false;
+  const { operation: existing, mode } = await resolveCeoOperationTarget(
+    repo,
+    params.session.id
+  );
 
-  if (existing && existing.status !== "cancelled") {
+  let operation: OperationCenter | null = null;
+  const created = mode === "create";
+
+  if (mode === "update" && existing) {
     const { data, error } = await repo.update(existing.id, basePayload);
     if (error || !data) {
+      console.error("[operation-center] upsertOperationFromCeo: update failed", {
+        ceoSessionId: params.session.id,
+        operationId: existing.id,
+        error,
+      });
       recordSystemLog({
         tipo: "error",
         modulo: "operation-center",
         mensagem: error ?? "Erro ao atualizar operação a partir do CEO.",
-        detalhes: { ceoSessionId: params.session.id },
+        detalhes: { ceoSessionId: params.session.id, operationId: existing.id },
       });
       return { operation: null, error: error ?? "Erro ao atualizar operação." };
     }
     operation = data as OperationCenter;
+    console.info("[operation-center] upsertOperationFromCeo: updated", {
+      operationId: operation.id,
+      ceoSessionId: params.session.id,
+    });
   } else {
-    const { data, error } = await repo.create({
-      ...basePayload,
-      executive_logs: logsAsJson(
-        appendExecutiveLog([], "ceo_plan", "Operação criada a partir do plano CEO.")
-      ),
-    } as Omit<TableInsert<"operation_center">, "user_id">);
+    await repo.cancelActive();
+
+    const tryCreate = async (payload: typeof basePayload) =>
+      repo.create({
+        ...payload,
+        executive_logs: logsAsJson(
+          appendExecutiveLog([], "ceo_plan", "Operação criada a partir do plano CEO.")
+        ),
+      } as Omit<TableInsert<"operation_center">, "user_id">);
+
+    let { data, error } = await tryCreate(basePayload);
+
+    if ((error || !data) && basePayload.product_id) {
+      console.warn("[operation-center] upsertOperationFromCeo: retry create without product_id", {
+        ceoSessionId: params.session.id,
+        error,
+      });
+      ({ data, error } = await tryCreate({
+        ...basePayload,
+        product_id: null,
+        product_nome: basePayload.product_nome ?? basePayload.titulo,
+      }));
+    }
+
     if (error || !data) {
+      console.error("[operation-center] upsertOperationFromCeo: create failed", {
+        ceoSessionId: params.session.id,
+        error,
+      });
       recordSystemLog({
         tipo: "error",
         modulo: "operation-center",
@@ -336,19 +497,38 @@ export async function upsertOperationFromCeo(params: {
       });
       return { operation: null, error: error ?? "Erro ao criar operação." };
     }
+
     operation = data as OperationCenter;
-    created = true;
+    console.info("[operation-center] upsertOperationFromCeo: created", {
+      operationId: operation.id,
+      ceoSessionId: params.session.id,
+    });
   }
 
+  const integrations = await loadIntegrationsSafely();
   const bundle = await loadBundleForOperation(operation);
-  const logs = await logOperationAction(
-    operation,
-    created ? "create" : "update",
-    created
-      ? `Operação criada a partir do plano CEO: ${titulo}`
-      : `Operação atualizada a partir do plano CEO: ${titulo}`,
-    { ceoSessionId: params.session.id, roiPrevisto }
-  );
+
+  let logs: OperationExecutiveLogEntry[];
+  try {
+    logs = await logOperationAction(
+      operation,
+      created ? "create" : "update",
+      created
+        ? `Operação criada a partir do plano CEO: ${titulo}`
+        : `Operação atualizada a partir do plano CEO: ${titulo}`,
+      { ceoSessionId: params.session.id, roiPrevisto }
+    );
+  } catch (err) {
+    console.warn("[operation-center] logOperationAction failed:", err);
+    logs = appendExecutiveLog(
+      parseExecutiveLogs(operation.executive_logs),
+      created ? "create" : "update",
+      created
+        ? `Operação criada a partir do plano CEO: ${titulo}`
+        : `Operação atualizada a partir do plano CEO: ${titulo}`,
+      { ceoSessionId: params.session.id, roiPrevisto }
+    );
+  }
 
   const { data: updated, error: updateError } = await persistOperationUpdate(
     repo,
@@ -358,16 +538,54 @@ export async function upsertOperationFromCeo(params: {
     { executive_logs: logsAsJson(logs) }
   );
 
+  const persisted = updated ?? operation;
+  const { operation: verified, error: verifyError } = await verifyActiveOperation(
+    repo,
+    persisted.id
+  );
+
   if (updateError) {
     recordSystemLog({
-      tipo: "error",
+      tipo: "warning",
       modulo: "operation-center",
-      mensagem: updateError,
-      detalhes: { operationId: operation.id, ceoSessionId: params.session.id },
+      mensagem: `Operação ${created ? "criada" : "atualizada"}, mas steps não sincronizados: ${updateError}`,
+      detalhes: { operationId: persisted.id, ceoSessionId: params.session.id },
     });
   }
 
-  return { operation: updated ?? operation, error: updateError };
+  if (verifyError || !verified) {
+    recordSystemLog({
+      tipo: "error",
+      modulo: "operation-center",
+      mensagem: verifyError ?? "Operação não confirmada após gravação.",
+      detalhes: { operationId: persisted.id, ceoSessionId: params.session.id },
+    });
+    return {
+      operation: null,
+      error: verifyError ?? "Operação não confirmada após gravação.",
+    };
+  }
+
+  recordSystemLog({
+    tipo: "info",
+    modulo: "operation-center",
+    mensagem: `Operação ${created ? "criada" : "atualizada"} e ativa no Operation Center.`,
+    detalhes: {
+      operationId: verified.id,
+      ceoSessionId: params.session.id,
+      status: verified.status,
+      titulo: verified.titulo,
+    },
+  });
+
+  console.info("[operation-center] upsertOperationFromCeo: complete", {
+    operationId: verified.id,
+    ceoSessionId: params.session.id,
+    mode: created ? "create" : "update",
+    status: verified.status,
+  });
+
+  return { operation: verified, error: null };
 }
 
 export async function generateOperationAssets(
