@@ -43,6 +43,7 @@ import { todayIsoDate } from "@/utils/health";
 import { getOptionalDataContext } from "./context";
 import { buildBudgetContextBlock, getResolvedUserBudget } from "./campaign-budget.service";
 import { buildAuraContext } from "./aura-brain.service";
+import { getKiwifyIntelligenceContext } from "./kiwify-intelligence.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -416,9 +417,10 @@ export async function getPerformanceDashboard(): Promise<{
 }
 
 export async function getPerformanceContext(): Promise<{ context: string; error: string | null }> {
-  const [{ dashboard, panel, analysis, error }, brain] = await Promise.all([
+  const [{ dashboard, panel, analysis, error }, brain, kiwify] = await Promise.all([
     getPerformanceDashboard(),
     buildAuraContext(),
+    getKiwifyIntelligenceContext(),
   ]);
   if (error || !dashboard) {
     return { context: "", error: error ?? "Erro ao carregar Performance AI." };
@@ -429,6 +431,7 @@ export async function getPerformanceContext(): Promise<{ context: string; error:
     brain.context,
     base,
     brain.moduleData.platforms,
+    kiwify.context,
     brain.moduleData.global,
     brain.moduleData.knowledge,
   ].filter(Boolean);

@@ -12,9 +12,9 @@ export default function PlatformsKiwifyPage() {
       <ModuleHeader
         module={{
           ...mod,
-          label: "Kiwify Connect",
+          label: "Kiwify Intelligence",
           description:
-            "Conecte a API Kiwify, importe vendas e comissões e alimente Performance, Money e CEO.",
+            "Inteligência de negócio com vendas reais — receita, conversão, CEO, Money e Performance.",
         }}
       />
       <nav className="flex gap-2 text-[11px]">

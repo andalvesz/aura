@@ -40,7 +40,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { bundle, error } = await generateCreatorProduct({ intake, useAuraData });
+    const { bundle, kiwifyComparison, error } = await generateCreatorProduct({ intake, useAuraData });
 
     if (error === "Usuário não autenticado.") {
       logAuthFailure("/api/creator/generate", error);
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
       return Response.json({ error }, { status });
     }
 
-    return Response.json({ bundle });
+    return Response.json({ bundle, kiwifyComparison });
   } catch (error) {
     console.error("[creator/generate]", error);
     logApiError("creator", "/api/creator/generate", error, 500);

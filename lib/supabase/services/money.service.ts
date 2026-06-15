@@ -6,6 +6,10 @@ import {
   MoneyMissionTasksRepository,
 } from "@/lib/supabase/repositories/money-tasks.repository";
 import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
+import {
+  getKiwifyMoneyContext,
+  syncMoneyMissionFromKiwify,
+} from "@/lib/supabase/services/kiwify-intelligence.service";
 import type {
   MoneyMissionPlan,
   MoneyMissionTask,
@@ -129,6 +133,7 @@ export async function getMoneyDashboard(): Promise<{
   tasks: MoneyMissionTask[];
   error: string | null;
 }> {
+  await syncMoneyMissionFromKiwify();
   const { plan, tasks, error } = await loadMoneyState();
   if (error) return { dashboard: null, plan: null, tasks: [], error };
 
@@ -144,9 +149,10 @@ export async function getMoneyContext(): Promise<{ context: string; error: strin
   const ctx = await getOptionalDataContext();
   if (!ctx) return { context: "", error: "Usuário não autenticado." };
 
-  const [{ plan, tasks }, brain] = await Promise.all([
+  const [{ plan, tasks }, brain, kiwifyBlock] = await Promise.all([
     loadMoneyState(),
     buildAuraContext(),
+    getKiwifyMoneyContext(),
   ]);
 
   const moduleContexts = brain.moduleData;
@@ -167,6 +173,7 @@ export async function getMoneyContext(): Promise<{ context: string; error: strin
     moduleContexts.platforms ? `## PLATFORM HUB\n${moduleContexts.platforms}` : "",
     moduleContexts.global ? `## GLOBAL INTELLIGENCE\n${moduleContexts.global}` : "",
     moduleContexts.knowledge ? `## KNOWLEDGE & CONNECT\n${moduleContexts.knowledge}` : "",
+    kiwifyBlock ? kiwifyBlock : "",
   ].filter(Boolean);
 
   return { context: lines.join("\n\n"), error: null };

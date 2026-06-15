@@ -8,6 +8,8 @@ import {
 } from "@/lib/supabase/repositories/creator.repository";
 import { FinancialGoalsRepository } from "@/lib/supabase/repositories";
 import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
+import { compareNewCreatorProductWithKiwify } from "@/lib/supabase/services/kiwify-intelligence.service";
+import type { KiwifyCreatorComparison } from "@/utils/kiwify-intelligence";
 import type {
   CreatorLaunch,
   CreatorOffer,
@@ -156,15 +158,16 @@ export async function generateCreatorProduct(input: {
   useAuraData: boolean;
 }): Promise<{
   bundle: CreatorProductBundle | null;
+  kiwifyComparison: KiwifyCreatorComparison | null;
   error: string | null;
 }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) {
-    return { bundle: null, error: "Usuário não autenticado." };
+    return { bundle: null, kiwifyComparison: null, error: "Usuário não autenticado." };
   }
 
   if (!getOpenAi()) {
-    return { bundle: null, error: "IA indisponível (OPENAI_API_KEY)." };
+    return { bundle: null, kiwifyComparison: null, error: "IA indisponível (OPENAI_API_KEY)." };
   }
 
   let auraContext = "";
@@ -209,7 +212,7 @@ Estime investimento_previsto (produção, ads, ferramentas) e receita_prevista (
   );
 
   if (!generated?.nome) {
-    return { bundle: null, error: "Não foi possível gerar o produto." };
+    return { bundle: null, kiwifyComparison: null, error: "Não foi possível gerar o produto." };
   }
 
   const roi = computeRoi(generated.investimento_previsto, generated.receita_prevista);
@@ -242,11 +245,19 @@ Estime investimento_previsto (produção, ads, ferramentas) e receita_prevista (
   } satisfies Omit<TableInsert<"creator_products">, "user_id">);
 
   if (createError || !product) {
-    return { bundle: null, error: createError ?? "Erro ao salvar produto." };
+    return { bundle: null, kiwifyComparison: null, error: createError ?? "Erro ao salvar produto." };
   }
 
   const checklistRepo = new CreatorChecklistRepository(ctx.supabase, ctx.userId);
   const { data: checklist } = await checklistRepo.seedForProduct(product.id);
+
+  const kiwifyComparison = await compareNewCreatorProductWithKiwify({
+    productName: generated.nome,
+    nicho: input.intake.nicho,
+    precoMin: generated.faixa_preco_min,
+    precoMax: generated.faixa_preco_max,
+    probabilidadeVenda: generated.probabilidade_venda,
+  });
 
   return {
     bundle: {
@@ -256,6 +267,7 @@ Estime investimento_previsto (produção, ads, ferramentas) e receita_prevista (
       launch: null,
       checklist: checklist ?? [],
     },
+    kiwifyComparison,
     error: null,
   };
 }

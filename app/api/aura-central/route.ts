@@ -93,6 +93,12 @@ import {
   detectPlatformsCoachMode,
 } from "@/utils/platforms";
 import {
+  buildKiwifyCoachReply,
+  detectKiwifyCoachMode,
+} from "@/utils/kiwify-intelligence";
+import { getKiwifyIntelligence } from "@/lib/supabase/services/kiwify-intelligence.service";
+import { MoneyMissionPlansRepository } from "@/lib/supabase/repositories/money.repository";
+import {
   buildGlobalCoachReply,
   detectGlobalCoachMode,
 } from "@/utils/global";
@@ -442,6 +448,40 @@ export async function POST(req: Request) {
         module: "global",
         kind: "coach",
         coachMode: performanceMode,
+      });
+    }
+
+    const kiwifyMode = detectKiwifyCoachMode(message);
+    if (kiwifyMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const [{ data: intelligence }, { data: moneyPlan }] = await Promise.all([
+        getKiwifyIntelligence(),
+        new MoneyMissionPlansRepository(ctx.supabase, ctx.userId).findActive(),
+      ]);
+
+      const text = buildKiwifyCoachReply({
+        mode: kiwifyMode,
+        displayName,
+        metrics: intelligence?.metrics ?? null,
+        connected: intelligence?.connected ?? false,
+        moneyPlan: moneyPlan ?? null,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: kiwifyMode,
+      });
+
+      return Response.json({
+        text,
+        module: "platforms",
+        kind: "coach",
+        coachMode: kiwifyMode,
       });
     }
 
