@@ -81,6 +81,14 @@ import {
   isCeoIntegrationMode,
 } from "@/utils/ceo";
 import {
+  buildOperationCenterCoachReply,
+  detectOperationCenterCoachMode,
+} from "@/utils/operation-center";
+import {
+  getOperationCenterState,
+  runOperationCenterCoachAction,
+} from "@/lib/supabase/services/operation-center.service";
+import {
   buildSmartLaunchCoachReply,
   detectSmartLaunchCoachMode,
 } from "@/utils/smart-launch";
@@ -566,6 +574,93 @@ export async function POST(req: Request) {
         module: "smart-launch",
         kind: "coach",
         coachMode: smartLaunchMode,
+      });
+    }
+
+    const opCoachMode = detectOperationCenterCoachMode(message);
+    if (opCoachMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const actionable = [
+        "op-continue",
+        "op-generate-creatives",
+        "op-prepare-campaign",
+        "op-approve",
+      ] as const;
+
+      if (actionable.includes(opCoachMode as (typeof actionable)[number])) {
+        const { dashboard, actionResult } = await runOperationCenterCoachAction(opCoachMode);
+        const text = buildOperationCenterCoachReply({
+          mode: opCoachMode,
+          displayName,
+          dashboard: dashboard ?? {
+            operation: null,
+            productName: null,
+            progress: [],
+            operationalScore: 0,
+            successChance: null,
+            nextSteps: [],
+            missingForApproval: [],
+            canApprove: false,
+            safeMode: { active: true, message: "" },
+            integrations: {
+              metaConnected: false,
+              kiwifyConnected: false,
+              hasPerformanceReport: false,
+            },
+          },
+          actionResult,
+        });
+
+        await persistAiTurn("aura_central", message, text, {
+          kind: "coach",
+          coachMode: opCoachMode,
+        });
+
+        return Response.json({
+          text,
+          module: "operation-center",
+          kind: "coach",
+          coachMode: opCoachMode,
+        });
+      }
+
+      const { dashboard } = await getOperationCenterState();
+      const text = buildOperationCenterCoachReply({
+        mode: opCoachMode,
+        displayName,
+        dashboard: dashboard ?? {
+          operation: null,
+          productName: null,
+          progress: [],
+          operationalScore: 0,
+          successChance: null,
+          nextSteps: [],
+          missingForApproval: [],
+          canApprove: false,
+          safeMode: { active: true, message: "" },
+          integrations: {
+            metaConnected: false,
+            kiwifyConnected: false,
+            hasPerformanceReport: false,
+          },
+        },
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: opCoachMode,
+      });
+
+      return Response.json({
+        text,
+        module: "operation-center",
+        kind: "coach",
+        coachMode: opCoachMode,
       });
     }
 

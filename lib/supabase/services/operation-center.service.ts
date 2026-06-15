@@ -1,0 +1,716 @@
+import { recordSystemLog } from "@/lib/logs/record";
+import { OperationCenterRepository } from "@/lib/supabase/repositories/operation-center.repository";
+import { saveAuraMemory } from "@/lib/supabase/services/ai-memories.service";
+import { getResolvedUserBudget } from "@/lib/supabase/services/campaign-budget.service";
+import { prepareLaunch } from "@/lib/supabase/services/campaign-orchestrator.service";
+import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
+import { generateCopylab } from "@/lib/supabase/services/copylab.service";
+import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
+import { generateStudioAssets } from "@/lib/supabase/services/creative-studio.service";
+import { getExecutionDashboard } from "@/lib/supabase/services/execution.service";
+import { generateLanding } from "@/lib/supabase/services/landing-builder.service";
+import { getKiwifyIntelligence } from "@/lib/supabase/services/kiwify-intelligence.service";
+import { getMetaIntelligence } from "@/lib/supabase/services/meta-intelligence.service";
+import { getMissionControlState } from "@/lib/supabase/services/mission-control.service";
+import {
+  generatePerformanceReport,
+  getPerformanceDashboard,
+} from "@/lib/supabase/services/performance.service";
+import { getRevenueDashboard } from "@/lib/supabase/services/revenue.service";
+import type {
+  AuraCeoSession,
+  Json,
+  OperationCenter,
+  TableInsert,
+  TableUpdate,
+} from "@/types/database";
+import { intakeFromProductBundle as copyIntakeFromBundle } from "@/utils/copylab";
+import { rankProductsForLaunch, type CreatorProductBundle } from "@/utils/creator";
+import { intakeFromProductBundle as studioIntakeFromBundle } from "@/utils/creative-studio";
+import { intakeFromProductBundle as landingIntakeFromBundle } from "@/utils/landing-builder";
+import {
+  appendExecutiveLog,
+  buildMissingForApproval,
+  buildOperationCenterAuraContext,
+  buildOperationNextSteps,
+  computeOperationCenterDashboard,
+  computeOperationSteps,
+  computeOperationalScore,
+  parseExecutiveLogs,
+  parseOperationNextSteps,
+  type OperationCenterDashboard,
+  type OperationExecutiveLogEntry,
+} from "@/utils/operation-center";
+import { getOptionalDataContext } from "./context";
+
+function logsAsJson(logs: OperationExecutiveLogEntry[]): Json {
+  return logs as unknown as Json;
+}
+
+async function loadBundleForOperation(
+  operation: OperationCenter
+): Promise<CreatorProductBundle | null> {
+  const { bundles } = await loadCreatorBundles();
+  if (operation.product_id) {
+    return bundles.find((b) => b.product.id === operation.product_id) ?? null;
+  }
+  return rankProductsForLaunch(bundles)[0] ?? null;
+}
+
+async function loadIntegrations() {
+  const [kiwify, meta, performance] = await Promise.all([
+    getKiwifyIntelligence(),
+    getMetaIntelligence(),
+    getPerformanceDashboard(),
+  ]);
+
+  return {
+    metaConnected: meta.data?.connected ?? false,
+    kiwifyConnected: kiwify.data?.connected ?? false,
+    hasPerformanceReport: Boolean(performance.report),
+    performanceReportId: performance.report?.id ?? null,
+  };
+}
+
+async function persistOperationUpdate(
+  repo: OperationCenterRepository,
+  operation: OperationCenter,
+  bundle: CreatorProductBundle | null,
+  integrations: Awaited<ReturnType<typeof loadIntegrations>>,
+  extra: TableUpdate<"operation_center"> = {}
+): Promise<{ data: OperationCenter | null; error: string | null }> {
+  const steps = computeOperationSteps({
+    operation,
+    bundle,
+    metaConnected: integrations.metaConnected,
+    kiwifyConnected: integrations.kiwifyConnected,
+    hasPerformanceReport: integrations.hasPerformanceReport,
+  });
+
+  const roiPrevisto =
+    operation.roi_previsto != null ? Number(operation.roi_previsto) : null;
+
+  const operationalScore = computeOperationalScore({
+    steps,
+    metaConnected: integrations.metaConnected,
+    kiwifyConnected: integrations.kiwifyConnected,
+    roiPrevisto,
+  });
+
+  const missing = buildMissingForApproval(steps, {
+    metaConnected: integrations.metaConnected,
+    kiwifyConnected: integrations.kiwifyConnected,
+  });
+
+  const nextSteps = buildOperationNextSteps(steps, missing);
+
+  const { data, error } = await repo.update(operation.id, {
+    steps: steps as unknown as Json,
+    operational_score: operationalScore,
+    next_steps: nextSteps as unknown as Json,
+    ...extra,
+  });
+
+  return { data: data as OperationCenter | null, error };
+}
+
+async function logOperationAction(
+  operation: OperationCenter,
+  action: string,
+  message: string,
+  details?: Record<string, unknown>
+): Promise<OperationExecutiveLogEntry[]> {
+  const logs = appendExecutiveLog(parseExecutiveLogs(operation.executive_logs), action, message, details);
+
+  await saveAuraMemory({
+    module: "execution",
+    userMessage: action,
+    assistantContent: message,
+    metadata: { kind: "operation-center", operationId: operation.id, ...details },
+  });
+
+  recordSystemLog({
+    tipo: "info",
+    modulo: "operation-center",
+    mensagem: message,
+    detalhes: { operationId: operation.id, action, ...details },
+  });
+
+  return logs;
+}
+
+export async function getOperationCenterState(): Promise<{
+  dashboard: OperationCenterDashboard | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { dashboard: null, error: "Usuário não autenticado." };
+  }
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const [{ data: operation }, integrations] = await Promise.all([
+    repo.findActive(),
+    loadIntegrations(),
+  ]);
+
+  const bundle = operation ? await loadBundleForOperation(operation) : null;
+
+  if (operation) {
+    await persistOperationUpdate(repo, operation, bundle, integrations);
+    const { data: refreshed } = await repo.findById(operation.id);
+    const dashboard = computeOperationCenterDashboard({
+      operation: refreshed ?? operation,
+      bundle,
+      ...integrations,
+    });
+    return { dashboard, error: null };
+  }
+
+  return {
+    dashboard: computeOperationCenterDashboard({
+      operation: null,
+      bundle: null,
+      ...integrations,
+    }),
+    error: null,
+  };
+}
+
+export async function getOperationCenterContext(): Promise<{
+  context: string;
+  error: string | null;
+}> {
+  const { dashboard, error } = await getOperationCenterState();
+  if (error || !dashboard) {
+    return { context: "", error: error ?? "Erro ao carregar Operation Center." };
+  }
+  return { context: buildOperationCenterAuraContext(dashboard), error: null };
+}
+
+export async function upsertOperationFromCeo(params: {
+  session: AuraCeoSession;
+  productId?: string | null;
+  productName?: string | null;
+}): Promise<{ operation: OperationCenter | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const integrations = await loadIntegrations();
+
+  let productId = params.productId ?? null;
+  let productName = params.productName ?? null;
+
+  if (!productId) {
+    const { bundles } = await loadCreatorBundles();
+    const ranked = rankProductsForLaunch(bundles);
+    if (ranked[0]) {
+      productId = ranked[0].product.id;
+      productName = ranked[0].product.nome ?? ranked[0].product.nicho ?? null;
+    }
+  }
+
+  const titulo =
+    productName ??
+    params.session.resumo_executivo?.slice(0, 80) ??
+    "Operação estratégica CEO";
+
+  const { data: existing } = await repo.findByCeoSessionId(params.session.id);
+
+  const basePayload = {
+    titulo,
+    product_id: productId,
+    product_nome: productName,
+    ceo_session_id: params.session.id,
+    success_chance: params.session.probabilidade_sucesso,
+    status: "preparing" as const,
+    metadata: {
+      resumo_executivo: params.session.resumo_executivo,
+      prioridades: params.session.prioridades,
+    },
+  };
+
+  let operation: OperationCenter | null = null;
+
+  if (existing && existing.status !== "cancelled") {
+    const { data, error } = await repo.update(existing.id, basePayload);
+    if (error || !data) return { operation: null, error: error ?? "Erro ao atualizar operação." };
+    operation = data as OperationCenter;
+  } else {
+    const { data, error } = await repo.create({
+      ...basePayload,
+      executive_logs: logsAsJson(
+        appendExecutiveLog([], "ceo_plan", "Operação criada a partir do plano CEO.")
+      ),
+    } as Omit<TableInsert<"operation_center">, "user_id">);
+    if (error || !data) return { operation: null, error: error ?? "Erro ao criar operação." };
+    operation = data as OperationCenter;
+  }
+
+  const bundle = await loadBundleForOperation(operation);
+  const logs = await logOperationAction(
+    operation,
+    "ceo_sync",
+    `Operação vinculada ao plano CEO: ${titulo}`,
+    { ceoSessionId: params.session.id }
+  );
+
+  const { data: updated, error: updateError } = await persistOperationUpdate(
+    repo,
+    { ...operation, executive_logs: logsAsJson(logs) },
+    bundle,
+    integrations,
+    { executive_logs: logsAsJson(logs) }
+  );
+
+  return { operation: updated ?? operation, error: updateError };
+}
+
+export async function generateOperationAssets(
+  operationId: string,
+  assetType: "creatives" | "landing" | "both" = "both"
+): Promise<{ operation: OperationCenter | null; message: string; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+
+  const bundle = await loadBundleForOperation(operation);
+  if (!bundle) {
+    return { operation: null, message: "", error: "Nenhum produto vinculado à operação." };
+  }
+
+  const integrations = await loadIntegrations();
+  const updates: TableUpdate<"operation_center"> = { status: "preparing" };
+  const messages: string[] = [];
+
+  if (assetType === "creatives" || assetType === "both") {
+    const intake = {
+      ...studioIntakeFromBundle(bundle),
+      product_id: bundle.product.id,
+      copylab_id: operation.copylab_id ?? null,
+    };
+    const { record, error } = await generateStudioAssets(intake, "full");
+    if (record) {
+      updates.assets_id = record.id;
+      messages.push("Criativos gerados.");
+    } else if (error) {
+      messages.push(`Criativos: ${error}`);
+    }
+  }
+
+  if (assetType === "landing" || assetType === "both") {
+    const intake = {
+      ...landingIntakeFromBundle(bundle, "pagina_simples"),
+      product_id: bundle.product.id,
+      copylab_id: operation.copylab_id ?? null,
+    };
+    const { record, error } = await generateLanding(intake);
+    if (record) {
+      updates.landing_id = record.id;
+      messages.push("Landing gerada.");
+    } else if (error) {
+      messages.push(`Landing: ${error}`);
+    }
+  }
+
+  if (!updates.assets_id && !updates.landing_id) {
+    return {
+      operation: null,
+      message: "",
+      error: messages.join(" ") || "Não foi possível gerar os assets.",
+    };
+  }
+
+  const logs = await logOperationAction(
+    operation,
+    "generate_assets",
+    messages.join(" "),
+    { assetType }
+  );
+
+  const { data: updated, error } = await persistOperationUpdate(
+    repo,
+    { ...operation, ...updates, executive_logs: logsAsJson(logs) },
+    bundle,
+    integrations,
+    { ...updates, executive_logs: logsAsJson(logs) }
+  );
+
+  return {
+    operation: updated,
+    message: messages.join(" "),
+    error: error ?? null,
+  };
+}
+
+export async function prepareOperationCampaign(
+  operationId: string
+): Promise<{ operation: OperationCenter | null; message: string; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+  if (!operation.product_id) {
+    return { operation: null, message: "", error: "Vincule um produto antes de montar a campanha." };
+  }
+
+  const bundle = await loadBundleForOperation(operation);
+  if (!bundle) {
+    return { operation: null, message: "", error: "Produto não encontrado." };
+  }
+
+  let copylabId = operation.copylab_id ?? null;
+  if (!copylabId) {
+    const copyIntake = {
+      ...copyIntakeFromBundle(bundle),
+      product_id: bundle.product.id,
+    };
+    const { record: copy } = await generateCopylab(copyIntake);
+    if (copy) copylabId = copy.id;
+  }
+
+  const { budget } = await getResolvedUserBudget();
+  const orcamento = budget.orcamento ?? 500;
+
+  const { orchestration, error: orchError } = await prepareLaunch({
+    product_id: operation.product_id,
+    orchestration_id: operation.orchestration_id ?? undefined,
+    orcamento_disponivel: orcamento,
+  });
+
+  if (orchError || !orchestration) {
+    return {
+      operation: null,
+      message: "",
+      error: orchError ?? "Erro ao montar campanha.",
+    };
+  }
+
+  const integrations = await loadIntegrations();
+  const logs = await logOperationAction(
+    operation,
+    "prepare_campaign",
+    "Campanha montada em modo seguro (rascunho — sem publicação automática).",
+    { orchestrationId: orchestration.id }
+  );
+
+  const { data: updated, error } = await persistOperationUpdate(
+    repo,
+    operation,
+    bundle,
+    integrations,
+    {
+      status: "preparing",
+      orchestration_id: orchestration.id,
+      copylab_id: copylabId,
+      executive_logs: logsAsJson(logs),
+    }
+  );
+
+  return {
+    operation: updated,
+    message: "Campanha montada em rascunho (modo seguro).",
+    error: error ?? null,
+  };
+}
+
+export async function sendOperationToPerformanceAi(
+  operationId: string
+): Promise<{ operation: OperationCenter | null; message: string; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+
+  const { report, error: perfError } = await generatePerformanceReport();
+  if (perfError || !report) {
+    return {
+      operation: null,
+      message: "",
+      error: perfError ?? "Erro ao gerar relatório Performance AI.",
+    };
+  }
+
+  const bundle = await loadBundleForOperation(operation);
+  const integrations = await loadIntegrations();
+  const logs = await logOperationAction(
+    operation,
+    "performance_ai",
+    "Relatório Performance AI gerado e vinculado à operação.",
+    { reportId: report.id }
+  );
+
+  const { data: updated, error } = await persistOperationUpdate(
+    repo,
+    operation,
+    bundle,
+    { ...integrations, hasPerformanceReport: true, performanceReportId: report.id },
+    {
+      performance_report_id: report.id,
+      executive_logs: logsAsJson(logs),
+    }
+  );
+
+  return {
+    operation: updated,
+    message: "Enviado para Performance AI.",
+    error: error ?? null,
+  };
+}
+
+export async function approveOperation(
+  operationId: string
+): Promise<{
+  operation: OperationCenter | null;
+  message: string;
+  error: string | null;
+  missing: string[];
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { operation: null, message: "", error: "Usuário não autenticado.", missing: [] };
+  }
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) {
+    return { operation: null, message: "", error: "Operação não encontrada.", missing: [] };
+  }
+
+  if (operation.status === "cancelled") {
+    return { operation: null, message: "", error: "Operação cancelada.", missing: [] };
+  }
+
+  if (operation.status === "ready" || operation.status === "approved") {
+    return {
+      operation,
+      message: "Operação já aprovada (status Pronta).",
+      error: null,
+      missing: [],
+    };
+  }
+
+  const bundle = await loadBundleForOperation(operation);
+  const integrations = await loadIntegrations();
+
+  const steps = computeOperationSteps({
+    operation,
+    bundle,
+    ...integrations,
+  });
+
+  const missing = buildMissingForApproval(steps, {
+    metaConnected: integrations.metaConnected,
+    kiwifyConnected: integrations.kiwifyConnected,
+  });
+
+  if (missing.length > 0) {
+    return {
+      operation: null,
+      message: "",
+      error: `Complete as etapas antes de aprovar: ${missing.join(", ")}.`,
+      missing,
+    };
+  }
+
+  const logs = await logOperationAction(
+    operation,
+    "approve",
+    "Operação aprovada — status alterado para Pronta (ready). Anúncios NÃO publicados automaticamente.",
+    { safeMode: true }
+  );
+
+  const { data: updated, error } = await persistOperationUpdate(
+    repo,
+    operation,
+    bundle,
+    integrations,
+    {
+      status: "ready",
+      executive_logs: logsAsJson(logs),
+    }
+  );
+
+  return {
+    operation: updated,
+    message: "Operação aprovada — status Pronta. Nenhum anúncio foi publicado.",
+    error: error ?? null,
+    missing: [],
+  };
+}
+
+export async function cancelOperation(
+  operationId: string
+): Promise<{ operation: OperationCenter | null; message: string; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+
+  const logs = await logOperationAction(
+    operation,
+    "cancel",
+    "Operação cancelada pelo usuário."
+  );
+
+  const { data: updated, error } = await repo.update(operationId, {
+    status: "cancelled",
+    executive_logs: logsAsJson(logs),
+  });
+
+  return {
+    operation: updated as OperationCenter | null,
+    message: "Operação cancelada.",
+    error: error ?? null,
+  };
+}
+
+export async function continueOperation(
+  operationId: string
+): Promise<{ operation: OperationCenter | null; message: string; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
+
+  const { dashboard, error: dashError } = await getOperationCenterState();
+  if (dashError || !dashboard?.operation || dashboard.operation.id !== operationId) {
+    return { operation: null, message: "", error: dashError ?? "Operação não encontrada." };
+  }
+
+  const next = parseOperationNextSteps(dashboard.operation.next_steps)[0] ?? dashboard.nextSteps[0] ?? "";
+
+  if (next.toLowerCase().includes("criativos")) {
+    return generateOperationAssets(operationId, "creatives");
+  }
+  if (next.toLowerCase().includes("landing")) {
+    return generateOperationAssets(operationId, "landing");
+  }
+  if (next.toLowerCase().includes("meta") || next.toLowerCase().includes("campanha")) {
+    return prepareOperationCampaign(operationId);
+  }
+  if (next.toLowerCase().includes("performance")) {
+    return sendOperationToPerformanceAi(operationId);
+  }
+  if (next.toLowerCase().includes("aprovar")) {
+    const result = await approveOperation(operationId);
+    return {
+      operation: result.operation,
+      message: result.message,
+      error: result.error,
+    };
+  }
+
+  return {
+    operation: dashboard.operation,
+    message: next || "Revise os próximos passos no Operation Center.",
+    error: null,
+  };
+}
+
+export async function runOperationCenterCoachAction(
+  mode: import("@/utils/operation-center").OperationCenterCoachMode
+): Promise<{
+  dashboard: OperationCenterDashboard | null;
+  actionResult: { message: string; error: string | null };
+  error: string | null;
+}> {
+  const { dashboard, error } = await getOperationCenterState();
+  if (error || !dashboard) {
+    return { dashboard: null, actionResult: { message: "", error: error ?? "Erro." }, error };
+  }
+
+  if (!dashboard.operation) {
+    return {
+      dashboard,
+      actionResult: { message: "", error: "Nenhuma operação ativa." },
+      error: null,
+    };
+  }
+
+  const id = dashboard.operation.id;
+
+  switch (mode) {
+    case "op-generate-creatives": {
+      const result = await generateOperationAssets(id, "creatives");
+      const refreshed = await getOperationCenterState();
+      return {
+        dashboard: refreshed.dashboard,
+        actionResult: { message: result.message, error: result.error },
+        error: null,
+      };
+    }
+    case "op-prepare-campaign": {
+      const result = await prepareOperationCampaign(id);
+      const refreshed = await getOperationCenterState();
+      return {
+        dashboard: refreshed.dashboard,
+        actionResult: { message: result.message, error: result.error },
+        error: null,
+      };
+    }
+    case "op-approve": {
+      const result = await approveOperation(id);
+      const refreshed = await getOperationCenterState();
+      return {
+        dashboard: refreshed.dashboard,
+        actionResult: {
+          message: result.message,
+          error: result.error ?? (result.missing.length ? `Falta: ${result.missing.join(", ")}` : null),
+        },
+        error: null,
+      };
+    }
+    case "op-continue": {
+      const result = await continueOperation(id);
+      const refreshed = await getOperationCenterState();
+      return {
+        dashboard: refreshed.dashboard,
+        actionResult: { message: result.message, error: result.error },
+        error: null,
+      };
+    }
+    default:
+      return {
+        dashboard,
+        actionResult: { message: "", error: null },
+        error: null,
+      };
+  }
+}
+
+export async function getOperationCenterAggregatedContext(): Promise<string> {
+  const [mission, revenue, execution, performance, ceo, opState] = await Promise.all([
+    getMissionControlState(),
+    getRevenueDashboard(),
+    getExecutionDashboard(),
+    getPerformanceDashboard(),
+    getCeoDashboard(),
+    getOperationCenterState(),
+  ]);
+
+  return [
+    opState.dashboard ? buildOperationCenterAuraContext(opState.dashboard) : "",
+    mission.dashboard ? `## MISSION\nMissão: ${mission.dashboard.activeMission?.nome ?? "—"}` : "",
+    revenue.dashboard
+      ? `## REVENUE\nLucro mês: ${revenue.dashboard.lucro.lucroLiquido.month}`
+      : "",
+    execution.briefing
+      ? `## EXECUTION\n${execution.briefing.conselho_ceo}`
+      : "",
+    performance.panel
+      ? `## PERFORMANCE\nOportunidade: ${performance.panel.maiorOportunidade}`
+      : "",
+    ceo.session ? `## CEO\n${ceo.session.resumo_executivo?.slice(0, 200) ?? ""}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}

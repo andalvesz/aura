@@ -763,6 +763,38 @@ export type AuraCeoSession = {
   updated_at: string;
 };
 
+export type OperationCenterStatus =
+  | "draft"
+  | "preparing"
+  | "ready"
+  | "approved"
+  | "cancelled";
+
+export type OperationCenter = {
+  id: string;
+  user_id: string;
+  status: OperationCenterStatus;
+  titulo: string;
+  product_id: string | null;
+  product_nome: string | null;
+  ceo_session_id: string | null;
+  smart_launch_session_id: string | null;
+  copylab_id: string | null;
+  assets_id: string | null;
+  landing_id: string | null;
+  orchestration_id: string | null;
+  performance_report_id: string | null;
+  steps: Json;
+  operational_score: number;
+  success_chance: number | null;
+  roi_previsto: number | null;
+  next_steps: Json;
+  executive_logs: Json;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorCopylab = {
   id: string;
   user_id: string;
@@ -4388,6 +4420,55 @@ export type Database = {
           created_at?: string;
         }
       >;
+      operation_center: TableDef<
+        OperationCenter,
+        Omit<
+          OperationCenter,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "status"
+          | "titulo"
+          | "product_id"
+          | "product_nome"
+          | "ceo_session_id"
+          | "smart_launch_session_id"
+          | "copylab_id"
+          | "assets_id"
+          | "landing_id"
+          | "orchestration_id"
+          | "performance_report_id"
+          | "steps"
+          | "operational_score"
+          | "success_chance"
+          | "roi_previsto"
+          | "next_steps"
+          | "executive_logs"
+          | "metadata"
+        > & {
+          id?: string;
+          status?: OperationCenterStatus;
+          titulo?: string;
+          product_id?: string | null;
+          product_nome?: string | null;
+          ceo_session_id?: string | null;
+          smart_launch_session_id?: string | null;
+          copylab_id?: string | null;
+          assets_id?: string | null;
+          landing_id?: string | null;
+          orchestration_id?: string | null;
+          performance_report_id?: string | null;
+          steps?: Json;
+          operational_score?: number;
+          success_chance?: number | null;
+          roi_previsto?: number | null;
+          next_steps?: Json;
+          executive_logs?: Json;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
     };
     Views: Record<string, never>;
     Functions: {
@@ -4512,7 +4593,8 @@ export type UserScopedTable =
   | "integration_action_logs"
   | "integration_connections"
   | "integration_sync_logs"
-  | "integration_events";
+  | "integration_events"
+  | "operation_center";
 
 export type AiModule =
   | "aura_central"

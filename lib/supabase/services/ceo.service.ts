@@ -27,6 +27,7 @@ import {
   getResolvedUserBudget,
 } from "./campaign-budget.service";
 import { getOptionalDataContext } from "./context";
+import { upsertOperationFromCeo } from "./operation-center.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -318,6 +319,14 @@ Regras:
   if (createError || !session) {
     return { session: null, radar: null, error: createError ?? "Erro ao salvar sessão." };
   }
+
+  const ranked = rankProductsForLaunch(moduleData.creator);
+  const mainProduct = ranked[0]?.product ?? null;
+  await upsertOperationFromCeo({
+    session: session as AuraCeoSession,
+    productId: mainProduct?.id ?? null,
+    productName: mainProduct?.nome ?? mainProduct?.nicho ?? null,
+  });
 
   return { session: session as AuraCeoSession, radar, error: null };
 }

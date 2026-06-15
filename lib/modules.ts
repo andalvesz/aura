@@ -8,6 +8,7 @@ import {
   Building2,
   CalendarDays,
   Castle,
+  ClipboardCheck,
   Crown,
   Cpu,
   Bot,
@@ -52,6 +53,7 @@ export type ModuleId =
   | "money"
   | "revenue"
   | "ceo"
+  | "operation-center"
   | "execution"
   | "performance"
   | "autopilot"
@@ -336,6 +338,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Score IA",
       value: "—",
       hint: "Faça uma pergunta estratégica",
+    },
+  },
+  {
+    id: "operation-center",
+    href: "/dashboard/operation-center",
+    label: "Operation Center",
+    shortLabel: "Operations",
+    description:
+      "Central de execução operacional — prepare operações completas para aprovação em modo seguro.",
+    icon: ClipboardCheck,
+    accent: "text-fuchsia-400",
+    overview: {
+      metric: "Score",
+      value: "—",
+      hint: "Nenhuma operação ativa",
     },
   },
   {
