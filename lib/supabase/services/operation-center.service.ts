@@ -41,7 +41,9 @@ import {
   OPERATION_TERMINAL_ERROR,
   parseExecutiveLogs,
   parseOperationNextSteps,
+  resolveCeoOperationCommand,
   resolveContinueOperationAction,
+  type CeoOperationCommand,
   type OperationCenterDashboard,
   type OperationExecutiveLogEntry,
 } from "@/utils/operation-center";
@@ -1060,6 +1062,88 @@ export async function continueOperation(
   }
 }
 
+export async function executeCeoOperationCommand(
+  command: CeoOperationCommand
+): Promise<{
+  dashboard: OperationCenterDashboard | null;
+  message: string;
+  error: string | null;
+}> {
+  const { dashboard, error: dashError } = await getOperationCenterState();
+  if (dashError || !dashboard?.operation) {
+    return {
+      dashboard: null,
+      message: "",
+      error: dashError ?? "Nenhuma operação ativa no Operation Center.",
+    };
+  }
+
+  const operationId = dashboard.operation.id;
+  let result: { operation: OperationCenter | null; message: string; error: string | null };
+
+  switch (command) {
+    case "continue":
+      result = await continueOperation(operationId);
+      break;
+    case "copy":
+      result = await generateOperationCopy(operationId);
+      break;
+    case "creatives":
+      result = await generateOperationAssets(operationId, "creatives");
+      break;
+    case "landing":
+      result = await generateOperationAssets(operationId, "landing");
+      break;
+    case "campaign":
+      result = await prepareOperationCampaign(operationId);
+      break;
+    case "performance":
+      result = await sendOperationToPerformanceAi(operationId);
+      break;
+    case "approve": {
+      const approveResult = await approveOperation(operationId);
+      result = {
+        operation: approveResult.operation,
+        message: approveResult.message,
+        error: approveResult.error,
+      };
+      break;
+    }
+  }
+
+  recordSystemLog({
+    tipo: result.error ? "warning" : "success",
+    modulo: "ceo",
+    mensagem: result.error ?? `Pipeline operacional: ${result.message}`,
+    detalhes: {
+      command,
+      operationId,
+      operationStatus: result.operation?.status ?? dashboard.operation.status,
+    },
+  });
+
+  const refreshed = await getOperationCenterState();
+  return {
+    dashboard: refreshed.dashboard,
+    message: result.message,
+    error: result.error,
+  };
+}
+
+export async function executeCeoOperationFromMessage(
+  message: string
+): Promise<{
+  dashboard: OperationCenterDashboard | null;
+  message: string;
+  error: string | null;
+}> {
+  const command = resolveCeoOperationCommand(message);
+  if (!command) {
+    return { dashboard: null, message: "", error: "Comando operacional não reconhecido." };
+  }
+  return executeCeoOperationCommand(command);
+}
+
 export async function runOperationCenterCoachAction(
   mode: import("@/utils/operation-center").OperationCenterCoachMode
 ): Promise<{
@@ -1080,48 +1164,33 @@ export async function runOperationCenterCoachAction(
     };
   }
 
-  const id = dashboard.operation.id;
+  const commandFromMode: CeoOperationCommand | null =
+    mode === "op-continue"
+      ? "continue"
+      : mode === "op-generate-creatives"
+        ? "creatives"
+        : mode === "op-execute-copy"
+          ? "copy"
+          : mode === "op-execute-landing"
+            ? "landing"
+            : mode === "op-execute-performance"
+              ? "performance"
+              : mode === "op-prepare-campaign"
+                ? "campaign"
+                : mode === "op-approve"
+                  ? "approve"
+                  : null;
+
+  if (commandFromMode) {
+    const result = await executeCeoOperationCommand(commandFromMode);
+    return {
+      dashboard: result.dashboard ?? dashboard,
+      actionResult: { message: result.message, error: result.error },
+      error: null,
+    };
+  }
 
   switch (mode) {
-    case "op-generate-creatives": {
-      const result = await generateOperationAssets(id, "creatives");
-      const refreshed = await getOperationCenterState();
-      return {
-        dashboard: refreshed.dashboard,
-        actionResult: { message: result.message, error: result.error },
-        error: null,
-      };
-    }
-    case "op-prepare-campaign": {
-      const result = await prepareOperationCampaign(id);
-      const refreshed = await getOperationCenterState();
-      return {
-        dashboard: refreshed.dashboard,
-        actionResult: { message: result.message, error: result.error },
-        error: null,
-      };
-    }
-    case "op-approve": {
-      const result = await approveOperation(id);
-      const refreshed = await getOperationCenterState();
-      return {
-        dashboard: refreshed.dashboard,
-        actionResult: {
-          message: result.message,
-          error: result.error ?? (result.missing.length ? `Falta: ${result.missing.join(", ")}` : null),
-        },
-        error: null,
-      };
-    }
-    case "op-continue": {
-      const result = await continueOperation(id);
-      const refreshed = await getOperationCenterState();
-      return {
-        dashboard: refreshed.dashboard,
-        actionResult: { message: result.message, error: result.error },
-        error: null,
-      };
-    }
     default:
       return {
         dashboard,

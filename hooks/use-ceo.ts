@@ -8,6 +8,7 @@ import {
   type CeoDashboardMetrics,
   type CeoOpportunityRadar,
 } from "@/utils/ceo";
+import type { OperationCenterDashboard } from "@/utils/operation-center";
 import { fetchJsonWithTimeout } from "@/utils/fetch-json";
 import { parseJsonResponse } from "@/utils/safe-json";
 
@@ -137,20 +138,71 @@ export function useCeo() {
         body: JSON.stringify({ pergunta }),
       });
       const { data, error: parseError } = await parseJsonResponse<{
+        kind?: "plan" | "operation";
         session?: AuraCeoSession;
         radar?: CeoOpportunityRadar;
+        dashboard?: OperationCenterDashboard;
+        message?: string;
         error?: string;
       }>(res);
 
-      if (parseError || !res.ok || !data || data.error || !data.session) {
-        return { session: null, error: data?.error ?? parseError ?? "Erro ao gerar plano." };
+      if (parseError || !res.ok || !data) {
+        return {
+          kind: "error" as const,
+          session: null,
+          dashboard: null,
+          message: null,
+          error: parseError ?? "Erro ao processar solicitação.",
+        };
+      }
+
+      if (data.kind === "operation" && data.dashboard) {
+        return {
+          kind: "operation" as const,
+          session: null,
+          dashboard: data.dashboard,
+          message: data.message ?? "Etapa operacional executada.",
+          error: data.error ?? null,
+        };
+      }
+
+      if (data.error) {
+        return {
+          kind: "error" as const,
+          session: null,
+          dashboard: null,
+          message: null,
+          error: data.error,
+        };
+      }
+
+      if (!data.session) {
+        return {
+          kind: "error" as const,
+          session: null,
+          dashboard: null,
+          message: null,
+          error: "Erro ao gerar plano.",
+        };
       }
 
       await refresh();
-      return { session: data.session, error: null };
+      return {
+        kind: "plan" as const,
+        session: data.session,
+        dashboard: null,
+        message: null,
+        error: null,
+      };
     } catch (err) {
       console.error("[useCeo] createPlan failed:", err);
-      return { session: null, error: "Erro de conexão." };
+      return {
+        kind: "error" as const,
+        session: null,
+        dashboard: null,
+        message: null,
+        error: "Erro de conexão.",
+      };
     } finally {
       setBusy(false);
     }

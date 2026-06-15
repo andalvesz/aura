@@ -211,13 +211,23 @@ export function CeoView() {
       return;
     }
 
-    const { session: newSession, error: planError } = await createPlan(q);
-    if (planError || !newSession) {
-      toast.error(planError ?? "Erro ao gerar plano.");
+    const result = await createPlan(q);
+    if (result.error) {
+      toast.error(result.error);
       return;
     }
 
     setPergunta("");
+
+    if (result.kind === "operation") {
+      if (result.error) {
+        toast.warning(result.error);
+      } else {
+        toast.success(result.message ?? "Etapa operacional executada no Operation Center.");
+      }
+      return;
+    }
+
     toast.success("Plano estratégico gerado com IA!");
   }
 

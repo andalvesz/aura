@@ -9,6 +9,7 @@ import {
   isOperationTerminal,
   OPERATION_TERMINAL_ERROR,
   parseOperationSteps,
+  resolveCeoOperationCommand,
   resolveContinueOperationAction,
 } from "./operation-center";
 import type { OperationCenter } from "@/types/database";
@@ -85,6 +86,15 @@ test("detectOperationCenterCoachMode", () => {
   assert.equal(detectOperationCenterCoachMode("Gere os criativos"), "op-generate-creatives");
   assert.equal(detectOperationCenterCoachMode("Monte a campanha"), "op-prepare-campaign");
   assert.equal(detectOperationCenterCoachMode("Aprovar operação"), "op-approve");
+});
+
+test("resolveCeoOperationCommand routes CEO operational phrases", () => {
+  assert.equal(resolveCeoOperationCommand("Continue a operação"), "continue");
+  assert.equal(resolveCeoOperationCommand("Execute etapa Copy"), "copy");
+  assert.equal(resolveCeoOperationCommand("Execute etapa Criativos"), "creatives");
+  assert.equal(resolveCeoOperationCommand("Execute Landing"), "landing");
+  assert.equal(resolveCeoOperationCommand("Prepare Meta Ads"), "campaign");
+  assert.equal(resolveCeoOperationCommand("Execute Performance AI"), "performance");
 });
 
 test("computeOperationalScore respects weights", () => {

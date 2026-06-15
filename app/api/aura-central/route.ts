@@ -84,8 +84,11 @@ import {
 import {
   buildOperationCenterCoachReply,
   detectOperationCenterCoachMode,
+  resolveCeoOperationCommand,
+  type OperationCenterCoachMode,
 } from "@/utils/operation-center";
 import {
+  executeCeoOperationFromMessage,
   getOperationCenterState,
   runOperationCenterCoachAction,
 } from "@/lib/supabase/services/operation-center.service";
@@ -603,6 +606,66 @@ export async function POST(req: Request) {
         module: "smart-launch",
         kind: "coach",
         coachMode: smartLaunchMode,
+      });
+    }
+
+    const opCommand = resolveCeoOperationCommand(message);
+    if (opCommand) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const coachModeByCommand: Record<
+        NonNullable<ReturnType<typeof resolveCeoOperationCommand>>,
+        OperationCenterCoachMode
+      > = {
+        continue: "op-continue",
+        copy: "op-execute-copy",
+        creatives: "op-generate-creatives",
+        landing: "op-execute-landing",
+        campaign: "op-prepare-campaign",
+        performance: "op-execute-performance",
+        approve: "op-approve",
+      };
+
+      const { dashboard, message: actionMessage, error: actionError } =
+        await executeCeoOperationFromMessage(message);
+
+      const text = buildOperationCenterCoachReply({
+        mode: coachModeByCommand[opCommand],
+        displayName,
+        dashboard: dashboard ?? {
+          operation: null,
+          productName: null,
+          progress: [],
+          operationalScore: 0,
+          successChance: null,
+          nextSteps: [],
+          missingForApproval: [],
+          canApprove: false,
+          canMutate: false,
+          safeMode: { active: true, message: "" },
+          integrations: {
+            metaConnected: false,
+            kiwifyConnected: false,
+            hasPerformanceReport: false,
+          },
+        },
+        actionResult: { message: actionMessage, error: actionError },
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: coachModeByCommand[opCommand],
+      });
+
+      return Response.json({
+        text,
+        module: "operation-center",
+        kind: "coach",
+        coachMode: coachModeByCommand[opCommand],
       });
     }
 

@@ -19,6 +19,7 @@ import {
   type CeoOpportunityRadar,
   type GeneratedCeoPlan,
 } from "@/utils/ceo";
+import { resolveCeoOperationCommand, type OperationCenterDashboard } from "@/utils/operation-center";
 import { formatBRL } from "@/utils/format";
 import { getTodayMissions } from "@/utils/money";
 import { rankProductsForLaunch, type CreatorProductBundle } from "@/utils/creator";
@@ -33,7 +34,7 @@ import {
   getResolvedUserBudget,
 } from "./campaign-budget.service";
 import { getOptionalDataContext } from "./context";
-import { upsertOperationFromCeo } from "./operation-center.service";
+import { upsertOperationFromCeo, executeCeoOperationFromMessage } from "./operation-center.service";
 import { recordSystemLog } from "@/lib/logs/record";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 
@@ -332,6 +333,83 @@ export async function getCeoContext(): Promise<{ context: string; error: string 
   ].filter(Boolean);
 
   return { context: lines.join("\n\n"), error: null };
+}
+
+export type CeoPlanResponse =
+  | {
+      kind: "plan";
+      session: AuraCeoSession;
+      radar: CeoOpportunityRadar;
+      error: null;
+    }
+  | {
+      kind: "operation";
+      dashboard: OperationCenterDashboard;
+      message: string;
+      error: string | null;
+    }
+  | {
+      kind: "error";
+      session: null;
+      radar: null;
+      dashboard: null;
+      error: string;
+    };
+
+export async function handleCeoPlanRequest(pergunta: string): Promise<CeoPlanResponse> {
+  const trimmed = pergunta.trim();
+  if (!trimmed) {
+    return {
+      kind: "error",
+      session: null,
+      radar: null,
+      dashboard: null,
+      error: "Informe sua pergunta estratégica.",
+    };
+  }
+
+  const operationCommand = resolveCeoOperationCommand(trimmed);
+  if (operationCommand) {
+    console.info("[ceo] handleCeoPlanRequest: routing to operational pipeline", {
+      command: operationCommand,
+    });
+
+    const { dashboard, message, error } = await executeCeoOperationFromMessage(trimmed);
+    if (!dashboard?.operation) {
+      return {
+        kind: "error",
+        session: null,
+        radar: null,
+        dashboard: null,
+        error: error ?? "Nenhuma operação ativa no Operation Center.",
+      };
+    }
+
+    return {
+      kind: "operation",
+      dashboard,
+      message,
+      error,
+    };
+  }
+
+  const plan = await createCeoPlan(trimmed);
+  if (plan.error || !plan.session || !plan.radar) {
+    return {
+      kind: "error",
+      session: null,
+      radar: null,
+      dashboard: null,
+      error: plan.error ?? "Não foi possível gerar o plano estratégico.",
+    };
+  }
+
+  return {
+    kind: "plan",
+    session: plan.session,
+    radar: plan.radar,
+    error: null,
+  };
 }
 
 export async function createCeoPlan(pergunta: string): Promise<{

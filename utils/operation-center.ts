@@ -55,6 +55,9 @@ export type OperationCenterCoachMode =
   | "op-missing-approval"
   | "op-continue"
   | "op-generate-creatives"
+  | "op-execute-copy"
+  | "op-execute-landing"
+  | "op-execute-performance"
   | "op-prepare-campaign"
   | "op-approve"
   | "op-status";
@@ -126,6 +129,28 @@ const OP_GENERATE_CREATIVES_PHRASES = [
   "gerar criativos",
   "gerar criativo",
   "crie os criativos",
+  "execute etapa criativos",
+  "executar etapa criativos",
+  "concluir etapa criativos",
+] as const;
+
+const OP_EXECUTE_COPY_PHRASES = [
+  "execute etapa copy",
+  "executar etapa copy",
+  "concluir etapa copy",
+  "gerar copy",
+  "gerar a copy",
+  "execute copy",
+] as const;
+
+const OP_EXECUTE_LANDING_PHRASES = [
+  "execute landing",
+  "executar landing",
+  "execute etapa landing",
+  "executar etapa landing",
+  "concluir etapa landing",
+  "gerar landing",
+  "gerar a landing",
 ] as const;
 
 const OP_PREPARE_CAMPAIGN_PHRASES = [
@@ -133,6 +158,19 @@ const OP_PREPARE_CAMPAIGN_PHRASES = [
   "montar campanha",
   "preparar campanha",
   "monte campanha",
+  "prepare meta ads",
+  "preparar meta ads",
+  "preparar meta",
+  "monte meta ads",
+] as const;
+
+const OP_EXECUTE_PERFORMANCE_PHRASES = [
+  "execute performance",
+  "executar performance",
+  "execute performance ai",
+  "executar performance ai",
+  "enviar para performance",
+  "enviar para performance ai",
 ] as const;
 
 const OP_APPROVE_PHRASES = [
@@ -164,15 +202,41 @@ function matchesAny(normalized: string, phrases: readonly string[]): boolean {
   return phrases.some((p) => normalized.includes(normalize(p)));
 }
 
+export type CeoOperationCommand =
+  | "continue"
+  | "copy"
+  | "creatives"
+  | "landing"
+  | "campaign"
+  | "performance"
+  | "approve";
+
+export function resolveCeoOperationCommand(message: string): CeoOperationCommand | null {
+  const normalized = normalize(message);
+  if (!normalized) return null;
+
+  if (matchesAny(normalized, OP_CONTINUE_PHRASES)) return "continue";
+  if (matchesAny(normalized, OP_EXECUTE_COPY_PHRASES)) return "copy";
+  if (matchesAny(normalized, OP_GENERATE_CREATIVES_PHRASES)) return "creatives";
+  if (matchesAny(normalized, OP_EXECUTE_LANDING_PHRASES)) return "landing";
+  if (matchesAny(normalized, OP_PREPARE_CAMPAIGN_PHRASES)) return "campaign";
+  if (matchesAny(normalized, OP_EXECUTE_PERFORMANCE_PHRASES)) return "performance";
+  if (matchesAny(normalized, OP_APPROVE_PHRASES)) return "approve";
+
+  return null;
+}
+
 export function detectOperationCenterCoachMode(message: string): OperationCenterCoachMode | null {
+  const command = resolveCeoOperationCommand(message);
+  if (command === "continue") return "op-continue";
+  if (command === "creatives") return "op-generate-creatives";
+  if (command === "campaign") return "op-prepare-campaign";
+  if (command === "approve") return "op-approve";
+
   const normalized = normalize(message);
   if (!normalized) return null;
 
   if (matchesAny(normalized, OP_MISSING_APPROVAL_PHRASES)) return "op-missing-approval";
-  if (matchesAny(normalized, OP_CONTINUE_PHRASES)) return "op-continue";
-  if (matchesAny(normalized, OP_GENERATE_CREATIVES_PHRASES)) return "op-generate-creatives";
-  if (matchesAny(normalized, OP_PREPARE_CAMPAIGN_PHRASES)) return "op-prepare-campaign";
-  if (matchesAny(normalized, OP_APPROVE_PHRASES)) return "op-approve";
   if (matchesAny(normalized, OP_STATUS_PHRASES)) return "op-status";
 
   return null;
@@ -642,6 +706,15 @@ export function buildOperationCenterCoachReply(params: {
 
     case "op-generate-creatives":
       return `${firstName}, use **Gerar Criativos** no Operation Center ou peça para continuar a operação. Etapa criativos: ${getOperationStepStatusLabel(dashboard.progress.find((p) => p.id === "criativos")?.status ?? "pending")}.`;
+
+    case "op-execute-copy":
+      return `${firstName}, peça **Execute etapa Copy** ou **Continue a operação** para gerar a copy. Etapa copy: ${getOperationStepStatusLabel(dashboard.progress.find((p) => p.id === "copy")?.status ?? "pending")}.`;
+
+    case "op-execute-landing":
+      return `${firstName}, peça **Execute Landing** ou **Continue a operação** para gerar a landing. Etapa landing: ${getOperationStepStatusLabel(dashboard.progress.find((p) => p.id === "landing")?.status ?? "pending")}.`;
+
+    case "op-execute-performance":
+      return `${firstName}, peça **Execute Performance AI** ou **Continue a operação** para enviar ao Performance AI. Etapa Performance AI: ${getOperationStepStatusLabel(dashboard.progress.find((p) => p.id === "performance_ai")?.status ?? "pending")}.`;
 
     case "op-prepare-campaign":
       return `${firstName}, use **Montar Campanha** no Operation Center. Etapa Meta Ads: ${getOperationStepStatusLabel(dashboard.progress.find((p) => p.id === "meta_ads")?.status ?? "pending")}. Modo seguro — nada será publicado automaticamente.`;
