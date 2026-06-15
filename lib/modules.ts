@@ -48,6 +48,7 @@ export type ModuleId =
   | "legado"
   | "creator"
   | "smart-launch"
+  | "mission"
   | "money"
   | "revenue"
   | "ceo"
@@ -275,6 +276,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Smart Score",
       value: "—",
       hint: "Prepare um lançamento completo em 4 etapas",
+    },
+  },
+  {
+    id: "mission",
+    href: "/dashboard/mission",
+    label: "Aura Mission Control",
+    shortLabel: "Mission",
+    description:
+      "Central de operações do Smart Launch — missão ativa, progresso, revenue, CEO, execution e performance em um painel.",
+    icon: Target,
+    accent: "text-cyan-400",
+    overview: {
+      metric: "Missão",
+      value: "—",
+      hint: "Nenhuma missão ativa",
     },
   },
   {

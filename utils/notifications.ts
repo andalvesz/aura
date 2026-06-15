@@ -92,6 +92,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   legado: "/dashboard/legado",
   creator: "/dashboard/creator",
   "smart-launch": "/dashboard/smart-launch",
+  "mission": "/dashboard/mission",
   money: "/dashboard/money",
   revenue: "/dashboard/revenue",
   ceo: "/dashboard/ceo",
