@@ -28,15 +28,18 @@ import {
   MetaCampaignsRepository,
   MetaConnectionsRepository,
 } from "@/lib/supabase/repositories/meta.repository";
-import type { Json, MetaCampaign, MetaCampaignMetric } from "@/types/database";
+import { IntegrationConnectionsRepository } from "@/lib/supabase/repositories/integration-center.repository";
+import type { IntegrationConnection, Json, MetaCampaign, MetaCampaignMetric } from "@/types/database";
 import { todayIsoDate } from "@/utils/health";
 import type { MetaCampaignAction } from "@/utils/integrations";
+import { INTEGRATION_SYNC_INTERVAL_MS } from "@/utils/integrations";
 import {
   computeMetaIntelligenceMetrics,
   META_READ_ONLY_MODE,
 } from "@/utils/meta-intelligence";
 import { getOptionalDataContext } from "./context";
 import { logIntegrationAction } from "./integration-logs.service";
+import { logIntegrationEvent } from "./integration-events.service";
 import { recordPlatformResult } from "./platform-results.service";
 
 function getAccessToken(encrypted: string): string {
@@ -70,6 +73,55 @@ function readImportedFromMetadata(metadata: Json | null | undefined): MetaImport
     pixels: Array.isArray(record.pixels) ? (record.pixels as MetaPixel[]) : [],
     importedAt: typeof record.importedAt === "string" ? record.importedAt : undefined,
   };
+}
+
+async function syncMetaIntegrationCenterStatus() {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return;
+
+  const metaRepo = new MetaConnectionsRepository(ctx.supabase, ctx.userId);
+  const accountsRepo = new MetaAdAccountsRepository(ctx.supabase, ctx.userId);
+  const campaignsRepo = new MetaCampaignsRepository(ctx.supabase, ctx.userId);
+  const integrationRepo = new IntegrationConnectionsRepository(ctx.supabase, ctx.userId);
+
+  const [meta, accounts, campaigns, existing] = await Promise.all([
+    metaRepo.findForUser(),
+    accountsRepo.findAllOrdered(),
+    campaignsRepo.findAllOrdered(),
+    integrationRepo.findByPlatform("meta"),
+  ]);
+
+  const metaConn = meta.data;
+  const accountList = accounts.data ?? [];
+  const campaignList = campaigns.data ?? [];
+  const imported = readImportedFromMetadata(metaConn?.metadata);
+  const lastSyncAt = metaConn?.last_sync_at ?? null;
+  const nextSyncAt = lastSyncAt
+    ? new Date(new Date(lastSyncAt).getTime() + INTEGRATION_SYNC_INTERVAL_MS).toISOString()
+    : null;
+
+  const payload = {
+    status: (metaConn?.status ?? "disconnected") as IntegrationConnection["status"],
+    account_label: metaConn?.business_name ?? null,
+    stats: {
+      campaigns: campaignList.length,
+      activeCampaigns: campaignList.filter((c) => c.status === "active").length,
+      accounts: accountList.length,
+      businessManagers: imported.businessManagers?.length ?? 0,
+      pages: imported.pages?.length ?? 0,
+      pixels: imported.pixels?.length ?? 0,
+    } as Json,
+    metadata: (metaConn?.metadata ?? {}) as Json,
+    last_sync_at: lastSyncAt,
+    next_sync_at: nextSyncAt,
+    last_error: metaConn?.last_error ?? null,
+  };
+
+  if (existing.data) {
+    await integrationRepo.update(existing.data.id, payload);
+  } else {
+    await integrationRepo.create({ platform: "meta", ...payload });
+  }
 }
 
 async function fetchMetaLiveEntities(token: string, adAccountExternalIds: string[]) {
@@ -237,6 +289,16 @@ export async function connectMetaBusiness(params: {
       message: "Meta Business conectado com sucesso.",
     });
 
+    await logIntegrationEvent({
+      platform: "meta",
+      eventType: "connection",
+      status: "success",
+      title: "Meta conectado via OAuth",
+      message: "Token criptografado e pronto para importação.",
+    });
+
+    await syncMetaIntegrationCenterStatus();
+
     return { error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao conectar Meta.";
@@ -348,6 +410,22 @@ export async function importMetaOAuthEntities(accessToken?: string) {
       },
     });
 
+    await logIntegrationEvent({
+      platform: "meta",
+      eventType: "sync",
+      status: "success",
+      title: "Importação Meta OAuth",
+      message: `${businessManagers.length} BM, ${accounts.length} contas, ${pages.length} páginas, ${pixels.length} pixels.`,
+      details: {
+        businessManagers: businessManagers.length,
+        adAccounts: accounts.length,
+        pages: pages.length,
+        pixels: pixels.length,
+      },
+    });
+
+    await syncMetaIntegrationCenterStatus();
+
     return {
       error: null,
       businessManagers: businessManagers.length,
@@ -364,6 +442,7 @@ export async function importMetaOAuthEntities(accessToken?: string) {
       status: "error",
       message,
     });
+    await syncMetaIntegrationCenterStatus();
     return {
       error: message,
       businessManagers: 0,
@@ -394,6 +473,16 @@ export async function disconnectMetaBusiness() {
     status: "success",
     message: "Meta Business desconectado.",
   });
+
+  await logIntegrationEvent({
+    platform: "meta",
+    eventType: "connection",
+    status: "success",
+    title: "Meta desconectado",
+    message: "Credenciais removidas da Aura.",
+  });
+
+  await syncMetaIntegrationCenterStatus();
 
   return { error: null };
 }

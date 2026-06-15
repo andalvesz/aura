@@ -1,9 +1,10 @@
 export const META_OAUTH_SCOPES = [
-  "ads_management",
   "ads_read",
+  "ads_management",
   "business_management",
-  "pages_show_list",
   "pages_read_engagement",
+  "pages_show_list",
+  "read_insights",
 ];
 
 export const META_OAUTH_STATE_COOKIE = "meta_oauth_state";
