@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AuraCeoSession } from "@/types/database";
 import type { CeoDashboardMetrics, CeoOpportunityRadar } from "@/utils/ceo";
+import { fetchJsonWithTimeout } from "@/utils/fetch-json";
 import { parseJsonResponse } from "@/utils/safe-json";
 
 export function useCeo() {
@@ -18,17 +19,17 @@ export function useCeo() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/ceo");
-      const { data, error: parseError } = await parseJsonResponse<{
+      const { res, data, error: fetchError, timedOut } = await fetchJsonWithTimeout<{
         dashboard?: CeoDashboardMetrics;
         session?: AuraCeoSession;
         radar?: CeoOpportunityRadar;
         sessions?: AuraCeoSession[];
         error?: string;
-      }>(res);
+      }>("/api/ceo");
 
-      if (parseError || !res.ok || !data || data.error) {
-        setError(data?.error ?? parseError ?? "Erro ao carregar Aura CEO.");
+      if (fetchError || timedOut) {
+        console.error("[useCeo] refresh failed:", fetchError, { status: res.status, timedOut });
+        setError(fetchError ?? "Erro ao carregar Aura CEO.");
         setDashboard(null);
         setSession(null);
         setRadar(null);
@@ -36,11 +37,23 @@ export function useCeo() {
         return;
       }
 
-      setDashboard(data.dashboard ?? null);
-      setSession(data.session ?? null);
-      setRadar(data.radar ?? null);
-      setSessions(data.sessions ?? []);
-    } catch {
+      if (!res.ok || data?.error) {
+        const message = data?.error ?? `Erro ao carregar Aura CEO (${res.status}).`;
+        console.error("[useCeo] API error:", message, { status: res.status });
+        setError(message);
+        setDashboard(data?.dashboard ?? null);
+        setSession(data?.session ?? null);
+        setRadar(data?.radar ?? null);
+        setSessions(data?.sessions ?? []);
+        return;
+      }
+
+      setDashboard(data?.dashboard ?? null);
+      setSession(data?.session ?? null);
+      setRadar(data?.radar ?? null);
+      setSessions(data?.sessions ?? []);
+    } catch (err) {
+      console.error("[useCeo] unexpected error:", err);
       setError("Erro de conexão.");
       setDashboard(null);
       setSession(null);
@@ -75,7 +88,8 @@ export function useCeo() {
 
       await refresh();
       return { session: data.session, error: null };
-    } catch {
+    } catch (err) {
+      console.error("[useCeo] createPlan failed:", err);
       return { session: null, error: "Erro de conexão." };
     } finally {
       setBusy(false);
@@ -94,7 +108,8 @@ export function useCeo() {
 
       await refresh();
       return { error: null };
-    } catch {
+    } catch (err) {
+      console.error("[useCeo] removeSession failed:", err);
       return { error: "Erro de conexão." };
     } finally {
       setBusy(false);

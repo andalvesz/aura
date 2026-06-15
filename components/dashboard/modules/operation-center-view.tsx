@@ -60,7 +60,6 @@ export function OperationCenterView() {
   } = useOperationCenter();
 
   const operation = dashboard?.operation;
-  const hasOperation = Boolean(operation && operation.status !== "cancelled");
   const canMutate = dashboard?.canMutate ?? false;
 
   async function handleGenerateCreatives() {
@@ -104,7 +103,7 @@ export function OperationCenterView() {
   }
 
   async function handleApprove() {
-    if (dashboard?.missingForApproval.length) {
+    if (dashboard?.missingForApproval?.length) {
       toast.error(`Complete antes de aprovar: ${dashboard.missingForApproval.join(", ")}`);
       return;
     }
@@ -138,12 +137,23 @@ export function OperationCenterView() {
     );
   }
 
-  if (error) {
-    return <EmptyState title="Erro ao carregar" description={error} />;
-  }
+  const progress = dashboard?.progress ?? [];
+  const hasOperation = Boolean(dashboard?.operation && dashboard.operation.status !== "cancelled");
 
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] text-amber-200/90">
+          {error}
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="ml-2 underline hover:text-amber-100"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] px-3 py-2">
         <Shield className="size-4 shrink-0 text-emerald-400" />
         <p className="text-[11px] text-emerald-200/90">
@@ -203,15 +213,17 @@ export function OperationCenterView() {
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              <p className="text-[12px] text-zinc-400">Nenhuma operação ativa.</p>
-              <Link
-                href="/dashboard/ceo"
-                className="inline-flex text-[11px] text-violet-400 hover:underline"
-              >
-                Gerar estratégia no Aura CEO →
-              </Link>
-            </div>
+            <EmptyState
+              title="Nenhuma operação ativa"
+              description="Gere um plano estratégico no Aura CEO para iniciar uma operação executável com criativos, landing e campanha."
+              action={
+                <Link href="/dashboard/ceo">
+                  <ActionButton icon={<Sparkles className="size-3.5" />}>
+                    Criar operação no Aura CEO
+                  </ActionButton>
+                </Link>
+              }
+            />
           )}
         </PanelContent>
       </Panel>
@@ -249,25 +261,29 @@ export function OperationCenterView() {
           </PanelTitle>
         </PanelHeader>
         <PanelContent className="space-y-2">
-          {dashboard?.progress.map((step) => (
-            <div
-              key={step.id}
-              className="flex items-center justify-between gap-2 rounded-md border border-white/[0.06] px-3 py-2"
-            >
-              <span className="text-[12px] font-medium text-zinc-200">{step.label}</span>
-              <StepBadge status={step.status} />
-            </div>
-          ))}
+          {progress.length > 0 ? (
+            progress.map((step) => (
+              <div
+                key={step.id}
+                className="flex items-center justify-between gap-2 rounded-md border border-white/[0.06] px-3 py-2"
+              >
+                <span className="text-[12px] font-medium text-zinc-200">{step.label}</span>
+                <StepBadge status={step.status} />
+              </div>
+            ))
+          ) : (
+            <p className="text-[11px] text-zinc-500">Nenhuma etapa em andamento.</p>
+          )}
         </PanelContent>
       </Panel>
 
-      {dashboard?.missingForApproval.length ? (
+      {(dashboard?.missingForApproval?.length ?? 0) > 0 ? (
         <div className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2">
           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
           <div>
             <p className="text-[11px] font-medium text-amber-200">Alerta antes de aprovar</p>
             <p className="mt-0.5 text-[10px] text-amber-200/80">
-              Falta: {dashboard.missingForApproval.join(", ")}
+              Falta: {dashboard?.missingForApproval?.join(", ")}
             </p>
           </div>
         </div>

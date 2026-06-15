@@ -2,10 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { OperationCenter } from "@/types/database";
-import type { OperationCenterDashboard } from "@/utils/operation-center";
+import {
+  computeOperationCenterDashboard,
+  type OperationCenterDashboard,
+} from "@/utils/operation-center";
+import { fetchJsonWithTimeout } from "@/utils/fetch-json";
 import { parseJsonResponse } from "@/utils/safe-json";
 
 export type OperationAssetType = "creatives" | "landing" | "both";
+
+function emptyOperationDashboard(): OperationCenterDashboard {
+  return computeOperationCenterDashboard({
+    operation: null,
+    bundle: null,
+    metaConnected: false,
+    kiwifyConnected: false,
+    hasPerformanceReport: false,
+  });
+}
 
 export function useOperationCenter() {
   const [dashboard, setDashboard] = useState<OperationCenterDashboard | null>(null);
@@ -17,22 +31,37 @@ export function useOperationCenter() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/operation-center");
-      const { data, error: parseError } = await parseJsonResponse<{
+      const { res, data, error: fetchError, timedOut } = await fetchJsonWithTimeout<{
         dashboard?: OperationCenterDashboard;
         error?: string;
-      }>(res);
+      }>("/api/operation-center");
 
-      if (parseError || !res.ok || !data || data.error) {
-        setError(data?.error ?? parseError ?? "Erro ao carregar Operation Center.");
-        setDashboard(null);
+      if (fetchError || timedOut) {
+        console.error("[useOperationCenter] refresh failed:", fetchError, {
+          status: res.status,
+          timedOut,
+        });
+        setError(fetchError ?? "Erro ao carregar Operation Center.");
+        setDashboard(emptyOperationDashboard());
         return;
       }
 
-      setDashboard(data.dashboard ?? null);
-    } catch {
+      if (!res.ok) {
+        const message = data?.error ?? `Erro ao carregar Operation Center (${res.status}).`;
+        console.error("[useOperationCenter] API error:", message, { status: res.status });
+        setError(message);
+        setDashboard(data?.dashboard ?? emptyOperationDashboard());
+        return;
+      }
+
+      setDashboard(data?.dashboard ?? emptyOperationDashboard());
+      if (data?.error) {
+        console.warn("[useOperationCenter] API warning:", data.error);
+      }
+    } catch (err) {
+      console.error("[useOperationCenter] unexpected error:", err);
       setError("Erro de conexão.");
-      setDashboard(null);
+      setDashboard(emptyOperationDashboard());
     } finally {
       setLoading(false);
     }
@@ -65,7 +94,8 @@ export function useOperationCenter() {
 
       await refresh();
       return { message: data?.message ?? "Assets gerados.", error: data?.error ?? null };
-    } catch {
+    } catch (err) {
+      console.error("[useOperationCenter] generateAssets failed:", err);
       return { message: null, error: "Erro de conexão." };
     } finally {
       setBusy(false);
@@ -94,7 +124,8 @@ export function useOperationCenter() {
 
       await refresh();
       return { message: data?.message ?? "Campanha montada.", error: data?.error ?? null };
-    } catch {
+    } catch (err) {
+      console.error("[useOperationCenter] prepareCampaign failed:", err);
       return { message: null, error: "Erro de conexão." };
     } finally {
       setBusy(false);
@@ -123,7 +154,8 @@ export function useOperationCenter() {
 
       await refresh();
       return { message: data?.message ?? "Enviado para Performance AI.", error: data?.error ?? null };
-    } catch {
+    } catch (err) {
+      console.error("[useOperationCenter] sendToPerformanceAi failed:", err);
       return { message: null, error: "Erro de conexão." };
     } finally {
       setBusy(false);
@@ -161,7 +193,8 @@ export function useOperationCenter() {
         error: data?.error ?? null,
         missing: data?.missing ?? [],
       };
-    } catch {
+    } catch (err) {
+      console.error("[useOperationCenter] approveOperation failed:", err);
       return { message: null, error: "Erro de conexão.", missing: [] as string[] };
     } finally {
       setBusy(false);
@@ -190,7 +223,8 @@ export function useOperationCenter() {
 
       await refresh();
       return { message: data?.message ?? "Operação cancelada.", error: data?.error ?? null };
-    } catch {
+    } catch (err) {
+      console.error("[useOperationCenter] cancelOperation failed:", err);
       return { message: null, error: "Erro de conexão." };
     } finally {
       setBusy(false);

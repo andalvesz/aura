@@ -239,6 +239,18 @@ export function CeoView() {
 
   return (
     <div className="space-y-3">
+      {error && (
+        <div className="rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-[11px] text-amber-200/90">
+          {error}
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="ml-2 underline hover:text-amber-100"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
       {dashboard && (
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           <MetricCard

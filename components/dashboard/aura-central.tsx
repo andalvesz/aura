@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GlobalSearchResult } from "@/utils/global-search";
 import { formatResultDateLabel } from "@/utils/global-search";
 import { useDashboardUser } from "@/components/dashboard/dashboard-user-context";
@@ -40,6 +40,7 @@ import {
 } from "@/utils/orchestrator";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { isValidDate } from "@/utils/format";
+import { useAuraCentral } from "@/hooks/use-aura-central";
 
 type Message = {
   role: "user" | "assistant";
@@ -82,88 +83,24 @@ function formatHistoryTime(iso: string) {
 
 export function AuraCentral() {
   const { displayName } = useDashboardUser();
+  const {
+    summaryLoading,
+    openingMessage,
+    commandHistory,
+    reloadHistory,
+  } = useAuraCentral({ displayName });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [summaryLoading, setSummaryLoading] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [pendingCommand, setPendingCommand] = useState<PendingAuraCommand | null>(null);
-  const [commandHistory, setCommandHistory] = useState<AuraCommandHistoryEntry[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const loadCommandHistory = useCallback(async () => {
-    try {
-      const response = await fetch("/api/aura-central?history=1");
-      const { data, error: parseError } = await parseJsonResponse<{
-        entries?: AuraCommandHistoryEntry[];
-        error?: string;
-      }>(response);
-      if (parseError || !response.ok) return;
-      setCommandHistory(data?.entries ?? []);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadSummary() {
-      try {
-        const [summaryRes] = await Promise.all([
-          fetch("/api/aura-central"),
-          loadCommandHistory(),
-        ]);
-        const { data, error: parseError } = await parseJsonResponse<{
-          text?: string;
-          error?: string;
-        }>(summaryRes);
-
-        if (cancelled) return;
-
-        if (parseError || !summaryRes.ok) {
-          setMessages([
-            {
-              role: "assistant",
-              text:
-                parseError ??
-                data?.error ??
-                `Olá, ${displayName}. Sou a Aura Central — converse naturalmente e eu executo ações nos módulos (calendário, vendas, financeiro, saúde, Alvesz).`,
-              module: "global",
-            },
-          ]);
-          return;
-        }
-
-        setMessages([
-          {
-            role: "assistant",
-            text:
-              data?.text ??
-              `Olá, ${displayName}. Central de Comandos ativa — peça para registrar despesas, criar eventos, leads, treinos e mais.`,
-            module: "global",
-          },
-        ]);
-      } catch {
-        if (!cancelled) {
-          setMessages([
-            {
-              role: "assistant",
-              text: `Olá, ${displayName}. Sou a Aura Central — coordeno todos os módulos da Aura OS.`,
-              module: "global",
-            },
-          ]);
-        }
-      } finally {
-        if (!cancelled) setSummaryLoading(false);
-      }
+    if (openingMessage && messages.length === 0 && !summaryLoading) {
+      setMessages([openingMessage]);
     }
-
-    loadSummary();
-    return () => {
-      cancelled = true;
-    };
-  }, [displayName, loadCommandHistory]);
+  }, [openingMessage, messages.length, summaryLoading]);
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -239,7 +176,7 @@ export function AuraCentral() {
         if (data.executed) {
           setPendingCommand(null);
           toast.success("Ação executada");
-          await loadCommandHistory();
+          await reloadHistory();
         } else if (data.pendingCommand) {
           setPendingCommand(data.pendingCommand);
         }

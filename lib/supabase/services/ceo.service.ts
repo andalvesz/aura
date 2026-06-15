@@ -29,6 +29,19 @@ import {
 import { getOptionalDataContext } from "./context";
 import { upsertOperationFromCeo } from "./operation-center.service";
 import { recordSystemLog } from "@/lib/logs/record";
+import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
+
+function emptyCeoDashboard(): CeoDashboardMetrics {
+  return {
+    metaFinanceiraAtiva: "Nenhuma meta ativa",
+    projetoPrincipal: "Nenhum projeto ativo",
+    missaoDoDia: "Defina prioridades no Aura CEO",
+    xpAtual: 0,
+    xpNivel: 1,
+    valorConquistado: 0,
+    proximoMarco: "—",
+  };
+}
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -153,34 +166,56 @@ export async function getCeoDashboard(): Promise<{
     };
   }
 
-  const repo = new AuraCeoSessionsRepository(ctx.supabase, ctx.userId);
-  const moduleData = await loadAllModuleContexts();
+  try {
+    const repo = new AuraCeoSessionsRepository(ctx.supabase, ctx.userId);
+    const moduleData = await loadAllModuleContexts();
 
-  const [{ data: session }, { data: sessions }] = await Promise.all([
-    repo.findActive(),
-    repo.findAllOrdered(),
-  ]);
+    const [{ data: session }, { data: sessions }] = await Promise.all([
+      repo.findActive(),
+      repo.findAllOrdered(),
+    ]);
 
-  const dashboard = await computeDashboard(moduleData);
+    const dashboard = await computeDashboard(moduleData);
 
-  const baseRadar = computeOpportunityRadarFromData({
-    bundles: moduleData.creator,
-    research: moduleData.research,
-    legacySummary: moduleData.legacy.slice(0, 200),
-  });
+    const baseRadar = computeOpportunityRadarFromData({
+      bundles: moduleData.creator,
+      research: moduleData.research,
+      legacySummary: moduleData.legacy.slice(0, 200),
+    });
 
-  const radar =
-    session?.opportunity_radar && parseOpportunityRadar(session.opportunity_radar)
-      ? { ...baseRadar, ...parseOpportunityRadar(session.opportunity_radar)!, scoreIa: session.score_ia ?? baseRadar.scoreIa }
-      : baseRadar;
+    const radar =
+      session?.opportunity_radar && parseOpportunityRadar(session.opportunity_radar)
+        ? {
+            ...baseRadar,
+            ...parseOpportunityRadar(session.opportunity_radar)!,
+            scoreIa: session.score_ia ?? baseRadar.scoreIa,
+          }
+        : baseRadar;
 
-  return {
-    dashboard,
-    session: session ?? null,
-    radar,
-    sessions: sessions ?? [],
-    error: null,
-  };
+    return {
+      dashboard,
+      session: session ?? null,
+      radar,
+      sessions: sessions ?? [],
+      error: null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (!isMissingSupabaseTableError(message)) {
+      console.warn("[ceo] getCeoDashboard:", message);
+    }
+    return {
+      dashboard: emptyCeoDashboard(),
+      session: null,
+      radar: computeOpportunityRadarFromData({
+        bundles: [],
+        research: [],
+        legacySummary: "",
+      }),
+      sessions: [],
+      error: null,
+    };
+  }
 }
 
 export async function getCeoContext(): Promise<{ context: string; error: string | null }> {

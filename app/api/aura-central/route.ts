@@ -1,3 +1,4 @@
+import { jsonServerError } from "@/lib/api/json-error";
 import OpenAI, { APIError } from "openai";
 import {
   buildOpenAiMessagesWithMemory,
@@ -244,19 +245,6 @@ function logCentralError(error: unknown) {
   console.error("[aura-central] Unexpected error:", error);
 }
 
-function jsonServerError(error: unknown, status = 500) {
-  const message = error instanceof Error ? error.message : String(error);
-  const stack = error instanceof Error ? error.stack : undefined;
-  logCentralError(error);
-  return Response.json(
-    {
-      error: message,
-      stack: process.env.NODE_ENV !== "production" ? stack : undefined,
-    },
-    { status }
-  );
-}
-
 function resolveCentralError(error: unknown): { message: string; status: number } {
   if (error instanceof APIError) {
     if (error.code === "insufficient_quota") {
@@ -351,11 +339,16 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     if (url.searchParams.get("history") === "1") {
-      const { entries, error } = await listAuraCommandHistory(15);
-      if (error === "Usuário não autenticado.") {
-        return Response.json({ error }, { status: 401 });
+      try {
+        const { entries, error } = await listAuraCommandHistory(15);
+        if (error === "Usuário não autenticado.") {
+          return Response.json({ error }, { status: 401 });
+        }
+        return Response.json({ entries: entries ?? [] });
+      } catch (historyError) {
+        console.error("[aura-central] history=1 failed:", historyError);
+        return Response.json({ entries: [] });
       }
-      return Response.json({ entries: entries ?? [] });
     }
 
     const { summary, error } = await getAuraBrainOpeningSummary();
@@ -382,6 +375,7 @@ export async function GET(req: Request) {
       bullets: [],
     });
   } catch (error) {
+    logCentralError(error);
     return jsonServerError(error);
   }
 }
@@ -1546,6 +1540,7 @@ Responda como Aura Central coordenando o módulo ${module}. Data de hoje: ${toda
       kind: "chat",
     });
   } catch (error) {
+    logCentralError(error);
     const { message, status } = resolveCentralError(error);
     return jsonServerError(error instanceof Error ? error : new Error(message), status);
   }
