@@ -249,7 +249,7 @@ export function computeOperationSteps(params: {
   kiwifyConnected: boolean;
   hasPerformanceReport: boolean;
 }): OperationSteps {
-  const { operation, bundle, metaConnected, kiwifyConnected, hasPerformanceReport } = params;
+  const { operation, bundle, metaConnected } = params;
 
   const hasProduct = Boolean(operation.product_id);
   const hasPersona = Boolean(
@@ -259,8 +259,8 @@ export function computeOperationSteps(params: {
   const hasCopy = Boolean(operation.copylab_id);
   const hasCreatives = Boolean(operation.assets_id);
   const hasLanding = Boolean(operation.landing_id);
-  const hasMeta = Boolean(operation.orchestration_id || metaConnected);
-  const hasPerformance = Boolean(operation.performance_report_id || hasPerformanceReport);
+  const hasMeta = Boolean(operation.orchestration_id);
+  const hasPerformance = Boolean(operation.performance_report_id);
   const isReady = operation.status === "ready" || operation.status === "approved";
 
   function resolve(done: boolean, started: boolean): OperationStepStatus {
@@ -277,7 +277,10 @@ export function computeOperationSteps(params: {
     criativos: resolve(hasCreatives, hasCreatives || operation.status === "preparing"),
     landing: resolve(hasLanding, hasLanding || operation.status === "preparing"),
     meta_ads: resolve(hasMeta, metaConnected || Boolean(operation.orchestration_id)),
-    performance_ai: resolve(hasPerformance, hasPerformance || operation.status === "preparing"),
+    performance_ai: resolve(
+      hasPerformance,
+      Boolean(operation.performance_report_id) || operation.status === "preparing"
+    ),
     aprovacao: isReady ? "done" : operation.status === "preparing" ? "in_progress" : "pending",
   };
 }
@@ -307,7 +310,11 @@ export function computeOperationalScore(params: {
 
 export function buildMissingForApproval(
   steps: OperationSteps,
-  integrations: { metaConnected: boolean; kiwifyConnected: boolean }
+  integrations: { metaConnected: boolean; kiwifyConnected: boolean },
+  operation?: Pick<
+    OperationCenter,
+    "assets_id" | "landing_id" | "orchestration_id" | "performance_report_id"
+  > | null
 ): string[] {
   const missing: string[] = [];
   const checkSteps: OperationStepId[] = [
@@ -326,6 +333,13 @@ export function buildMissingForApproval(
       const label = OPERATION_PROGRESS_STEPS.find((s) => s.id === stepId)?.label ?? stepId;
       missing.push(label);
     }
+  }
+
+  if (operation) {
+    if (!operation.assets_id) missing.push("Criativos");
+    if (!operation.landing_id) missing.push("Landing");
+    if (!operation.orchestration_id) missing.push("Meta Ads");
+    if (!operation.performance_report_id) missing.push("Performance AI");
   }
 
   if (!integrations.metaConnected) missing.push("Meta conectada");
@@ -426,10 +440,14 @@ export function computeOperationCenterDashboard(params: {
     roiPrevisto,
   });
 
-  const missingForApproval = buildMissingForApproval(steps, {
-    metaConnected,
-    kiwifyConnected,
-  });
+  const missingForApproval = buildMissingForApproval(
+    steps,
+    {
+      metaConnected,
+      kiwifyConnected,
+    },
+    operation
+  );
 
   const nextSteps =
     parseOperationNextSteps(operation.next_steps).length > 0

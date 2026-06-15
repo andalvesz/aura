@@ -125,10 +125,14 @@ async function persistOperationUpdate(
     roiPrevisto,
   });
 
-  const missing = buildMissingForApproval(steps, {
-    metaConnected: integrations.metaConnected,
-    kiwifyConnected: integrations.kiwifyConnected,
-  });
+  const missing = buildMissingForApproval(
+    steps,
+    {
+      metaConnected: integrations.metaConnected,
+      kiwifyConnected: integrations.kiwifyConnected,
+    },
+    operation
+  );
 
   const nextSteps = buildOperationNextSteps(steps, missing);
 
@@ -594,16 +598,20 @@ export async function approveOperation(
     ...integrations,
   });
 
-  const missing = buildMissingForApproval(steps, {
-    metaConnected: integrations.metaConnected,
-    kiwifyConnected: integrations.kiwifyConnected,
-  });
+  const missing = buildMissingForApproval(
+    steps,
+    {
+      metaConnected: integrations.metaConnected,
+      kiwifyConnected: integrations.kiwifyConnected,
+    },
+    operation
+  );
 
   if (missing.length > 0) {
     return {
       operation: null,
       message: "",
-      error: `Complete as etapas antes de aprovar: ${missing.join(", ")}.`,
+      error: "Operação ainda não está pronta para aprovação.",
       missing,
     };
   }
