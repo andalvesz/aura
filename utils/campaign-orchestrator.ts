@@ -44,6 +44,10 @@ export type OrchestratorIntake = {
   product_id: string;
   orchestration_id?: string | null;
   orcamento_disponivel?: number | null;
+  copylab_id?: string | null;
+  assets_id?: string | null;
+  landing_id?: string | null;
+  operation_id?: string | null;
 };
 
 export type OrchestratorConnections = {
@@ -351,6 +355,178 @@ export function buildOrchestratorAuraContext(
 
 export function intakeFromProductBundle(bundle: CreatorProductBundle): OrchestratorIntake {
   return { product_id: bundle.product.id };
+}
+
+export type OrchestratorExplicitArtifacts = {
+  copylab_id?: string | null;
+  asset_id?: string | null;
+  landing_id?: string | null;
+};
+
+export type OrchestratorLinkedArtifacts = OrchestratorConnections & {
+  research: CreatorResearch | null;
+  copy: CreatorCopylab | null;
+  asset: CreatorAsset | null;
+  landing: CreatorLanding | null;
+  adsCampaign: CreatorAdsCampaign | null;
+};
+
+export function validateOrchestratorExplicitArtifacts(input: OrchestratorIntake): string | null {
+  if (!input.operation_id?.trim()) return null;
+
+  const missing: string[] = [];
+  if (!input.copylab_id?.trim()) missing.push("Copy");
+  if (!input.assets_id?.trim()) missing.push("Criativos");
+  if (!input.landing_id?.trim()) missing.push("Landing");
+
+  if (missing.length > 0) {
+    return `Operação incompleta para montar campanha: faltam ${missing.join(", ")}.`;
+  }
+
+  return null;
+}
+
+function findRecordById<T extends { id: string }>(
+  records: T[],
+  id: string | null | undefined
+): T | null {
+  if (!id?.trim()) return null;
+  return records.find((record) => record.id === id) ?? null;
+}
+
+function findRecordByProductId<T extends { product_id: string | null }>(
+  records: T[],
+  productId: string
+): T | null {
+  return records.find((record) => record.product_id === productId) ?? null;
+}
+
+function validateArtifactProduct(
+  artifact: { product_id: string | null } | null,
+  productId: string,
+  label: string
+): string | null {
+  if (!artifact) return null;
+  if (artifact.product_id && artifact.product_id !== productId) {
+    return `${label} não pertence ao produto da operação.`;
+  }
+  return null;
+}
+
+export function resolveOrchestratorArtifacts(params: {
+  productId: string;
+  researchRecords: CreatorResearch[];
+  copyRecords: CreatorCopylab[];
+  assets: CreatorAsset[];
+  landings: CreatorLanding[];
+  adsCampaigns: CreatorAdsCampaign[];
+  explicit?: OrchestratorExplicitArtifacts;
+}): { linked: OrchestratorLinkedArtifacts; error: string | null } {
+  const {
+    productId,
+    researchRecords,
+    copyRecords,
+    assets,
+    landings,
+    adsCampaigns,
+    explicit,
+  } = params;
+
+  let copy: CreatorCopylab | null = null;
+  let asset: CreatorAsset | null = null;
+  let landing: CreatorLanding | null = null;
+
+  if (explicit?.copylab_id) {
+    copy = findRecordById(copyRecords, explicit.copylab_id);
+    if (!copy) {
+      return {
+        linked: emptyOrchestratorLinkedArtifacts(),
+        error: `Copy não encontrada (id: ${explicit.copylab_id}).`,
+      };
+    }
+    const productError = validateArtifactProduct(copy, productId, "Copy");
+    if (productError) {
+      return { linked: emptyOrchestratorLinkedArtifacts(), error: productError };
+    }
+  } else {
+    copy = findRecordByProductId(copyRecords, productId);
+  }
+
+  if (explicit?.asset_id) {
+    asset = findRecordById(assets, explicit.asset_id);
+    if (!asset) {
+      return {
+        linked: emptyOrchestratorLinkedArtifacts(),
+        error: `Criativos não encontrados (id: ${explicit.asset_id}).`,
+      };
+    }
+    const productError = validateArtifactProduct(asset, productId, "Criativos");
+    if (productError) {
+      return { linked: emptyOrchestratorLinkedArtifacts(), error: productError };
+    }
+  } else {
+    asset = findRecordByProductId(assets, productId);
+  }
+
+  if (explicit?.landing_id) {
+    landing = findRecordById(landings, explicit.landing_id);
+    if (!landing) {
+      return {
+        linked: emptyOrchestratorLinkedArtifacts(),
+        error: `Landing não encontrada (id: ${explicit.landing_id}).`,
+      };
+    }
+    const productError = validateArtifactProduct(landing, productId, "Landing");
+    if (productError) {
+      return { linked: emptyOrchestratorLinkedArtifacts(), error: productError };
+    }
+  } else {
+    landing = findRecordByProductId(landings, productId);
+  }
+
+  const research = findRecordByProductId(researchRecords, productId);
+  const adsCampaign = findRecordByProductId(adsCampaigns, productId);
+
+  return {
+    linked: {
+      research_id: research?.id ?? null,
+      copylab_id: copy?.id ?? null,
+      asset_id: asset?.id ?? null,
+      landing_id: landing?.id ?? null,
+      ads_campaign_id: adsCampaign?.id ?? null,
+      research,
+      copy,
+      asset,
+      landing,
+      adsCampaign,
+    },
+    error: null,
+  };
+}
+
+function emptyOrchestratorLinkedArtifacts(): OrchestratorLinkedArtifacts {
+  return {
+    research_id: null,
+    copylab_id: null,
+    asset_id: null,
+    landing_id: null,
+    ads_campaign_id: null,
+    research: null,
+    copy: null,
+    asset: null,
+    landing: null,
+    adsCampaign: null,
+  };
+}
+
+export function orchestrationMatchesExplicitArtifacts(
+  orchestration: Pick<CreatorCampaignOrchestration, "copylab_id" | "asset_id" | "landing_id">,
+  explicit: OrchestratorExplicitArtifacts
+): boolean {
+  if (explicit.copylab_id && orchestration.copylab_id !== explicit.copylab_id) return false;
+  if (explicit.asset_id && orchestration.asset_id !== explicit.asset_id) return false;
+  if (explicit.landing_id && orchestration.landing_id !== explicit.landing_id) return false;
+  return true;
 }
 
 export function getStepStatusLabel(status: OrchestratorStepStatus): string {

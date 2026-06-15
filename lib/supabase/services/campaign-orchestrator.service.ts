@@ -10,9 +10,6 @@ import type {
   CreatorAdsCampaign,
   CreatorAsset,
   CreatorCampaignOrchestration,
-  CreatorCopylab,
-  CreatorLanding,
-  CreatorResearch,
   TableInsert,
 } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
@@ -27,6 +24,9 @@ import {
   type OrchestratorDashboardMetrics,
   type OrchestratorIntake,
   ORCHESTRATOR_STEPS,
+  orchestrationMatchesExplicitArtifacts,
+  resolveOrchestratorArtifacts,
+  validateOrchestratorExplicitArtifacts,
 } from "@/utils/campaign-orchestrator";
 import {
   buildBudgetAiRules,
@@ -120,38 +120,20 @@ ${SYSTEM_PROMPT_BASE}
 ${buildLocaleAiRules(locale)}`;
 }
 
-function resolveLinkedArtifacts(
-  bundle: CreatorProductBundle,
-  researchRecords: CreatorResearch[],
-  copyRecords: CreatorCopylab[],
-  assets: CreatorAsset[],
-  landings: CreatorLanding[],
-  adsCampaigns: CreatorAdsCampaign[]
-): OrchestratorConnections & {
-  research: CreatorResearch | null;
-  copy: CreatorCopylab | null;
-  asset: CreatorAsset | null;
-  landing: CreatorLanding | null;
-  adsCampaign: CreatorAdsCampaign | null;
-} {
-  const pid = bundle.product.id;
-  const research = researchRecords.find((r) => r.product_id === pid) ?? null;
-  const copy = copyRecords.find((c) => c.product_id === pid) ?? null;
-  const asset = assets.find((a) => a.product_id === pid) ?? null;
-  const landing = landings.find((l) => l.product_id === pid) ?? null;
-  const adsCampaign = adsCampaigns.find((a) => a.product_id === pid) ?? null;
+function buildExplicitArtifacts(input: OrchestratorIntake) {
+  if (
+    !input.operation_id?.trim() &&
+    !input.copylab_id?.trim() &&
+    !input.assets_id?.trim() &&
+    !input.landing_id?.trim()
+  ) {
+    return undefined;
+  }
 
   return {
-    research_id: research?.id ?? null,
-    copylab_id: copy?.id ?? null,
-    asset_id: asset?.id ?? null,
-    landing_id: landing?.id ?? null,
-    ads_campaign_id: adsCampaign?.id ?? null,
-    research,
-    copy,
-    asset,
-    landing,
-    adsCampaign,
+    copylab_id: input.copylab_id ?? null,
+    asset_id: input.assets_id ?? null,
+    landing_id: input.landing_id ?? null,
   };
 }
 
@@ -299,7 +281,35 @@ export async function prepareLaunch(
     return { orchestration: null, center: null, error: "Produto não encontrado." };
   }
 
-  const linked = resolveLinkedArtifacts(bundle, research, copy, assets, landings, adsCampaigns);
+  const explicitArtifactError = validateOrchestratorExplicitArtifacts(input);
+  if (explicitArtifactError) {
+    return { orchestration: null, center: null, error: explicitArtifactError };
+  }
+
+  const explicit = buildExplicitArtifacts(input);
+  const { linked, error: resolveError } = resolveOrchestratorArtifacts({
+    productId: bundle.product.id,
+    researchRecords: research,
+    copyRecords: copy,
+    assets,
+    landings,
+    adsCampaigns,
+    explicit,
+  });
+
+  if (resolveError) {
+    return { orchestration: null, center: null, error: resolveError };
+  }
+
+  if (input.operation_id?.trim()) {
+    if (!linked.copy || !linked.asset || !linked.landing) {
+      return {
+        orchestration: null,
+        center: null,
+        error: "Artefatos obrigatórios ausentes para montar a campanha da operação.",
+      };
+    }
+  }
 
   let adsCampaign = linked.adsCampaign;
 
@@ -440,8 +450,20 @@ export async function prepareLaunch(
       return { orchestration: null, center: null, error: updateError ?? "Erro ao atualizar orquestração." };
     }
 
+    const orchestration = updated as CreatorCampaignOrchestration;
+    if (
+      explicit &&
+      !orchestrationMatchesExplicitArtifacts(orchestration, explicit)
+    ) {
+      return {
+        orchestration: null,
+        center: null,
+        error: "Campanha montada com artefatos diferentes dos vinculados à operação.",
+      };
+    }
+
     const { center } = await loadOrchestratorState(input.product_id);
-    return { orchestration: updated as CreatorCampaignOrchestration, center, error: null };
+    return { orchestration, center, error: null };
   }
 
   const { data: record, error: createError } = await repo.create(payload);
@@ -449,8 +471,20 @@ export async function prepareLaunch(
     return { orchestration: null, center: null, error: createError ?? "Erro ao salvar orquestração." };
   }
 
+  const orchestration = record as CreatorCampaignOrchestration;
+  if (
+    explicit &&
+    !orchestrationMatchesExplicitArtifacts(orchestration, explicit)
+  ) {
+    return {
+      orchestration: null,
+      center: null,
+      error: "Campanha montada com artefatos diferentes dos vinculados à operação.",
+    };
+  }
+
   const { center } = await loadOrchestratorState(input.product_id);
-  return { orchestration: record as CreatorCampaignOrchestration, center, error: null };
+  return { orchestration, center, error: null };
 }
 
 export async function deleteOrchestration(id: string): Promise<{ error: string | null }> {

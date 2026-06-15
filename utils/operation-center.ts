@@ -3,6 +3,14 @@ import type { CreatorProductBundle } from "@/utils/creator";
 
 export const OPERATION_CENTER_SAFE_MODE = true;
 
+export const OPERATION_TERMINAL_ERROR = "Esta operação já está finalizada ou cancelada.";
+
+export const OPERATION_TERMINAL_STATUSES: OperationCenterStatus[] = [
+  "ready",
+  "approved",
+  "cancelled",
+];
+
 export type OperationStepId =
   | "produto"
   | "persona"
@@ -66,6 +74,7 @@ export type OperationCenterDashboard = {
   nextSteps: string[];
   missingForApproval: string[];
   canApprove: boolean;
+  canMutate: boolean;
   safeMode: {
     active: boolean;
     message: string;
@@ -166,6 +175,25 @@ export function detectOperationCenterCoachMode(message: string): OperationCenter
   if (matchesAny(normalized, OP_APPROVE_PHRASES)) return "op-approve";
   if (matchesAny(normalized, OP_STATUS_PHRASES)) return "op-status";
 
+  return null;
+}
+
+export function isOperationTerminal(status: OperationCenterStatus): boolean {
+  return OPERATION_TERMINAL_STATUSES.includes(status);
+}
+
+export function isOperationMutable(status: OperationCenterStatus): boolean {
+  return !isOperationTerminal(status);
+}
+
+export function resolveContinueOperationAction(nextStep: string): string | null {
+  const next = nextStep.toLowerCase();
+  if (next.includes("criativos")) return "creatives";
+  if (next.includes("landing")) return "landing";
+  if (next.includes("copy")) return "copy";
+  if (next.includes("meta") || next.includes("campanha")) return "campaign";
+  if (next.includes("performance")) return "performance";
+  if (next.includes("aprovar")) return "approve";
   return null;
 }
 
@@ -413,6 +441,7 @@ export function computeOperationCenterDashboard(params: {
       nextSteps: ["Gerar estratégia no Aura CEO para iniciar uma operação"],
       missingForApproval: OPERATION_PROGRESS_STEPS.map((s) => s.label),
       canApprove: false,
+      canMutate: false,
       safeMode: {
         active: OPERATION_CENTER_SAFE_MODE,
         message:
@@ -467,6 +496,7 @@ export function computeOperationCenterDashboard(params: {
       operation.status !== "cancelled" &&
       operation.status !== "ready" &&
       operation.status !== "approved",
+    canMutate: isOperationMutable(operation.status),
     safeMode: {
       active: OPERATION_CENTER_SAFE_MODE,
       message:

@@ -606,6 +606,7 @@ export async function POST(req: Request) {
             nextSteps: [],
             missingForApproval: [],
             canApprove: false,
+            canMutate: false,
             safeMode: { active: true, message: "" },
             integrations: {
               metaConnected: false,
@@ -642,6 +643,7 @@ export async function POST(req: Request) {
           nextSteps: [],
           missingForApproval: [],
           canApprove: false,
+          canMutate: false,
           safeMode: { active: true, message: "" },
           integrations: {
             metaConnected: false,

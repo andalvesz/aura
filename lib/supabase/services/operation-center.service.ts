@@ -37,8 +37,11 @@ import {
   computeOperationCenterDashboard,
   computeOperationSteps,
   computeOperationalScore,
+  isOperationMutable,
+  OPERATION_TERMINAL_ERROR,
   parseExecutiveLogs,
   parseOperationNextSteps,
+  resolveContinueOperationAction,
   type OperationCenterDashboard,
   type OperationExecutiveLogEntry,
 } from "@/utils/operation-center";
@@ -46,6 +49,13 @@ import { getOptionalDataContext } from "./context";
 
 function logsAsJson(logs: OperationExecutiveLogEntry[]): Json {
   return logs as unknown as Json;
+}
+
+function rejectIfOperationTerminal(operation: OperationCenter): string | null {
+  if (!isOperationMutable(operation.status)) {
+    return OPERATION_TERMINAL_ERROR;
+  }
+  return null;
 }
 
 function resolveOperationRoiPrevisto(params: {
@@ -356,6 +366,11 @@ export async function generateOperationAssets(
   const { data: operation } = await repo.findById(operationId);
   if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
 
+  const terminalError = rejectIfOperationTerminal(operation);
+  if (terminalError) {
+    return { operation: null, message: "", error: terminalError };
+  }
+
   const bundle = await loadBundleForOperation(operation);
   if (!bundle) {
     return { operation: null, message: "", error: "Nenhum produto vinculado à operação." };
@@ -434,6 +449,12 @@ export async function prepareOperationCampaign(
   const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
   const { data: operation } = await repo.findById(operationId);
   if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+
+  const terminalError = rejectIfOperationTerminal(operation);
+  if (terminalError) {
+    return { operation: null, message: "", error: terminalError };
+  }
+
   if (!operation.product_id) {
     return { operation: null, message: "", error: "Vincule um produto antes de montar a campanha." };
   }
@@ -443,14 +464,16 @@ export async function prepareOperationCampaign(
     return { operation: null, message: "", error: "Produto não encontrado." };
   }
 
-  let copylabId = operation.copylab_id ?? null;
-  if (!copylabId) {
-    const copyIntake = {
-      ...copyIntakeFromBundle(bundle),
-      product_id: bundle.product.id,
+  const missingArtifacts: string[] = [];
+  if (!operation.copylab_id) missingArtifacts.push("Copy");
+  if (!operation.assets_id) missingArtifacts.push("Criativos");
+  if (!operation.landing_id) missingArtifacts.push("Landing");
+  if (missingArtifacts.length > 0) {
+    return {
+      operation: null,
+      message: "",
+      error: `Complete as etapas antes de montar a campanha: ${missingArtifacts.join(", ")}.`,
     };
-    const { record: copy } = await generateCopylab(copyIntake);
-    if (copy) copylabId = copy.id;
   }
 
   const { budget } = await getResolvedUserBudget();
@@ -460,6 +483,10 @@ export async function prepareOperationCampaign(
     product_id: operation.product_id,
     orchestration_id: operation.orchestration_id ?? undefined,
     orcamento_disponivel: orcamento,
+    copylab_id: operation.copylab_id,
+    assets_id: operation.assets_id,
+    landing_id: operation.landing_id,
+    operation_id: operation.id,
   });
 
   if (orchError || !orchestration) {
@@ -470,12 +497,29 @@ export async function prepareOperationCampaign(
     };
   }
 
+  if (
+    orchestration.copylab_id !== operation.copylab_id ||
+    orchestration.asset_id !== operation.assets_id ||
+    orchestration.landing_id !== operation.landing_id
+  ) {
+    return {
+      operation: null,
+      message: "",
+      error: "Campanha não foi montada com os artefatos vinculados à operação.",
+    };
+  }
+
   const integrations = await loadIntegrations();
   const logs = await logOperationAction(
     operation,
     "prepare_campaign",
     "Campanha montada em modo seguro (rascunho — sem publicação automática).",
-    { orchestrationId: orchestration.id }
+    {
+      orchestrationId: orchestration.id,
+      copylabId: operation.copylab_id,
+      assetsId: operation.assets_id,
+      landingId: operation.landing_id,
+    }
   );
 
   const { data: updated, error } = await persistOperationUpdate(
@@ -486,7 +530,6 @@ export async function prepareOperationCampaign(
     {
       status: "preparing",
       orchestration_id: orchestration.id,
-      copylab_id: copylabId,
       executive_logs: logsAsJson(logs),
     }
   );
@@ -494,6 +537,81 @@ export async function prepareOperationCampaign(
   return {
     operation: updated,
     message: "Campanha montada em rascunho (modo seguro).",
+    error: error ?? null,
+  };
+}
+
+export async function generateOperationCopy(
+  operationId: string
+): Promise<{ operation: OperationCenter | null; message: string; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+
+  const terminalError = rejectIfOperationTerminal(operation);
+  if (terminalError) {
+    return { operation: null, message: "", error: terminalError };
+  }
+
+  const bundle = await loadBundleForOperation(operation);
+  if (!bundle) {
+    return { operation: null, message: "", error: "Nenhum produto vinculado à operação." };
+  }
+
+  if (operation.copylab_id) {
+    const integrations = await loadIntegrations();
+    const { data: updated, error } = await persistOperationUpdate(
+      repo,
+      operation,
+      bundle,
+      integrations
+    );
+    return {
+      operation: updated,
+      message: "Copy já vinculada à operação.",
+      error: error ?? null,
+    };
+  }
+
+  const copyIntake = {
+    ...copyIntakeFromBundle(bundle),
+    product_id: bundle.product.id,
+  };
+  const { record: copy, error: copyError } = await generateCopylab(copyIntake);
+  if (!copy) {
+    return {
+      operation: null,
+      message: "",
+      error: copyError ?? "Não foi possível gerar a copy.",
+    };
+  }
+
+  const integrations = await loadIntegrations();
+  const logs = await logOperationAction(
+    operation,
+    "generate_copy",
+    "Copy gerada no CopyLab e vinculada à operação.",
+    { copylabId: copy.id }
+  );
+
+  const { data: updated, error } = await persistOperationUpdate(
+    repo,
+    { ...operation, copylab_id: copy.id, executive_logs: logsAsJson(logs) },
+    bundle,
+    integrations,
+    {
+      status: "preparing",
+      copylab_id: copy.id,
+      executive_logs: logsAsJson(logs),
+    }
+  );
+
+  return {
+    operation: updated,
+    message: "Copy gerada e vinculada à operação.",
     error: error ?? null,
   };
 }
@@ -507,6 +625,11 @@ export async function sendOperationToPerformanceAi(
   const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
   const { data: operation } = await repo.findById(operationId);
   if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+
+  const terminalError = rejectIfOperationTerminal(operation);
+  if (terminalError) {
+    return { operation: null, message: "", error: terminalError };
+  }
 
   const bundle = await loadBundleForOperation(operation);
   const integrations = await loadIntegrations();
@@ -686,34 +809,41 @@ export async function continueOperation(
     return { operation: null, message: "", error: dashError ?? "Operação não encontrada." };
   }
 
-  const next = parseOperationNextSteps(dashboard.operation.next_steps)[0] ?? dashboard.nextSteps[0] ?? "";
-
-  if (next.toLowerCase().includes("criativos")) {
-    return generateOperationAssets(operationId, "creatives");
-  }
-  if (next.toLowerCase().includes("landing")) {
-    return generateOperationAssets(operationId, "landing");
-  }
-  if (next.toLowerCase().includes("meta") || next.toLowerCase().includes("campanha")) {
-    return prepareOperationCampaign(operationId);
-  }
-  if (next.toLowerCase().includes("performance")) {
-    return sendOperationToPerformanceAi(operationId);
-  }
-  if (next.toLowerCase().includes("aprovar")) {
-    const result = await approveOperation(operationId);
-    return {
-      operation: result.operation,
-      message: result.message,
-      error: result.error,
-    };
+  const terminalError = rejectIfOperationTerminal(dashboard.operation);
+  if (terminalError) {
+    return { operation: null, message: "", error: terminalError };
   }
 
-  return {
-    operation: dashboard.operation,
-    message: next || "Revise os próximos passos no Operation Center.",
-    error: null,
-  };
+  const next =
+    parseOperationNextSteps(dashboard.operation.next_steps)[0] ?? dashboard.nextSteps[0] ?? "";
+  const action = resolveContinueOperationAction(next);
+
+  switch (action) {
+    case "creatives":
+      return generateOperationAssets(operationId, "creatives");
+    case "landing":
+      return generateOperationAssets(operationId, "landing");
+    case "copy":
+      return generateOperationCopy(operationId);
+    case "campaign":
+      return prepareOperationCampaign(operationId);
+    case "performance":
+      return sendOperationToPerformanceAi(operationId);
+    case "approve": {
+      const result = await approveOperation(operationId);
+      return {
+        operation: result.operation,
+        message: result.message,
+        error: result.error,
+      };
+    }
+    default:
+      return {
+        operation: dashboard.operation,
+        message: next || "Revise os próximos passos no Operation Center.",
+        error: null,
+      };
+  }
 }
 
 export async function runOperationCenterCoachAction(

@@ -5,7 +5,11 @@ import {
   computeOperationalScore,
   computeOperationSteps,
   detectOperationCenterCoachMode,
+  isOperationMutable,
+  isOperationTerminal,
+  OPERATION_TERMINAL_ERROR,
   parseOperationSteps,
+  resolveContinueOperationAction,
 } from "./operation-center";
 import type { OperationCenter } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
@@ -200,4 +204,20 @@ test("approval gates open only when orchestration_id and performance_report_id e
   );
 
   assert.equal(missing.length, 0);
+});
+
+test("ready operation is terminal and cannot be mutated", () => {
+  assert.equal(isOperationTerminal("ready"), true);
+  assert.equal(isOperationTerminal("approved"), true);
+  assert.equal(isOperationTerminal("cancelled"), true);
+  assert.equal(isOperationMutable("preparing"), true);
+  assert.equal(isOperationMutable("ready"), false);
+  assert.equal(OPERATION_TERMINAL_ERROR, "Esta operação já está finalizada ou cancelada.");
+});
+
+test("resolveContinueOperationAction routes copy step", () => {
+  assert.equal(resolveContinueOperationAction("Concluir etapa: Copy"), "copy");
+  assert.equal(resolveContinueOperationAction("Concluir etapa: Criativos"), "creatives");
+  assert.equal(resolveContinueOperationAction("Concluir etapa: Meta Ads"), "campaign");
+  assert.equal(resolveContinueOperationAction("Enviar para Performance AI"), "performance");
 });

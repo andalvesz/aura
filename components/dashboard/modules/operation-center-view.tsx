@@ -61,6 +61,7 @@ export function OperationCenterView() {
 
   const operation = dashboard?.operation;
   const hasOperation = Boolean(operation && operation.status !== "cancelled");
+  const canMutate = dashboard?.canMutate ?? false;
 
   async function handleGenerateCreatives() {
     const { message, error: actionError } = await generateAssets("creatives");
@@ -312,28 +313,28 @@ export function OperationCenterView() {
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Image className="size-3.5" />}
                 onClick={() => void handleGenerateCreatives()}
-                disabled={busy}
+                disabled={busy || !canMutate}
               >
                 Gerar Criativos
               </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Layout className="size-3.5" />}
                 onClick={() => void handleGenerateLanding()}
-                disabled={busy}
+                disabled={busy || !canMutate}
               >
                 Gerar Landing
               </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Megaphone className="size-3.5" />}
                 onClick={() => void handlePrepareCampaign()}
-                disabled={busy}
+                disabled={busy || !canMutate}
               >
                 Montar Campanha
               </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <TrendingUp className="size-3.5" />}
                 onClick={() => void handlePerformanceAi()}
-                disabled={busy}
+                disabled={busy || !canMutate}
               >
                 Enviar para Performance AI
               </ActionButton>
