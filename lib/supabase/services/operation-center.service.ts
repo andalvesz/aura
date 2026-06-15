@@ -384,6 +384,7 @@ export async function upsertOperationFromCeo(params: {
   if (!ctx) return { operation: null, error: "Usuário não autenticado." };
 
   const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
   console.info("[operation-center] upsertOperationFromCeo: start", {
     ceoSessionId: params.session.id,
   });
