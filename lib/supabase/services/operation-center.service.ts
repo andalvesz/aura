@@ -147,24 +147,8 @@ async function loadIntegrationsSafely(): Promise<OperationIntegrations> {
 }
 
 async function resolveCeoOperationTarget(
-  repo: OperationCenterRepository,
-  ceoSessionId: string
+  repo: OperationCenterRepository
 ): Promise<{ operation: OperationCenter | null; mode: "create" | "update" }> {
-  const { data: bySession, error: sessionLookupError } =
-    await repo.findByCeoSessionId(ceoSessionId);
-
-  if (sessionLookupError) {
-    console.warn("[operation-center] findByCeoSessionId failed:", sessionLookupError);
-  }
-
-  if (bySession && bySession.status !== "cancelled") {
-    console.info("[operation-center] resolveCeoOperationTarget: update by ceo_session_id", {
-      ceoSessionId,
-      operationId: bySession.id,
-    });
-    return { operation: bySession, mode: "update" };
-  }
-
   const { data: active, error: activeLookupError } = await repo.findActive();
 
   if (activeLookupError) {
@@ -173,16 +157,12 @@ async function resolveCeoOperationTarget(
 
   if (active && isOperationMutable(active.status)) {
     console.info("[operation-center] resolveCeoOperationTarget: update active operation", {
-      ceoSessionId,
       operationId: active.id,
-      previousCeoSessionId: active.ceo_session_id,
     });
     return { operation: active, mode: "update" };
   }
 
-  console.info("[operation-center] resolveCeoOperationTarget: create new operation", {
-    ceoSessionId,
-  });
+  console.info("[operation-center] resolveCeoOperationTarget: create new operation");
   return { operation: null, mode: "create" };
 }
 
@@ -384,7 +364,6 @@ export async function upsertOperationFromCeo(params: {
   if (!ctx) return { operation: null, error: "Usuário não autenticado." };
 
   const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
-  console.log("Supabase URL:", process.env.NEXT_PUBLIC_SUPABASE_URL);
   console.info("[operation-center] upsertOperationFromCeo: start", {
     ceoSessionId: params.session.id,
   });
@@ -414,15 +393,15 @@ export async function upsertOperationFromCeo(params: {
     bundle: previewBundle,
   });
 
-  const basePayload = {
+  const operationFields = {
     titulo,
     product_id: productId,
     product_nome: productName,
-    ceo_session_id: params.session.id,
     success_chance: params.session.probabilidade_sucesso,
     roi_previsto: roiPrevisto,
     status: "preparing" as const,
     metadata: {
+      ceo_session_id: params.session.id,
       resumo_executivo: params.session.resumo_executivo,
       prioridades: params.session.prioridades,
       riscos: params.session.riscos,
@@ -431,16 +410,16 @@ export async function upsertOperationFromCeo(params: {
     },
   };
 
-  const { operation: existing, mode } = await resolveCeoOperationTarget(
-    repo,
-    params.session.id
-  );
+  const { operation: existing, mode } = await resolveCeoOperationTarget(repo);
 
   let operation: OperationCenter | null = null;
   const created = mode === "create";
 
   if (mode === "update" && existing) {
-    const { data, error } = await repo.update(existing.id, basePayload);
+    const { data, error } = await repo.update(existing.id, {
+      ...operationFields,
+      ceo_session_id: params.session.id,
+    });
     if (error || !data) {
       console.error("[operation-center] upsertOperationFromCeo: update failed", {
         ceoSessionId: params.session.id,
@@ -463,7 +442,7 @@ export async function upsertOperationFromCeo(params: {
   } else {
     await repo.cancelActive();
 
-    const tryCreate = async (payload: typeof basePayload) =>
+    const tryCreate = async (payload: typeof operationFields) =>
       repo.create({
         ...payload,
         executive_logs: logsAsJson(
@@ -471,17 +450,17 @@ export async function upsertOperationFromCeo(params: {
         ),
       } as Omit<TableInsert<"operation_center">, "user_id">);
 
-    let { data, error } = await tryCreate(basePayload);
+    let { data, error } = await tryCreate(operationFields);
 
-    if ((error || !data) && basePayload.product_id) {
+    if ((error || !data) && operationFields.product_id) {
       console.warn("[operation-center] upsertOperationFromCeo: retry create without product_id", {
         ceoSessionId: params.session.id,
         error,
       });
       ({ data, error } = await tryCreate({
-        ...basePayload,
+        ...operationFields,
         product_id: null,
-        product_nome: basePayload.product_nome ?? basePayload.titulo,
+        product_nome: operationFields.product_nome ?? operationFields.titulo,
       }));
     }
 
@@ -500,6 +479,7 @@ export async function upsertOperationFromCeo(params: {
     }
 
     operation = data as OperationCenter;
+    await repo.tryLinkCeoSession(operation.id, params.session.id);
     console.info("[operation-center] upsertOperationFromCeo: created", {
       operationId: operation.id,
       ceoSessionId: params.session.id,
