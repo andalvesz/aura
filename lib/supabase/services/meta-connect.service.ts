@@ -3,9 +3,19 @@ import {
   duplicateMetaCampaign,
   fetchMetaCampaignInsights,
   listMetaAdAccounts,
+  listMetaAds,
+  listMetaAdSets,
+  listMetaBusinessManagers,
   listMetaCampaigns,
+  listMetaPages,
+  listMetaPixels,
   testMetaConnection,
   updateMetaCampaignStatus,
+  type MetaAd,
+  type MetaAdSet,
+  type MetaBusinessManager,
+  type MetaPage,
+  type MetaPixel,
 } from "@/lib/meta/meta.client";
 import { generateCopylab } from "@/lib/supabase/services/copylab.service";
 import { generateStudioAssets } from "@/lib/supabase/services/creative-studio.service";
@@ -18,6 +28,11 @@ import {
 import type { Json, MetaCampaign, MetaCampaignMetric } from "@/types/database";
 import { todayIsoDate } from "@/utils/health";
 import type { MetaCampaignAction } from "@/utils/integrations";
+import {
+  computeMetaIntelligenceMetrics,
+  META_READ_ONLY_MODE,
+  type MetaIntelligencePayload,
+} from "@/utils/meta-intelligence";
 import { getOptionalDataContext } from "./context";
 import { logIntegrationAction } from "./integration-logs.service";
 import { recordPlatformResult } from "./platform-results.service";
@@ -27,6 +42,30 @@ function getAccessToken(encrypted: string): string {
   const token = creds.access_token?.trim();
   if (!token) throw new Error("Token Meta inválido.");
   return token;
+}
+
+async function fetchMetaLiveEntities(token: string, adAccountExternalIds: string[]) {
+  const [businessManagers, pages] = await Promise.all([
+    listMetaBusinessManagers(token).catch(() => [] as MetaBusinessManager[]),
+    listMetaPages(token).catch(() => [] as MetaPage[]),
+  ]);
+
+  const pixels: MetaPixel[] = [];
+  const adSets: MetaAdSet[] = [];
+  const ads: MetaAd[] = [];
+
+  for (const accountId of adAccountExternalIds.slice(0, 10)) {
+    const [accountPixels, accountAdSets, accountAds] = await Promise.all([
+      listMetaPixels(token, accountId).catch(() => [] as MetaPixel[]),
+      listMetaAdSets(token, accountId).catch(() => [] as MetaAdSet[]),
+      listMetaAds(token, accountId).catch(() => [] as MetaAd[]),
+    ]);
+    pixels.push(...accountPixels);
+    adSets.push(...accountAdSets);
+    ads.push(...accountAds);
+  }
+
+  return { businessManagers, pages, pixels, adSets, ads };
 }
 
 export async function getMetaConnectDashboard() {
@@ -51,15 +90,86 @@ export async function getMetaConnectDashboard() {
     if (metric) metricsMap[campaign.id] = metric;
   }
 
+  const adAccounts = accountsRes.data ?? [];
+  let businessManagers: MetaBusinessManager[] = [];
+  let pages: MetaPage[] = [];
+  let pixels: MetaPixel[] = [];
+  let adSets: MetaAdSet[] = [];
+  let ads: MetaAd[] = [];
+
+  if (connection.data?.status === "connected" && connection.data.access_token_encrypted) {
+    try {
+      const token = getAccessToken(connection.data.access_token_encrypted);
+      const live = await fetchMetaLiveEntities(
+        token,
+        adAccounts.map((a) => a.external_account_id)
+      );
+      businessManagers = live.businessManagers;
+      pages = live.pages;
+      pixels = live.pixels;
+      adSets = live.adSets;
+      ads = live.ads;
+    } catch {
+      // Live fetch optional — DB data still returned
+    }
+  }
+
+  const activeCampaigns = campaigns.filter((c) => c.status === "active").length;
+  const pausedCampaigns = campaigns.filter((c) => c.status === "paused").length;
+
+  const intelligenceMetrics = computeMetaIntelligenceMetrics({
+    connection: connection.data,
+    adAccountsCount: adAccounts.length,
+    campaignsCount: campaigns.length,
+    activeCampaigns,
+    pausedCampaigns,
+    businessManagers,
+    pages,
+    pixels,
+    adSets,
+    ads,
+  });
+
   return {
     error: null,
     data: {
       connection: connection.data,
-      adAccounts: accountsRes.data ?? [],
+      adAccounts,
       campaigns,
       metricsMap,
-      activeCampaigns: campaigns.filter((c) => c.status === "active").length,
-      pausedCampaigns: campaigns.filter((c) => c.status === "paused").length,
+      activeCampaigns,
+      pausedCampaigns,
+      businessManagers,
+      pages,
+      pixels,
+      adSets,
+      ads,
+      metrics: intelligenceMetrics,
+      readOnly: META_READ_ONLY_MODE,
+    },
+  };
+}
+
+export async function getMetaIntelligence(): Promise<{
+  error: string | null;
+  data: MetaIntelligencePayload | null;
+}> {
+  const result = await getMetaConnectDashboard();
+  if (result.error || !result.data) {
+    return { error: result.error ?? "Erro ao carregar Meta.", data: null };
+  }
+
+  return {
+    error: null,
+    data: {
+      connection: result.data.connection,
+      businessManagers: result.data.businessManagers,
+      pages: result.data.pages,
+      pixels: result.data.pixels,
+      adSets: result.data.adSets,
+      ads: result.data.ads,
+      metrics: result.data.metrics,
+      readOnly: result.data.readOnly,
     },
   };
 }
@@ -292,6 +402,12 @@ export async function runMetaCampaignAction(params: {
   action: MetaCampaignAction;
   approved?: boolean;
 }) {
+  if (META_READ_ONLY_MODE) {
+    return {
+      error: "Meta Connect está em modo somente leitura. Criação, edição e publicação não estão disponíveis.",
+    };
+  }
+
   const ctx = await getOptionalDataContext();
   if (!ctx) return { error: "Usuário não autenticado." };
 
@@ -429,6 +545,13 @@ export async function createAuraMetaCampaignDraft(params: {
   dailyBudgetCents?: number;
   currency?: string;
 }) {
+  if (META_READ_ONLY_MODE) {
+    return {
+      error: "Meta Connect está em modo somente leitura. Criação de campanhas não está disponível.",
+      campaign: null,
+    };
+  }
+
   const ctx = await getOptionalDataContext();
   if (!ctx) return { error: "Usuário não autenticado.", campaign: null };
 

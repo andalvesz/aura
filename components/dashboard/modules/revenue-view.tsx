@@ -128,7 +128,7 @@ export function RevenueView() {
               Kiwify →
             </Link>
             <Link
-              href="/dashboard/creator/meta"
+              href="/dashboard/platforms/meta"
               className="text-[10px] text-violet-400 hover:underline"
             >
               Meta Ads →

@@ -71,13 +71,13 @@ Tom de conselheiro executivo, orientado a ação.`;
 export const CEO_EXAMPLE_QUESTIONS = [
   "Como ganho R$ 20.000?",
   "Quanto lucrei esse mês?",
+  "Quantas campanhas tenho?",
+  "Qual conta está conectada?",
+  "Qual Pixel está ativo?",
   "Quanto posso investir?",
-  "Quanto devo colocar no Meta Ads?",
-  "Qual minha margem?",
   "Qual produto lançar nos EUA?",
   "Qual meu melhor projeto hoje?",
   "O que devo priorizar?",
-  "Como crescer a Alvesz Experience?",
 ] as const;
 
 const CEO_FOCUS_PHRASES = [

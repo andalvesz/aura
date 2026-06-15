@@ -100,7 +100,12 @@ import {
   buildKiwifyCoachReply,
   detectKiwifyCoachMode,
 } from "@/utils/kiwify-intelligence";
+import {
+  buildMetaCoachReply,
+  detectMetaCoachMode,
+} from "@/utils/meta-intelligence";
 import { getKiwifyIntelligence } from "@/lib/supabase/services/kiwify-intelligence.service";
+import { getMetaIntelligence } from "@/lib/supabase/services/meta-connect.service";
 import { MoneyMissionPlansRepository } from "@/lib/supabase/repositories/money.repository";
 import {
   buildGlobalCoachReply,
@@ -453,6 +458,40 @@ export async function POST(req: Request) {
         module: "global",
         kind: "coach",
         coachMode: performanceMode,
+      });
+    }
+
+    const metaMode = detectMetaCoachMode(message);
+    if (metaMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { data: intelligence, error: metaError } = await getMetaIntelligence();
+
+      if (metaError || !intelligence) {
+        return Response.json({ error: metaError ?? "Erro ao carregar Meta Connect." }, { status: 500 });
+      }
+
+      const text = buildMetaCoachReply({
+        mode: metaMode,
+        displayName,
+        metrics: intelligence.metrics,
+        pixels: intelligence.pixels,
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: metaMode,
+      });
+
+      return Response.json({
+        text,
+        module: "platforms",
+        kind: "coach",
+        coachMode: metaMode,
       });
     }
 

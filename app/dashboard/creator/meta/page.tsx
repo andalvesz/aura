@@ -14,12 +14,12 @@ export default function CreatorMetaPage() {
           ...mod,
           label: "Meta Ads Connect",
           description:
-            "Conecte Meta Business com controle manual, campanhas pausadas por padrão e logs de segurança.",
+            "Visualize Meta Business em modo somente leitura — campanhas, Pixels e contas sem publicação automática.",
         }}
       />
       <CreatorSubNav />
       <Suspense fallback={<ListSkeleton rows={4} />}>
-        <MetaConnectView />
+        <MetaConnectView readOnly />
       </Suspense>
     </div>
   );

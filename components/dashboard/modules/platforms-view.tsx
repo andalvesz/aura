@@ -250,6 +250,12 @@ export function PlatformsView() {
         >
           Kiwify Connect →
         </Link>
+        <Link
+          href="/dashboard/platforms/meta"
+          className="inline-flex h-8 items-center rounded-md border border-sky-500/30 px-3 text-[11px] text-sky-300 hover:bg-sky-500/10"
+        >
+          Meta Connect →
+        </Link>
         <ActionButton variant="ghost" onClick={() => void handleAnalyze()} disabled={busy}>
           <Sparkles className="size-3" />
           Gerar Score IA

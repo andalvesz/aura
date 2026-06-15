@@ -174,3 +174,154 @@ function mapMetaStatus(status?: string): "active" | "paused" | "archived" | "dra
   if (status === "ARCHIVED") return "archived";
   return "draft";
 }
+
+function actId(adAccountExternalId: string): string {
+  return adAccountExternalId.startsWith("act_")
+    ? adAccountExternalId
+    : `act_${adAccountExternalId}`;
+}
+
+export type MetaBusinessManager = {
+  id: string;
+  name: string;
+};
+
+export type MetaPage = {
+  id: string;
+  name: string;
+  category: string | null;
+};
+
+export type MetaPixel = {
+  id: string;
+  name: string;
+  adAccountId: string;
+  lastFiredTime: string | null;
+  isUnavailable: boolean;
+};
+
+export type MetaAdSet = {
+  id: string;
+  name: string;
+  status: string;
+  effectiveStatus: string;
+  campaignId: string | null;
+  dailyBudgetCents: number | null;
+  adAccountId: string;
+};
+
+export type MetaAd = {
+  id: string;
+  name: string;
+  status: string;
+  effectiveStatus: string;
+  adSetId: string | null;
+  campaignId: string | null;
+  adAccountId: string;
+};
+
+export async function listMetaBusinessManagers(accessToken: string): Promise<MetaBusinessManager[]> {
+  const data = await metaFetch<{
+    data?: Array<{ id: string; name?: string }>;
+  }>("/me/businesses?fields=id,name&limit=50", accessToken);
+
+  return (data.data ?? []).map((business) => ({
+    id: business.id,
+    name: business.name ?? business.id,
+  }));
+}
+
+export async function listMetaPages(accessToken: string): Promise<MetaPage[]> {
+  const data = await metaFetch<{
+    data?: Array<{ id: string; name?: string; category?: string }>;
+  }>("/me/accounts?fields=id,name,category&limit=50", accessToken);
+
+  return (data.data ?? []).map((page) => ({
+    id: page.id,
+    name: page.name ?? page.id,
+    category: page.category ?? null,
+  }));
+}
+
+export async function listMetaPixels(
+  accessToken: string,
+  adAccountExternalId: string
+): Promise<MetaPixel[]> {
+  const data = await metaFetch<{
+    data?: Array<{
+      id: string;
+      name?: string;
+      last_fired_time?: string;
+      is_unavailable?: boolean;
+    }>;
+  }>(
+    `/${actId(adAccountExternalId)}/adspixels?fields=id,name,last_fired_time,is_unavailable&limit=50`,
+    accessToken
+  );
+
+  return (data.data ?? []).map((pixel) => ({
+    id: pixel.id,
+    name: pixel.name ?? pixel.id,
+    adAccountId: adAccountExternalId,
+    lastFiredTime: pixel.last_fired_time ?? null,
+    isUnavailable: pixel.is_unavailable === true,
+  }));
+}
+
+export async function listMetaAdSets(
+  accessToken: string,
+  adAccountExternalId: string
+): Promise<MetaAdSet[]> {
+  const data = await metaFetch<{
+    data?: Array<{
+      id: string;
+      name?: string;
+      status?: string;
+      effective_status?: string;
+      campaign_id?: string;
+      daily_budget?: string;
+    }>;
+  }>(
+    `/${actId(adAccountExternalId)}/adsets?fields=id,name,status,effective_status,campaign_id,daily_budget&limit=100`,
+    accessToken
+  );
+
+  return (data.data ?? []).map((adSet) => ({
+    id: adSet.id,
+    name: adSet.name ?? "Conjunto",
+    status: adSet.status ?? "UNKNOWN",
+    effectiveStatus: adSet.effective_status ?? adSet.status ?? "UNKNOWN",
+    campaignId: adSet.campaign_id ?? null,
+    dailyBudgetCents: adSet.daily_budget ? Math.round(Number(adSet.daily_budget)) : null,
+    adAccountId: adAccountExternalId,
+  }));
+}
+
+export async function listMetaAds(
+  accessToken: string,
+  adAccountExternalId: string
+): Promise<MetaAd[]> {
+  const data = await metaFetch<{
+    data?: Array<{
+      id: string;
+      name?: string;
+      status?: string;
+      effective_status?: string;
+      adset_id?: string;
+      campaign_id?: string;
+    }>;
+  }>(
+    `/${actId(adAccountExternalId)}/ads?fields=id,name,status,effective_status,adset_id,campaign_id&limit=100`,
+    accessToken
+  );
+
+  return (data.data ?? []).map((ad) => ({
+    id: ad.id,
+    name: ad.name ?? "Anúncio",
+    status: ad.status ?? "UNKNOWN",
+    effectiveStatus: ad.effective_status ?? ad.status ?? "UNKNOWN",
+    adSetId: ad.adset_id ?? null,
+    campaignId: ad.campaign_id ?? null,
+    adAccountId: adAccountExternalId,
+  }));
+}

@@ -42,6 +42,7 @@ export { useCampaignOrchestrator } from "./use-campaign-orchestrator";
 export { useLaunch } from "./use-launch";
 export { useMoney } from "./use-money";
 export { useRevenue } from "./use-revenue";
+export { useMetaConnect } from "./use-meta-connect";
 export { useCeo } from "./use-ceo";
 export { useExecution } from "./use-execution";
 export { usePerformance } from "./use-performance";

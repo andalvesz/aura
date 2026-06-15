@@ -41,7 +41,7 @@ export const ACTIVE_INTEGRATIONS: {
     id: "meta",
     label: "Meta Business",
     description: "Campanhas, contas de anúncio e métricas.",
-    href: "/dashboard/creator/meta",
+    href: "/dashboard/platforms/meta",
   },
   {
     id: "kiwify",

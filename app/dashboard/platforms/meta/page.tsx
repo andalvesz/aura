@@ -1,0 +1,32 @@
+import Link from "next/link";
+import { Suspense } from "react";
+import { ModuleHeader } from "@/components/dashboard/module-header";
+import { MetaConnectView } from "@/components/dashboard/modules/meta-connect-view";
+import { ListSkeleton } from "@/components/dashboard/loading-skeleton";
+import { getModule } from "@/lib/modules";
+
+export default function PlatformsMetaPage() {
+  const mod = getModule("platforms");
+  return (
+    <div className="space-y-3">
+      <ModuleHeader
+        module={{
+          ...mod,
+          label: "Meta Connect",
+          description:
+            "Conecte a Aura ao Meta Business — Business Managers, contas, páginas, Pixels, campanhas e anúncios em modo somente leitura.",
+        }}
+      />
+      <nav className="flex gap-2 text-[11px]">
+        <Link href="/dashboard/platforms" className="text-zinc-500 hover:text-zinc-300">
+          Platform Hub
+        </Link>
+        <span className="text-zinc-600">/</span>
+        <span className="text-sky-300">Meta</span>
+      </nav>
+      <Suspense fallback={<ListSkeleton rows={4} />}>
+        <MetaConnectView readOnly />
+      </Suspense>
+    </div>
+  );
+}

@@ -426,7 +426,7 @@ Painel completo: /dashboard/revenue`;
 - Gasto Meta Ads: ${formatBRL(metrics.despesas.find((d) => d.id === "meta_ads")?.month ?? 0)}
 - ROI geral: ${lucro.roiPct}%
 
-Ajuste conforme ROAS das campanhas em /dashboard/creator/meta.`;
+Ajuste conforme ROAS das campanhas em /dashboard/platforms/meta.`;
 
     case "revenue-margin":
       return `${firstName}, sua **margem líquida** este mês é **${lucro.margemPct}%**.
