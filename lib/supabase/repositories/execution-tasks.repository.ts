@@ -47,4 +47,14 @@ export class ExecutionTasksRepository extends BaseRepository<"execution_tasks"> 
 
     return { error: error?.message ?? null };
   }
+
+  async deleteBySourceRefPrefix(prefix: string) {
+    const { error } = await this.supabase
+      .from("execution_tasks")
+      .delete()
+      .eq("user_id", this.userId)
+      .like("source_ref", `${prefix}%`);
+
+    return { error: error?.message ?? null };
+  }
 }

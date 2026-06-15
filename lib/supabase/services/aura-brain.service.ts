@@ -169,6 +169,7 @@ async function loadBrainData(userId: string) {
     platforms,
     kiwifyIntelligence,
     metaIntelligence,
+    operationCenter,
     globalMarketsRes,
     globalStrategiesRes,
     globalResultsRes,
@@ -204,6 +205,7 @@ async function loadBrainData(userId: string) {
     getPlatformsContext(),
     getKiwifyIntelligenceContext(),
     getMetaIntelligenceContext(),
+    import("./operation-center.service").then((mod) => mod.getOperationCenterContext()),
     new GlobalMarketsRepository(supabase, userId).findAllOrdered(),
     new GlobalStrategiesRepository(supabase, userId).findAllOrdered(),
     new GlobalResultsRepository(supabase, userId).findAllOrdered(),
@@ -323,8 +325,8 @@ async function loadBrainData(userId: string) {
           .map((c) => `• ${c.nome ?? "Campanha"} — ${c.status ?? "—"}`)
           .join("\n")}`
       : "",
-    platforms.context || kiwifyIntelligence.context || metaIntelligence.context
-      ? `**Plataformas:**\n${[platforms.context, kiwifyIntelligence.context, metaIntelligence.context].filter(Boolean).join("\n").slice(0, 800)}`
+    platforms.context || kiwifyIntelligence.context || metaIntelligence.context || operationCenter.context
+      ? `**Plataformas:**\n${[platforms.context, kiwifyIntelligence.context, metaIntelligence.context, operationCenter.context].filter(Boolean).join("\n").slice(0, 1200)}`
       : "",
     copylab.records.length > 0
       ? `**CopyLab:**\n${copylab.records
@@ -367,6 +369,7 @@ async function loadBrainData(userId: string) {
 
   const pendingTasks = (executionTasks ?? []).filter((t) => t.status === "pending");
   const execucaoSection = [
+    operationCenter.context ? operationCenter.context : "",
     ceoSession
       ? `**CEO:** ${ceoSession.resumo_executivo?.slice(0, 200) ?? "—"}\nPrioridades: ${JSON.stringify(ceoSession.prioridades)?.slice(0, 200) ?? "—"}`
       : "Nenhuma sessão CEO ativa.",
@@ -479,7 +482,7 @@ async function loadBrainData(userId: string) {
         .map((m) => m.titulo)
         .join(", ") || "",
     autopilot: autopilotContext,
-    platforms: [platforms.context, kiwifyIntelligence.context, metaIntelligence.context].filter(Boolean).join("\n\n"),
+    platforms: [platforms.context, kiwifyIntelligence.context, metaIntelligence.context, operationCenter.context].filter(Boolean).join("\n\n"),
     global: globalContext,
     knowledge: knowledgeContext,
   };

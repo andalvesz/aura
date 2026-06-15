@@ -486,6 +486,81 @@ export function buildOperationCenterAuraContext(dashboard: OperationCenterDashbo
     .join("\n");
 }
 
+export type OperationPerformanceContext = {
+  operationId: string;
+  titulo: string;
+  productName: string | null;
+  operationalScore: number;
+  successChance: number | null;
+  budget: number | null;
+  completedSteps: string[];
+  pendingSteps: string[];
+  risks: string[];
+  opportunities: string[];
+};
+
+function parseStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+export function buildOperationPerformanceContext(params: {
+  dashboard: OperationCenterDashboard;
+  budget?: number | null;
+  risks?: unknown;
+  opportunities?: unknown;
+}): OperationPerformanceContext {
+  const { dashboard, budget = null, risks, opportunities } = params;
+  const op = dashboard.operation;
+  const metadata =
+    op?.metadata && typeof op.metadata === "object" && !Array.isArray(op.metadata)
+      ? (op.metadata as Record<string, unknown>)
+      : {};
+
+  const completedSteps = dashboard.progress
+    .filter((step) => step.status === "done")
+    .map((step) => step.label);
+  const pendingSteps = dashboard.progress
+    .filter((step) => step.status !== "done")
+    .map((step) => step.label);
+
+  return {
+    operationId: op?.id ?? "",
+    titulo: op?.titulo ?? "Operação",
+    productName: dashboard.productName,
+    operationalScore: dashboard.operationalScore,
+    successChance: dashboard.successChance,
+    budget,
+    completedSteps,
+    pendingSteps,
+    risks: parseStringList(risks ?? metadata.riscos),
+    opportunities: parseStringList(opportunities ?? metadata.oportunidades),
+  };
+}
+
+export function formatOperationPerformanceContext(context: OperationPerformanceContext): string {
+  return [
+    "## OPERATION CENTER (Performance AI)",
+    `Operação: ${context.titulo} (${context.operationId || "—"})`,
+    `Produto: ${context.productName ?? "—"}`,
+    `Score operacional: ${context.operationalScore}/100`,
+    context.successChance != null ? `Chance de sucesso: ${context.successChance}%` : null,
+    context.budget != null ? `Orçamento disponível: R$ ${context.budget}` : null,
+    context.completedSteps.length
+      ? `Etapas completas: ${context.completedSteps.join(", ")}`
+      : "Etapas completas: nenhuma",
+    context.pendingSteps.length
+      ? `Etapas pendentes: ${context.pendingSteps.join(", ")}`
+      : "Etapas pendentes: nenhuma",
+    context.risks.length ? `Riscos: ${context.risks.slice(0, 5).join("; ")}` : null,
+    context.opportunities.length
+      ? `Oportunidades: ${context.opportunities.slice(0, 5).join("; ")}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function buildOperationCenterCoachReply(params: {
   mode: OperationCenterCoachMode;
   displayName: string;

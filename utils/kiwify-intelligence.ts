@@ -440,8 +440,9 @@ export function buildKiwifyAuraContext(params: {
   metrics: KiwifyIntelligenceMetrics;
   insights: KiwifyPerformanceInsight[];
   connected: boolean;
+  operationContext?: string;
 }): string {
-  const { metrics, insights, connected } = params;
+  const { metrics, insights, connected, operationContext } = params;
   if (!connected) return "Kiwify não conectada.";
 
   const lines = [
@@ -470,6 +471,10 @@ export function buildKiwifyAuraContext(params: {
       "Insights:",
       ...insights.slice(0, 4).map((i) => `- ${i.title}: ${i.summary} → ${i.recommendation}`)
     );
+  }
+
+  if (operationContext) {
+    lines.push("Operação ativa:", operationContext);
   }
 
   return lines.join("\n");

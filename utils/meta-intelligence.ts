@@ -672,7 +672,10 @@ Ação no Autopilot requer sua aprovação.`;
   }
 }
 
-export function buildMetaAuraContext(payload: MetaIntelligencePayload): string {
+export function buildMetaAuraContext(
+  payload: MetaIntelligencePayload,
+  operationContext?: string
+): string {
   const { metrics, insights, recommendations, revenueCross } = payload;
   const perf = metrics.performance;
 
@@ -710,6 +713,10 @@ export function buildMetaAuraContext(payload: MetaIntelligencePayload): string {
       "Autopilot (pendente aprovação):",
       ...recommendations.slice(0, 3).map((r) => `- ${r.title}: ${r.summary}`)
     );
+  }
+
+  if (operationContext) {
+    lines.push("Operação ativa:", operationContext);
   }
 
   return lines.join("\n");

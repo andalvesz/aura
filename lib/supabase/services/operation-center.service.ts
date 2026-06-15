@@ -7,7 +7,7 @@ import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
 import { generateCopylab } from "@/lib/supabase/services/copylab.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { generateStudioAssets } from "@/lib/supabase/services/creative-studio.service";
-import { getExecutionDashboard } from "@/lib/supabase/services/execution.service";
+import { getExecutionDashboard, syncOperationCenterTasks } from "@/lib/supabase/services/execution.service";
 import { generateLanding } from "@/lib/supabase/services/landing-builder.service";
 import { getKiwifyIntelligence } from "@/lib/supabase/services/kiwify-intelligence.service";
 import { getMetaIntelligence } from "@/lib/supabase/services/meta-intelligence.service";
@@ -33,6 +33,7 @@ import {
   buildMissingForApproval,
   buildOperationCenterAuraContext,
   buildOperationNextSteps,
+  buildOperationPerformanceContext,
   computeOperationCenterDashboard,
   computeOperationSteps,
   computeOperationalScore,
@@ -45,6 +46,33 @@ import { getOptionalDataContext } from "./context";
 
 function logsAsJson(logs: OperationExecutiveLogEntry[]): Json {
   return logs as unknown as Json;
+}
+
+function resolveOperationRoiPrevisto(params: {
+  session: AuraCeoSession;
+  bundle: CreatorProductBundle | null;
+}): number | null {
+  const scores = [
+    params.session.probabilidade_sucesso,
+    params.session.score_ia,
+    params.bundle?.validation?.nota_final ?? null,
+  ].filter((value): value is number => value != null && value > 0);
+
+  if (scores.length === 0) return null;
+  return Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length);
+}
+
+async function syncOperationSideEffects(
+  operation: OperationCenter,
+  bundle: CreatorProductBundle | null,
+  integrations: Awaited<ReturnType<typeof loadIntegrations>>
+): Promise<void> {
+  const dashboard = computeOperationCenterDashboard({
+    operation,
+    bundle,
+    ...integrations,
+  });
+  await syncOperationCenterTasks(dashboard);
 }
 
 async function loadBundleForOperation(
@@ -111,7 +139,12 @@ async function persistOperationUpdate(
     ...extra,
   });
 
-  return { data: data as OperationCenter | null, error };
+  const updated = data as OperationCenter | null;
+  if (updated) {
+    await syncOperationSideEffects(updated, bundle, integrations);
+  }
+
+  return { data: updated, error };
 }
 
 async function logOperationAction(
@@ -218,24 +251,45 @@ export async function upsertOperationFromCeo(params: {
 
   const { data: existing } = await repo.findByCeoSessionId(params.session.id);
 
+  const previewBundle = productId
+    ? (await loadCreatorBundles()).bundles.find((bundle) => bundle.product.id === productId) ?? null
+    : null;
+  const roiPrevisto = resolveOperationRoiPrevisto({
+    session: params.session,
+    bundle: previewBundle,
+  });
+
   const basePayload = {
     titulo,
     product_id: productId,
     product_nome: productName,
     ceo_session_id: params.session.id,
     success_chance: params.session.probabilidade_sucesso,
+    roi_previsto: roiPrevisto,
     status: "preparing" as const,
     metadata: {
       resumo_executivo: params.session.resumo_executivo,
       prioridades: params.session.prioridades,
+      riscos: params.session.riscos,
+      oportunidades: params.session.oportunidades,
+      plano_acao: params.session.plano_acao,
     },
   };
 
   let operation: OperationCenter | null = null;
+  let created = false;
 
   if (existing && existing.status !== "cancelled") {
     const { data, error } = await repo.update(existing.id, basePayload);
-    if (error || !data) return { operation: null, error: error ?? "Erro ao atualizar operação." };
+    if (error || !data) {
+      recordSystemLog({
+        tipo: "error",
+        modulo: "operation-center",
+        mensagem: error ?? "Erro ao atualizar operação a partir do CEO.",
+        detalhes: { ceoSessionId: params.session.id },
+      });
+      return { operation: null, error: error ?? "Erro ao atualizar operação." };
+    }
     operation = data as OperationCenter;
   } else {
     const { data, error } = await repo.create({
@@ -244,16 +298,27 @@ export async function upsertOperationFromCeo(params: {
         appendExecutiveLog([], "ceo_plan", "Operação criada a partir do plano CEO.")
       ),
     } as Omit<TableInsert<"operation_center">, "user_id">);
-    if (error || !data) return { operation: null, error: error ?? "Erro ao criar operação." };
+    if (error || !data) {
+      recordSystemLog({
+        tipo: "error",
+        modulo: "operation-center",
+        mensagem: error ?? "Erro ao criar operação a partir do CEO.",
+        detalhes: { ceoSessionId: params.session.id },
+      });
+      return { operation: null, error: error ?? "Erro ao criar operação." };
+    }
     operation = data as OperationCenter;
+    created = true;
   }
 
   const bundle = await loadBundleForOperation(operation);
   const logs = await logOperationAction(
     operation,
-    "ceo_sync",
-    `Operação vinculada ao plano CEO: ${titulo}`,
-    { ceoSessionId: params.session.id }
+    created ? "create" : "update",
+    created
+      ? `Operação criada a partir do plano CEO: ${titulo}`
+      : `Operação atualizada a partir do plano CEO: ${titulo}`,
+    { ceoSessionId: params.session.id, roiPrevisto }
   );
 
   const { data: updated, error: updateError } = await persistOperationUpdate(
@@ -263,6 +328,15 @@ export async function upsertOperationFromCeo(params: {
     integrations,
     { executive_logs: logsAsJson(logs) }
   );
+
+  if (updateError) {
+    recordSystemLog({
+      tipo: "error",
+      modulo: "operation-center",
+      mensagem: updateError,
+      detalhes: { operationId: operation.id, ceoSessionId: params.session.id },
+    });
+  }
 
   return { operation: updated ?? operation, error: updateError };
 }
@@ -430,7 +504,22 @@ export async function sendOperationToPerformanceAi(
   const { data: operation } = await repo.findById(operationId);
   if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
 
-  const { report, error: perfError } = await generatePerformanceReport();
+  const bundle = await loadBundleForOperation(operation);
+  const integrations = await loadIntegrations();
+  const dashboard = computeOperationCenterDashboard({
+    operation,
+    bundle,
+    ...integrations,
+  });
+  const { budget } = await getResolvedUserBudget();
+  const operationContext = buildOperationPerformanceContext({
+    dashboard,
+    budget: budget.orcamento ?? null,
+    risks: (operation.metadata as Record<string, unknown> | null)?.riscos,
+    opportunities: (operation.metadata as Record<string, unknown> | null)?.oportunidades,
+  });
+
+  const { report, error: perfError } = await generatePerformanceReport({ operationContext });
   if (perfError || !report) {
     return {
       operation: null,
@@ -439,13 +528,11 @@ export async function sendOperationToPerformanceAi(
     };
   }
 
-  const bundle = await loadBundleForOperation(operation);
-  const integrations = await loadIntegrations();
   const logs = await logOperationAction(
     operation,
     "performance_ai",
-    "Relatório Performance AI gerado e vinculado à operação.",
-    { reportId: report.id }
+    "Relatório Performance AI gerado com contexto da operação e vinculado.",
+    { reportId: report.id, operationId: operation.id }
   );
 
   const { data: updated, error } = await persistOperationUpdate(
@@ -567,6 +654,11 @@ export async function cancelOperation(
     status: "cancelled",
     executive_logs: logsAsJson(logs),
   });
+
+  if (updated) {
+    const integrations = await loadIntegrations();
+    await syncOperationSideEffects(updated as OperationCenter, null, integrations);
+  }
 
   return {
     operation: updated as OperationCenter | null,

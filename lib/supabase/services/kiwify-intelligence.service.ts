@@ -101,7 +101,10 @@ export async function getKiwifyIntelligence(): Promise<{
 }
 
 export async function getKiwifyIntelligenceContext(): Promise<{ context: string; error: string | null }> {
-  const result = await getKiwifyIntelligence();
+  const [result, operationCenter] = await Promise.all([
+    getKiwifyIntelligence(),
+    import("./operation-center.service").then((mod) => mod.getOperationCenterContext()),
+  ]);
   if (result.error || !result.data) {
     return { context: "", error: result.error };
   }
@@ -111,6 +114,7 @@ export async function getKiwifyIntelligenceContext(): Promise<{ context: string;
       metrics: result.data.metrics,
       insights: result.data.insights,
       connected: result.data.connected,
+      operationContext: operationCenter.context || undefined,
     }),
     error: null,
   };

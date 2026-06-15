@@ -25,6 +25,10 @@ import {
   type GeneratedDailyPlan,
   parseBriefing,
 } from "@/utils/execution";
+import {
+  type OperationCenterDashboard,
+  type OperationStepId,
+} from "@/utils/operation-center";
 import { todayIsoDate } from "@/utils/health";
 import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 
@@ -487,6 +491,149 @@ export async function completeExecutionTask(taskId: string): Promise<{
   await plansRepo.update(completedTask.plan_id, planUpdate);
 
   return { task: completedTask, xpAwarded, planComplete, error: null };
+}
+
+const OPERATION_MISSION_STEPS: {
+  stepId: OperationStepId;
+  taskKey: string;
+  titulo: string;
+  descricao: string;
+}[] = [
+  {
+    stepId: "criativos",
+    taskKey: "criativos",
+    titulo: "Gerar criativos da operação",
+    descricao: "Gerar criativos no Operation Center para a operação ativa.",
+  },
+  {
+    stepId: "landing",
+    taskKey: "landing",
+    titulo: "Gerar landing da operação",
+    descricao: "Gerar landing page no Operation Center para a operação ativa.",
+  },
+  {
+    stepId: "meta_ads",
+    taskKey: "campanha",
+    titulo: "Montar campanha da operação",
+    descricao: "Montar campanha em rascunho no Operation Center (modo seguro — sem publicação automática).",
+  },
+  {
+    stepId: "performance_ai",
+    taskKey: "performance",
+    titulo: "Enviar operação para Performance AI",
+    descricao: "Gerar relatório Performance AI com contexto da operação ativa.",
+  },
+  {
+    stepId: "aprovacao",
+    taskKey: "aprovar",
+    titulo: "Aprovar operação",
+    descricao: "Aprovar operação no Operation Center (modo seguro — status Pronta, sem publicar anúncios).",
+  },
+];
+
+async function ensureTodayExecutionPlan(
+  plansRepo: ExecutionPlansRepository,
+  displayName: string
+): Promise<{ plan: ExecutionPlan | null; error: string | null }> {
+  const today = todayIsoDate();
+  const existing = await plansRepo.findByDate(today);
+  if (existing.data) return { plan: existing.data, error: null };
+
+  const { data: plan, error } = await plansRepo.create({
+    plan_date: today,
+    titulo: "Missões Operation Center",
+    status: "active",
+    briefing: {
+      greeting: buildGreeting(displayName),
+      display_name: displayName,
+      projeto_prioritario: "Operation Center",
+      meta_financeira: "Concluir operação ativa",
+      probabilidade_atual: 0,
+      conselho_ceo: "Priorize as etapas pendentes da operação ativa.",
+    },
+    score_execucao: 0,
+    missoes_concluidas: 0,
+    missoes_total: 0,
+    resumo: "Missões automáticas sincronizadas pelo Operation Center.",
+  } satisfies Omit<TableInsert<"execution_plans">, "user_id">);
+
+  return { plan: (plan as ExecutionPlan | null) ?? null, error: error ?? null };
+}
+
+export async function syncOperationCenterTasks(
+  dashboard: OperationCenterDashboard
+): Promise<void> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return;
+
+  const operation = dashboard.operation;
+  if (!operation) return;
+
+  const plansRepo = new ExecutionPlansRepository(ctx.supabase, ctx.userId);
+  const tasksRepo = new ExecutionTasksRepository(ctx.supabase, ctx.userId);
+  const sourcePrefix = `operation-center:${operation.id}:`;
+
+  if (
+    operation.status === "cancelled" ||
+    operation.status === "ready" ||
+    operation.status === "approved"
+  ) {
+    await tasksRepo.deleteBySourceRefPrefix(sourcePrefix);
+    return;
+  }
+
+  const displayName = await resolveUserDisplayName(ctx);
+  const { plan, error: planError } = await ensureTodayExecutionPlan(plansRepo, displayName);
+  if (planError || !plan) return;
+
+  await tasksRepo.deleteBySourceRefPrefix(sourcePrefix);
+
+  const steps = Object.fromEntries(dashboard.progress.map((item) => [item.id, item.status])) as Record<
+    OperationStepId,
+    "pending" | "in_progress" | "done"
+  >;
+
+  const pendingMissionSteps = OPERATION_MISSION_STEPS.filter(
+    (mission) => steps[mission.stepId] !== "done"
+  );
+  if (pendingMissionSteps.length === 0) return;
+
+  const { data: existingTasks } = await tasksRepo.findByPlanId(plan.id);
+  let ordem = (existingTasks ?? []).reduce((max, task) => Math.max(max, task.ordem), -1) + 1;
+  const today = todayIsoDate();
+  const roi = dashboard.successChance ?? dashboard.operationalScore;
+
+  const payloads: Omit<TableInsert<"execution_tasks">, "user_id">[] = pendingMissionSteps.map(
+    (mission, index) => ({
+      plan_id: plan.id,
+      task_key: `operation-${operation.id}-${mission.taskKey}`,
+      titulo: mission.titulo,
+      descricao: mission.descricao,
+      categoria: "diaria",
+      area: "marketing",
+      modulo_origem: "operation-center",
+      prioridade: Math.max(50, 95 - index * 8),
+      impacto: Math.min(100, dashboard.operationalScore + 10),
+      urgencia: Math.max(40, 90 - index * 5),
+      roi,
+      energia: 3,
+      href: "/dashboard/operation-center",
+      source_ref: `${sourcePrefix}${mission.taskKey}`,
+      status: "pending",
+      task_date: today,
+      ordem: ordem++,
+      xp_reward: 20,
+    })
+  );
+
+  await tasksRepo.createMany(payloads);
+
+  const { data: allTasks } = await tasksRepo.findByPlanId(plan.id);
+  const completed = (allTasks ?? []).filter((task) => task.status === "completed").length;
+  await plansRepo.update(plan.id, {
+    missoes_total: allTasks?.length ?? 0,
+    missoes_concluidas: completed,
+  });
 }
 
 export async function deleteExecutionPlan(id: string): Promise<{ error: string | null }> {

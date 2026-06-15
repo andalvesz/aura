@@ -155,12 +155,15 @@ function mapStoredRecommendations(rows: MetaRecommendation[]): MetaAutopilotActi
 }
 
 export async function getMetaIntelligenceContext(): Promise<{ context: string; error: string | null }> {
-  const result = await getMetaIntelligenceFull();
+  const [result, operationCenter] = await Promise.all([
+    getMetaIntelligenceFull(),
+    import("./operation-center.service").then((mod) => mod.getOperationCenterContext()),
+  ]);
   if (result.error || !result.data) {
     return { context: "", error: result.error };
   }
   return {
-    context: buildMetaAuraContext(result.data),
+    context: buildMetaAuraContext(result.data, operationCenter.context || undefined),
     error: null,
   };
 }

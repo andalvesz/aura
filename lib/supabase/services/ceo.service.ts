@@ -28,6 +28,7 @@ import {
 } from "./campaign-budget.service";
 import { getOptionalDataContext } from "./context";
 import { upsertOperationFromCeo } from "./operation-center.service";
+import { recordSystemLog } from "@/lib/logs/record";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -322,11 +323,27 @@ Regras:
 
   const ranked = rankProductsForLaunch(moduleData.creator);
   const mainProduct = ranked[0]?.product ?? null;
-  await upsertOperationFromCeo({
+  const { operation, error: operationError } = await upsertOperationFromCeo({
     session: session as AuraCeoSession,
     productId: mainProduct?.id ?? null,
     productName: mainProduct?.nome ?? mainProduct?.nicho ?? null,
   });
+
+  if (operationError) {
+    recordSystemLog({
+      tipo: "error",
+      modulo: "ceo",
+      mensagem: `Falha ao sincronizar Operation Center: ${operationError}`,
+      detalhes: { sessionId: session.id, productId: mainProduct?.id ?? null },
+    });
+  } else if (operation) {
+    recordSystemLog({
+      tipo: "info",
+      modulo: "ceo",
+      mensagem: `Operation Center sincronizado: ${operation.titulo}`,
+      detalhes: { sessionId: session.id, operationId: operation.id },
+    });
+  }
 
   return { session: session as AuraCeoSession, radar, error: null };
 }

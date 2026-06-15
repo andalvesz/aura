@@ -77,6 +77,7 @@ export const EXECUTION_MODULO_LABELS: Record<ExecutionTaskModulo, string> = {
   calendario: "Calendário",
   saude: "Saúde",
   idiomas: "Idiomas",
+  "operation-center": "Operation Center",
 };
 
 export const EXECUTION_AI_CONTEXT = `Você é a Aura Execution Engine — transforma planos de todos os módulos da Aura em tarefas executáveis.

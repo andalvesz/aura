@@ -45,6 +45,10 @@ import { buildBudgetContextBlock, getResolvedUserBudget } from "./campaign-budge
 import { buildAuraContext } from "./aura-brain.service";
 import { getKiwifyIntelligenceContext } from "./kiwify-intelligence.service";
 import { getMetaIntelligenceContext } from "./meta-intelligence.service";
+import {
+  formatOperationPerformanceContext,
+  type OperationPerformanceContext,
+} from "@/utils/operation-center";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -127,6 +131,7 @@ Regras:
 - insights: 6-10 itens cobrindo painel e análise
 - executive_memory: aprenda padrões de campanhas, produtos, hábitos e erros
 - Nunca assuma R$ 2.000 ou orçamento padrão — use apenas o orçamento informado pelo usuário
+- Se operation_center estiver presente, priorize a operação ativa na análise
 - Português do Brasil, tom executivo`;
 
 const DEFAULT_CEO_DASHBOARD: CeoDashboardMetrics = {
@@ -340,13 +345,29 @@ function buildMetricsRows(
 
 async function saveExecutiveMemoryReport(
   panel: PerformancePanel,
-  memory: PerformanceExecutiveMemory
+  memory: PerformanceExecutiveMemory,
+  operationContext?: OperationPerformanceContext | null
 ): Promise<void> {
   await saveAuraMemory({
     module: "performance",
     userMessage: "Relatório de performance gerado",
-    assistantContent: `📊 Performance AI\n\nOportunidade: ${panel.maiorOportunidade}\nRisco: ${panel.maiorRisco}\nMelhor projeto: ${panel.melhorProjeto}\n\nMemória executiva:\n• Campanhas boas: ${memory.campanhasBoas.slice(0, 3).join("; ") || "—"}\n• Produtos bons: ${memory.produtosBons.slice(0, 3).join("; ") || "—"}\n• Hábitos: ${memory.habitosProdutivos.slice(0, 3).join("; ") || "—"}\n• Erros: ${memory.errosRecorrentes.slice(0, 3).join("; ") || "—"}`,
-    metadata: { kind: "performance", area: "executive" },
+    assistantContent: `📊 Performance AI${operationContext ? ` — operação ${operationContext.titulo}` : ""}
+
+Oportunidade: ${panel.maiorOportunidade}
+Risco: ${panel.maiorRisco}
+Melhor projeto: ${panel.melhorProjeto}
+${operationContext ? `\nOperação: score ${operationContext.operationalScore}/100 · pendências: ${operationContext.pendingSteps.join(", ") || "nenhuma"}` : ""}
+
+Memória executiva:
+• Campanhas boas: ${memory.campanhasBoas.slice(0, 3).join("; ") || "—"}
+• Produtos bons: ${memory.produtosBons.slice(0, 3).join("; ") || "—"}
+• Hábitos: ${memory.habitosProdutivos.slice(0, 3).join("; ") || "—"}
+• Erros: ${memory.errosRecorrentes.slice(0, 3).join("; ") || "—"}`,
+    metadata: {
+      kind: "performance",
+      area: "executive",
+      operationId: operationContext?.operationId,
+    },
   });
 }
 
@@ -418,11 +439,14 @@ export async function getPerformanceDashboard(): Promise<{
 }
 
 export async function getPerformanceContext(): Promise<{ context: string; error: string | null }> {
-  const [{ dashboard, panel, analysis, error }, brain, kiwify, meta] = await Promise.all([
+  const { getOperationCenterContext } = await import("./operation-center.service");
+  const [{ dashboard, panel, analysis, error }, brain, kiwify, meta, operationCenter] =
+    await Promise.all([
     getPerformanceDashboard(),
     buildAuraContext(),
     getKiwifyIntelligenceContext(),
     getMetaIntelligenceContext(),
+    getOperationCenterContext(),
   ]);
   if (error || !dashboard) {
     return { context: "", error: error ?? "Erro ao carregar Performance AI." };
@@ -432,6 +456,7 @@ export async function getPerformanceContext(): Promise<{ context: string; error:
   const parts = [
     brain.context,
     base,
+    operationCenter.context,
     brain.moduleData.platforms,
     kiwify.context,
     meta.context,
@@ -444,7 +469,9 @@ export async function getPerformanceContext(): Promise<{ context: string; error:
   };
 }
 
-export async function generatePerformanceReport(): Promise<{
+export async function generatePerformanceReport(options?: {
+  operationContext?: OperationPerformanceContext | null;
+}): Promise<{
   report: PerformanceReport | null;
   dashboard: PerformanceDashboardMetrics | null;
   panel: PerformancePanel | null;
@@ -472,6 +499,9 @@ export async function generatePerformanceReport(): Promise<{
       getResolvedUserBudget(),
       buildAuraContext(),
     ]);
+    const operationCenterBlock = options?.operationContext
+      ? formatOperationPerformanceContext(options.operationContext)
+      : null;
     generated = await callPerformanceAi<GeneratedPerformanceReport>(
       `${SYSTEM_PROMPT}\n\n${buildBudgetContextBlock(budget.orcamento)}`,
       JSON.stringify({
@@ -479,6 +509,8 @@ export async function generatePerformanceReport(): Promise<{
         orcamento_disponivel: budget.orcamento,
         metricas: preDashboard,
         auraBrain: brain.context,
+        operation_center: options?.operationContext ?? null,
+        operation_center_context: operationCenterBlock,
         modulos: {
           financeiro: { receita: preDashboard.receitaFormatted, meta: preDashboard.metaAtingidaFormatted },
           money: input.moneyDashboard,
@@ -526,7 +558,10 @@ export async function generatePerformanceReport(): Promise<{
     report_date: todayIsoDate(),
     period: "weekly",
     status: "active",
-    titulo: generated?.titulo ?? "Análise de Performance",
+    titulo:
+      options?.operationContext?.titulo != null
+        ? `Performance — ${options.operationContext.titulo}`
+        : generated?.titulo ?? "Análise de Performance",
     resumo: generated?.resumo ?? panel.conselhoCeo,
     score_performance: score,
     ai_analysis: analysis as unknown as Json,
@@ -575,7 +610,7 @@ export async function generatePerformanceReport(): Promise<{
   }
 
   await awardAuraXp("performance_analise_gerar", `performance-report:${report.id}`);
-  await saveExecutiveMemoryReport(panel, executiveMemory);
+  await saveExecutiveMemoryReport(panel, executiveMemory, options?.operationContext ?? null);
 
   return { report, dashboard, panel, analysis, error: null };
 }

@@ -1438,7 +1438,8 @@ export type ExecutionTaskModulo =
   | "financeiro"
   | "calendario"
   | "saude"
-  | "idiomas";
+  | "idiomas"
+  | "operation-center";
 
 export type ExecutionPlan = {
   id: string;
