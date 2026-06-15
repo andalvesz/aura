@@ -69,6 +69,7 @@ import { parsePerformanceExecutiveMemory } from "@/utils/performance";
 import { todayIsoDate } from "@/utils/health";
 import { AI_MEMORY_CATEGORY_LABELS, formatAuraMemoryDate } from "@/utils/aura-memory";
 import { truncatePreview } from "@/utils/memory";
+import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { getOptionalDataContext, resolveUserDisplayName } from "./context";
 
 const CACHE_TTL_MS = 60_000;
@@ -143,6 +144,7 @@ async function loadBrainData(userId: string) {
     return { error: "Usuário não autenticado." as const, data: null };
   }
 
+  try {
   const today = todayIsoDate();
   const { supabase } = ctx;
 
@@ -514,6 +516,14 @@ async function loadBrainData(userId: string) {
       moduleData,
     },
   };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isMissingSupabaseTableError(message)) {
+      return { error: null, data: null };
+    }
+    console.warn("[aura-brain] loadBrainData:", message);
+    return { error: message, data: null };
+  }
 }
 
 export function invalidateAuraBrainCache(userId?: string): void {
@@ -579,6 +589,7 @@ export async function buildAuraContext(): Promise<AuraBrainResult> {
   if (pending) return pending;
 
   const promise = (async () => {
+    try {
     const loaded = await loadBrainData(userId);
     if (loaded.error || !loaded.data) {
       const result: AuraBrainResult = {
@@ -627,8 +638,10 @@ export async function buildAuraContext(): Promise<AuraBrainResult> {
     };
 
     brainCache.set(userId, { expiresAt: now + CACHE_TTL_MS, result });
-    inflight.delete(userId);
     return result;
+    } finally {
+      inflight.delete(userId);
+    }
   })();
 
   inflight.set(userId, promise);
@@ -753,44 +766,53 @@ export async function getAuraBrainOpeningSummary(): Promise<{
     return { summary: null, error: "Usuário não autenticado." };
   }
 
-  const displayName = await resolveUserDisplayName(ctx);
-  const brain = await buildAuraContext();
-  if (brain.error) {
-    return { summary: null, error: brain.error };
+  try {
+    const displayName = await resolveUserDisplayName(ctx);
+    const brain = await buildAuraContext();
+    if (brain.error === "Usuário não autenticado.") {
+      return { summary: null, error: brain.error };
+    }
+
+    const today = todayIsoDate();
+    const { supabase, userId } = ctx;
+
+    const [ceoSessionRes, executionPlanRes, monitorsRes, adsRes, actionsRes] =
+      await Promise.all([
+        new AuraCeoSessionsRepository(supabase, userId).findActive(),
+        new ExecutionPlansRepository(supabase, userId).findByDate(today),
+        new AutopilotMonitorsRepository(supabase, userId).findAllOrdered(),
+        loadAdsCampaigns(),
+        new AutopilotActionsRepository(supabase, userId).findAllOrdered(),
+      ]);
+
+    let executionTaskTitles: string[] = [];
+    if (executionPlanRes.data) {
+      const tasksRes = await new ExecutionTasksRepository(supabase, userId).findByPlanId(
+        executionPlanRes.data.id
+      );
+      executionTaskTitles = (tasksRes.data ?? [])
+        .filter((t) => t.status === "pending")
+        .sort((a, b) => a.ordem - b.ordem)
+        .slice(0, 4)
+        .map((t) => t.titulo);
+    }
+
+    const summary = buildAuraBrainOpeningBriefing({
+      displayName,
+      metaPrincipal: resolveMetaPrincipal(brain),
+      tarefasHoje: resolveDailyTasks(brain, executionTaskTitles),
+      melhorOportunidade: resolveMelhorOportunidade(brain, ceoSessionRes.data),
+      riscoAtual: resolveRiscoAtual(monitorsRes.data, adsRes.records),
+      sugestao: resolveSugestao(actionsRes.data),
+    });
+
+    return { summary, error: null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isMissingSupabaseTableError(message)) {
+      return { summary: null, error: null };
+    }
+    console.warn("[aura-brain] getAuraBrainOpeningSummary:", message);
+    return { summary: null, error: message };
   }
-
-  const today = todayIsoDate();
-  const { supabase, userId } = ctx;
-
-  const [ceoSessionRes, executionPlanRes, monitorsRes, adsRes, actionsRes] =
-    await Promise.all([
-      new AuraCeoSessionsRepository(supabase, userId).findActive(),
-      new ExecutionPlansRepository(supabase, userId).findByDate(today),
-      new AutopilotMonitorsRepository(supabase, userId).findAllOrdered(),
-      loadAdsCampaigns(),
-      new AutopilotActionsRepository(supabase, userId).findAllOrdered(),
-    ]);
-
-  let executionTaskTitles: string[] = [];
-  if (executionPlanRes.data) {
-    const tasksRes = await new ExecutionTasksRepository(supabase, userId).findByPlanId(
-      executionPlanRes.data.id
-    );
-    executionTaskTitles = (tasksRes.data ?? [])
-      .filter((t) => t.status === "pending")
-      .sort((a, b) => a.ordem - b.ordem)
-      .slice(0, 4)
-      .map((t) => t.titulo);
-  }
-
-  const summary = buildAuraBrainOpeningBriefing({
-    displayName,
-    metaPrincipal: resolveMetaPrincipal(brain),
-    tarefasHoje: resolveDailyTasks(brain, executionTaskTitles),
-    melhorOportunidade: resolveMelhorOportunidade(brain, ceoSessionRes.data),
-    riscoAtual: resolveRiscoAtual(monitorsRes.data, adsRes.records),
-    sugestao: resolveSugestao(actionsRes.data),
-  });
-
-  return { summary, error: null };
 }

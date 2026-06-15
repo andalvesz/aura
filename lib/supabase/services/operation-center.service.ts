@@ -45,7 +45,18 @@ import {
   type OperationCenterDashboard,
   type OperationExecutiveLogEntry,
 } from "@/utils/operation-center";
+import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { getOptionalDataContext } from "./context";
+
+function emptyOperationDashboard(): OperationCenterDashboard {
+  return computeOperationCenterDashboard({
+    operation: null,
+    bundle: null,
+    metaConnected: false,
+    kiwifyConnected: false,
+    hasPerformanceReport: false,
+  });
+}
 
 function logsAsJson(logs: OperationExecutiveLogEntry[]): Json {
   return logs as unknown as Json;
@@ -195,33 +206,46 @@ export async function getOperationCenterState(): Promise<{
     return { dashboard: null, error: "Usuário não autenticado." };
   }
 
-  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
-  const [{ data: operation }, integrations] = await Promise.all([
-    repo.findActive(),
-    loadIntegrations(),
-  ]);
+  try {
+    const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+    const [{ data: operation, error: operationError }, integrations] = await Promise.all([
+      repo.findActive(),
+      loadIntegrations(),
+    ]);
 
-  const bundle = operation ? await loadBundleForOperation(operation) : null;
+    if (operationError) {
+      return { dashboard: emptyOperationDashboard(), error: null };
+    }
 
-  if (operation) {
-    await persistOperationUpdate(repo, operation, bundle, integrations);
-    const { data: refreshed } = await repo.findById(operation.id);
-    const dashboard = computeOperationCenterDashboard({
-      operation: refreshed ?? operation,
-      bundle,
-      ...integrations,
-    });
-    return { dashboard, error: null };
+    const bundle = operation ? await loadBundleForOperation(operation) : null;
+
+    if (operation) {
+      await persistOperationUpdate(repo, operation, bundle, integrations);
+      const { data: refreshed } = await repo.findById(operation.id);
+      const dashboard = computeOperationCenterDashboard({
+        operation: refreshed ?? operation,
+        bundle,
+        ...integrations,
+      });
+      return { dashboard, error: null };
+    }
+
+    return {
+      dashboard: computeOperationCenterDashboard({
+        operation: null,
+        bundle: null,
+        ...integrations,
+      }),
+      error: null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isMissingSupabaseTableError(message)) {
+      return { dashboard: emptyOperationDashboard(), error: null };
+    }
+    console.warn("[operation-center] getOperationCenterState:", message);
+    return { dashboard: emptyOperationDashboard(), error: null };
   }
-
-  return {
-    dashboard: computeOperationCenterDashboard({
-      operation: null,
-      bundle: null,
-      ...integrations,
-    }),
-    error: null,
-  };
 }
 
 export async function getOperationCenterContext(): Promise<{

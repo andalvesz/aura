@@ -68,10 +68,18 @@ export async function listAuraMemories(
   try {
     const repo = new AiMemoriesRepository(ctx.supabase, ctx.userId);
     const { data, error } = await repo.search(options);
-    if (error) return { memories: [], error };
+    if (error) {
+      if (isMissingSupabaseTableError(error)) {
+        return { memories: [], error: null };
+      }
+      return { memories: [], error };
+    }
     return { memories: data ?? [], error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (isMissingSupabaseTableError(message)) {
+      return { memories: [], error: null };
+    }
     return { memories: [], error: message };
   }
 }
