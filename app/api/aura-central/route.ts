@@ -105,7 +105,7 @@ import {
   detectMetaCoachMode,
 } from "@/utils/meta-intelligence";
 import { getKiwifyIntelligence } from "@/lib/supabase/services/kiwify-intelligence.service";
-import { getMetaIntelligence } from "@/lib/supabase/services/meta-connect.service";
+import { getMetaIntelligence } from "@/lib/supabase/services/meta-intelligence.service";
 import { MoneyMissionPlansRepository } from "@/lib/supabase/repositories/money.repository";
 import {
   buildGlobalCoachReply,
@@ -480,6 +480,7 @@ export async function POST(req: Request) {
         displayName,
         metrics: intelligence.metrics,
         pixels: intelligence.pixels,
+        insights: intelligence.insights,
       });
 
       await persistAiTurn("aura_central", message, text, {

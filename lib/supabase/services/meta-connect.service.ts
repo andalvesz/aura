@@ -7,12 +7,14 @@ import {
   listMetaAdSets,
   listMetaBusinessManagers,
   listMetaCampaigns,
+  listMetaCustomAudiences,
   listMetaPages,
   listMetaPixels,
   testMetaConnection,
   updateMetaCampaignStatus,
   type MetaAd,
   type MetaAdSet,
+  type MetaAudience,
   type MetaBusinessManager,
   type MetaPage,
   type MetaPixel,
@@ -31,7 +33,6 @@ import type { MetaCampaignAction } from "@/utils/integrations";
 import {
   computeMetaIntelligenceMetrics,
   META_READ_ONLY_MODE,
-  type MetaIntelligencePayload,
 } from "@/utils/meta-intelligence";
 import { getOptionalDataContext } from "./context";
 import { logIntegrationAction } from "./integration-logs.service";
@@ -53,19 +54,22 @@ async function fetchMetaLiveEntities(token: string, adAccountExternalIds: string
   const pixels: MetaPixel[] = [];
   const adSets: MetaAdSet[] = [];
   const ads: MetaAd[] = [];
+  const audiences: MetaAudience[] = [];
 
   for (const accountId of adAccountExternalIds.slice(0, 10)) {
-    const [accountPixels, accountAdSets, accountAds] = await Promise.all([
+    const [accountPixels, accountAdSets, accountAds, accountAudiences] = await Promise.all([
       listMetaPixels(token, accountId).catch(() => [] as MetaPixel[]),
       listMetaAdSets(token, accountId).catch(() => [] as MetaAdSet[]),
       listMetaAds(token, accountId).catch(() => [] as MetaAd[]),
+      listMetaCustomAudiences(token, accountId).catch(() => [] as MetaAudience[]),
     ]);
     pixels.push(...accountPixels);
     adSets.push(...accountAdSets);
     ads.push(...accountAds);
+    audiences.push(...accountAudiences);
   }
 
-  return { businessManagers, pages, pixels, adSets, ads };
+  return { businessManagers, pages, pixels, adSets, ads, audiences };
 }
 
 export async function getMetaConnectDashboard() {
@@ -96,6 +100,7 @@ export async function getMetaConnectDashboard() {
   let pixels: MetaPixel[] = [];
   let adSets: MetaAdSet[] = [];
   let ads: MetaAd[] = [];
+  let audiences: MetaAudience[] = [];
 
   if (connection.data?.status === "connected" && connection.data.access_token_encrypted) {
     try {
@@ -109,6 +114,7 @@ export async function getMetaConnectDashboard() {
       pixels = live.pixels;
       adSets = live.adSets;
       ads = live.ads;
+      audiences = live.audiences;
     } catch {
       // Live fetch optional — DB data still returned
     }
@@ -126,8 +132,11 @@ export async function getMetaConnectDashboard() {
     businessManagers,
     pages,
     pixels,
+    audiences,
     adSets,
     ads,
+    campaigns,
+    metricsMap,
   });
 
   return {
@@ -144,32 +153,9 @@ export async function getMetaConnectDashboard() {
       pixels,
       adSets,
       ads,
+      audiences,
       metrics: intelligenceMetrics,
       readOnly: META_READ_ONLY_MODE,
-    },
-  };
-}
-
-export async function getMetaIntelligence(): Promise<{
-  error: string | null;
-  data: MetaIntelligencePayload | null;
-}> {
-  const result = await getMetaConnectDashboard();
-  if (result.error || !result.data) {
-    return { error: result.error ?? "Erro ao carregar Meta.", data: null };
-  }
-
-  return {
-    error: null,
-    data: {
-      connection: result.data.connection,
-      businessManagers: result.data.businessManagers,
-      pages: result.data.pages,
-      pixels: result.data.pixels,
-      adSets: result.data.adSets,
-      ads: result.data.ads,
-      metrics: result.data.metrics,
-      readOnly: result.data.readOnly,
     },
   };
 }
@@ -348,7 +334,7 @@ export async function syncMetaConnection() {
             impressions: insights.impressions,
             clicks: insights.clicks,
             conversions: insights.conversions,
-            frequency: insights.clicks > 0 ? insights.impressions / insights.clicks : 0,
+            frequency: insights.frequency,
             budget_spent_pct: Math.round(budgetPct * 100) / 100,
             metrics_date: todayIsoDate(),
             raw_metrics: insights as unknown as Json,

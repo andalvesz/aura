@@ -127,10 +127,12 @@ export async function fetchMetaCampaignInsights(
       spend?: string;
       ctr?: string;
       cpc?: string;
+      cpm?: string;
+      frequency?: string;
       actions?: Array<{ action_type: string; value: string }>;
     }>;
   }>(
-    `/${externalCampaignId}/insights?fields=impressions,clicks,spend,ctr,cpc,actions&date_preset=last_7d`,
+    `/${externalCampaignId}/insights?fields=impressions,clicks,spend,ctr,cpc,cpm,frequency,actions&date_preset=last_7d`,
     accessToken
   );
 
@@ -141,6 +143,9 @@ export async function fetchMetaCampaignInsights(
       clicks: 0,
       spendCents: 0,
       ctr: 0,
+      cpc: 0,
+      cpm: 0,
+      frequency: 0,
       cpa: 0,
       roas: 0,
       conversions: 0,
@@ -151,6 +156,9 @@ export async function fetchMetaCampaignInsights(
   const clicks = Number(row.clicks ?? 0);
   const spend = Number(row.spend ?? 0);
   const ctr = Number(row.ctr ?? 0);
+  const cpc = Number(row.cpc ?? 0);
+  const cpm = Number(row.cpm ?? 0);
+  const frequency = Number(row.frequency ?? 0);
   const conversions =
     row.actions?.find((a) => a.action_type === "purchase")?.value ?? 0;
   const convCount = Number(conversions);
@@ -162,6 +170,9 @@ export async function fetchMetaCampaignInsights(
     clicks,
     spendCents: Math.round(spend * 100),
     ctr: Math.round(ctr * 100) / 100,
+    cpc: Math.round(cpc * 100) / 100,
+    cpm: Math.round(cpm * 100) / 100,
+    frequency: Math.round(frequency * 100) / 100,
     cpa: Math.round(cpa * 100) / 100,
     roas: Math.round(roas * 100) / 100,
     conversions: convCount,
@@ -217,6 +228,14 @@ export type MetaAd = {
   effectiveStatus: string;
   adSetId: string | null;
   campaignId: string | null;
+  adAccountId: string;
+};
+
+export type MetaAudience = {
+  id: string;
+  name: string;
+  approximateCount: number;
+  subtype: string | null;
   adAccountId: string;
 };
 
@@ -322,6 +341,31 @@ export async function listMetaAds(
     effectiveStatus: ad.effective_status ?? ad.status ?? "UNKNOWN",
     adSetId: ad.adset_id ?? null,
     campaignId: ad.campaign_id ?? null,
+    adAccountId: adAccountExternalId,
+  }));
+}
+
+export async function listMetaCustomAudiences(
+  accessToken: string,
+  adAccountExternalId: string
+): Promise<MetaAudience[]> {
+  const data = await metaFetch<{
+    data?: Array<{
+      id: string;
+      name?: string;
+      approximate_count?: number;
+      subtype?: string;
+    }>;
+  }>(
+    `/${actId(adAccountExternalId)}/customaudiences?fields=id,name,approximate_count,subtype&limit=50`,
+    accessToken
+  );
+
+  return (data.data ?? []).map((audience) => ({
+    id: audience.id,
+    name: audience.name ?? audience.id,
+    approximateCount: audience.approximate_count ?? 0,
+    subtype: audience.subtype ?? null,
     adAccountId: adAccountExternalId,
   }));
 }

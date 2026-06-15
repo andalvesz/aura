@@ -40,6 +40,7 @@ import { getResolvedUserBudget } from "@/lib/supabase/services/campaign-budget.s
 import { getResolvedUserLocale } from "@/lib/supabase/services/creator-locale.service";
 import { getPlatformsContext } from "@/lib/supabase/services/platform-hub.service";
 import { getKiwifyIntelligenceContext } from "@/lib/supabase/services/kiwify-intelligence.service";
+import { getMetaIntelligenceContext } from "@/lib/supabase/services/meta-intelligence.service";
 import { listAuraMemories } from "@/lib/supabase/services/ai-memories.service";
 import type { CreatorProductBundle } from "@/utils/creator";
 import { rankProductsForLaunch } from "@/utils/creator";
@@ -167,6 +168,7 @@ async function loadBrainData(userId: string) {
     adsForAutopilotRes,
     platforms,
     kiwifyIntelligence,
+    metaIntelligence,
     globalMarketsRes,
     globalStrategiesRes,
     globalResultsRes,
@@ -201,6 +203,7 @@ async function loadBrainData(userId: string) {
     loadAdsCampaigns(),
     getPlatformsContext(),
     getKiwifyIntelligenceContext(),
+    getMetaIntelligenceContext(),
     new GlobalMarketsRepository(supabase, userId).findAllOrdered(),
     new GlobalStrategiesRepository(supabase, userId).findAllOrdered(),
     new GlobalResultsRepository(supabase, userId).findAllOrdered(),
@@ -320,8 +323,8 @@ async function loadBrainData(userId: string) {
           .map((c) => `• ${c.nome ?? "Campanha"} — ${c.status ?? "—"}`)
           .join("\n")}`
       : "",
-    platforms.context || kiwifyIntelligence.context
-      ? `**Plataformas:**\n${[platforms.context, kiwifyIntelligence.context].filter(Boolean).join("\n").slice(0, 600)}`
+    platforms.context || kiwifyIntelligence.context || metaIntelligence.context
+      ? `**Plataformas:**\n${[platforms.context, kiwifyIntelligence.context, metaIntelligence.context].filter(Boolean).join("\n").slice(0, 800)}`
       : "",
     copylab.records.length > 0
       ? `**CopyLab:**\n${copylab.records
@@ -476,7 +479,7 @@ async function loadBrainData(userId: string) {
         .map((m) => m.titulo)
         .join(", ") || "",
     autopilot: autopilotContext,
-    platforms: [platforms.context, kiwifyIntelligence.context].filter(Boolean).join("\n\n"),
+    platforms: [platforms.context, kiwifyIntelligence.context, metaIntelligence.context].filter(Boolean).join("\n\n"),
     global: globalContext,
     knowledge: knowledgeContext,
   };

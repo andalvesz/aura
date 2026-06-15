@@ -71,7 +71,10 @@ Tom de conselheiro executivo, orientado a ação.`;
 export const CEO_EXAMPLE_QUESTIONS = [
   "Como ganho R$ 20.000?",
   "Quanto lucrei esse mês?",
-  "Quantas campanhas tenho?",
+  "Qual minha melhor campanha?",
+  "Qual anúncio está ruim?",
+  "Quanto estou gastando?",
+  "Qual campanha devo escalar?",
   "Qual conta está conectada?",
   "Qual Pixel está ativo?",
   "Quanto posso investir?",

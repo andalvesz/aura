@@ -1,20 +1,20 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { ModuleHeader } from "@/components/dashboard/module-header";
-import { MetaConnectView } from "@/components/dashboard/modules/meta-connect-view";
+import { MetaIntelligenceView } from "@/components/dashboard/modules/meta-intelligence-view";
 import { ListSkeleton } from "@/components/dashboard/loading-skeleton";
 import { getModule } from "@/lib/modules";
 
-export default function PlatformsMetaPage() {
+export default function PlatformsMetaIntelligencePage() {
   const mod = getModule("platforms");
   return (
     <div className="space-y-3">
       <ModuleHeader
         module={{
           ...mod,
-          label: "Meta Connect",
+          label: "Meta Intelligence",
           description:
-            "Conecte a Aura ao Meta Business — Business Managers, contas, páginas, Pixels, campanhas e anúncios em modo somente leitura.",
+            "Inteligência de marketing com dados reais da Meta — métricas, Performance AI, Revenue Center e Autopilot.",
         }}
       />
       <nav className="flex gap-2 text-[11px]">
@@ -22,17 +22,14 @@ export default function PlatformsMetaPage() {
           Platform Hub
         </Link>
         <span className="text-zinc-600">/</span>
-        <span className="text-sky-300">Meta Connect</span>
-        <span className="text-zinc-600">·</span>
-        <Link
-          href="/dashboard/platforms/meta/intelligence"
-          className="text-sky-400 hover:text-sky-200"
-        >
-          Meta Intelligence →
+        <Link href="/dashboard/platforms/meta" className="text-zinc-500 hover:text-zinc-300">
+          Meta
         </Link>
+        <span className="text-zinc-600">/</span>
+        <span className="text-sky-300">Intelligence</span>
       </nav>
       <Suspense fallback={<ListSkeleton rows={4} />}>
-        <MetaConnectView readOnly />
+        <MetaIntelligenceView />
       </Suspense>
     </div>
   );

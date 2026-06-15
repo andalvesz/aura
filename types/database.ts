@@ -1832,6 +1832,87 @@ export type MetaCampaignMetric = {
   created_at: string;
 };
 
+export type MetaMetricEntityType =
+  | "account"
+  | "campaign"
+  | "adset"
+  | "ad"
+  | "audience"
+  | "pixel";
+
+export type MetaMetric = {
+  id: string;
+  user_id: string;
+  entity_type: MetaMetricEntityType;
+  entity_id: string;
+  entity_name: string | null;
+  campaign_id: string | null;
+  metrics_date: string;
+  ctr: number;
+  cpc: number;
+  cpm: number;
+  cpa: number;
+  roas: number;
+  frequency: number;
+  daily_spend_cents: number;
+  conversions: number;
+  impressions: number;
+  clicks: number;
+  spend_cents: number;
+  raw_metrics: Json;
+  created_at: string;
+};
+
+export type MetaInsightType =
+  | "saturated_creative"
+  | "low_ctr"
+  | "high_cpc"
+  | "bad_audience"
+  | "promising_campaign"
+  | "scale_opportunity"
+  | "pause_alert"
+  | "revenue_gap";
+
+export type MetaInsightSeverity = "info" | "warning" | "success" | "critical";
+
+export type MetaInsight = {
+  id: string;
+  user_id: string;
+  insight_type: MetaInsightType;
+  title: string;
+  summary: string;
+  recommendation: string | null;
+  severity: MetaInsightSeverity;
+  entity_type: string | null;
+  entity_id: string | null;
+  entity_name: string | null;
+  metrics_snapshot: Json;
+  created_at: string;
+  expires_at: string | null;
+};
+
+export type MetaRecommendationActionType =
+  | "generate_creative"
+  | "generate_copy"
+  | "suggest_pause"
+  | "suggest_scale";
+
+export type MetaRecommendationStatus = "pending" | "approved" | "rejected" | "executed";
+
+export type MetaRecommendation = {
+  id: string;
+  user_id: string;
+  action_type: MetaRecommendationActionType;
+  status: MetaRecommendationStatus;
+  campaign_id: string | null;
+  title: string;
+  summary: string;
+  details: Json;
+  requires_approval: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type KiwifyConnection = {
   id: string;
   user_id: string;
@@ -4079,6 +4160,39 @@ export type Database = {
           created_at?: string;
         }
       >;
+      meta_metrics: TableDef<
+        MetaMetric,
+        Omit<MetaMetric, "id" | "created_at"> & {
+          id?: string;
+          entity_name?: string | null;
+          campaign_id?: string | null;
+          raw_metrics?: Json;
+          created_at?: string;
+        }
+      >;
+      meta_insights: TableDef<
+        MetaInsight,
+        Omit<MetaInsight, "id" | "created_at"> & {
+          id?: string;
+          recommendation?: string | null;
+          entity_type?: string | null;
+          entity_id?: string | null;
+          entity_name?: string | null;
+          metrics_snapshot?: Json;
+          expires_at?: string | null;
+          created_at?: string;
+        }
+      >;
+      meta_recommendations: TableDef<
+        MetaRecommendation,
+        Omit<MetaRecommendation, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          campaign_id?: string | null;
+          details?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       kiwify_connections: TableDef<
         KiwifyConnection,
         Omit<KiwifyConnection, "id" | "created_at" | "updated_at"> & {
@@ -4294,6 +4408,9 @@ export type UserScopedTable =
   | "meta_ad_accounts"
   | "meta_campaigns"
   | "meta_campaign_metrics"
+  | "meta_metrics"
+  | "meta_insights"
+  | "meta_recommendations"
   | "kiwify_connections"
   | "kiwify_products"
   | "kiwify_sales"
