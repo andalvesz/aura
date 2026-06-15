@@ -81,6 +81,10 @@ import {
   isCeoIntegrationMode,
 } from "@/utils/ceo";
 import {
+  buildSmartLaunchCoachReply,
+  detectSmartLaunchCoachMode,
+} from "@/utils/smart-launch";
+import {
   buildPerformanceCoachReply,
   detectPerformanceCoachMode,
 } from "@/utils/performance";
@@ -123,6 +127,7 @@ import { getLaunchDashboard } from "@/lib/supabase/services/launch.service";
 import { getMoneyDashboard } from "@/lib/supabase/services/money.service";
 import { getRevenueDashboard } from "@/lib/supabase/services/revenue.service";
 import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
+import { getSmartLaunchDashboard } from "@/lib/supabase/services/smart-launch.service";
 import {
   getIntegrationCenterSummaryForCeo,
   syncAllIntegrations,
@@ -527,6 +532,40 @@ export async function POST(req: Request) {
         module: "platforms",
         kind: "coach",
         coachMode: kiwifyMode,
+      });
+    }
+
+    const smartLaunchMode = detectSmartLaunchCoachMode(message);
+    if (smartLaunchMode) {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return Response.json({ error: "Faça login para usar a Aura Coach." }, { status: 401 });
+      }
+
+      const displayName = await resolveUserDisplayName(ctx);
+      const { dashboard, sessions } = await getSmartLaunchDashboard();
+
+      if (!dashboard) {
+        return Response.json({ error: "Erro ao carregar Smart Launch." }, { status: 500 });
+      }
+
+      const text = buildSmartLaunchCoachReply({
+        mode: smartLaunchMode,
+        displayName,
+        dashboard,
+        sessions: sessions ?? [],
+      });
+
+      await persistAiTurn("aura_central", message, text, {
+        kind: "coach",
+        coachMode: smartLaunchMode,
+      });
+
+      return Response.json({
+        text,
+        module: "smart-launch",
+        kind: "coach",
+        coachMode: smartLaunchMode,
       });
     }
 

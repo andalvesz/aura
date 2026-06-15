@@ -1519,6 +1519,39 @@ export type PerformanceInsight = {
 
 export type OrchestrationStatus = "draft" | "prepared" | "completed";
 
+export type SmartLaunchProductType = "proprio" | "afiliado";
+export type SmartLaunchStatus = "draft" | "preparing" | "prepared" | "failed";
+
+export type AuraSmartLaunchSession = {
+  id: string;
+  user_id: string;
+  product_type: SmartLaunchProductType;
+  target_country: string;
+  target_language: string;
+  currency: string;
+  meta_financeira: number | null;
+  orcamento_disponivel: number | null;
+  current_step: number;
+  status: SmartLaunchStatus;
+  safe_mode: boolean;
+  ideia: string | null;
+  nicho: string | null;
+  product_id: string | null;
+  research_id: string | null;
+  copylab_id: string | null;
+  factory_id: string | null;
+  landing_id: string | null;
+  asset_id: string | null;
+  ads_campaign_id: string | null;
+  orchestration_id: string | null;
+  smart_score: Json;
+  generated_outputs: Json;
+  estrategia: string | null;
+  resumo: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorCampaignOrchestration = {
   id: string;
   user_id: string;
@@ -3078,6 +3111,65 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      aura_smart_launch_sessions: TableDef<
+        AuraSmartLaunchSession,
+        Omit<
+          AuraSmartLaunchSession,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "product_type"
+          | "target_country"
+          | "target_language"
+          | "currency"
+          | "meta_financeira"
+          | "orcamento_disponivel"
+          | "current_step"
+          | "status"
+          | "safe_mode"
+          | "ideia"
+          | "nicho"
+          | "product_id"
+          | "research_id"
+          | "copylab_id"
+          | "factory_id"
+          | "landing_id"
+          | "asset_id"
+          | "ads_campaign_id"
+          | "orchestration_id"
+          | "smart_score"
+          | "generated_outputs"
+          | "estrategia"
+          | "resumo"
+        > & {
+          id?: string;
+          product_type?: SmartLaunchProductType;
+          target_country?: string;
+          target_language?: string;
+          currency?: string;
+          meta_financeira?: number | null;
+          orcamento_disponivel?: number | null;
+          current_step?: number;
+          status?: SmartLaunchStatus;
+          safe_mode?: boolean;
+          ideia?: string | null;
+          nicho?: string | null;
+          product_id?: string | null;
+          research_id?: string | null;
+          copylab_id?: string | null;
+          factory_id?: string | null;
+          landing_id?: string | null;
+          asset_id?: string | null;
+          ads_campaign_id?: string | null;
+          orchestration_id?: string | null;
+          smart_score?: Json;
+          generated_outputs?: Json;
+          estrategia?: string | null;
+          resumo?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       creator_copylab: TableDef<
         CreatorCopylab,
         Omit<
@@ -4386,6 +4478,7 @@ export type UserScopedTable =
   | "money_mission_plans"
   | "money_mission_tasks"
   | "aura_ceo_sessions"
+  | "aura_smart_launch_sessions"
   | "autopilot_monitors"
   | "autopilot_actions"
   | "autopilot_logs"

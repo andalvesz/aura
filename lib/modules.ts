@@ -47,6 +47,7 @@ export type ModuleId =
   | "disney-nba"
   | "legado"
   | "creator"
+  | "smart-launch"
   | "money"
   | "revenue"
   | "ceo"
@@ -259,6 +260,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Produtos",
       value: "0",
       hint: "Pipeline inteligente com checklist e ROI",
+    },
+  },
+  {
+    id: "smart-launch",
+    href: "/dashboard/smart-launch",
+    label: "Aura Smart Launch",
+    shortLabel: "Smart Launch",
+    description:
+      "Fluxo unificado de lançamento — do produto à campanha Meta em modo seguro, com Smart Score e orquestração de todos os módulos.",
+    icon: Rocket,
+    accent: "text-orange-400",
+    overview: {
+      metric: "Smart Score",
+      value: "—",
+      hint: "Prepare um lançamento completo em 4 etapas",
     },
   },
   {

@@ -91,6 +91,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   "disney-nba": "/dashboard/disney-nba",
   legado: "/dashboard/legado",
   creator: "/dashboard/creator",
+  "smart-launch": "/dashboard/smart-launch",
   money: "/dashboard/money",
   revenue: "/dashboard/revenue",
   ceo: "/dashboard/ceo",

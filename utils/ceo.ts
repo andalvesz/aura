@@ -79,6 +79,9 @@ export const CEO_EXAMPLE_QUESTIONS = [
   "Qual Pixel está ativo?",
   "Quanto posso investir?",
   "Qual produto lançar nos EUA?",
+  "Prepare um lançamento",
+  "Qual meu melhor lançamento?",
+  "Quanto preciso investir?",
   "Qual meu melhor projeto hoje?",
   "O que devo priorizar?",
 ] as const;
