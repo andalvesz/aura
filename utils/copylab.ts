@@ -129,6 +129,34 @@ export function intakeFromProductBundle(bundle: CreatorProductBundle): CopylabIn
   };
 }
 
+export function intakeFromProductName(
+  name: string,
+  options?: {
+    productId?: string | null;
+    problema?: string | null;
+    solucao?: string | null;
+    promessa?: string | null;
+  }
+): CopylabIntake {
+  const trimmed = name.trim();
+
+  return {
+    nome: trimmed,
+    avatar: "Cliente ideal do produto",
+    problema:
+      options?.problema?.trim() ||
+      `Desafio que ${trimmed} resolve para o público-alvo.`,
+    solucao:
+      options?.solucao?.trim() ||
+      `Benefícios e transformação entregues por ${trimmed}.`,
+    promessa: options?.promessa?.trim() || trimmed,
+    diferencial: "Proposta única alinhada ao plano estratégico da operação.",
+    preco: null,
+    product_id: options?.productId ?? null,
+    ...localeFieldsFromSource(),
+  };
+}
+
 export function computeCopylabDashboard(
   records: CreatorCopylab[]
 ): CopylabDashboardMetrics {

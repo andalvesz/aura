@@ -1,4 +1,5 @@
 import { recordSystemLog } from "@/lib/logs/record";
+import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
 import { OperationCenterRepository } from "@/lib/supabase/repositories/operation-center.repository";
 import { saveAuraMemory } from "@/lib/supabase/services/ai-memories.service";
 import { getResolvedUserBudget } from "@/lib/supabase/services/campaign-budget.service";
@@ -20,11 +21,17 @@ import { getRevenueDashboard } from "@/lib/supabase/services/revenue.service";
 import type {
   AuraCeoSession,
   Json,
+  KiwifyProduct,
   OperationCenter,
   TableInsert,
   TableUpdate,
 } from "@/types/database";
-import { intakeFromProductBundle as copyIntakeFromBundle } from "@/utils/copylab";
+import type { CeoOpportunityRadar } from "@/utils/ceo";
+import {
+  intakeFromProductBundle as copyIntakeFromBundle,
+  intakeFromProductName,
+  type CopylabIntake,
+} from "@/utils/copylab";
 import { rankProductsForLaunch, type CreatorProductBundle } from "@/utils/creator";
 import { intakeFromProductBundle as studioIntakeFromBundle } from "@/utils/creative-studio";
 import { intakeFromProductBundle as landingIntakeFromBundle } from "@/utils/landing-builder";
@@ -48,6 +55,12 @@ import {
   type OperationCenterDashboard,
   type OperationExecutiveLogEntry,
 } from "@/utils/operation-center";
+import {
+  matchKiwifyProductByHints,
+  pickTopKiwifyCatalogProduct,
+  resolveOperationProductName,
+  type OperationProductSource,
+} from "@/utils/operation-product";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 import { getOptionalDataContext } from "./context";
 
@@ -107,6 +120,262 @@ async function loadBundleForOperation(
     return bundles.find((b) => b.product.id === operation.product_id) ?? null;
   }
   return rankProductsForLaunch(bundles)[0] ?? null;
+}
+
+type ResolvedOperationProduct = {
+  productId: string | null;
+  productName: string | null;
+  source: OperationProductSource | "none";
+  kiwifyProductId: string | null;
+};
+
+function readOperationMetadata(operation: OperationCenter): Record<string, unknown> {
+  if (!operation.metadata || typeof operation.metadata !== "object" || Array.isArray(operation.metadata)) {
+    return {};
+  }
+  return operation.metadata as Record<string, unknown>;
+}
+
+async function ensureCreatorProductFromKiwify(
+  kiwifyProduct: KiwifyProduct,
+  session?: AuraCeoSession | null
+): Promise<{ productId: string; productName: string } | null> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return null;
+
+  const { bundles } = await loadCreatorBundles();
+  const existing = bundles.find(
+    (bundle) => bundle.product.nome?.trim().toLowerCase() === kiwifyProduct.name.trim().toLowerCase()
+  );
+  if (existing?.product.id) {
+    return {
+      productId: existing.product.id,
+      productName: existing.product.nome ?? kiwifyProduct.name,
+    };
+  }
+
+  const price = kiwifyProduct.price_cents ? kiwifyProduct.price_cents / 100 : 197;
+  const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
+  const { data: product, error } = await productsRepo.create({
+    status: "validacao",
+    nome: kiwifyProduct.name,
+    nicho: "Kiwify",
+    promessa: kiwifyProduct.name,
+    problema: session?.resumo_executivo?.slice(0, 240) ?? "Produto importado da Kiwify para operação CEO.",
+    solucao: session?.plano_acao?.slice(0, 240) ?? "Executar campanha com base no plano estratégico CEO.",
+    avatar: "Cliente ideal do produto Kiwify",
+    publico_alvo: "Público comprador do produto digital",
+    faixa_preco_min: price,
+    faixa_preco_max: price,
+    probabilidade_venda: kiwifyProduct.affiliate_score ?? 65,
+    investimento_previsto: null,
+    receita_prevista: null,
+    roi_estimado: null,
+    used_aura_data: true,
+    target_country: "BR",
+    target_language: "pt-BR",
+    currency: kiwifyProduct.currency || "BRL",
+  } satisfies Omit<TableInsert<"creator_products">, "user_id">);
+
+  if (error || !product) {
+    console.error("[operation] ensureCreatorProductFromKiwify failed", {
+      kiwifyProductId: kiwifyProduct.id,
+      error,
+    });
+    return null;
+  }
+
+  console.info("[operation] product persisted", {
+    source: "kiwify_synced",
+    productId: product.id,
+    productName: product.nome,
+    kiwifyProductId: kiwifyProduct.id,
+  });
+
+  return {
+    productId: product.id,
+    productName: product.nome ?? kiwifyProduct.name,
+  };
+}
+
+async function resolveOperationProductForCeo(params: {
+  explicitProductId?: string | null;
+  explicitProductName?: string | null;
+  session?: AuraCeoSession | null;
+  radar?: CeoOpportunityRadar | null;
+  pergunta?: string | null;
+  resumoExecutivo?: string | null;
+  planoAcao?: string | null;
+}): Promise<ResolvedOperationProduct> {
+  const { bundles } = await loadCreatorBundles();
+
+  if (params.explicitProductId) {
+    const linked = bundles.find((bundle) => bundle.product.id === params.explicitProductId);
+    if (linked) {
+      return {
+        productId: linked.product.id,
+        productName: params.explicitProductName ?? linked.product.nome ?? linked.product.nicho ?? null,
+        source: "creator",
+        kiwifyProductId: null,
+      };
+    }
+
+    return {
+      productId: params.explicitProductId,
+      productName: params.explicitProductName ?? null,
+      source: "none",
+      kiwifyProductId: null,
+    };
+  }
+
+  const ranked = rankProductsForLaunch(bundles);
+  if (ranked[0]) {
+    return {
+      productId: ranked[0].product.id,
+      productName: ranked[0].product.nome ?? ranked[0].product.nicho ?? null,
+      source: "creator",
+      kiwifyProductId: null,
+    };
+  }
+
+  const kiwify = await getKiwifyIntelligence();
+  if (!kiwify.data?.connected || kiwify.data.products.length === 0) {
+    return {
+      productId: null,
+      productName: params.explicitProductName ?? null,
+      source: "none",
+      kiwifyProductId: null,
+    };
+  }
+
+  const hints = [
+    params.radar?.melhorOportunidade.titulo,
+    params.radar?.maisLucrativo.titulo,
+    params.radar?.maisRapido.titulo,
+    params.pergunta,
+    params.session?.pergunta,
+    params.session?.resumo_executivo,
+    params.resumoExecutivo,
+    params.planoAcao,
+    params.explicitProductName,
+  ].filter((hint): hint is string => Boolean(hint?.trim()));
+
+  const matched =
+    matchKiwifyProductByHints(kiwify.data.products, hints) ??
+    pickTopKiwifyCatalogProduct(
+      kiwify.data.products,
+      kiwify.data.metrics.topSellingProducts.map((product) => product.name)
+    );
+
+  if (!matched) {
+    return {
+      productId: null,
+      productName: params.explicitProductName ?? null,
+      source: "none",
+      kiwifyProductId: null,
+    };
+  }
+
+  const synced = await ensureCreatorProductFromKiwify(matched, params.session);
+  if (!synced) {
+    return {
+      productId: null,
+      productName: matched.name,
+      source: "kiwify",
+      kiwifyProductId: matched.id,
+    };
+  }
+
+  console.info("[operation] product selected", {
+    source: "kiwify_synced",
+    productId: synced.productId,
+    productName: synced.productName,
+    kiwifyProductId: matched.id,
+  });
+
+  return {
+    productId: synced.productId,
+    productName: synced.productName,
+    source: "kiwify_synced",
+    kiwifyProductId: matched.id,
+  };
+}
+
+async function ensureOperationProductLinked(
+  repo: OperationCenterRepository,
+  operation: OperationCenter,
+  hints?: {
+    session?: AuraCeoSession | null;
+    radar?: CeoOpportunityRadar | null;
+    pergunta?: string | null;
+  }
+): Promise<OperationCenter> {
+  const bundle = await loadBundleForOperation(operation);
+  if (
+    operation.product_id &&
+    operation.product_nome &&
+    bundle &&
+    bundle.product.id === operation.product_id
+  ) {
+    return operation;
+  }
+
+  const metadata = readOperationMetadata(operation);
+  const resolved = await resolveOperationProductForCeo({
+    explicitProductId: operation.product_id,
+    explicitProductName: operation.product_nome,
+    session: hints?.session ?? null,
+    radar: hints?.radar ?? null,
+    pergunta: hints?.pergunta ?? (typeof metadata.pergunta === "string" ? metadata.pergunta : null),
+    resumoExecutivo:
+      typeof metadata.resumo_executivo === "string" ? metadata.resumo_executivo : null,
+    planoAcao: typeof metadata.plano_acao === "string" ? metadata.plano_acao : null,
+  });
+
+  if (!resolved.productId) {
+    console.warn("[operation] product selected: none", {
+      operationId: operation.id,
+      productName: resolved.productName,
+      source: resolved.source,
+    });
+    return operation;
+  }
+
+  if (
+    resolved.source === "none" &&
+    operation.product_id === resolved.productId &&
+    operation.product_nome?.trim()
+  ) {
+    return operation;
+  }
+
+  const { data: updated, error } = await repo.update(operation.id, {
+    product_id: resolved.productId,
+    product_nome: resolved.productName ?? operation.product_nome,
+    metadata: {
+      ...metadata,
+      product_source: resolved.source,
+      kiwify_product_id: resolved.kiwifyProductId,
+    } as Json,
+  });
+
+  if (error || !updated) {
+    console.error("[operation] operation updated failed", {
+      operationId: operation.id,
+      productId: resolved.productId,
+      error,
+    });
+    return operation;
+  }
+
+  console.info("[operation] operation updated", {
+    operationId: updated.id,
+    productId: updated.product_id,
+    productName: updated.product_nome,
+    source: resolved.source,
+  });
+
+  return updated as OperationCenter;
 }
 
 async function loadIntegrations() {
@@ -243,6 +512,16 @@ async function persistOperationUpdate(
     ...extra,
   });
 
+  const updated = data as OperationCenter | null;
+
+  console.info("[operation] operation updated", {
+    operationId: operation.id,
+    productId: updated?.product_id ?? operation.product_id,
+    productName: updated?.product_nome ?? operation.product_nome,
+    copy: steps.copy,
+    operationalScore,
+  });
+
   console.info("[ceo-operation] steps recomputed", {
     operationId: operation.id,
     copy: steps.copy,
@@ -250,7 +529,6 @@ async function persistOperationUpdate(
     operationalScore,
   });
 
-  const updated = data as OperationCenter | null;
   if (error || !updated) {
     console.error("[operation-center] persistOperationUpdate failed:", error, {
       operationId: operation.id,
@@ -333,14 +611,21 @@ export async function getOperationCenterState(): Promise<{
       return { dashboard: emptyOperationDashboard(), error: null };
     }
 
-    const integrations = await loadIntegrations();
-    const bundle = await loadBundleForOperation(operation);
+    const metadata = readOperationMetadata(operation);
+    const linkedOperation = await ensureOperationProductLinked(repo, operation, {
+      pergunta: typeof metadata.pergunta === "string" ? metadata.pergunta : null,
+    });
 
-    await persistOperationUpdate(repo, operation, bundle, integrations);
-    const { data: refreshed } = await repo.findById(operation.id);
+    const integrations = await loadIntegrations();
+    const bundle = await loadBundleForOperation(linkedOperation);
+
+    await persistOperationUpdate(repo, linkedOperation, bundle, integrations);
+    const { data: refreshed } = await repo.findById(linkedOperation.id);
+    const finalOperation = refreshed ?? linkedOperation;
+    const finalBundle = await loadBundleForOperation(finalOperation);
     const dashboard = computeOperationCenterDashboard({
-      operation: refreshed ?? operation,
-      bundle,
+      operation: finalOperation,
+      bundle: finalBundle,
       ...integrations,
     });
     return { dashboard, error: null };
@@ -369,6 +654,8 @@ export async function upsertOperationFromCeo(params: {
   session: AuraCeoSession;
   productId?: string | null;
   productName?: string | null;
+  radar?: CeoOpportunityRadar | null;
+  pergunta?: string | null;
 }): Promise<{ operation: OperationCenter | null; error: string | null }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return { operation: null, error: "Usuário não autenticado." };
@@ -378,17 +665,24 @@ export async function upsertOperationFromCeo(params: {
     ceoSessionId: params.session.id,
   });
 
-  let productId = params.productId ?? null;
-  let productName = params.productName ?? null;
+  const resolved = await resolveOperationProductForCeo({
+    explicitProductId: params.productId ?? null,
+    explicitProductName: params.productName ?? null,
+    session: params.session,
+    radar: params.radar ?? null,
+    pergunta: params.pergunta ?? null,
+  });
 
-  if (!productId) {
-    const { bundles } = await loadCreatorBundles();
-    const ranked = rankProductsForLaunch(bundles);
-    if (ranked[0]) {
-      productId = ranked[0].product.id;
-      productName = ranked[0].product.nome ?? ranked[0].product.nicho ?? null;
-    }
-  }
+  const productId = resolved.productId;
+  const productName = resolved.productName;
+
+  console.info("[operation] product selected", {
+    ceoSessionId: params.session.id,
+    productId,
+    productName,
+    source: resolved.source,
+    kiwifyProductId: resolved.kiwifyProductId,
+  });
 
   const titulo =
     productName ??
@@ -412,6 +706,9 @@ export async function upsertOperationFromCeo(params: {
     status: "preparing" as const,
     metadata: {
       ceo_session_id: params.session.id,
+      pergunta: params.pergunta ?? params.session.pergunta,
+      product_source: resolved.source,
+      kiwify_product_id: resolved.kiwifyProductId,
       resumo_executivo: params.session.resumo_executivo,
       prioridades: params.session.prioridades,
       riscos: params.session.riscos,
@@ -445,6 +742,12 @@ export async function upsertOperationFromCeo(params: {
       return { operation: null, error: error ?? "Erro ao atualizar operação." };
     }
     operation = data as OperationCenter;
+    console.info("[operation] product persisted", {
+      operationId: operation.id,
+      productId: operation.product_id,
+      productName: operation.product_nome,
+      mode: "update",
+    });
     console.info("[operation-center] upsertOperationFromCeo: updated", {
       operationId: operation.id,
       ceoSessionId: params.session.id,
@@ -462,33 +765,31 @@ export async function upsertOperationFromCeo(params: {
 
     let { data, error } = await tryCreate(operationFields);
 
-    if ((error || !data) && operationFields.product_id) {
-      console.warn("[operation-center] upsertOperationFromCeo: retry create without product_id", {
-        ceoSessionId: params.session.id,
-        error,
-      });
-      ({ data, error } = await tryCreate({
-        ...operationFields,
-        product_id: null,
-        product_nome: operationFields.product_nome ?? operationFields.titulo,
-      }));
-    }
-
     if (error || !data) {
       console.error("[operation-center] upsertOperationFromCeo: create failed", {
         ceoSessionId: params.session.id,
+        productId: operationFields.product_id,
         error,
       });
       recordSystemLog({
         tipo: "error",
         modulo: "operation-center",
         mensagem: error ?? "Erro ao criar operação a partir do CEO.",
-        detalhes: { ceoSessionId: params.session.id },
+        detalhes: {
+          ceoSessionId: params.session.id,
+          productId: operationFields.product_id,
+        },
       });
       return { operation: null, error: error ?? "Erro ao criar operação." };
     }
 
     operation = data as OperationCenter;
+    console.info("[operation] product persisted", {
+      operationId: operation.id,
+      productId: operation.product_id,
+      productName: operation.product_nome,
+      mode: "create",
+    });
     await repo.tryLinkCeoSession(operation.id, params.session.id);
     console.info("[operation-center] upsertOperationFromCeo: created", {
       operationId: operation.id,
@@ -774,8 +1075,17 @@ export async function generateOperationCopy(
   if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
 
   const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
-  const { data: operation } = await repo.findById(operationId);
+  let { data: operation } = await repo.findById(operationId);
   if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+
+  console.info("[copy] operation id", operation.id);
+  console.info("[copy] product_id", operation.product_id);
+  console.info("[copy] product_nome", operation.product_nome);
+
+  const metadata = readOperationMetadata(operation);
+  operation = await ensureOperationProductLinked(repo, operation, {
+    pergunta: typeof metadata.pergunta === "string" ? metadata.pergunta : null,
+  });
 
   const terminalError = rejectIfOperationTerminal(operation);
   if (terminalError) {
@@ -783,7 +1093,23 @@ export async function generateOperationCopy(
   }
 
   const bundle = await loadBundleForOperation(operation);
-  if (!bundle) {
+  const fallbackProductName = resolveOperationProductName(operation, metadata);
+
+  let copyIntake: CopylabIntake;
+  if (bundle) {
+    copyIntake = {
+      ...copyIntakeFromBundle(bundle),
+      product_id: bundle.product.id,
+    };
+  } else if (fallbackProductName) {
+    console.info("[copy] fallback product name used", fallbackProductName);
+    copyIntake = intakeFromProductName(fallbackProductName, {
+      productId: operation.product_id,
+      problema:
+        typeof metadata.resumo_executivo === "string" ? metadata.resumo_executivo : null,
+      solucao: typeof metadata.plano_acao === "string" ? metadata.plano_acao : null,
+    });
+  } else {
     return { operation: null, message: "", error: "Nenhum produto vinculado à operação." };
   }
 
@@ -806,10 +1132,6 @@ export async function generateOperationCopy(
     };
   }
 
-  const copyIntake = {
-    ...copyIntakeFromBundle(bundle),
-    product_id: bundle.product.id,
-  };
   const { record: copy, error: copyError } = await generateCopylab(copyIntake);
   if (!copy) {
     console.error("[ceo-operation] generate copy failed", { operationId, copyError });

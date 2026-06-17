@@ -520,6 +520,8 @@ Regras:
     session: session as AuraCeoSession,
     productId: mainProduct?.id ?? null,
     productName: mainProduct?.nome ?? mainProduct?.nicho ?? null,
+    radar,
+    pergunta: trimmed,
   });
 
   if (operationError || !operation) {
