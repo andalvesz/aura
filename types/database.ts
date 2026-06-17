@@ -763,6 +763,58 @@ export type AuraCeoSession = {
   updated_at: string;
 };
 
+export type GrowthBrainMemoryStatus = "active" | "archived" | "learning";
+
+export type GrowthBrainMemory = {
+  id: string;
+  user_id: string;
+  operation_id: string | null;
+  product_id: string | null;
+  copy_id: string | null;
+  creative_id: string | null;
+  landing_id: string | null;
+  campaign_id: string | null;
+  source_platform: string | null;
+  country: string | null;
+  language: string | null;
+  ctr: number | null;
+  cpc: number | null;
+  cpa: number | null;
+  roas: number | null;
+  revenue: number | null;
+  spend: number | null;
+  conversion_rate: number | null;
+  status: GrowthBrainMemoryStatus;
+  lesson: string | null;
+  recommendation: string | null;
+  metadata: Json;
+  created_at: string;
+};
+
+export type GrowthPatternType =
+  | "copy"
+  | "creative"
+  | "landing"
+  | "campaign"
+  | "niche"
+  | "country"
+  | "language"
+  | "revenue"
+  | "performance";
+
+export type GrowthPattern = {
+  id: string;
+  user_id: string;
+  niche: string | null;
+  country: string | null;
+  language: string | null;
+  pattern_type: GrowthPatternType;
+  score: number;
+  lesson: string | null;
+  recommendation: string | null;
+  created_at: string;
+};
+
 export type OperationCenterStatus =
   | "draft"
   | "preparing"
@@ -4561,6 +4613,80 @@ export type Database = {
           created_at?: string;
         }
       >;
+      growth_brain_memories: TableDef<
+        GrowthBrainMemory,
+        Omit<
+          GrowthBrainMemory,
+          | "id"
+          | "created_at"
+          | "status"
+          | "metadata"
+          | "operation_id"
+          | "product_id"
+          | "copy_id"
+          | "creative_id"
+          | "landing_id"
+          | "campaign_id"
+          | "source_platform"
+          | "country"
+          | "language"
+          | "ctr"
+          | "cpc"
+          | "cpa"
+          | "roas"
+          | "revenue"
+          | "spend"
+          | "conversion_rate"
+          | "lesson"
+          | "recommendation"
+        > & {
+          id?: string;
+          status?: GrowthBrainMemoryStatus;
+          metadata?: Json;
+          operation_id?: string | null;
+          product_id?: string | null;
+          copy_id?: string | null;
+          creative_id?: string | null;
+          landing_id?: string | null;
+          campaign_id?: string | null;
+          source_platform?: string | null;
+          country?: string | null;
+          language?: string | null;
+          ctr?: number | null;
+          cpc?: number | null;
+          cpa?: number | null;
+          roas?: number | null;
+          revenue?: number | null;
+          spend?: number | null;
+          conversion_rate?: number | null;
+          lesson?: string | null;
+          recommendation?: string | null;
+          created_at?: string;
+        }
+      >;
+      growth_patterns: TableDef<
+        GrowthPattern,
+        Omit<
+          GrowthPattern,
+          | "id"
+          | "created_at"
+          | "niche"
+          | "country"
+          | "language"
+          | "score"
+          | "lesson"
+          | "recommendation"
+        > & {
+          id?: string;
+          niche?: string | null;
+          country?: string | null;
+          language?: string | null;
+          score?: number;
+          lesson?: string | null;
+          recommendation?: string | null;
+          created_at?: string;
+        }
+      >;
       operation_center: TableDef<
         OperationCenter,
         Omit<
@@ -4737,7 +4863,9 @@ export type UserScopedTable =
   | "integration_connections"
   | "integration_sync_logs"
   | "integration_events"
-  | "operation_center";
+  | "operation_center"
+  | "growth_brain_memories"
+  | "growth_patterns";
 
 export type AiModule =
   | "aura_central"

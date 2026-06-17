@@ -612,6 +612,19 @@ export async function generatePerformanceReport(options?: {
   await awardAuraXp("performance_analise_gerar", `performance-report:${report.id}`);
   await saveExecutiveMemoryReport(panel, executiveMemory, options?.operationContext ?? null);
 
+  void import("./growth-brain.service")
+    .then(({ feedGrowthBrainFromPerformance }) =>
+      feedGrowthBrainFromPerformance({
+        score,
+        roas: dashboard.roiEstimado ?? null,
+        revenue: dashboard.receita ?? null,
+        operationId: options?.operationContext?.operationId ?? null,
+        lesson: panel.melhorProjeto,
+        recommendation: panel.conselhoCeo,
+      })
+    )
+    .catch(() => undefined);
+
   return { report, dashboard, panel, analysis, error: null };
 }
 

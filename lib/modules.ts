@@ -56,6 +56,7 @@ export type ModuleId =
   | "operation-center"
   | "execution"
   | "performance"
+  | "growth-brain"
   | "autopilot"
   | "product-factory"
   | "platforms"
@@ -383,6 +384,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Score",
       value: "—",
       hint: "Gere sua análise de performance",
+    },
+  },
+  {
+    id: "growth-brain",
+    href: "/dashboard/growth-brain",
+    label: "Growth Brain",
+    shortLabel: "Growth Brain",
+    description:
+      "Sistema de aprendizado — cada venda, clique e campanha alimenta a inteligência do Aura.",
+    icon: Brain,
+    accent: "text-violet-400",
+    overview: {
+      metric: "Memórias",
+      value: "0",
+      hint: "Registre resultados para aprender padrões",
     },
   },
   {

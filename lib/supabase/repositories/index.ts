@@ -1,3 +1,7 @@
+export {
+  GrowthBrainMemoriesRepository,
+  GrowthPatternsRepository,
+} from "./growth-brain.repository";
 export { BaseRepository, type RepositoryResult } from "./base.repository";
 export { GastosRepository } from "./gastos.repository";
 export { FinancialGoalsRepository } from "./financial-goals.repository";

@@ -86,6 +86,30 @@ export async function getKiwifyIntelligence(): Promise<{
 
   const insights = generateKiwifyPerformanceInsights({ metrics, products, sales });
 
+  if (connected) {
+    const topProduct = metrics.topSellingProducts[0];
+    const matchedProduct = topProduct
+      ? products.find((product) => product.id === topProduct.id || product.name === topProduct.name)
+      : null;
+    void import("./growth-brain.service")
+      .then(({ feedGrowthBrainFromKiwify }) =>
+        feedGrowthBrainFromKiwify({
+          productId: matchedProduct?.id ?? topProduct?.id ?? null,
+          productName: topProduct?.name ?? null,
+          niche:
+            matchedProduct?.metadata &&
+            typeof matchedProduct.metadata === "object" &&
+            !Array.isArray(matchedProduct.metadata)
+              ? String((matchedProduct.metadata as Record<string, unknown>).niche ?? "") || null
+              : null,
+          revenue: metrics.revenueMonthCents / 100,
+          conversionRate: metrics.conversionPct / 100,
+          recommendation: insights[0]?.recommendation ?? null,
+        })
+      )
+      .catch(() => undefined);
+  }
+
   return {
     error: null,
     data: {

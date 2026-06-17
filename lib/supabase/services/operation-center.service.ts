@@ -1509,6 +1509,24 @@ export async function approveOperation(
     }
   );
 
+  if (updated) {
+    void import("./growth-brain.service")
+      .then(({ feedGrowthBrainFromOperation }) =>
+        feedGrowthBrainFromOperation({
+          operationId: updated.id,
+          productId: updated.product_id,
+          productName: updated.product_nome,
+          copyId: updated.copylab_id,
+          creativeId: updated.assets_id,
+          landingId: updated.landing_id,
+          campaignId: updated.orchestration_id,
+          operationalScore: updated.operational_score,
+          roiPrevisto: updated.roi_previsto != null ? Number(updated.roi_previsto) : null,
+        })
+      )
+      .catch(() => undefined);
+  }
+
   return {
     operation: updated,
     message: "Operação aprovada — status Pronta. Nenhum anúncio foi publicado.",

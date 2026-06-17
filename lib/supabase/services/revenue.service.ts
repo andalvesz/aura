@@ -100,14 +100,27 @@ export async function getRevenueDashboard(): Promise<{
   const data = await loadRevenueData();
   if (data.error) return { dashboard: null, error: data.error };
 
+  const dashboard = computeRevenueDashboard({
+    kiwifySales: data.kiwifySales,
+    income: data.income,
+    gastos: data.gastos,
+    metaMetrics: data.metaMetrics,
+    growthLeads: data.growthLeads,
+  });
+
+  void import("./growth-brain.service")
+    .then(({ feedGrowthBrainFromRevenue }) =>
+      feedGrowthBrainFromRevenue({
+        revenue: dashboard.lucro.receita.month,
+        spend: dashboard.lucro.despesas.month,
+        roas: dashboard.lucro.roiPct,
+        conversionRate: dashboard.lucro.margemPct / 100,
+      })
+    )
+    .catch(() => undefined);
+
   return {
-    dashboard: computeRevenueDashboard({
-      kiwifySales: data.kiwifySales,
-      income: data.income,
-      gastos: data.gastos,
-      metaMetrics: data.metaMetrics,
-      growthLeads: data.growthLeads,
-    }),
+    dashboard,
     error: null,
   };
 }

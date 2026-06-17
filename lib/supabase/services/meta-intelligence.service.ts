@@ -104,6 +104,13 @@ export async function getMetaIntelligenceFull(): Promise<{
     }
   }
 
+  void feedMetaToGrowthBrain({
+    connected,
+    metrics: d.metrics,
+    revenueCross,
+    insights,
+  }).catch(() => undefined);
+
   return {
     error: null,
     data: {
@@ -125,6 +132,35 @@ export async function getMetaIntelligenceFull(): Promise<{
       connected,
     },
   };
+}
+
+async function feedMetaToGrowthBrain(params: {
+  connected: boolean;
+  metrics: MetaIntelligencePayload["metrics"];
+  revenueCross: MetaIntelligencePayload["revenueCross"];
+  insights: MetaPerformanceInsight[];
+}): Promise<void> {
+  if (!params.connected) return;
+
+  const perf = params.metrics.performance;
+  const best = params.metrics.bestCampaign;
+
+  await import("./growth-brain.service").then(({ feedGrowthBrainFromMeta }) =>
+    feedGrowthBrainFromMeta({
+      campaignId: best?.id ?? null,
+      campaignName: best?.name ?? null,
+      ctr: perf.ctr != null ? perf.ctr / 100 : null,
+      cpc: perf.cpc ?? null,
+      cpa: perf.cpa ?? null,
+      roas: perf.roas ?? best?.roas ?? null,
+      spend: perf.spendCents != null ? perf.spendCents / 100 : null,
+      revenue:
+        params.revenueCross?.receitaCents != null
+          ? params.revenueCross.receitaCents / 100
+          : null,
+      recommendation: params.insights[0]?.recommendation ?? null,
+    })
+  );
 }
 
 function formatCents(cents: number): string {
