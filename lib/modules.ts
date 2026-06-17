@@ -22,6 +22,7 @@ import {
   Languages,
   MapPin,
   Globe,
+  LineChart,
   Rocket,
   Share2,
   Sparkles,
@@ -52,6 +53,7 @@ export type ModuleId =
   | "mission"
   | "money"
   | "revenue"
+  | "revenue-ai"
   | "ceo"
   | "operation-center"
   | "execution"
@@ -324,6 +326,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Lucro mês",
       value: "—",
       hint: "Conecte fontes de receita e despesas",
+    },
+  },
+  {
+    id: "revenue-ai",
+    href: "/dashboard/revenue-ai",
+    label: "Revenue AI",
+    shortLabel: "Revenue AI",
+    description:
+      "Centro de inteligência financeira e comercial — previsões, ROAS, ROI e insights por plataforma.",
+    icon: LineChart,
+    accent: "text-emerald-400",
+    overview: {
+      metric: "Receita",
+      value: "—",
+      hint: "Registre vendas para gerar inteligência",
     },
   },
   {

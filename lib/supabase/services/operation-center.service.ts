@@ -1525,6 +1525,17 @@ export async function approveOperation(
         })
       )
       .catch(() => undefined);
+
+    void import("./revenue-ai.service")
+      .then(({ feedRevenueAiFromOperation }) =>
+        feedRevenueAiFromOperation({
+          operationId: updated.id,
+          productId: updated.product_id,
+          productName: updated.product_nome,
+          roiPrevisto: updated.roi_previsto != null ? Number(updated.roi_previsto) : null,
+        })
+      )
+      .catch(() => undefined);
   }
 
   return {

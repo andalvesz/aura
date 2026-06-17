@@ -625,6 +625,16 @@ export async function generatePerformanceReport(options?: {
     )
     .catch(() => undefined);
 
+  void import("./revenue-ai.service")
+    .then(({ feedRevenueAiFromPerformance }) =>
+      feedRevenueAiFromPerformance({
+        revenue: dashboard.receita ?? null,
+        roas: dashboard.roiEstimado ?? null,
+        operationId: options?.operationContext?.operationId ?? null,
+      })
+    )
+    .catch(() => undefined);
+
   return { report, dashboard, panel, analysis, error: null };
 }
 

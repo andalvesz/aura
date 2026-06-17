@@ -815,6 +815,46 @@ export type GrowthPattern = {
   created_at: string;
 };
 
+export type RevenueForecastType = "revenue" | "profit" | "growth" | "scale";
+
+export type RevenueForecastPeriod = "weekly" | "monthly" | "quarterly";
+
+export type RevenueMetric = {
+  id: string;
+  user_id: string;
+  operation_id: string | null;
+  product_id: string | null;
+  platform: string | null;
+  country: string | null;
+  currency: string;
+  revenue: number;
+  spend: number;
+  profit: number;
+  roas: number | null;
+  roi: number | null;
+  conversions: number;
+  clicks: number;
+  ctr: number | null;
+  cpc: number | null;
+  cpa: number | null;
+  date: string;
+  metadata: Json;
+  created_at: string;
+};
+
+export type RevenueForecast = {
+  id: string;
+  user_id: string;
+  forecast_type: RevenueForecastType;
+  period: RevenueForecastPeriod;
+  predicted_revenue: number;
+  predicted_profit: number;
+  confidence: number;
+  recommendation: string | null;
+  metadata: Json;
+  created_at: string;
+};
+
 export type OperationCenterStatus =
   | "draft"
   | "preparing"
@@ -4687,6 +4727,76 @@ export type Database = {
           created_at?: string;
         }
       >;
+      revenue_metrics: TableDef<
+        RevenueMetric,
+        Omit<
+          RevenueMetric,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "operation_id"
+          | "product_id"
+          | "platform"
+          | "country"
+          | "currency"
+          | "revenue"
+          | "spend"
+          | "profit"
+          | "roas"
+          | "roi"
+          | "conversions"
+          | "clicks"
+          | "ctr"
+          | "cpc"
+          | "cpa"
+          | "date"
+        > & {
+          id?: string;
+          metadata?: Json;
+          operation_id?: string | null;
+          product_id?: string | null;
+          platform?: string | null;
+          country?: string | null;
+          currency?: string;
+          revenue?: number;
+          spend?: number;
+          profit?: number;
+          roas?: number | null;
+          roi?: number | null;
+          conversions?: number;
+          clicks?: number;
+          ctr?: number | null;
+          cpc?: number | null;
+          cpa?: number | null;
+          date?: string;
+          created_at?: string;
+        }
+      >;
+      revenue_forecasts: TableDef<
+        RevenueForecast,
+        Omit<
+          RevenueForecast,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "forecast_type"
+          | "period"
+          | "predicted_revenue"
+          | "predicted_profit"
+          | "confidence"
+          | "recommendation"
+        > & {
+          id?: string;
+          metadata?: Json;
+          forecast_type?: RevenueForecastType;
+          period?: RevenueForecastPeriod;
+          predicted_revenue?: number;
+          predicted_profit?: number;
+          confidence?: number;
+          recommendation?: string | null;
+          created_at?: string;
+        }
+      >;
       operation_center: TableDef<
         OperationCenter,
         Omit<
@@ -4865,7 +4975,9 @@ export type UserScopedTable =
   | "integration_events"
   | "operation_center"
   | "growth_brain_memories"
-  | "growth_patterns";
+  | "growth_patterns"
+  | "revenue_metrics"
+  | "revenue_forecasts";
 
 export type AiModule =
   | "aura_central"

@@ -161,6 +161,24 @@ async function feedMetaToGrowthBrain(params: {
       recommendation: params.insights[0]?.recommendation ?? null,
     })
   );
+
+  await import("./revenue-ai.service").then(({ feedRevenueAiFromMeta }) =>
+    feedRevenueAiFromMeta({
+      campaignName: best?.name ?? null,
+      revenue:
+        params.revenueCross?.receitaCents != null
+          ? params.revenueCross.receitaCents / 100
+          : 0,
+      spend: perf.spendCents != null ? perf.spendCents / 100 : 0,
+      country: "BR",
+      clicks: perf.clicks ?? 0,
+      conversions: perf.conversions ?? 0,
+      ctr: perf.ctr != null ? perf.ctr / 100 : null,
+      cpc: perf.cpc ?? null,
+      cpa: perf.cpa ?? null,
+      roas: perf.roas ?? best?.roas ?? null,
+    })
+  );
 }
 
 function formatCents(cents: number): string {

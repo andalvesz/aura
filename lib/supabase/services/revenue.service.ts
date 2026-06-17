@@ -119,6 +119,21 @@ export async function getRevenueDashboard(): Promise<{
     )
     .catch(() => undefined);
 
+  void import("./revenue-ai.service")
+    .then(({ feedRevenueAiFromSale }) =>
+      feedRevenueAiFromSale({
+        platform: "revenue_center",
+        country: "BR",
+        currency: "BRL",
+        revenue: dashboard.lucro.receita.month,
+        spend: dashboard.lucro.despesas.month,
+        roas: dashboard.lucro.roiPct,
+        roi: dashboard.lucro.roiPct,
+        metadata: { source: "revenue_center" },
+      })
+    )
+    .catch(() => undefined);
+
   return {
     dashboard,
     error: null,

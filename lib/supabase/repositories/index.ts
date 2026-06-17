@@ -1,4 +1,8 @@
 export {
+  RevenueMetricsRepository,
+  RevenueForecastsRepository,
+} from "./revenue-ai.repository";
+export {
   GrowthBrainMemoriesRepository,
   GrowthPatternsRepository,
 } from "./growth-brain.repository";

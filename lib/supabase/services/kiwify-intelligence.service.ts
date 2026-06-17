@@ -108,6 +108,19 @@ export async function getKiwifyIntelligence(): Promise<{
         })
       )
       .catch(() => undefined);
+
+    void import("./revenue-ai.service")
+      .then(({ feedRevenueAiFromKiwify }) =>
+        feedRevenueAiFromKiwify({
+          productId: matchedProduct?.id ?? topProduct?.id ?? null,
+          productName: topProduct?.name ?? null,
+          revenue: metrics.revenueMonthCents / 100,
+          country: "BR",
+          currency: "BRL",
+          conversions: metrics.salesTodayCount || 1,
+        })
+      )
+      .catch(() => undefined);
   }
 
   return {
