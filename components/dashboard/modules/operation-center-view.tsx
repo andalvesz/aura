@@ -61,6 +61,8 @@ export function OperationCenterView() {
     generateAssets,
     generateCreative,
     downloadCreatives,
+    generateLandingReal,
+    publishLanding,
     prepareCampaign,
     sendToPerformanceAi,
     approveOperation,
@@ -110,8 +112,18 @@ export function OperationCenterView() {
     if (actionError) toast.warning(actionError);
   }
 
-  async function handleGenerateLanding() {
-    const { message, error: actionError } = await generateAssets("landing");
+  async function handleGenerateLandingReal() {
+    const { message, error: actionError } = await generateLandingReal();
+    if (actionError && !message) {
+      toast.error(actionError);
+      return;
+    }
+    if (message) toast.success(message);
+    if (actionError) toast.warning(actionError);
+  }
+
+  async function handlePublishLanding() {
+    const { message, error: actionError } = await publishLanding();
     if (actionError && !message) {
       toast.error(actionError);
       return;
@@ -417,11 +429,41 @@ export function OperationCenterView() {
               </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Layout className="size-3.5" />}
-                onClick={() => void handleGenerateLanding()}
+                onClick={() => void handleGenerateLandingReal()}
                 disabled={busy || !canMutate}
               >
-                Gerar Landing
+                Gerar Landing Real
               </ActionButton>
+              {dashboard?.landingPage && dashboard.landingPage.status !== "published" && (
+                <ActionButton
+                  icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                  onClick={() => void handlePublishLanding()}
+                  disabled={busy || !canMutate}
+                  className="border-emerald-500/30"
+                >
+                  Publicar Landing
+                </ActionButton>
+              )}
+              {dashboard?.landingPage?.previewUrl && dashboard.landingPage.status !== "published" && (
+                <a
+                  href={dashboard.landingPage.previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-white/10 px-3 py-1.5 text-[11px] text-zinc-300 hover:bg-white/5"
+                >
+                  Preview interno
+                </a>
+              )}
+              {dashboard?.landingPage?.publishedUrl && dashboard.landingPage.status === "published" && (
+                <a
+                  href={dashboard.landingPage.publishedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 px-3 py-1.5 text-[11px] text-emerald-300 hover:bg-emerald-500/10"
+                >
+                  Ver landing pública
+                </a>
+              )}
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Megaphone className="size-3.5" />}
                 onClick={() => void handlePrepareCampaign()}

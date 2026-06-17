@@ -861,6 +861,32 @@ export type CreativeAssetType =
 
 export type CreativeAssetStatus = "generating" | "ready" | "failed";
 
+export type LandingPageStatus = "draft" | "preview" | "published";
+
+export type LandingPage = {
+  id: string;
+  user_id: string;
+  operation_id: string | null;
+  product_id: string | null;
+  title: string | null;
+  slug: string;
+  headline: string | null;
+  subheadline: string | null;
+  hero_copy: string | null;
+  benefits_json: Json;
+  proof_json: Json;
+  offer_json: Json;
+  faq_json: Json;
+  cta_text: string | null;
+  html: string | null;
+  status: LandingPageStatus;
+  preview_url: string | null;
+  published_url: string | null;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreativeAsset = {
   id: string;
   user_id: string;
@@ -3933,6 +3959,53 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      landing_pages: TableDef<
+        LandingPage,
+        Omit<
+          LandingPage,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "operation_id"
+          | "product_id"
+          | "title"
+          | "slug"
+          | "headline"
+          | "subheadline"
+          | "hero_copy"
+          | "benefits_json"
+          | "proof_json"
+          | "offer_json"
+          | "faq_json"
+          | "cta_text"
+          | "html"
+          | "status"
+          | "preview_url"
+          | "published_url"
+          | "metadata"
+        > & {
+          id?: string;
+          operation_id?: string | null;
+          product_id?: string | null;
+          title?: string | null;
+          slug?: string;
+          headline?: string | null;
+          subheadline?: string | null;
+          hero_copy?: string | null;
+          benefits_json?: Json;
+          proof_json?: Json;
+          offer_json?: Json;
+          faq_json?: Json;
+          cta_text?: string | null;
+          html?: string | null;
+          status?: LandingPageStatus;
+          preview_url?: string | null;
+          published_url?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       platform_connections: TableDef<
         PlatformConnection,
         Omit<
@@ -4636,6 +4709,7 @@ export type UserScopedTable =
   | "product_versions"
   | "product_compliance_checks"
   | "creative_assets"
+  | "landing_pages"
   | "platform_connections"
   | "platform_sync_logs"
   | "affiliate_products"

@@ -360,6 +360,73 @@ export function useOperationCenter() {
     }
   }
 
+  async function generateLandingReal() {
+    const operationId = dashboard?.operation?.id;
+    if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
+
+    setBusy(true);
+    try {
+      const res = await fetch("/api/landing-factory/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation_id: operationId,
+          product_id: dashboard?.operation?.product_id,
+          copylab_id: dashboard?.operation?.copylab_id,
+        }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        message?: string;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return {
+          message: null,
+          error: data?.error ?? parseError ?? "Erro ao gerar landing real.",
+        };
+      }
+
+      await refresh();
+      return { message: data?.message ?? "Landing real gerada.", error: data?.error ?? null };
+    } catch (err) {
+      console.error("[useOperationCenter] generateLandingReal failed:", err);
+      return { message: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function publishLanding() {
+    const landingId = dashboard?.landingPage?.id;
+    if (!landingId) return { message: null, error: "Nenhuma landing vinculada." };
+
+    setBusy(true);
+    try {
+      const res = await fetch("/api/landing-factory/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ landingId }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        message?: string;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return { message: null, error: data?.error ?? parseError ?? "Erro ao publicar landing." };
+      }
+
+      await refresh();
+      return { message: data?.message ?? "Landing publicada.", error: data?.error ?? null };
+    } catch (err) {
+      console.error("[useOperationCenter] publishLanding failed:", err);
+      return { message: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function cancelOperation() {
     const operationId = dashboard?.operation?.id;
     if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
@@ -401,6 +468,8 @@ export function useOperationCenter() {
     generateAssets,
     generateCreative,
     downloadCreatives,
+    generateLandingReal,
+    publishLanding,
     prepareCampaign,
     sendToPerformanceAi,
     approveOperation,

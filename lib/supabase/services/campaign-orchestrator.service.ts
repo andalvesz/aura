@@ -5,6 +5,7 @@ import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { loadStudioAssets } from "@/lib/supabase/services/creative-studio.service";
 import { loadLandingRecords } from "@/lib/supabase/services/landing-builder.service";
+import { loadLandingPagesForOrchestrator } from "@/lib/supabase/services/landing-factory.service";
 import { loadResearchRecords } from "@/lib/supabase/services/research.service";
 import type {
   CreatorAdsCampaign,
@@ -171,7 +172,8 @@ async function loadOrchestratorState(productId?: string | null): Promise<{
     { records: research },
     { records: copy },
     { records: assets },
-    { records: landings },
+    { records: legacyLandings },
+    { records: factoryLandings },
     { records: adsCampaigns },
     { records: orchestrations },
   ] = await Promise.all([
@@ -180,9 +182,12 @@ async function loadOrchestratorState(productId?: string | null): Promise<{
     loadCopylabRecords(),
     loadStudioAssets(),
     loadLandingRecords(),
+    loadLandingPagesForOrchestrator(),
     loadAdsCampaigns(),
     loadOrchestrations(),
   ]);
+
+  const landings = [...factoryLandings, ...legacyLandings];
 
   const center = buildOrchestratorCenterData(
     bundles,
@@ -265,7 +270,8 @@ export async function prepareLaunch(
     { records: research },
     { records: copy },
     { records: assets },
-    { records: landings },
+    { records: legacyLandings },
+    { records: factoryLandings },
     { records: adsCampaigns },
   ] = await Promise.all([
     loadCreatorBundles(),
@@ -273,8 +279,11 @@ export async function prepareLaunch(
     loadCopylabRecords(),
     loadStudioAssets(),
     loadLandingRecords(),
+    loadLandingPagesForOrchestrator(),
     loadAdsCampaigns(),
   ]);
+
+  const landings = [...factoryLandings, ...legacyLandings];
 
   const bundle = bundles.find((b) => b.product.id === input.product_id);
   if (!bundle) {

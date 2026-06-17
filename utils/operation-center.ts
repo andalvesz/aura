@@ -79,6 +79,14 @@ export type OperationCenterDashboard = {
   missingForApproval: string[];
   canApprove: boolean;
   canMutate: boolean;
+  landingPage?: {
+    id: string;
+    slug: string;
+    status: string;
+    previewUrl: string | null;
+    publishedUrl: string | null;
+    title: string | null;
+  } | null;
   safeMode: {
     active: boolean;
     message: string;
@@ -543,6 +551,7 @@ export function computeOperationCenterDashboard(params: {
   kiwifyConnected: boolean;
   hasPerformanceReport: boolean;
   hasCreativeFactoryAssets?: boolean;
+  landingPage?: OperationCenterDashboard["landingPage"];
 }): OperationCenterDashboard {
   const {
     operation,
@@ -551,6 +560,7 @@ export function computeOperationCenterDashboard(params: {
     kiwifyConnected,
     hasPerformanceReport,
     hasCreativeFactoryAssets,
+    landingPage = null,
   } = params;
 
   if (!operation) {
@@ -568,6 +578,7 @@ export function computeOperationCenterDashboard(params: {
       missingForApproval: OPERATION_PROGRESS_STEPS.map((s) => s.label),
       canApprove: false,
       canMutate: false,
+      landingPage: null,
       safeMode: {
         active: OPERATION_CENTER_SAFE_MODE,
         message:
@@ -625,6 +636,7 @@ export function computeOperationCenterDashboard(params: {
       operation.status !== "ready" &&
       operation.status !== "approved",
     canMutate: isOperationMutable(operation.status),
+    landingPage,
     safeMode: {
       active: OPERATION_CENTER_SAFE_MODE,
       message:

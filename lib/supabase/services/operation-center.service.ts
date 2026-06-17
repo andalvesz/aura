@@ -1,6 +1,7 @@
 import { recordSystemLog } from "@/lib/logs/record";
 import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
 import { CreativeAssetsRepository } from "@/lib/supabase/repositories/creative-factory.repository";
+import { LandingPagesRepository } from "@/lib/supabase/repositories/landing-factory.repository";
 import { OperationCenterRepository } from "@/lib/supabase/repositories/operation-center.repository";
 import { saveAuraMemory } from "@/lib/supabase/services/ai-memories.service";
 import { getResolvedUserBudget } from "@/lib/supabase/services/campaign-budget.service";
@@ -10,7 +11,9 @@ import { generateCopylab } from "@/lib/supabase/services/copylab.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { generateStudioAssets } from "@/lib/supabase/services/creative-studio.service";
 import { getExecutionDashboard, syncOperationCenterTasks } from "@/lib/supabase/services/execution.service";
-import { generateLanding } from "@/lib/supabase/services/landing-builder.service";
+import {
+  generateLandingPage,
+} from "@/lib/supabase/services/landing-factory.service";
 import { getKiwifyIntelligence } from "@/lib/supabase/services/kiwify-intelligence.service";
 import { getMetaIntelligence } from "@/lib/supabase/services/meta-intelligence.service";
 import { getMissionControlState } from "@/lib/supabase/services/mission-control.service";
@@ -482,6 +485,28 @@ async function loadCreativeFactoryAssetsFlag(
   return count > 0;
 }
 
+async function loadLandingPageSummary(
+  landingId: string | null
+): Promise<OperationCenterDashboard["landingPage"]> {
+  if (!landingId) return null;
+
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return null;
+
+  const repo = new LandingPagesRepository(ctx.supabase, ctx.userId);
+  const { data } = await repo.findById(landingId);
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    slug: data.slug,
+    status: data.status,
+    previewUrl: data.preview_url,
+    publishedUrl: data.published_url,
+    title: data.title,
+  };
+}
+
 async function persistOperationUpdate(
   repo: OperationCenterRepository,
   operation: OperationCenter,
@@ -641,11 +666,13 @@ export async function getOperationCenterState(): Promise<{
     const { data: refreshed } = await repo.findById(linkedOperation.id);
     const finalOperation = refreshed ?? linkedOperation;
     const finalBundle = await loadBundleForOperation(finalOperation);
+    const landingPage = await loadLandingPageSummary(finalOperation.landing_id);
     const dashboard = computeOperationCenterDashboard({
       operation: finalOperation,
       bundle: finalBundle,
       ...integrations,
       hasCreativeFactoryAssets,
+      landingPage,
     });
     return { dashboard, error: null };
   } catch (err) {
@@ -950,6 +977,101 @@ export async function linkCreativeFactoryAssetToOperation(
   return { operation: updated, error: error ?? null };
 }
 
+export async function linkLandingFactoryToOperation(
+  operationId: string,
+  landing: { id: string; title: string | null; slug: string }
+): Promise<{ operation: OperationCenter | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) return { operation: null, error: "Operação não encontrada." };
+
+  if (!isOperationMutable(operation.status)) {
+    return { operation: null, error: null };
+  }
+
+  const logs = await logOperationAction(
+    operation,
+    "landing_factory",
+    `Landing real gerada: ${landing.title ?? landing.slug}.`,
+    { landingId: landing.id, slug: landing.slug }
+  );
+
+  const integrations = await loadIntegrationsSafely();
+  const bundle = await loadBundleForOperation(operation);
+
+  const { data: updated, error } = await persistOperationUpdate(
+    repo,
+    {
+      ...operation,
+      landing_id: landing.id,
+      executive_logs: logsAsJson(logs),
+    },
+    bundle,
+    integrations,
+    {
+      landing_id: landing.id,
+      executive_logs: logsAsJson(logs),
+      status: "preparing",
+    }
+  );
+
+  return { operation: updated, error: error ?? null };
+}
+
+export async function generateOperationLandingPage(operationId: string): Promise<{
+  operation: OperationCenter | null;
+  message: string;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) return { operation: null, message: "", error: "Operação não encontrada." };
+
+  const terminalError = rejectIfOperationTerminal(operation);
+  if (terminalError) {
+    return { operation: null, message: "", error: terminalError };
+  }
+
+  const bundle = await loadBundleForOperation(operation);
+  if (!bundle) {
+    return { operation: null, message: "", error: "Nenhum produto vinculado à operação." };
+  }
+
+  const { page, error: genError } = await generateLandingPage({
+    ...landingIntakeFromBundle(bundle, "pagina_simples"),
+    operation_id: operationId,
+    product_id: bundle.product.id,
+    copylab_id: operation.copylab_id ?? null,
+    titulo: bundle.product.nome ?? undefined,
+    promessa: bundle.product.promessa ?? undefined,
+    avatar: bundle.product.avatar ?? undefined,
+    problema: bundle.product.problema ?? undefined,
+    solucao: bundle.product.solucao ?? undefined,
+  });
+
+  if (!page) {
+    return { operation: null, message: "", error: genError ?? "Não foi possível gerar a landing." };
+  }
+
+  const sync = await linkLandingFactoryToOperation(operationId, {
+    id: page.id,
+    title: page.title,
+    slug: page.slug,
+  });
+
+  return {
+    operation: sync.operation,
+    message: `Landing real gerada em rascunho. Preview: ${page.preview_url ?? page.slug}`,
+    error: sync.error,
+  };
+}
+
 export async function generateOperationAssets(
   operationId: string,
   assetType: "creatives" | "landing" | "both" = "both"
@@ -964,6 +1086,10 @@ export async function generateOperationAssets(
   const terminalError = rejectIfOperationTerminal(operation);
   if (terminalError) {
     return { operation: null, message: "", error: terminalError };
+  }
+
+  if (assetType === "landing") {
+    return generateOperationLandingPage(operationId);
   }
 
   const bundle = await loadBundleForOperation(operation);
@@ -990,18 +1116,13 @@ export async function generateOperationAssets(
     }
   }
 
-  if (assetType === "landing" || assetType === "both") {
-    const intake = {
-      ...landingIntakeFromBundle(bundle, "pagina_simples"),
-      product_id: bundle.product.id,
-      copylab_id: operation.copylab_id ?? null,
-    };
-    const { record, error } = await generateLanding(intake);
-    if (record) {
-      updates.landing_id = record.id;
-      messages.push("Landing gerada.");
-    } else if (error) {
-      messages.push(`Landing: ${error}`);
+  if (assetType === "both") {
+    const landingResult = await generateOperationLandingPage(operationId);
+    if (landingResult.operation) {
+      updates.landing_id = landingResult.operation.landing_id;
+      messages.push("Landing real gerada.");
+    } else if (landingResult.error) {
+      messages.push(`Landing: ${landingResult.error}`);
     }
   }
 
@@ -1475,7 +1596,7 @@ export async function continueOperation(
     case "creatives":
       return generateOperationAssets(operationId, "creatives");
     case "landing":
-      return generateOperationAssets(operationId, "landing");
+      return generateOperationLandingPage(operationId);
     case "copy":
       return generateOperationCopy(operationId);
     case "campaign":
