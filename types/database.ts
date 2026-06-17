@@ -850,6 +850,36 @@ export type ProductComplianceStatus = "pass" | "warning" | "fail";
 
 export type ProductComplianceRiskLevel = "low" | "medium" | "high";
 
+export type CreativeAssetType =
+  | "image"
+  | "carousel"
+  | "banner"
+  | "thumbnail"
+  | "vsl_script"
+  | "reel_script"
+  | "ugc_script";
+
+export type CreativeAssetStatus = "generating" | "ready" | "failed";
+
+export type CreativeAsset = {
+  id: string;
+  user_id: string;
+  operation_id: string | null;
+  product_id: string | null;
+  asset_type: CreativeAssetType;
+  title: string | null;
+  prompt: string | null;
+  copy: string | null;
+  format: string | null;
+  status: CreativeAssetStatus;
+  file_url: string | null;
+  storage_path: string | null;
+  thumbnail_url: string | null;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ProductFactory = {
   id: string;
   user_id: string;
@@ -3866,6 +3896,43 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creative_assets: TableDef<
+        CreativeAsset,
+        Omit<
+          CreativeAsset,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "operation_id"
+          | "product_id"
+          | "asset_type"
+          | "title"
+          | "prompt"
+          | "copy"
+          | "format"
+          | "status"
+          | "file_url"
+          | "storage_path"
+          | "thumbnail_url"
+          | "metadata"
+        > & {
+          id?: string;
+          operation_id?: string | null;
+          product_id?: string | null;
+          asset_type?: CreativeAssetType;
+          title?: string | null;
+          prompt?: string | null;
+          copy?: string | null;
+          format?: string | null;
+          status?: CreativeAssetStatus;
+          file_url?: string | null;
+          storage_path?: string | null;
+          thumbnail_url?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       platform_connections: TableDef<
         PlatformConnection,
         Omit<
@@ -4568,6 +4635,7 @@ export type UserScopedTable =
   | "product_files"
   | "product_versions"
   | "product_compliance_checks"
+  | "creative_assets"
   | "platform_connections"
   | "platform_sync_logs"
   | "affiliate_products"

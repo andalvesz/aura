@@ -1,5 +1,6 @@
 import type { OperationCenter, OperationCenterStatus } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
+import { hasOperationCreativeAssets } from "@/utils/creative-factory";
 
 export const OPERATION_CENTER_SAFE_MODE = true;
 
@@ -382,6 +383,7 @@ export function computeOperationSteps(params: {
   metaConnected: boolean;
   kiwifyConnected: boolean;
   hasPerformanceReport: boolean;
+  hasCreativeFactoryAssets?: boolean;
 }): OperationSteps {
   const { operation, bundle, metaConnected } = params;
 
@@ -391,7 +393,11 @@ export function computeOperationSteps(params: {
   );
   const hasOffer = Boolean(bundle?.offer);
   const hasCopy = Boolean(operation.copylab_id);
-  const hasCreatives = Boolean(operation.assets_id);
+  const hasCreatives = hasOperationCreativeAssets({
+    assets_id: operation.assets_id,
+    metadata: operation.metadata,
+    hasCreativeFactoryAssets: params.hasCreativeFactoryAssets,
+  });
   const hasLanding = Boolean(operation.landing_id);
   const hasMeta = Boolean(operation.orchestration_id);
   const hasPerformance = Boolean(operation.performance_report_id);
@@ -447,8 +453,9 @@ export function buildMissingForApproval(
   integrations: { metaConnected: boolean; kiwifyConnected: boolean },
   operation?: Pick<
     OperationCenter,
-    "assets_id" | "landing_id" | "orchestration_id" | "performance_report_id"
-  > | null
+    "assets_id" | "landing_id" | "orchestration_id" | "performance_report_id" | "metadata"
+  > | null,
+  hasCreativeFactoryAssets?: boolean
 ): string[] {
   const missing: string[] = [];
   const checkSteps: OperationStepId[] = [
@@ -470,7 +477,12 @@ export function buildMissingForApproval(
   }
 
   if (operation) {
-    if (!operation.assets_id) missing.push("Criativos");
+    const hasCreatives = hasOperationCreativeAssets({
+      assets_id: operation.assets_id,
+      metadata: operation.metadata,
+      hasCreativeFactoryAssets,
+    });
+    if (!hasCreatives) missing.push("Criativos");
     if (!operation.landing_id) missing.push("Landing");
     if (!operation.orchestration_id) missing.push("Meta Ads");
     if (!operation.performance_report_id) missing.push("Performance AI");
@@ -530,8 +542,16 @@ export function computeOperationCenterDashboard(params: {
   metaConnected: boolean;
   kiwifyConnected: boolean;
   hasPerformanceReport: boolean;
+  hasCreativeFactoryAssets?: boolean;
 }): OperationCenterDashboard {
-  const { operation, bundle, metaConnected, kiwifyConnected, hasPerformanceReport } = params;
+  const {
+    operation,
+    bundle,
+    metaConnected,
+    kiwifyConnected,
+    hasPerformanceReport,
+    hasCreativeFactoryAssets,
+  } = params;
 
   if (!operation) {
     return {
@@ -563,6 +583,7 @@ export function computeOperationCenterDashboard(params: {
     metaConnected,
     kiwifyConnected,
     hasPerformanceReport,
+    hasCreativeFactoryAssets,
   });
 
   const roiPrevisto =
@@ -581,7 +602,8 @@ export function computeOperationCenterDashboard(params: {
       metaConnected,
       kiwifyConnected,
     },
-    operation
+    operation,
+    hasCreativeFactoryAssets
   );
 
   const nextSteps =

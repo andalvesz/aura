@@ -37,5 +37,6 @@ export * from "./execution.service";
 export * from "./performance.service";
 export * from "./autopilot.service";
 export * from "./product-factory.service";
+export * from "./creative-factory.service";
 export * from "./campaign-budget.service";
 export * from "./aura-brain.service";

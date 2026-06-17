@@ -1,5 +1,6 @@
 import { recordSystemLog } from "@/lib/logs/record";
 import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
+import { CreativeAssetsRepository } from "@/lib/supabase/repositories/creative-factory.repository";
 import { OperationCenterRepository } from "@/lib/supabase/repositories/operation-center.repository";
 import { saveAuraMemory } from "@/lib/supabase/services/ai-memories.service";
 import { getResolvedUserBudget } from "@/lib/supabase/services/campaign-budget.service";
@@ -33,6 +34,7 @@ import {
   type CopylabIntake,
 } from "@/utils/copylab";
 import { rankProductsForLaunch, type CreatorProductBundle } from "@/utils/creator";
+import { mergeCreativeFactoryMetadata } from "@/utils/creative-factory";
 import { intakeFromProductBundle as studioIntakeFromBundle } from "@/utils/creative-studio";
 import { intakeFromProductBundle as landingIntakeFromBundle } from "@/utils/landing-builder";
 import {
@@ -469,6 +471,17 @@ async function verifyActiveOperation(
   return { operation: data, error: null };
 }
 
+async function loadCreativeFactoryAssetsFlag(
+  operationId: string | null | undefined
+): Promise<boolean> {
+  if (!operationId) return false;
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return false;
+  const repo = new CreativeAssetsRepository(ctx.supabase, ctx.userId);
+  const { count } = await repo.countByOperationId(operationId);
+  return count > 0;
+}
+
 async function persistOperationUpdate(
   repo: OperationCenterRepository,
   operation: OperationCenter,
@@ -476,12 +489,15 @@ async function persistOperationUpdate(
   integrations: Awaited<ReturnType<typeof loadIntegrations>>,
   extra: TableUpdate<"operation_center"> = {}
 ): Promise<{ data: OperationCenter | null; error: string | null }> {
+  const hasCreativeFactoryAssets = await loadCreativeFactoryAssetsFlag(operation.id);
+
   const steps = computeOperationSteps({
     operation,
     bundle,
     metaConnected: integrations.metaConnected,
     kiwifyConnected: integrations.kiwifyConnected,
     hasPerformanceReport: integrations.hasPerformanceReport,
+    hasCreativeFactoryAssets,
   });
 
   const roiPrevisto =
@@ -500,7 +516,8 @@ async function persistOperationUpdate(
       metaConnected: integrations.metaConnected,
       kiwifyConnected: integrations.kiwifyConnected,
     },
-    operation
+    operation,
+    hasCreativeFactoryAssets
   );
 
   const nextSteps = buildOperationNextSteps(steps, missing);
@@ -618,6 +635,7 @@ export async function getOperationCenterState(): Promise<{
 
     const integrations = await loadIntegrations();
     const bundle = await loadBundleForOperation(linkedOperation);
+    const hasCreativeFactoryAssets = await loadCreativeFactoryAssetsFlag(linkedOperation.id);
 
     await persistOperationUpdate(repo, linkedOperation, bundle, integrations);
     const { data: refreshed } = await repo.findById(linkedOperation.id);
@@ -627,6 +645,7 @@ export async function getOperationCenterState(): Promise<{
       operation: finalOperation,
       bundle: finalBundle,
       ...integrations,
+      hasCreativeFactoryAssets,
     });
     return { dashboard, error: null };
   } catch (err) {
@@ -878,6 +897,57 @@ export async function upsertOperationFromCeo(params: {
   });
 
   return { operation: verified, error: null };
+}
+
+export async function linkCreativeFactoryAssetToOperation(
+  operationId: string,
+  asset: { id: string; asset_type: string; title: string | null }
+): Promise<{ operation: OperationCenter | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { operation: null, error: "Usuário não autenticado." };
+
+  const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+  const { data: operation } = await repo.findById(operationId);
+  if (!operation) return { operation: null, error: "Operação não encontrada." };
+
+  if (!isOperationMutable(operation.status)) {
+    return { operation: null, error: null };
+  }
+
+  const mergedMetadata = mergeCreativeFactoryMetadata(operation.metadata, asset.id);
+  const logs = await logOperationAction(
+    operation,
+    "creative_factory",
+    `Criativo ${asset.asset_type} gerado: ${asset.title ?? asset.id}.`,
+    { assetId: asset.id, assetType: asset.asset_type }
+  );
+
+  const integrations = await loadIntegrationsSafely();
+  const bundle = await loadBundleForOperation(operation);
+
+  const { data: updated, error } = await persistOperationUpdate(
+    repo,
+    {
+      ...operation,
+      metadata: {
+        ...mergedMetadata,
+        creative_factory_asset_ref: asset.id,
+      } as Json,
+      executive_logs: logsAsJson(logs),
+    },
+    bundle,
+    integrations,
+    {
+      metadata: {
+        ...mergedMetadata,
+        creative_factory_asset_ref: asset.id,
+      } as Json,
+      executive_logs: logsAsJson(logs),
+      status: "preparing",
+    }
+  );
+
+  return { operation: updated, error: error ?? null };
 }
 
 export async function generateOperationAssets(
@@ -1272,11 +1342,13 @@ export async function approveOperation(
 
   const bundle = await loadBundleForOperation(operation);
   const integrations = await loadIntegrations();
+  const hasCreativeFactoryAssets = await loadCreativeFactoryAssetsFlag(operation.id);
 
   const steps = computeOperationSteps({
     operation,
     bundle,
     ...integrations,
+    hasCreativeFactoryAssets,
   });
 
   const missing = buildMissingForApproval(
@@ -1285,7 +1357,8 @@ export async function approveOperation(
       metaConnected: integrations.metaConnected,
       kiwifyConnected: integrations.kiwifyConnected,
     },
-    operation
+    operation,
+    hasCreativeFactoryAssets
   );
 
   if (missing.length > 0) {

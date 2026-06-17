@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { OperationCenter } from "@/types/database";
+import type { CreativeAssetType, OperationCenter } from "@/types/database";
 import {
   computeOperationCenterDashboard,
   type OperationCenterDashboard,
@@ -283,6 +283,83 @@ export function useOperationCenter() {
     }
   }
 
+  async function generateCreative(assetType: CreativeAssetType) {
+    const operationId = dashboard?.operation?.id;
+    const productId = dashboard?.operation?.product_id;
+    if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
+
+    setBusy(true);
+    try {
+      const res = await fetch("/api/creative-factory/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          asset_type: assetType,
+          operation_id: operationId,
+          product_id: productId,
+        }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        message?: string;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return { message: null, error: data?.error ?? parseError ?? "Erro ao gerar criativo." };
+      }
+
+      await refresh();
+      return { message: data?.message ?? "Criativo gerado.", error: data?.error ?? null };
+    } catch (err) {
+      console.error("[useOperationCenter] generateCreative failed:", err);
+      return { message: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadCreatives() {
+    const operationId = dashboard?.operation?.id;
+    if (!operationId) return { message: null, error: "Nenhuma operação ativa.", count: 0 };
+
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/creative-factory?operationId=${encodeURIComponent(operationId)}`);
+      const { data, error: parseError } = await parseJsonResponse<{
+        assets?: { id: string; title?: string | null; status: string }[];
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return {
+          message: null,
+          error: data?.error ?? parseError ?? "Erro ao listar criativos.",
+          count: 0,
+        };
+      }
+
+      const readyAssets = (data?.assets ?? []).filter((a) => a.status === "ready");
+      if (readyAssets.length === 0) {
+        return { message: null, error: "Nenhum criativo pronto para download.", count: 0 };
+      }
+
+      for (const asset of readyAssets) {
+        window.open(`/api/creative-factory/download/${asset.id}`, "_blank");
+      }
+
+      return {
+        message: `${readyAssets.length} arquivo(s) aberto(s) para download.`,
+        error: null,
+        count: readyAssets.length,
+      };
+    } catch (err) {
+      console.error("[useOperationCenter] downloadCreatives failed:", err);
+      return { message: null, error: "Erro de conexão.", count: 0 };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function cancelOperation() {
     const operationId = dashboard?.operation?.id;
     if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
@@ -322,6 +399,8 @@ export function useOperationCenter() {
     refresh,
     generateCopy,
     generateAssets,
+    generateCreative,
+    downloadCreatives,
     prepareCampaign,
     sendToPerformanceAi,
     approveOperation,

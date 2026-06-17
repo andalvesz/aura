@@ -4,7 +4,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   ClipboardCheck,
+  Download,
   FileText,
+  Film,
   Image,
   Layout,
   Loader2,
@@ -24,6 +26,7 @@ import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-sk
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 import { useOperationCenter } from "@/hooks/use-operation-center";
+import type { CreativeAssetType } from "@/types/database";
 import { cn } from "@/utils/cn";
 import {
   getOperationStatusColor,
@@ -56,6 +59,8 @@ export function OperationCenterView() {
     refresh,
     generateCopy,
     generateAssets,
+    generateCreative,
+    downloadCreatives,
     prepareCampaign,
     sendToPerformanceAi,
     approveOperation,
@@ -77,6 +82,26 @@ export function OperationCenterView() {
 
   async function handleGenerateCreatives() {
     const { message, error: actionError } = await generateAssets("creatives");
+    if (actionError && !message) {
+      toast.error(actionError);
+      return;
+    }
+    if (message) toast.success(message);
+    if (actionError) toast.warning(actionError);
+  }
+
+  async function handleGenerateCreative(assetType: CreativeAssetType, label: string) {
+    const { message, error: actionError } = await generateCreative(assetType);
+    if (actionError && !message) {
+      toast.error(actionError);
+      return;
+    }
+    if (message) toast.success(message);
+    if (actionError) toast.warning(`${label}: ${actionError}`);
+  }
+
+  async function handleDownloadCreatives() {
+    const { message, error: actionError } = await downloadCreatives();
     if (actionError && !message) {
       toast.error(actionError);
       return;
@@ -353,7 +378,42 @@ export function OperationCenterView() {
                 onClick={() => void handleGenerateCreatives()}
                 disabled={busy || !canMutate}
               >
-                Gerar Criativos
+                Gerar Criativos (Studio)
+              </ActionButton>
+              <ActionButton
+                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Image className="size-3.5" />}
+                onClick={() => void handleGenerateCreative("image", "Imagem")}
+                disabled={busy || !canMutate}
+              >
+                Gerar Imagem
+              </ActionButton>
+              <ActionButton
+                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Layout className="size-3.5" />}
+                onClick={() => void handleGenerateCreative("carousel", "Carrossel")}
+                disabled={busy || !canMutate}
+              >
+                Gerar Carrossel
+              </ActionButton>
+              <ActionButton
+                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Film className="size-3.5" />}
+                onClick={() => void handleGenerateCreative("vsl_script", "VSL")}
+                disabled={busy || !canMutate}
+              >
+                Gerar VSL
+              </ActionButton>
+              <ActionButton
+                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Megaphone className="size-3.5" />}
+                onClick={() => void handleGenerateCreative("ugc_script", "UGC")}
+                disabled={busy || !canMutate}
+              >
+                Gerar UGC
+              </ActionButton>
+              <ActionButton
+                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                onClick={() => void handleDownloadCreatives()}
+                disabled={busy || !hasOperation}
+              >
+                Baixar Criativos
               </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Layout className="size-3.5" />}
