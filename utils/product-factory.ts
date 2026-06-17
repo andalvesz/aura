@@ -160,6 +160,10 @@ export const PRODUCT_FILES_BUCKET = "product-files";
 export const STORAGE_BUCKET_WARNING =
   "Configure o bucket product-files no Supabase Storage.";
 
+export function buildProductFactoryDownloadUrl(fileId: string): string {
+  return `/api/creator/factory/pdf/${fileId}`;
+}
+
 export function parseJsonArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value as T[];
   return [];

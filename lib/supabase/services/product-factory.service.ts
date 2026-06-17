@@ -27,6 +27,7 @@ import {
   computeProductFactoryDashboard,
   PRODUCT_FILES_BUCKET,
   STORAGE_BUCKET_WARNING,
+  buildProductFactoryDownloadUrl,
   type GeneratedProductFactory,
   type ProductFactoryBundle,
   type ProductFactoryDashboardMetrics,
@@ -387,6 +388,11 @@ export async function publishProductFactoryPdf(input: {
     return { file: null, bundle: null, error: "PDF inválido." };
   }
 
+  console.info("[ebook] pdf generated", {
+    factoryId,
+    sizeBytes: pdfBytes.length,
+  });
+
   const factoryRepo = new ProductFactoryRepository(ctx.supabase, ctx.userId);
   const filesRepo = new ProductFilesRepository(ctx.supabase, ctx.userId);
   const versionsRepo = new ProductVersionsRepository(ctx.supabase, ctx.userId);
@@ -420,21 +426,63 @@ export async function publishProductFactoryPdf(input: {
     });
 
   if (uploadError) {
+    console.error("[ebook] upload failed", {
+      factoryId,
+      bucket: PDF_BUCKET,
+      storagePath,
+      error: uploadError.message,
+    });
     return {
       file: null,
       bundle: null,
-      error: STORAGE_BUCKET_WARNING,
+      error: `Não foi possível salvar o PDF: ${uploadError.message}`,
+    };
+  }
+
+  console.info("[ebook] uploaded", {
+    factoryId,
+    bucket: PDF_BUCKET,
+    storagePath,
+    sizeBytes: pdfBytes.length,
+  });
+
+  const { data: verifyDownload, error: verifyError } = await ctx.supabase.storage
+    .from(PDF_BUCKET)
+    .download(storagePath);
+
+  if (verifyError || !verifyDownload) {
+    console.error("[ebook] storage verify failed", {
+      factoryId,
+      storagePath,
+      error: verifyError?.message,
+    });
+    return {
+      file: null,
+      bundle: null,
+      error: "PDF enviado, mas não foi encontrado no Storage.",
     };
   }
 
   const { data: publicData } = ctx.supabase.storage.from(PDF_BUCKET).getPublicUrl(storagePath);
-  const fileUrl = publicData.publicUrl;
+  const publicUrl = publicData.publicUrl;
+
+  const { data: signedData, error: signedError } = await ctx.supabase.storage
+    .from(PDF_BUCKET)
+    .createSignedUrl(storagePath, 3600);
+
+  console.info("[ebook] public url", {
+    factoryId,
+    storagePath,
+    publicUrl,
+    signedUrl: signedData?.signedUrl ?? null,
+    signedError: signedError?.message ?? null,
+  });
 
   const { data: file, error: fileError } = await filesRepo.create({
     factory_id: factoryId,
     file_type: "pdf",
     storage_path: storagePath,
-    file_url: fileUrl,
+    file_url: publicUrl,
     file_name: fileName,
     mime_type: "application/pdf",
     size_bytes: pdfBytes.length,
@@ -444,6 +492,21 @@ export async function publishProductFactoryPdf(input: {
   if (fileError || !file) {
     return { file: null, bundle: null, error: fileError ?? "Erro ao registrar arquivo." };
   }
+
+  const downloadUrl = buildProductFactoryDownloadUrl(file.id);
+  const { data: updatedFile, error: urlUpdateError } = await filesRepo.update(file.id, {
+    file_url: downloadUrl,
+  });
+
+  if (urlUpdateError) {
+    console.warn("[ebook] download url update failed", {
+      fileId: file.id,
+      downloadUrl,
+      error: urlUpdateError,
+    });
+  }
+
+  const persistedFile = (updatedFile as ProductFile | null) ?? (file as ProductFile);
 
   await factoryRepo.update(factoryId, {
     current_version: nextVersion,
@@ -461,7 +524,7 @@ export async function publishProductFactoryPdf(input: {
       design: factory.design,
     },
     changelog: `v${nextVersion} — Final · PDF publicado`,
-    file_id: file.id,
+    file_id: persistedFile.id,
   });
 
   const { data: updatedFactory } = await factoryRepo.findById(factoryId);
@@ -469,7 +532,69 @@ export async function publishProductFactoryPdf(input: {
     ? await loadBundleForFactory(updatedFactory as ProductFactory)
     : null;
 
-  return { file: file as ProductFile, bundle, error: null };
+  return { file: persistedFile, bundle, error: null };
+}
+
+export async function downloadProductFactoryPdf(fileId: string): Promise<{
+  buffer: ArrayBuffer | null;
+  fileName: string;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { buffer: null, fileName: "ebook.pdf", error: "Usuário não autenticado." };
+
+  const trimmedId = fileId.trim();
+  if (!trimmedId) {
+    return { buffer: null, fileName: "ebook.pdf", error: "ID do arquivo inválido." };
+  }
+
+  console.info("[ebook] download requested", { fileId: trimmedId, userId: ctx.userId });
+
+  const filesRepo = new ProductFilesRepository(ctx.supabase, ctx.userId);
+  const { data: file, error: findError } = await filesRepo.findById(trimmedId);
+
+  if (findError || !file) {
+    console.warn("[ebook] download file not found", {
+      fileId: trimmedId,
+      error: findError,
+    });
+    return { buffer: null, fileName: "ebook.pdf", error: findError ?? "Arquivo não encontrado." };
+  }
+
+  const record = file as ProductFile;
+  if (!record.storage_path?.trim()) {
+    return { buffer: null, fileName: record.file_name ?? "ebook.pdf", error: "Caminho do PDF ausente." };
+  }
+
+  console.info("[ebook] download resolved", {
+    fileId: record.id,
+    factoryId: record.factory_id,
+    storagePath: record.storage_path,
+    bucket: PDF_BUCKET,
+  });
+
+  const { data: blob, error: downloadError } = await ctx.supabase.storage
+    .from(PDF_BUCKET)
+    .download(record.storage_path);
+
+  if (downloadError || !blob) {
+    console.error("[ebook] download storage failed", {
+      fileId: record.id,
+      storagePath: record.storage_path,
+      error: downloadError?.message,
+    });
+    return {
+      buffer: null,
+      fileName: record.file_name ?? "ebook.pdf",
+      error: downloadError?.message ?? "Arquivo PDF não encontrado no Storage.",
+    };
+  }
+
+  return {
+    buffer: await blob.arrayBuffer(),
+    fileName: record.file_name ?? "ebook.pdf",
+    error: null,
+  };
 }
 
 export async function runProductFactoryCompliance(factoryId: string): Promise<{

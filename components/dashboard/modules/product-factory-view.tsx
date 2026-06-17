@@ -29,6 +29,7 @@ import {
   pdfBytesToBase64,
 } from "@/utils/product-factory-pdf";
 import {
+  buildProductFactoryDownloadUrl,
   complianceStatusColor,
   complianceStatusLabel,
   FACTORY_INTEGRATIONS,
@@ -391,11 +392,10 @@ function FactoryDetail({
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
           {latestPdf ? "Atualizar PDF" : "Gerar PDF"}
         </ActionButton>
-        {latestPdf?.file_url && (
+        {latestPdf?.id && (
           <a
-            href={latestPdf.file_url}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={buildProductFactoryDownloadUrl(latestPdf.id)}
+            download={latestPdf.file_name ?? "ebook.pdf"}
             className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20"
           >
             <ExternalLink className="h-3 w-3" />
@@ -480,13 +480,17 @@ export function ProductFactoryView() {
   async function handlePublishPdf(bundle: ProductFactoryBundle) {
     try {
       const bytes = await generateProductFactoryPdf(bundle.factory);
+      console.info("[ebook] pdf generated", {
+        factoryId: bundle.factory.id,
+        bytes: bytes.length,
+      });
       const base64 = pdfBytesToBase64(bytes);
       const { file, error: pdfError } = await publishPdf(bundle.factory.id, base64);
       if (pdfError) {
         toast.error(pdfError);
         return;
       }
-      if (file?.file_url) {
+      if (file?.id) {
         toast.success("PDF publicado! Use o botão Baixar PDF.");
       }
     } catch {
