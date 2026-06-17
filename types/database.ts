@@ -1000,6 +1000,59 @@ export type CreativeAsset = {
   updated_at: string;
 };
 
+export type AdPlatform = "meta" | "google" | "tiktok" | "other";
+
+export type AdCampaignStatus = "draft" | "pending_approval" | "ready_to_publish" | "cancelled";
+
+export type AdSetStatus = "draft" | "ready";
+
+export type AdCreativeStatus = "draft" | "ready";
+
+export type AdCampaign = {
+  id: string;
+  user_id: string;
+  operation_id: string | null;
+  platform: AdPlatform;
+  campaign_name: string;
+  objective: string | null;
+  budget: number | null;
+  country: string | null;
+  language: string | null;
+  audience: Json;
+  creatives_json: Json;
+  copy_json: Json;
+  landing_id: string | null;
+  status: AdCampaignStatus;
+  approval_required: boolean;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdSet = {
+  id: string;
+  campaign_id: string;
+  audience: Json;
+  placements: Json;
+  budget: number | null;
+  status: AdSetStatus;
+  metadata: Json;
+  created_at: string;
+};
+
+export type AdCreative = {
+  id: string;
+  campaign_id: string;
+  creative_asset_id: string | null;
+  headline: string | null;
+  primary_text: string | null;
+  description: string | null;
+  cta: string | null;
+  status: AdCreativeStatus;
+  metadata: Json;
+  created_at: string;
+};
+
 export type ProductFactory = {
   id: string;
   user_id: string;
@@ -4053,6 +4106,90 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      ad_campaigns: TableDef<
+        AdCampaign,
+        Omit<
+          AdCampaign,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "operation_id"
+          | "platform"
+          | "campaign_name"
+          | "objective"
+          | "budget"
+          | "country"
+          | "language"
+          | "audience"
+          | "creatives_json"
+          | "copy_json"
+          | "landing_id"
+          | "status"
+          | "approval_required"
+          | "metadata"
+        > & {
+          id?: string;
+          operation_id?: string | null;
+          platform?: AdPlatform;
+          campaign_name?: string;
+          objective?: string | null;
+          budget?: number | null;
+          country?: string | null;
+          language?: string | null;
+          audience?: Json;
+          creatives_json?: Json;
+          copy_json?: Json;
+          landing_id?: string | null;
+          status?: AdCampaignStatus;
+          approval_required?: boolean;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      ad_sets: TableDef<
+        AdSet,
+        Omit<
+          AdSet,
+          "id" | "created_at" | "campaign_id" | "audience" | "placements" | "budget" | "status" | "metadata"
+        > & {
+          id?: string;
+          campaign_id?: string;
+          audience?: Json;
+          placements?: Json;
+          budget?: number | null;
+          status?: AdSetStatus;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      ad_creatives: TableDef<
+        AdCreative,
+        Omit<
+          AdCreative,
+          | "id"
+          | "created_at"
+          | "campaign_id"
+          | "creative_asset_id"
+          | "headline"
+          | "primary_text"
+          | "description"
+          | "cta"
+          | "status"
+          | "metadata"
+        > & {
+          id?: string;
+          campaign_id?: string;
+          creative_asset_id?: string | null;
+          headline?: string | null;
+          primary_text?: string | null;
+          description?: string | null;
+          cta?: string | null;
+          status?: AdCreativeStatus;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       landing_pages: TableDef<
         LandingPage,
         Omit<
@@ -4947,6 +5084,7 @@ export type UserScopedTable =
   | "product_versions"
   | "product_compliance_checks"
   | "creative_assets"
+  | "ad_campaigns"
   | "landing_pages"
   | "platform_connections"
   | "platform_sync_logs"

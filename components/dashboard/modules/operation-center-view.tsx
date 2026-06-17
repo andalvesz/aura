@@ -286,6 +286,9 @@ export function OperationCenterView() {
                 <Link href="/dashboard/revenue" className="text-[10px] text-emerald-400 hover:underline">
                   Revenue Center →
                 </Link>
+                <Link href="/dashboard/ads-commander" className="text-[10px] text-orange-400 hover:underline">
+                  Ads Commander →
+                </Link>
               </div>
             </div>
           ) : (

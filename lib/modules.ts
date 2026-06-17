@@ -20,6 +20,7 @@ import {
   PlugZap,
   Mail,
   Languages,
+  Megaphone,
   MapPin,
   Globe,
   LineChart,
@@ -59,6 +60,7 @@ export type ModuleId =
   | "execution"
   | "performance"
   | "growth-brain"
+  | "ads-commander"
   | "autopilot"
   | "product-factory"
   | "platforms"
@@ -416,6 +418,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Memórias",
       value: "0",
       hint: "Registre resultados para aprender padrões",
+    },
+  },
+  {
+    id: "ads-commander",
+    href: "/dashboard/ads-commander",
+    label: "Ads Commander",
+    shortLabel: "Ads Commander",
+    description:
+      "Prepara campanhas completas para Meta, Google e futuras plataformas — nunca publica automaticamente.",
+    icon: Megaphone,
+    accent: "text-orange-400",
+    overview: {
+      metric: "Preparadas",
+      value: "0",
+      hint: "Monte campanhas e aprove manualmente",
     },
   },
   {
