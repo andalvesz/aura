@@ -1,4 +1,5 @@
 import type { CreativeAsset, CreativeAssetStatus, CreativeAssetType } from "@/types/database";
+import { hasCreativeDirectorPackage } from "@/utils/creative-director";
 
 export const CREATIVE_FILES_BUCKET = "product-files";
 
@@ -10,6 +11,8 @@ export const CREATIVE_ASSET_TYPES: CreativeAssetType[] = [
   "vsl_script",
   "reel_script",
   "ugc_script",
+  "headline_variations",
+  "cta_variations",
 ];
 
 export const CREATIVE_FACTORY_SAFE_MODE = {
@@ -147,6 +150,8 @@ export function getCreativeAssetTypeLabel(type: CreativeAssetType): string {
     vsl_script: "Roteiro VSL",
     reel_script: "Roteiro Reels",
     ugc_script: "Roteiro UGC",
+    headline_variations: "Variações de Headline",
+    cta_variations: "Variações de CTA",
   };
   return labels[type];
 }
@@ -220,6 +225,7 @@ export function hasOperationCreativeAssets(params: {
 }): boolean {
   if (params.assets_id) return true;
   if (params.hasCreativeFactoryAssets) return true;
+  if (hasCreativeDirectorPackage(params.metadata)) return true;
   return Boolean(readCreativeFactoryMetadata(params.metadata)?.latest_asset_id);
 }
 

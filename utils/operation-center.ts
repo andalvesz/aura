@@ -1,6 +1,10 @@
 import type { OperationCenter, OperationCenterStatus } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
 import { hasOperationCreativeAssets } from "@/utils/creative-factory";
+import {
+  readCreativeDirectorMetadata,
+  type CreativeScore,
+} from "@/utils/creative-director";
 
 export const OPERATION_CENTER_SAFE_MODE = true;
 
@@ -96,6 +100,12 @@ export type OperationCenterDashboard = {
     kiwifyConnected: boolean;
     hasPerformanceReport: boolean;
   };
+  creativeDirector?: {
+    ready: boolean;
+    assetCount: number;
+    creativeScore: CreativeScore | null;
+    downloadUrl: string | null;
+  } | null;
 };
 
 export type OperationExecutiveLogEntry = {
@@ -585,8 +595,21 @@ export function computeOperationCenterDashboard(params: {
           "Modo seguro — aprovar operação não publica anúncios automaticamente.",
       },
       integrations: { metaConnected, kiwifyConnected, hasPerformanceReport },
+      creativeDirector: null,
     };
   }
+
+  const creativeDirectorMeta = readCreativeDirectorMetadata(operation.metadata);
+  const creativeDirector = creativeDirectorMeta
+    ? {
+        ready: Boolean(creativeDirectorMeta.ready),
+        assetCount: creativeDirectorMeta.asset_count ?? creativeDirectorMeta.asset_ids?.length ?? 0,
+        creativeScore: creativeDirectorMeta.creative_score ?? null,
+        downloadUrl: creativeDirectorMeta.ready
+          ? `/api/creative-director/download/${operation.id}`
+          : null,
+      }
+    : null;
 
   const steps = computeOperationSteps({
     operation,
@@ -643,6 +666,7 @@ export function computeOperationCenterDashboard(params: {
         "Modo seguro — aprovar operação altera status para Pronta (ready) sem publicar anúncios.",
     },
     integrations: { metaConnected, kiwifyConnected, hasPerformanceReport },
+    creativeDirector,
   };
 }
 

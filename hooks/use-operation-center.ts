@@ -318,6 +318,55 @@ export function useOperationCenter() {
     }
   }
 
+  async function generateCreativePackage() {
+    const operationId = dashboard?.operation?.id;
+    if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
+
+    setBusy(true);
+    try {
+      const res = await fetch("/api/creative-director/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation_id: operationId }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        message?: string;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return {
+          message: null,
+          error: data?.error ?? parseError ?? "Erro ao gerar pacote criativo.",
+        };
+      }
+
+      await refresh();
+      return { message: data?.message ?? "Pacote criativo gerado.", error: data?.error ?? null };
+    } catch (err) {
+      console.error("[useOperationCenter] generateCreativePackage failed:", err);
+      return { message: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function downloadCreativePackage() {
+    const operationId = dashboard?.operation?.id;
+    if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
+
+    setBusy(true);
+    try {
+      window.open(`/api/creative-director/download/${operationId}`, "_blank");
+      return { message: "Pacote criativo aberto para download.", error: null };
+    } catch (err) {
+      console.error("[useOperationCenter] downloadCreativePackage failed:", err);
+      return { message: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function downloadCreatives() {
     const operationId = dashboard?.operation?.id;
     if (!operationId) return { message: null, error: "Nenhuma operação ativa.", count: 0 };
@@ -467,7 +516,9 @@ export function useOperationCenter() {
     generateCopy,
     generateAssets,
     generateCreative,
+    generateCreativePackage,
     downloadCreatives,
+    downloadCreativePackage,
     generateLandingReal,
     publishLanding,
     prepareCampaign,

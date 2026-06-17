@@ -949,7 +949,9 @@ export type CreativeAssetType =
   | "thumbnail"
   | "vsl_script"
   | "reel_script"
-  | "ugc_script";
+  | "ugc_script"
+  | "headline_variations"
+  | "cta_variations";
 
 export type CreativeAssetStatus = "generating" | "ready" | "failed";
 

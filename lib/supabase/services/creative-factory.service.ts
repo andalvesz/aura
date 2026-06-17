@@ -202,6 +202,43 @@ Regras:
 - 30-45 segundos
 - full_script com indicações de tom e gestos`,
   },
+  headline_variations: {
+    fallbackTitle: "Variações de Headline",
+    system: `Você é a Aura Creative Director — cria variações de headline para testes A/B em Meta Ads.
+Responda APENAS JSON:
+{
+  "title": string,
+  "prompt": string,
+  "copy": string,
+  "format": string,
+  "headlines": [{ "text": string, "angle": string, "hook_type": string }],
+  "primary_headline": string,
+  "testing_notes": string
+}
+Regras:
+- 5 a 8 headlines distintas
+- Ângulos variados: dor, curiosidade, benefício, prova social, urgência
+- Português do Brasil
+- Nunca prometa resultados garantidos`,
+  },
+  cta_variations: {
+    fallbackTitle: "Variações de CTA",
+    system: `Você é a Aura Creative Director — cria variações de CTA para anúncios e landing pages.
+Responda APENAS JSON:
+{
+  "title": string,
+  "prompt": string,
+  "copy": string,
+  "format": string,
+  "ctas": [{ "text": string, "context": string, "urgency": string }],
+  "primary_cta": string,
+  "testing_notes": string
+}
+Regras:
+- 5 a 8 CTAs distintos
+- Tom ético, sem pressão abusiva
+- Português do Brasil`,
+  },
 };
 
 function buildFilePayload(

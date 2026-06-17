@@ -11,6 +11,7 @@ import {
   Layout,
   Loader2,
   Megaphone,
+  Palette,
   RefreshCw,
   Shield,
   Sparkles,
@@ -28,6 +29,7 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashb
 import { useOperationCenter } from "@/hooks/use-operation-center";
 import type { CreativeAssetType } from "@/types/database";
 import { cn } from "@/utils/cn";
+import { CREATIVE_SCORE_LABELS, getCreativeScoreColor } from "@/utils/creative-director";
 import {
   getOperationStatusColor,
   getOperationStatusLabel,
@@ -60,7 +62,9 @@ export function OperationCenterView() {
     generateCopy,
     generateAssets,
     generateCreative,
+    generateCreativePackage,
     downloadCreatives,
+    downloadCreativePackage,
     generateLandingReal,
     publishLanding,
     prepareCampaign,
@@ -104,6 +108,26 @@ export function OperationCenterView() {
 
   async function handleDownloadCreatives() {
     const { message, error: actionError } = await downloadCreatives();
+    if (actionError && !message) {
+      toast.error(actionError);
+      return;
+    }
+    if (message) toast.success(message);
+    if (actionError) toast.warning(actionError);
+  }
+
+  async function handleGenerateCreativePackage() {
+    const { message, error: actionError } = await generateCreativePackage();
+    if (actionError && !message) {
+      toast.error(actionError);
+      return;
+    }
+    if (message) toast.success(message);
+    if (actionError) toast.warning(actionError);
+  }
+
+  async function handleDownloadCreativePackage() {
+    const { message, error: actionError } = await downloadCreativePackage();
     if (actionError && !message) {
       toast.error(actionError);
       return;
@@ -287,6 +311,15 @@ export function OperationCenterView() {
           hint="Peso por etapa e integrações"
         />
         <MetricCard
+          label="Score criativo"
+          value={
+            dashboard?.creativeDirector?.creativeScore
+              ? `${dashboard.creativeDirector.creativeScore.overall}/100`
+              : "—"
+          }
+          hint="Creative Director · pacote completo"
+        />
+        <MetricCard
           label="Chance de sucesso"
           value={
             dashboard?.successChance != null ? `${dashboard.successChance}%` : "—"
@@ -298,12 +331,53 @@ export function OperationCenterView() {
           value={dashboard?.integrations.metaConnected ? "Sim" : "Não"}
           hint="Meta Intelligence"
         />
-        <MetricCard
-          label="Kiwify conectada"
-          value={dashboard?.integrations.kiwifyConnected ? "Sim" : "Não"}
-          hint="Kiwify Intelligence"
-        />
       </div>
+
+      {dashboard?.creativeDirector?.creativeScore && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle className="flex items-center gap-2">
+              <Palette className="size-4 text-violet-400" />
+              Score criativo — Creative Director
+            </PanelTitle>
+          </PanelHeader>
+          <PanelContent>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {(
+                [
+                  "clareza",
+                  "promessa",
+                  "curiosidade",
+                  "dor",
+                  "cta",
+                  "risco_reprovacao",
+                ] as const
+              ).map((dimension) => {
+                const value = dashboard.creativeDirector!.creativeScore![dimension];
+                return (
+                  <div
+                    key={dimension}
+                    className="flex items-center justify-between rounded-md border border-white/[0.06] px-3 py-2"
+                  >
+                    <span className="text-[11px] text-zinc-400">
+                      {CREATIVE_SCORE_LABELS[dimension]}
+                    </span>
+                    <span className={cn("text-[12px] font-semibold", getCreativeScoreColor(value))}>
+                      {value}/100
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {dashboard.creativeDirector.ready && (
+              <p className="mt-2 text-[10px] text-zinc-500">
+                Pacote com {dashboard.creativeDirector.assetCount} ativo(s) · Growth Brain, Revenue AI,
+                CopyLab, Meta Intelligence e Operation Center integrados.
+              </p>
+            )}
+          </PanelContent>
+        </Panel>
+      )}
 
       <Panel>
         <PanelHeader>
@@ -384,6 +458,22 @@ export function OperationCenterView() {
                 disabled={busy || !canMutate}
               >
                 Gerar Copy
+              </ActionButton>
+              <ActionButton
+                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Palette className="size-3.5" />}
+                onClick={() => void handleGenerateCreativePackage()}
+                disabled={busy || !canMutate}
+                className="border-violet-500/30"
+              >
+                Gerar Pacote Criativo
+              </ActionButton>
+              <ActionButton
+                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+                onClick={() => void handleDownloadCreativePackage()}
+                disabled={busy || !dashboard?.creativeDirector?.ready}
+                className="border-violet-500/30"
+              >
+                Baixar Pacote
               </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Image className="size-3.5" />}

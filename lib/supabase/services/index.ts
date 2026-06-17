@@ -40,6 +40,7 @@ export * from "./growth-brain.service";
 export * from "./autopilot.service";
 export * from "./product-factory.service";
 export * from "./creative-factory.service";
+export * from "./creative-director.service";
 export * from "./landing-factory.service";
 export * from "./campaign-budget.service";
 export * from "./aura-brain.service";
