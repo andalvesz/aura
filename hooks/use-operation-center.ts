@@ -153,6 +153,37 @@ export function useOperationCenter() {
     }
   }
 
+  async function generateCopy() {
+    const operationId = dashboard?.operation?.id;
+    if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
+
+    setBusy(true);
+    try {
+      const res = await fetch("/api/operation-center/generate-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operationId }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        operation?: OperationCenter;
+        message?: string;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return { message: null, error: data?.error ?? parseError ?? "Erro ao gerar copy." };
+      }
+
+      await refresh();
+      return { message: data?.message ?? "Copy gerada.", error: data?.error ?? null };
+    } catch (err) {
+      console.error("[useOperationCenter] generateCopy failed:", err);
+      return { message: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function prepareCampaign() {
     const operationId = dashboard?.operation?.id;
     if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
@@ -289,6 +320,7 @@ export function useOperationCenter() {
     error,
     busy,
     refresh,
+    generateCopy,
     generateAssets,
     prepareCampaign,
     sendToPerformanceAi,

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ClipboardCheck,
+  FileText,
   Image,
   Layout,
   Loader2,
@@ -53,6 +54,7 @@ export function OperationCenterView() {
     error,
     busy,
     refresh,
+    generateCopy,
     generateAssets,
     prepareCampaign,
     sendToPerformanceAi,
@@ -62,6 +64,16 @@ export function OperationCenterView() {
 
   const operation = dashboard?.operation;
   const canMutate = dashboard?.canMutate ?? false;
+
+  async function handleGenerateCopy() {
+    const { message, error: actionError } = await generateCopy();
+    if (actionError && !message) {
+      toast.error(actionError);
+      return;
+    }
+    if (message) toast.success(message);
+    if (actionError) toast.warning(actionError);
+  }
 
   async function handleGenerateCreatives() {
     const { message, error: actionError } = await generateAssets("creatives");
@@ -329,6 +341,13 @@ export function OperationCenterView() {
           </PanelHeader>
           <PanelContent>
             <div className="flex flex-wrap gap-2">
+              <ActionButton
+                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
+                onClick={() => void handleGenerateCopy()}
+                disabled={busy || !canMutate}
+              >
+                Gerar Copy
+              </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Image className="size-3.5" />}
                 onClick={() => void handleGenerateCreatives()}

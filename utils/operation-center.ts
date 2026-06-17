@@ -118,8 +118,12 @@ const OP_MISSING_APPROVAL_PHRASES = [
 const OP_CONTINUE_PHRASES = [
   "continue a operacao",
   "continue a operação",
+  "continue a operacao atual",
+  "continue a operação atual",
   "continuar operacao",
   "continuar operação",
+  "continuar operacao atual",
+  "continuar operação atual",
   "proximo passo da operacao",
   "próximo passo da operação",
 ] as const;
@@ -136,8 +140,11 @@ const OP_GENERATE_CREATIVES_PHRASES = [
 
 const OP_EXECUTE_COPY_PHRASES = [
   "execute etapa copy",
+  "execute a etapa copy",
   "executar etapa copy",
+  "executar a etapa copy",
   "concluir etapa copy",
+  "concluir a etapa copy",
   "gerar copy",
   "gerar a copy",
   "execute copy",
@@ -215,14 +222,49 @@ export function resolveCeoOperationCommand(message: string): CeoOperationCommand
   const normalized = normalize(message);
   if (!normalized) return null;
 
-  if (matchesAny(normalized, OP_CONTINUE_PHRASES)) return "continue";
+  // Comandos explícitos de etapa têm prioridade sobre "continue" genérico.
   if (matchesAny(normalized, OP_EXECUTE_COPY_PHRASES)) return "copy";
   if (matchesAny(normalized, OP_GENERATE_CREATIVES_PHRASES)) return "creatives";
   if (matchesAny(normalized, OP_EXECUTE_LANDING_PHRASES)) return "landing";
   if (matchesAny(normalized, OP_PREPARE_CAMPAIGN_PHRASES)) return "campaign";
   if (matchesAny(normalized, OP_EXECUTE_PERFORMANCE_PHRASES)) return "performance";
   if (matchesAny(normalized, OP_APPROVE_PHRASES)) return "approve";
+  if (matchesAny(normalized, OP_CONTINUE_PHRASES)) return "continue";
 
+  return null;
+}
+
+const EXECUTABLE_PIPELINE_STEPS: { stepId: OperationStepId; action: CeoOperationCommand }[] = [
+  { stepId: "copy", action: "copy" },
+  { stepId: "criativos", action: "creatives" },
+  { stepId: "landing", action: "landing" },
+  { stepId: "meta_ads", action: "campaign" },
+  { stepId: "performance_ai", action: "performance" },
+];
+
+export function resolveNextExecutableOperationAction(params: {
+  progress: OperationProgressItem[];
+  nextSteps: string[];
+  missingForApproval: string[];
+}): CeoOperationCommand | null {
+  for (const { stepId, action } of EXECUTABLE_PIPELINE_STEPS) {
+    const step = params.progress.find((item) => item.id === stepId);
+    if (step && step.status !== "done") {
+      return action;
+    }
+  }
+
+  for (const next of params.nextSteps) {
+    const resolved = resolveContinueOperationAction(next);
+    if (resolved === "copy") return "copy";
+    if (resolved === "creatives") return "creatives";
+    if (resolved === "landing") return "landing";
+    if (resolved === "campaign") return "campaign";
+    if (resolved === "performance") return "performance";
+    if (resolved === "approve") return "approve";
+  }
+
+  if (params.missingForApproval.length === 0) return "approve";
   return null;
 }
 

@@ -43,6 +43,7 @@ import {
   parseOperationNextSteps,
   resolveCeoOperationCommand,
   resolveContinueOperationAction,
+  resolveNextExecutableOperationAction,
   type CeoOperationCommand,
   type OperationCenterDashboard,
   type OperationExecutiveLogEntry,
@@ -240,6 +241,13 @@ async function persistOperationUpdate(
     operational_score: operationalScore,
     next_steps: nextSteps as unknown as Json,
     ...extra,
+  });
+
+  console.info("[ceo-operation] steps recomputed", {
+    operationId: operation.id,
+    copy: steps.copy,
+    copylabId: (extra.copylab_id as string | undefined) ?? operation.copylab_id,
+    operationalScore,
   });
 
   const updated = data as OperationCenter | null;
@@ -760,6 +768,8 @@ export async function prepareOperationCampaign(
 export async function generateOperationCopy(
   operationId: string
 ): Promise<{ operation: OperationCenter | null; message: string; error: string | null }> {
+  console.info("[ceo-operation] generate copy started", { operationId });
+
   const ctx = await getOptionalDataContext();
   if (!ctx) return { operation: null, message: "", error: "Usuário não autenticado." };
 
@@ -778,6 +788,10 @@ export async function generateOperationCopy(
   }
 
   if (operation.copylab_id) {
+    console.info("[ceo-operation] copylab_id already set", {
+      operationId,
+      copylabId: operation.copylab_id,
+    });
     const integrations = await loadIntegrations();
     const { data: updated, error } = await persistOperationUpdate(
       repo,
@@ -798,12 +812,18 @@ export async function generateOperationCopy(
   };
   const { record: copy, error: copyError } = await generateCopylab(copyIntake);
   if (!copy) {
+    console.error("[ceo-operation] generate copy failed", { operationId, copyError });
     return {
       operation: null,
       message: "",
       error: copyError ?? "Não foi possível gerar a copy.",
     };
   }
+
+  console.info("[ceo-operation] copylab_id saved", {
+    operationId,
+    copylabId: copy.id,
+  });
 
   const integrations = await loadIntegrations();
   const logs = await logOperationAction(
@@ -1022,17 +1042,39 @@ export async function continueOperation(
 
   const { dashboard, error: dashError } = await getOperationCenterState();
   if (dashError || !dashboard?.operation || dashboard.operation.id !== operationId) {
+    console.warn("[ceo-operation] continueOperation: active operation not found", {
+      operationId,
+      dashError,
+      activeOperationId: dashboard?.operation?.id ?? null,
+    });
     return { operation: null, message: "", error: dashError ?? "Operação não encontrada." };
   }
+
+  console.info("[ceo-operation] active operation id", {
+    operationId: dashboard.operation.id,
+    titulo: dashboard.operation.titulo,
+  });
 
   const terminalError = rejectIfOperationTerminal(dashboard.operation);
   if (terminalError) {
     return { operation: null, message: "", error: terminalError };
   }
 
-  const next =
+  const nextFromSteps =
     parseOperationNextSteps(dashboard.operation.next_steps)[0] ?? dashboard.nextSteps[0] ?? "";
-  const action = resolveContinueOperationAction(next);
+  const executableAction = resolveNextExecutableOperationAction({
+    progress: dashboard.progress,
+    nextSteps: dashboard.nextSteps,
+    missingForApproval: dashboard.missingForApproval,
+  });
+
+  console.info("[ceo-operation] action resolved", {
+    operationId,
+    nextFromSteps,
+    executableAction,
+  });
+
+  const action = executableAction ?? resolveContinueOperationAction(nextFromSteps);
 
   switch (action) {
     case "creatives":
@@ -1054,9 +1096,14 @@ export async function continueOperation(
       };
     }
     default:
+      console.warn("[ceo-operation] continueOperation: no executable action", {
+        operationId,
+        nextFromSteps,
+        nextSteps: dashboard.nextSteps,
+      });
       return {
         operation: dashboard.operation,
-        message: next || "Revise os próximos passos no Operation Center.",
+        message: nextFromSteps || "Revise os próximos passos no Operation Center.",
         error: null,
       };
   }
@@ -1069,8 +1116,11 @@ export async function executeCeoOperationCommand(
   message: string;
   error: string | null;
 }> {
+  console.info("[ceo-operation] command detected", { command });
+
   const { dashboard, error: dashError } = await getOperationCenterState();
   if (dashError || !dashboard?.operation) {
+    console.warn("[ceo-operation] no active operation", { dashError });
     return {
       dashboard: null,
       message: "",
@@ -1079,6 +1129,13 @@ export async function executeCeoOperationCommand(
   }
 
   const operationId = dashboard.operation.id;
+  console.info("[ceo-operation] active operation id", {
+    operationId,
+    titulo: dashboard.operation.titulo,
+    copylabId: dashboard.operation.copylab_id,
+    copyStep: dashboard.progress.find((step) => step.id === "copy")?.status ?? "unknown",
+  });
+
   let result: { operation: OperationCenter | null; message: string; error: string | null };
 
   switch (command) {
@@ -1086,6 +1143,7 @@ export async function executeCeoOperationCommand(
       result = await continueOperation(operationId);
       break;
     case "copy":
+      console.info("[ceo-operation] action resolved", { operationId, action: "copy" });
       result = await generateOperationCopy(operationId);
       break;
     case "creatives":
@@ -1138,6 +1196,7 @@ export async function executeCeoOperationFromMessage(
   error: string | null;
 }> {
   const command = resolveCeoOperationCommand(message);
+  console.info("[ceo-operation] command detected", { message: message.slice(0, 120), command });
   if (!command) {
     return { dashboard: null, message: "", error: "Comando operacional não reconhecido." };
   }

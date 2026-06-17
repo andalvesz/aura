@@ -11,6 +11,7 @@ import {
   parseOperationSteps,
   resolveCeoOperationCommand,
   resolveContinueOperationAction,
+  resolveNextExecutableOperationAction,
 } from "./operation-center";
 import type { OperationCenter } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
@@ -91,10 +92,38 @@ test("detectOperationCenterCoachMode", () => {
 test("resolveCeoOperationCommand routes CEO operational phrases", () => {
   assert.equal(resolveCeoOperationCommand("Continue a operação"), "continue");
   assert.equal(resolveCeoOperationCommand("Execute etapa Copy"), "copy");
+  assert.equal(
+    resolveCeoOperationCommand("Continue a operação atual. Execute a etapa Copy. Não publique nada."),
+    "copy"
+  );
   assert.equal(resolveCeoOperationCommand("Execute etapa Criativos"), "creatives");
   assert.equal(resolveCeoOperationCommand("Execute Landing"), "landing");
   assert.equal(resolveCeoOperationCommand("Prepare Meta Ads"), "campaign");
   assert.equal(resolveCeoOperationCommand("Execute Performance AI"), "performance");
+});
+
+test("resolveNextExecutableOperationAction skips non-automated steps", () => {
+  const steps = computeOperationSteps({
+    operation: { ...baseOperation, copylab_id: null, status: "preparing" },
+    bundle: fullBundle,
+    metaConnected: false,
+    kiwifyConnected: false,
+    hasPerformanceReport: false,
+  });
+
+  const progress = Object.entries(steps).map(([id, status]) => ({
+    id: id as import("./operation-center").OperationStepId,
+    label: id,
+    status,
+  }));
+
+  const action = resolveNextExecutableOperationAction({
+    progress,
+    nextSteps: ["Concluir etapa: Persona"],
+    missingForApproval: ["Copy", "Criativos"],
+  });
+
+  assert.equal(action, "copy");
 });
 
 test("computeOperationalScore respects weights", () => {
