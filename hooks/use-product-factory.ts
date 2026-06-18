@@ -19,6 +19,7 @@ export function useProductFactory() {
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
+    console.info("[stack-debug] useProductFactory refresh start");
     setLoading(true);
     setError(null);
     try {
@@ -41,6 +42,9 @@ export function useProductFactory() {
       setDashboard(data.dashboard ?? null);
       setBundles(data.bundles ?? []);
       setStorageReady(data.storageReady ?? true);
+      console.info("[stack-debug] useProductFactory refresh complete", {
+        bundles: data.bundles?.length ?? 0,
+      });
     } catch {
       setError("Erro de conexão.");
       setDashboard(null);
@@ -118,6 +122,7 @@ export function useProductFactory() {
 
   async function runProAction(factoryId: string, action: ProductFactoryProAction) {
     const payload = { factory_id: factoryId, action };
+    console.info("[stack-debug] client runProAction start", payload);
     console.info("[product-pro] client request", payload);
 
     setBusy(true);
@@ -178,10 +183,11 @@ export function useProductFactory() {
       }
 
       await refresh();
+      console.info("[stack-debug] client runProAction success", { factoryId, action });
       return { bundle: data.bundle, error: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error("[product-pro] client exception", {
+      console.error("[stack-debug] client runProAction exception", {
         factoryId,
         action,
         error: message,

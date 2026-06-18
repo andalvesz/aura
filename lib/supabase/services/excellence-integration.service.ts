@@ -52,9 +52,35 @@ async function triggerAutoImprovement(
   sourceModule: string
 ): Promise<void> {
   if (assetType === "ebook") {
+    const { isProductProLocked } = await import("@/utils/product-pro-locks");
+    if (isProductProLocked(assetId)) {
+      console.info("[product-pro] skip excellence auto-improve due to active lock", {
+        assetId,
+        sourceModule,
+      });
+      return;
+    }
+
+    console.info("[stack-debug] excellence triggerAutoImprovement -> runProductFactoryProAction", {
+      assetType,
+      asset_id: assetId,
+      action: "improve",
+      sourceModule,
+    });
     void import("./product-factory.service")
-      .then((mod) => mod.runProductFactoryProAction(assetId, "improve"))
-      .catch(() => undefined);
+      .then((mod) =>
+        mod.runProductFactoryProAction(assetId, "improve", {
+          source: "excellence",
+          skipExcellenceTrigger: true,
+        })
+      )
+      .catch((error) => {
+        console.error("[stack-debug] excellence auto-improve failed", {
+          asset_id: assetId,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+      });
     return;
   }
 

@@ -1,7 +1,6 @@
 import type { ProductFactoryProAction } from "@/utils/product-factory-pro";
-import {
-  runProductFactoryProAction,
-} from "@/lib/supabase/services/product-factory.service";
+import { sanitizeProductFactoryBundle } from "@/utils/product-factory-pro";
+import { runProductFactoryProAction } from "@/lib/supabase/services/product-factory.service";
 
 const VALID_ACTIONS: ProductFactoryProAction[] = [
   "improve",
@@ -47,7 +46,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "action inválida." }, { status: 400 });
     }
 
-    const { bundle, error } = await runProductFactoryProAction(factoryId, action);
+    const { bundle, error } = await runProductFactoryProAction(factoryId, action, {
+      source: "manual",
+    });
     if (error) {
       console.error("[product-pro]", {
         factoryId,
@@ -74,10 +75,23 @@ export async function POST(request: Request) {
         : undefined,
     });
 
-    return Response.json({ bundle });
+    return Response.json({ bundle: sanitizeProductFactoryBundle(bundle) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
+
+    if (/maximum call stack size exceeded/i.test(message)) {
+      console.error("[product-pro] stack overflow in route", { factoryId, action });
+      return Response.json(
+        {
+          error: "Loop detectado ao melhorar produto. A ação foi bloqueada para evitar recursão.",
+          detail: message,
+          action,
+          factory_id: factoryId,
+        },
+        { status: 500 }
+      );
+    }
 
     console.error("[product-pro]", {
       factoryId,

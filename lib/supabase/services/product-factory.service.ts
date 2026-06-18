@@ -41,22 +41,80 @@ import {
   detectSensitiveNiche,
   formatProductFactoryOpenAiError,
   mergeQualityIntoContent,
+  MAX_AUTO_ELITE_CYCLES,
   normalizeGeneratedCompliance,
   normalizeProGenerated,
   parseProContent,
   productFactoryInvalidAiResponseMessage,
   PRODUCT_MANUAL_REVIEW_MESSAGE,
   PRODUCT_NOT_READY_MESSAGE,
+  sanitizeProductFactoryBundle,
   type ProGeneratedProduct,
   type ProductFactoryAiOperation,
   type ProductFactoryProAction,
+  type ProductProActionOptions,
 } from "@/utils/product-factory-pro";
+import {
+  acquireProductProLock,
+  isProductProStackOverflowError,
+  PRODUCT_PRO_LOCK_MESSAGE,
+  PRODUCT_PRO_LOOP_DETECTED_MESSAGE,
+  releaseProductProLock,
+} from "@/utils/product-pro-locks";
 import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
 import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
 import { getWinnerContext } from "./winner-pattern.service";
 import { getOptionalDataContext } from "./context";
 
 const PDF_BUCKET = PRODUCT_FILES_BUCKET;
+
+export const MAX_PRODUCT_PRO_DEPTH = 5;
+
+const productProDepthStack: Array<{
+  factoryId: string;
+  action: string;
+  source: string;
+}> = [];
+
+function pushProductProDepth(
+  source: string,
+  factoryId: string,
+  action: string
+): number {
+  productProDepthStack.push({ factoryId, action, source });
+  const depth = productProDepthStack.length;
+  console.info("[stack-debug] depth push", {
+    depth,
+    action,
+    factory_id: factoryId,
+    source,
+    stack: productProDepthStack.map((entry) => `${entry.source}:${entry.action}`),
+  });
+  if (depth > MAX_PRODUCT_PRO_DEPTH) {
+    const trace = productProDepthStack
+      .map((entry) => `${entry.source}(${entry.action}@${entry.factoryId})`)
+      .join(" -> ");
+    productProDepthStack.pop();
+    const error = new Error(`Product Factory recursion detected at depth ${depth}: ${trace}`);
+    console.error("[stack-debug] recursion guard tripped", {
+      depth,
+      trace,
+      stack: error.stack,
+    });
+    throw error;
+  }
+  return depth;
+}
+
+function popProductProDepth(source: string, factoryId: string, action: string): void {
+  console.info("[stack-debug] depth pop", {
+    depth: productProDepthStack.length,
+    action,
+    factory_id: factoryId,
+    source,
+  });
+  productProDepthStack.pop();
+}
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -339,7 +397,7 @@ export async function getProductFactoryDashboard(): Promise<{
   };
 }
 
-export type { ProductFactoryProAction } from "@/utils/product-factory-pro";
+export type { ProductFactoryProAction, ProductProActionOptions } from "@/utils/product-factory-pro";
 
 async function persistComplianceFromGenerated(
   complianceRepo: ProductComplianceChecksRepository,
@@ -586,12 +644,23 @@ async function executeProductFactoryProActionInternal(
   ctx: NonNullable<Awaited<ReturnType<typeof getOptionalDataContext>>>,
   factoryId: string,
   action: ProductFactoryProAction,
-  overrides?: ProActionOverrides
+  overrides?: ProActionOverrides,
+  source = "executeProductFactoryProActionInternal"
 ): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
+  const depth = pushProductProDepth(source, factoryId, action);
+  console.info("[stack-debug] enter executeProductFactoryProActionInternal", {
+    depth,
+    action,
+    factory_id: factoryId,
+    source,
+  });
+
+  try {
   console.info("[product-pro] execute start", {
     action,
     factoryId,
     userId: ctx.userId,
+    depth,
   });
 
   const factoryRepo = new ProductFactoryRepository(ctx.supabase, ctx.userId);
@@ -764,9 +833,19 @@ async function executeProductFactoryProActionInternal(
     scoreAfter,
     nextVersion,
     readyToSell: quality.readyToSell,
+    depth,
   });
 
-  return { bundle: finalBundle, error: null };
+  return { bundle: sanitizeProductFactoryBundle(finalBundle), error: null };
+  } finally {
+    console.info("[stack-debug] exit executeProductFactoryProActionInternal", {
+      depth,
+      action,
+      factory_id: factoryId,
+      source,
+    });
+    popProductProDepth(source, factoryId, action);
+  }
 }
 
 const AUTO_ELITE_CYCLES: Array<{
@@ -796,66 +875,174 @@ async function autoImproveToElite(
   factoryId: string,
   initialBundle: ProductFactoryBundle
 ): Promise<{ bundle: ProductFactoryBundle; error: string | null }> {
+  console.info("[stack-debug] enter autoImproveToElite", { factory_id: factoryId });
+
+  const lockAcquired = acquireProductProLock(factoryId, "auto_elite", "auto_elite");
+  if (!lockAcquired) {
+    return { bundle: initialBundle, error: PRODUCT_PRO_LOCK_MESSAGE };
+  }
+
   let bundle = initialBundle;
 
-  for (const cycle of AUTO_ELITE_CYCLES) {
-    const quality = computeProductQualityScore(bundle.factory, bundle.compliance);
-    if (quality.readyToSell) break;
+  try {
+    const cycles = AUTO_ELITE_CYCLES.slice(0, MAX_AUTO_ELITE_CYCLES);
 
-    const { bundle: improved, error } = await executeProductFactoryProActionInternal(
-      ctx,
-      factoryId,
-      cycle.action,
-      { changelog: cycle.changelog, versionLabel: cycle.versionLabel }
-    );
-
-    if (error || !improved) {
-      console.warn("[product-factory] auto-improve cycle failed", {
-        factoryId,
+    for (const cycle of cycles) {
+      const quality = computeProductQualityScore(bundle.factory, bundle.compliance);
+      console.info("[stack-debug] autoImproveToElite cycle", {
+        factory_id: factoryId,
         action: cycle.action,
-        error,
+        readyToSell: quality.readyToSell,
+        score: quality.score,
       });
-      break;
+      if (quality.readyToSell) break;
+
+      const { bundle: improved, error } = await executeProductFactoryProActionInternal(
+        ctx,
+        factoryId,
+        cycle.action,
+        { changelog: cycle.changelog, versionLabel: cycle.versionLabel },
+        "auto_elite"
+      );
+
+      if (error || !improved) {
+        console.warn("[product-factory] auto-improve cycle failed", {
+          factoryId,
+          action: cycle.action,
+          error,
+        });
+        break;
+      }
+      bundle = improved;
     }
-    bundle = improved;
-  }
 
-  const finalQuality = computeProductQualityScore(bundle.factory, bundle.compliance);
-  if (!finalQuality.readyToSell) {
-    return { bundle, error: PRODUCT_MANUAL_REVIEW_MESSAGE };
-  }
+    const finalQuality = computeProductQualityScore(bundle.factory, bundle.compliance);
+    console.info("[stack-debug] exit autoImproveToElite", {
+      factory_id: factoryId,
+      readyToSell: finalQuality.readyToSell,
+      score: finalQuality.score,
+    });
+    if (!finalQuality.readyToSell) {
+      return { bundle, error: PRODUCT_MANUAL_REVIEW_MESSAGE };
+    }
 
-  return { bundle, error: null };
+    return { bundle, error: null };
+  } catch (error) {
+    if (isProductProStackOverflowError(error)) {
+      return { bundle, error: PRODUCT_PRO_LOOP_DETECTED_MESSAGE };
+    }
+    throw error;
+  } finally {
+    releaseProductProLock(factoryId);
+  }
 }
 
 export async function runProductFactoryProAction(
   factoryId: string,
-  action: ProductFactoryProAction
+  action: ProductFactoryProAction,
+  options?: ProductProActionOptions
 ): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
-  console.info("[product-pro] runProductFactoryProAction", { action, factoryId });
+  const source = options?.source ?? "manual";
+  console.info("[stack-debug] enter runProductFactoryProAction", {
+    action,
+    factory_id: factoryId,
+    source,
+  });
+  console.info("[product-pro] runProductFactoryProAction", { action, factoryId, source });
 
   const ctx = await getOptionalDataContext();
   if (!ctx) {
     console.error("[product-pro] no auth context", { action, factoryId });
+    console.info("[stack-debug] exit runProductFactoryProAction", {
+      action,
+      factory_id: factoryId,
+      reason: "no-auth",
+    });
     return { bundle: null, error: "Usuário não autenticado." };
   }
   if (!getOpenAi()) {
     console.error("[product-pro] openai key missing", { action, factoryId });
+    console.info("[stack-debug] exit runProductFactoryProAction", {
+      action,
+      factory_id: factoryId,
+      reason: "no-openai",
+    });
     return { bundle: null, error: "IA indisponível (OPENAI_API_KEY)." };
   }
 
-  try {
-    return await executeProductFactoryProActionInternal(ctx, factoryId, action);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[product-pro] unhandled error", {
-      action,
-      factoryId,
-      error: message,
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-    return { bundle: null, error: message };
+  const lockAcquired = acquireProductProLock(factoryId, action, source);
+  if (!lockAcquired) {
+    console.info("[product-pro] action blocked by active lock", { factoryId, action, source });
+    return { bundle: null, error: PRODUCT_PRO_LOCK_MESSAGE };
   }
+
+  let scheduleExcellence = false;
+  let excellenceLabel: string | undefined;
+  let response: { bundle: ProductFactoryBundle | null; error: string | null };
+
+  try {
+    const result = await executeProductFactoryProActionInternal(
+      ctx,
+      factoryId,
+      action,
+      undefined,
+      source
+    );
+
+    if (
+      !result.error &&
+      result.bundle &&
+      source === "manual" &&
+      !options?.skipExcellenceTrigger
+    ) {
+      scheduleExcellence = true;
+      excellenceLabel = result.bundle.factory.titulo ?? undefined;
+    }
+
+    response = {
+      bundle: sanitizeProductFactoryBundle(result.bundle),
+      error: result.error,
+    };
+  } catch (error) {
+    if (isProductProStackOverflowError(error)) {
+      console.error("[product-pro] stack overflow blocked", { action, factoryId, source });
+      response = { bundle: null, error: PRODUCT_PRO_LOOP_DETECTED_MESSAGE };
+    } else {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[product-pro] unhandled error", {
+        action,
+        factoryId,
+        source,
+        error: message,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      console.error("[stack-debug] runProductFactoryProAction error", {
+        action,
+        factory_id: factoryId,
+        source,
+        error: message,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      response = { bundle: null, error: message };
+    }
+  } finally {
+    releaseProductProLock(factoryId);
+    console.info("[stack-debug] exit runProductFactoryProAction", {
+      action,
+      factory_id: factoryId,
+      source,
+    });
+  }
+
+  if (scheduleExcellence) {
+    void import("./excellence-integration.service")
+      .then(({ scheduleExcellenceReview }) => {
+        scheduleExcellenceReview("ebook", factoryId, excellenceLabel, "product-factory-pro");
+      })
+      .catch(() => undefined);
+  }
+
+  return response;
 }
 
 export async function publishProductFactoryPdf(input: {

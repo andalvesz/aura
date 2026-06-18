@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -257,6 +257,15 @@ function FactoryDetail({
   onProAction: (action: ProductFactoryProAction) => void;
   busy: boolean;
 }) {
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+  if (renderCountRef.current > 40) {
+    console.error("[stack-debug] FactoryDetail render storm", {
+      factoryId: bundle.factory.id,
+      renders: renderCountRef.current,
+    });
+  }
+
   const { factory, latestPdf, compliance, versions } = bundle;
   const [tab, setTab] = useState<DetailTab>("conteudo");
   const design = parseDesign(factory.design);
@@ -657,6 +666,7 @@ export function ProductFactoryView() {
     };
 
     console.info("[product-pro] UI handleProAction", { factoryId, action });
+    console.info("[stack-debug] UI handleProAction start", { factoryId, action });
 
     const { bundle, error: proError } = await runProAction(factoryId, action);
     if (proError) {

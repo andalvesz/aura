@@ -1,5 +1,6 @@
-import type { ProductComplianceCheck, ProductFactory } from "@/types/database";
+import type { ProductComplianceCheck, ProductFactory, Json } from "@/types/database";
 import type {
+  ProductFactoryBundle,
   ProductFactoryChapter,
   ProductFactoryChecklistItem,
   ProductFactoryComplianceItem,
@@ -8,6 +9,7 @@ import type {
   GeneratedProductFactory,
 } from "@/utils/product-factory";
 import { parseDesign, parseJsonArray } from "@/utils/product-factory";
+import type { ProductProActionSource } from "@/utils/product-pro-locks";
 
 export type ProductFactoryTemplateId =
   | "premium_dark"
@@ -782,6 +784,63 @@ export function normalizeGeneratedCompliance(
     notes: disclaimer,
   };
 }
+
+const NESTED_RECURSIVE_CONTENT_KEYS = ["bundle", "factory", "conteudo"] as const;
+
+export function sanitizeRecursiveProductContent(
+  conteudo: unknown
+): Record<string, unknown> {
+  if (!conteudo || typeof conteudo !== "object" || Array.isArray(conteudo)) {
+    return {};
+  }
+
+  const raw = { ...(conteudo as Record<string, unknown>) };
+  let removed = false;
+
+  for (const key of NESTED_RECURSIVE_CONTENT_KEYS) {
+    if (key in raw) {
+      delete raw[key];
+      removed = true;
+    }
+  }
+
+  if (removed) {
+    console.warn("[product-pro] removed nested recursive content");
+  }
+
+  return raw;
+}
+
+export function sanitizeProductFactoryBundle(
+  bundle: ProductFactoryBundle | null
+): ProductFactoryBundle | null {
+  if (!bundle) return null;
+
+  const conteudo = bundle.factory.conteudo;
+  const sanitizedConteudo =
+    conteudo && typeof conteudo === "object" && !Array.isArray(conteudo)
+      ? sanitizeRecursiveProductContent(conteudo)
+      : conteudo;
+
+  if (sanitizedConteudo === conteudo) {
+    return bundle;
+  }
+
+  return {
+    ...bundle,
+    factory: {
+      ...bundle.factory,
+      conteudo: sanitizedConteudo as Json,
+    },
+  };
+}
+
+export type ProductProActionOptions = {
+  source?: ProductProActionSource;
+  skipExcellenceTrigger?: boolean;
+};
+
+export const MAX_AUTO_ELITE_CYCLES = 3;
 
 export function buildProActionPrompt(
   action: ProductFactoryProAction,

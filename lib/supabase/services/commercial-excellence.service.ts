@@ -71,6 +71,29 @@ async function improveCommercialTargets(
   const { isAutoImproveAssetType } = await import("@/utils/excellence-auto-improve");
 
   for (const target of targets) {
+    console.info("[stack-debug] commercial-excellence improve target", {
+      assetType: target.assetType,
+      asset_id: target.assetId,
+      label,
+    });
+
+    if (target.assetType === "ebook") {
+      const { isProductProLocked } = await import("@/utils/product-pro-locks");
+      if (isProductProLocked(target.assetId)) {
+        console.info("[product-pro] skip commercial-excellence improve due to active lock", {
+          assetId: target.assetId,
+        });
+        continue;
+      }
+
+      const { runProductFactoryProAction } = await import("./product-factory.service");
+      await runProductFactoryProAction(target.assetId, "improve", {
+        source: "commercial_excellence",
+        skipExcellenceTrigger: true,
+      });
+      continue;
+    }
+
     if (isAutoImproveAssetType(target.assetType)) {
       await improveAsset({
         assetType: target.assetType,
@@ -125,6 +148,13 @@ export async function runCommercialExcellence(params: {
 
   while (!summary.deliverable && cycles < COMMERCIAL_EXCELLENCE_MAX_CYCLES) {
     cycles += 1;
+    console.info("[stack-debug] commercial-excellence cycle", {
+      cycle: cycles,
+      maxCycles: COMMERCIAL_EXCELLENCE_MAX_CYCLES,
+      deliverable: summary.deliverable,
+      score: summary.commercial_excellence_score,
+      factoryId: params.factoryId ?? null,
+    });
     await improveCommercialTargets(targets, params.label);
     summary = await computeCommercialExcellenceForFlow(params);
   }
