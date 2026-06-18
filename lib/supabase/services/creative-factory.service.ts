@@ -22,6 +22,7 @@ import {
   type CreativeFactoryIntake,
   type CreativeMediaProvider,
 } from "@/utils/creative-factory";
+import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
 import { getOptionalDataContext } from "./context";
 
 const BUCKET = CREATIVE_FILES_BUCKET;
@@ -324,9 +325,15 @@ export async function checkCreativeFilesBucketReady(): Promise<boolean> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return false;
 
-  const { data, error } = await ctx.supabase.storage.listBuckets();
-  if (error || !data) return false;
-  return data.some((b) => b.id === BUCKET || b.name === BUCKET);
+  const probePath = `creative-assets/${ctx.userId}/creative-factory-healthcheck/probe.txt`;
+
+  return probeStorageBucketWrite({
+    supabase: ctx.supabase,
+    bucket: BUCKET,
+    probePath,
+    userId: ctx.userId,
+    logPrefix: "[creative-factory]",
+  });
 }
 
 export async function loadCreativeAssets(): Promise<{

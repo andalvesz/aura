@@ -33,6 +33,7 @@ import {
   type ProductFactoryDashboardMetrics,
   type ProductFactoryIntake,
 } from "@/utils/product-factory";
+import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
 import { getOptionalDataContext } from "./context";
 
 const PDF_BUCKET = PRODUCT_FILES_BUCKET;
@@ -167,9 +168,15 @@ export async function checkProductFilesBucketReady(): Promise<boolean> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return false;
 
-  const { data, error } = await ctx.supabase.storage.listBuckets();
-  if (error || !data) return false;
-  return data.some((b) => b.id === PDF_BUCKET || b.name === PDF_BUCKET);
+  const probePath = `${ctx.userId}/product-factory-healthcheck/probe.txt`;
+
+  return probeStorageBucketWrite({
+    supabase: ctx.supabase,
+    bucket: PDF_BUCKET,
+    probePath,
+    userId: ctx.userId,
+    logPrefix: "[product-factory]",
+  });
 }
 
 async function loadBundleForFactory(factory: ProductFactory): Promise<ProductFactoryBundle> {
@@ -223,6 +230,7 @@ export async function getProductFactoryDashboard(): Promise<{
   const { bundles, error } = await loadProductFactoryBundles();
   if (error) return { dashboard: null, bundles: [], storageReady: false, error };
   const storageReady = await checkProductFilesBucketReady();
+
   return {
     dashboard: computeProductFactoryDashboard(bundles),
     bundles,
