@@ -602,10 +602,22 @@ export async function prepareFullCampaign(params: {
   });
 
   if (updated) {
-    await feedAdsCommanderIntegrations(updated);
-    if (updated.operation_id) {
-      await linkAdsCommanderToOperation(updated.operation_id, updated.id);
+    const reviewedCampaign = updated;
+    await feedAdsCommanderIntegrations(reviewedCampaign);
+    if (reviewedCampaign.operation_id) {
+      await linkAdsCommanderToOperation(reviewedCampaign.operation_id, reviewedCampaign.id);
     }
+
+    void import("./excellence-integration.service")
+      .then(({ scheduleExcellenceReview }) => {
+        scheduleExcellenceReview(
+          "campaign",
+          reviewedCampaign.id,
+          reviewedCampaign.campaign_name ?? undefined,
+          "ads-commander"
+        );
+      })
+      .catch(() => undefined);
   }
 
   const errors = [setsError, creativesError, updateError].filter(Boolean);
@@ -656,6 +668,18 @@ export async function approveCampaign(campaignId: string): Promise<{
       campaign: null,
       message: "",
       error: "Apenas campanhas aguardando aprovação podem ser aprovadas.",
+    };
+  }
+
+  const { requireExcellenceDelivery } = await import("./excellence-integration.service");
+  const specialistGate = await requireExcellenceDelivery("campaign", campaignId, {
+    module: "ads-commander",
+  });
+  if (!specialistGate.allowed) {
+    return {
+      campaign: null,
+      message: "",
+      error: specialistGate.error ?? "Campanha bloqueada pelo Specialist Engine.",
     };
   }
 

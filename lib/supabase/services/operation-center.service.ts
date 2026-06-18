@@ -1557,6 +1557,21 @@ export async function approveOperation(
     };
   }
 
+  const { requireMultipleExcellenceDeliveries } = await import("./excellence-integration.service");
+  const { collectOperationAssetChecks } = await import("@/utils/specialist-engine");
+  const specialistGate = await requireMultipleExcellenceDeliveries(
+    collectOperationAssetChecks(operation),
+    { module: "operation-center" }
+  );
+  if (!specialistGate.allowed) {
+    return {
+      operation: null,
+      message: "",
+      error: specialistGate.error ?? "Operação bloqueada pelo Aura Excellence Engine.",
+      missing: ["specialist_approval"],
+    };
+  }
+
   const logs = await logOperationAction(
     operation,
     "approve",

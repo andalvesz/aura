@@ -488,6 +488,19 @@ export async function generateCreativePackage(operationId: string): Promise<{
     errors.length > 0 ? ` (${errors.length} ativo(s) com falha)` : "";
   const message = `Pacote criativo gerado: ${readyAssets.length}/${CREATIVE_PACKAGE_ASSET_TYPES.length} ativos · Score ${creativeScore.overall}/100${partialNote}`;
 
+  void import("./excellence-integration.service")
+    .then(({ scheduleExcellenceReviews }) => {
+      scheduleExcellenceReviews(
+        readyAssets.map((asset) => ({
+          assetType: "creative" as const,
+          assetId: asset.id,
+          label: asset.title ?? undefined,
+        })),
+        "creative-director"
+      );
+    })
+    .catch(() => undefined);
+
   return {
     package: manifest,
     operation: linkedOp,
@@ -529,6 +542,37 @@ export async function downloadCreativePackage(operationId: string): Promise<{
   const storagePath =
     typeof director?.storage_path === "string" ? director.storage_path : null;
 
+  const repo = new CreativeAssetsRepository(ctx.supabase, ctx.userId);
+  const { data: assets } = await repo.findByOperationId(operationId);
+  const readyAssets = (assets ?? []).filter((a) => a.status === "ready");
+
+  if (readyAssets.length === 0 && !storagePath) {
+    return {
+      buffer: null,
+      fileName: "pacote-criativo.json",
+      mimeType: "application/json",
+      error: "Nenhum pacote criativo disponível para download.",
+    };
+  }
+
+  if (readyAssets.length > 0) {
+    const { requireExcellenceDelivery } = await import("./excellence-integration.service");
+    for (const asset of readyAssets) {
+      const gate = await requireExcellenceDelivery("creative", asset.id, {
+        module: "creative-director",
+        label: asset.title ?? undefined,
+      });
+      if (!gate.allowed) {
+        return {
+          buffer: null,
+          fileName: "pacote-criativo.json",
+          mimeType: "application/json",
+          error: gate.error ?? "Pacote bloqueado pelo Aura Excellence Engine.",
+        };
+      }
+    }
+  }
+
   if (storagePath) {
     const { data, error } = await ctx.supabase.storage.from(BUCKET).download(storagePath);
     if (!error && data) {
@@ -547,10 +591,6 @@ export async function downloadCreativePackage(operationId: string): Promise<{
       };
     }
   }
-
-  const repo = new CreativeAssetsRepository(ctx.supabase, ctx.userId);
-  const { data: assets } = await repo.findByOperationId(operationId);
-  const readyAssets = (assets ?? []).filter((a) => a.status === "ready");
 
   if (readyAssets.length === 0) {
     return {

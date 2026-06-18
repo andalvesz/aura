@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       factory_id: body.factory_id?.trim() || null,
       front_price: body.front_price,
       currency: body.currency?.trim(),
+      country: body.country?.trim(),
     });
 
     if (error || !bundle) {

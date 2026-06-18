@@ -652,6 +652,22 @@ export async function generateFunnel(input: FunnelEngineIntake): Promise<{
     )
     .catch((err) => console.error("[offer-engine] auto-generate failed", err));
 
+  void import("./excellence-integration.service")
+    .then(({ scheduleExcellenceReviews }) => {
+      const assets: Array<{ assetType: "funnel" | "landing"; assetId: string; label?: string }> = [
+        {
+          assetType: "funnel",
+          assetId: updatedFunnel.id,
+          label: updatedFunnel.funnel_name,
+        },
+      ];
+      if (landingId) {
+        assets.push({ assetType: "landing", assetId: landingId, label: funnelName });
+      }
+      scheduleExcellenceReviews(assets, "funnel-engine");
+    })
+    .catch(() => undefined);
+
   return { bundle, error: null };
 }
 

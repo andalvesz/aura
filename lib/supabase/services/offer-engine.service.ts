@@ -769,6 +769,19 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
       .catch((err) => console.error("[funnel-pages] auto-generate failed", err));
   }
 
+  void import("./excellence-integration.service")
+    .then(({ scheduleExcellenceReviews }) => {
+      scheduleExcellenceReviews(
+        bundle.offers.map((offer) => ({
+          assetType: "offer" as const,
+          assetId: offer.id,
+          label: offer.title,
+        })),
+        "offer-engine"
+      );
+    })
+    .catch(() => undefined);
+
   return { bundle, error: null };
 }
 

@@ -628,6 +628,22 @@ export async function generateFunnelPages(input: FunnelPagesIntake): Promise<{
     },
   });
 
+  void import("./excellence-integration.service")
+    .then(({ scheduleExcellenceReviews }) => {
+      scheduleExcellenceReviews(
+        [
+          { assetType: "funnel", assetId: funnel.id, label: funnel.funnel_name },
+          ...landings.map((landing) => ({
+            assetType: "landing" as const,
+            assetId: landing.id,
+            label: landing.title ?? landing.headline ?? undefined,
+          })),
+        ],
+        "funnel-pages"
+      );
+    })
+    .catch(() => undefined);
+
   return { bundle, error: null };
 }
 

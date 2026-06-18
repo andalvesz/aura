@@ -354,6 +354,12 @@ export async function generateLandingPage(input: LandingFactoryIntake): Promise<
 
   const message = `Landing "${page.title ?? slug}" gerada em rascunho. Preview interno disponível.`;
 
+  void import("./excellence-integration.service")
+    .then(({ scheduleExcellenceReview }) => {
+      scheduleExcellenceReview("landing", page.id, page.title ?? page.headline ?? undefined, "landing-factory");
+    })
+    .catch(() => undefined);
+
   return { page, message, error: null };
 }
 
@@ -374,6 +380,18 @@ export async function publishLandingPage(
       page: existing,
       message: "Landing já está publicada.",
       error: null,
+    };
+  }
+
+  const { requireExcellenceDelivery } = await import("./excellence-integration.service");
+  const specialistGate = await requireExcellenceDelivery("landing", landingId, {
+    module: "landing-factory",
+  });
+  if (!specialistGate.allowed) {
+    return {
+      page: null,
+      message: "",
+      error: specialistGate.error ?? "Landing bloqueada pelo Specialist Engine.",
     };
   }
 

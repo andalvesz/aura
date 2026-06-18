@@ -758,6 +758,30 @@ export async function analyzeConversion(
     )
     .catch((err) => console.error("[conversion-intelligence] growth-brain feed failed", err));
 
+  const strategyAssetId = funnelFilter ?? `conversion-global-${ctx.userId}`;
+  const strategyContent = [
+    `Winning patterns: ${winning.length}`,
+    `Losing patterns: ${losing.length}`,
+    `Recommendations: ${recommendations.map((item) => item.action).join("; ")}`,
+    dashboard.whyConverted ? `Why converted: ${dashboard.whyConverted}` : "",
+    dashboard.whyNotConverted ? `Why not converted: ${dashboard.whyNotConverted}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  void import("./excellence-integration.service")
+    .then(({ runExcellencePipeline }) =>
+      runExcellencePipeline({
+        assetType: "strategy",
+        assetId: strategyAssetId,
+        label: "Conversion Intelligence",
+        content: strategyContent,
+        module: "conversion-intelligence",
+        forceRefresh: true,
+      })
+    )
+    .catch(() => undefined);
+
   return { result, error: null };
 }
 

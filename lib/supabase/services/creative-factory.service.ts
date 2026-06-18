@@ -548,6 +548,12 @@ export async function generateCreativeAsset(input: CreativeFactoryIntake): Promi
 
   const message = `${fields.title} gerado com sucesso. Arquivo disponível para download.`;
 
+  void import("./excellence-integration.service")
+    .then(({ scheduleExcellenceReview }) => {
+      scheduleExcellenceReview("creative", asset.id, fields.title, "creative-factory");
+    })
+    .catch(() => undefined);
+
   return {
     asset: asset as CreativeAsset,
     operation,
@@ -589,6 +595,19 @@ export async function downloadCreativeAsset(assetId: string): Promise<{
       fileName: "criativo",
       mimeType: "application/octet-stream",
       error: "Arquivo não disponível.",
+    };
+  }
+
+  const { requireExcellenceDelivery } = await import("./excellence-integration.service");
+  const specialistGate = await requireExcellenceDelivery("creative", assetId, {
+    module: "creative-factory",
+  });
+  if (!specialistGate.allowed) {
+    return {
+      buffer: null,
+      fileName: asset.title ?? "criativo",
+      mimeType: "application/octet-stream",
+      error: specialistGate.error ?? "Download bloqueado pelo Specialist Engine.",
     };
   }
 

@@ -401,6 +401,17 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
       .catch((err) => console.error("[funnel-engine] auto-generate failed", err));
   }
 
+  void import("./excellence-integration.service")
+    .then(({ scheduleExcellenceReview }) => {
+      scheduleExcellenceReview(
+        "ebook",
+        refreshed?.id ?? factory.id,
+        generated.titulo ?? input.titulo,
+        "product-factory"
+      );
+    })
+    .catch(() => undefined);
+
   return { bundle, error: null };
 }
 
@@ -561,6 +572,19 @@ export async function publishProductFactoryPdf(input: {
       bundle: bundlePreview,
       error: PRODUCT_NOT_READY_MESSAGE,
       qualityScore: quality.score,
+    };
+  }
+
+  const { requireExcellenceDelivery } = await import("./excellence-integration.service");
+  const specialistGate = await requireExcellenceDelivery("ebook", factoryId, {
+    module: "product-factory",
+  });
+  if (!specialistGate.allowed) {
+    return {
+      file: null,
+      bundle: bundlePreview,
+      error: specialistGate.error ?? "E-book bloqueado pelo Specialist Engine.",
+      qualityScore: specialistGate.result?.finalScore ?? quality.score,
     };
   }
 
@@ -740,6 +764,18 @@ export async function downloadProductFactoryPdf(fileId: string): Promise<{
     storagePath: record.storage_path,
     bucket: PDF_BUCKET,
   });
+
+  const { requireExcellenceDelivery } = await import("./excellence-integration.service");
+  const excellenceGate = await requireExcellenceDelivery("ebook", record.factory_id, {
+    module: "product-factory",
+  });
+  if (!excellenceGate.allowed) {
+    return {
+      buffer: null,
+      fileName: record.file_name ?? "ebook.pdf",
+      error: excellenceGate.error ?? "Download bloqueado pelo Aura Excellence Engine.",
+    };
+  }
 
   const { data: blob, error: downloadError } = await ctx.supabase.storage
     .from(PDF_BUCKET)

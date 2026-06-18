@@ -272,6 +272,17 @@ ${buildLocaleAiRules(locale)}`,
     )
     .catch(() => undefined);
 
+  void import("./excellence-integration.service")
+    .then(({ scheduleExcellenceReview }) => {
+      scheduleExcellenceReview(
+        "copy",
+        record.id,
+        generated.headline ?? input.nome ?? undefined,
+        "copylab"
+      );
+    })
+    .catch(() => undefined);
+
   return { record: record as CreatorCopylab, error: null };
 }
 

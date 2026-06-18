@@ -20,17 +20,20 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashb
 import { useCreator } from "@/hooks/use-creator";
 import { useOfferEngine } from "@/hooks/use-offer-engine";
 import type { OfferBestCard, OfferStackBundle } from "@/utils/offer-engine";
+import { OFFER_ENGINE_SAFE_MODE, formatOfferPrice } from "@/utils/offer-engine";
 
 function BestOfferCard({
   title,
   icon: Icon,
   card,
   accent,
+  currency = "BRL",
 }: {
   title: string;
   icon: typeof TrendingUp;
   card: OfferBestCard | null;
   accent: string;
+  currency?: string;
 }) {
   return (
     <Panel>
@@ -45,8 +48,8 @@ function BestOfferCard({
           <div className="space-y-2">
             <p className="text-[13px] font-medium text-zinc-100">{card.label}</p>
             <p className="text-[11px] text-zinc-400">
-              R$ {card.price.toFixed(2)} · take {Math.round(card.takeRate * 100)}% · receita esperada R${" "}
-              {card.expectedRevenue.toFixed(2)}
+              {formatOfferPrice(card.price, currency)} · take {Math.round(card.takeRate * 100)}% · receita
+              esperada {formatOfferPrice(card.expectedRevenue, currency)}
             </p>
             {card.rationale ? (
               <p className="text-[11px] text-emerald-400/90">{card.rationale}</p>
@@ -61,6 +64,9 @@ function BestOfferCard({
 }
 
 function StackRow({ stack }: { stack: OfferStackBundle }) {
+  const currency = stack.metrics.currency ?? "BRL";
+  const decision = stack.metrics.strategyDecision;
+
   return (
     <div className="rounded-md border border-white/[0.06] px-3 py-2">
       <div className="flex items-start justify-between gap-2">
@@ -69,11 +75,16 @@ function StackRow({ stack }: { stack: OfferStackBundle }) {
             Produto {stack.product_id.slice(0, 8)}…
           </p>
           <p className="text-[10px] text-zinc-500">
-            {stack.metrics.strategy.label} · {stack.metrics.totalOffers} ofertas
+            {stack.metrics.niche} · {stack.metrics.country ?? "—"} · {stack.metrics.strategy.label}
           </p>
+          {decision ? (
+            <p className="mt-0.5 text-[10px] text-violet-400/90">
+              Decision Engine: {decision.decisionSource} · {decision.confidence}% confiança
+            </p>
+          ) : null}
         </div>
         <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-400">
-          AOV R$ {stack.metrics.expectedAov.toFixed(2)}
+          AOV {formatOfferPrice(stack.metrics.expectedAov, currency)}
         </span>
       </div>
       <div className="mt-2 flex flex-wrap gap-1">
@@ -82,7 +93,7 @@ function StackRow({ stack }: { stack: OfferStackBundle }) {
             key={offer.id}
             className="rounded bg-white/[0.04] px-1.5 py-0.5 text-[10px] text-zinc-400"
           >
-            {offer.offer_type}: R$ {Number(offer.price).toFixed(0)}
+            {offer.offer_type}: {formatOfferPrice(Number(offer.price), currency)}
           </span>
         ))}
       </div>
@@ -145,9 +156,15 @@ export function OfferEngineView() {
   }
 
   const topFunnelRevenue = dashboard?.expectedRevenueByFunnel[0];
+  const displayCurrency = stacks[0]?.metrics.currency ?? "BRL";
 
   return (
     <div className="space-y-3">
+      {OFFER_ENGINE_SAFE_MODE.active ? (
+        <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-200/90">
+          {OFFER_ENGINE_SAFE_MODE.message}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-zinc-500">
           Monetização automática — bumps, upsells, downsells, VIP e continuidade por produto.
@@ -188,17 +205,17 @@ export function OfferEngineView() {
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
           label="AOV esperado"
-          value={`R$ ${(dashboard?.expectedAov ?? 0).toFixed(2)}`}
+          value={formatOfferPrice(dashboard?.expectedAov ?? 0, displayCurrency)}
         />
         <MetricCard
           label="Ticket médio esperado"
-          value={`R$ ${(dashboard?.expectedAverageTicket ?? 0).toFixed(2)}`}
+          value={formatOfferPrice(dashboard?.expectedAverageTicket ?? 0, displayCurrency)}
         />
         <MetricCard
           label="Receita esperada por funil"
           value={
             topFunnelRevenue
-              ? `R$ ${topFunnelRevenue.revenue.toFixed(2)}`
+              ? formatOfferPrice(topFunnelRevenue.revenue, displayCurrency)
               : "—"
           }
         />
@@ -210,18 +227,21 @@ export function OfferEngineView() {
           icon={Layers}
           card={dashboard?.bestOfferStructure ?? null}
           accent="text-violet-400"
+          currency={displayCurrency}
         />
         <BestOfferCard
           title="Melhor upsell"
           icon={ArrowUpCircle}
           card={dashboard?.bestUpsell ?? null}
           accent="text-emerald-400"
+          currency={displayCurrency}
         />
         <BestOfferCard
           title="Melhor downsell"
           icon={ArrowDownCircle}
           card={dashboard?.bestDownsell ?? null}
           accent="text-amber-400"
+          currency={displayCurrency}
         />
       </div>
 
@@ -236,7 +256,8 @@ export function OfferEngineView() {
           <PanelContent>
             <p className="text-[13px] font-medium text-zinc-100">{topFunnelRevenue.funnelName}</p>
             <p className="mt-1 text-[11px] text-zinc-400">
-              R$ {topFunnelRevenue.revenue.toFixed(2)} · {topFunnelRevenue.offerCount} ofertas
+              {formatOfferPrice(topFunnelRevenue.revenue, displayCurrency)} · {topFunnelRevenue.offerCount}{" "}
+              ofertas
             </p>
           </PanelContent>
         </Panel>

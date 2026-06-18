@@ -96,4 +96,5 @@ export {
   QualityReviewsRepository,
   QualityScoresRepository,
 } from "./aura-excellence.repository";
+export { SpecialistsRepository } from "./specialist-engine.repository";
 export { OffersRepository } from "./offer-engine.repository";

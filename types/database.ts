@@ -1152,22 +1152,40 @@ export type ExcellenceAssetType =
   | "campaign"
   | "strategy";
 
-export type ExcellenceReviewer =
+export type SpecialistSlug =
   | "product_strategist"
   | "copy_chief"
-  | "conversion_expert"
   | "creative_director"
-  | "funnel_architect"
   | "media_buyer"
+  | "offer_architect"
+  | "landing_expert"
   | "consumer_psychologist"
-  | "compliance_reviewer";
+  | "growth_strategist";
+
+/** @deprecated Use SpecialistSlug */
+export type ExcellenceReviewer = SpecialistSlug;
+
+export type Specialist = {
+  id: string;
+  slug: SpecialistSlug;
+  name: string;
+  description: string;
+  criteria: Json;
+  asset_types: string[];
+  default_weight: number;
+  persona: string | null;
+  active: boolean;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
 
 export type QualityReview = {
   id: string;
   user_id: string;
   asset_type: ExcellenceAssetType;
   asset_id: string;
-  reviewer: ExcellenceReviewer;
+  reviewer: SpecialistSlug;
   score: number;
   strengths: string[];
   weaknesses: string[];
@@ -4657,6 +4675,31 @@ export type Database = {
           id?: string;
           approved?: boolean;
           regeneration_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      specialists: TableDef<
+        Specialist,
+        Omit<
+          Specialist,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "criteria"
+          | "asset_types"
+          | "default_weight"
+          | "persona"
+          | "active"
+          | "metadata"
+        > & {
+          id?: string;
+          criteria?: Json;
+          asset_types?: string[];
+          default_weight?: number;
+          persona?: string | null;
+          active?: boolean;
+          metadata?: Json;
           created_at?: string;
           updated_at?: string;
         }

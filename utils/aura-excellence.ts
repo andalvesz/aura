@@ -1,14 +1,33 @@
 import type {
   ExcellenceAssetType,
-  ExcellenceReviewer,
   QualityReview,
   QualityScore,
+  SpecialistSlug,
 } from "@/types/database";
+import {
+  SPECIALIST_LABELS,
+  SPECIALIST_SLUGS,
+  SPECIALIST_APPROVE_THRESHOLD,
+  SPECIALIST_PREMIUM_THRESHOLD,
+  SPECIALIST_REGENERATE_THRESHOLD,
+  calculateSpecialistFinalScore,
+  evaluateSpecialistByCriteria,
+  getSpecialistDefinition,
+  getSpecialistsForAssetType,
+  resolveSpecialistStatus,
+  type SpecialistReviewPayload,
+  type ExcellenceReviewStatus,
+  clampScore,
+} from "@/utils/specialist-engine";
+
+export const EXCELLENCE_APPROVE_THRESHOLD = SPECIALIST_APPROVE_THRESHOLD;
+export const EXCELLENCE_PREMIUM_THRESHOLD = SPECIALIST_PREMIUM_THRESHOLD;
+export const EXCELLENCE_REGENERATE_THRESHOLD = SPECIALIST_REGENERATE_THRESHOLD;
 
 export const EXCELLENCE_SAFE_MODE = {
   active: true,
   message:
-    "Nenhum ativo gerado pela Aura pode ser entregue sem passar pela auditoria de especialistas do Excellence Engine.",
+    "Nenhum ativo gerado pela Aura pode ser entregue sem passar pela auditoria de especialistas do Specialist Engine.",
 };
 
 export const EXCELLENCE_ASSET_TYPES: ExcellenceAssetType[] = [
@@ -35,40 +54,14 @@ export const EXCELLENCE_ASSET_LABELS: Record<ExcellenceAssetType, string> = {
   strategy: "Estratégia",
 };
 
-export const EXCELLENCE_REVIEWERS: ExcellenceReviewer[] = [
-  "product_strategist",
-  "copy_chief",
-  "conversion_expert",
-  "creative_director",
-  "funnel_architect",
-  "media_buyer",
-  "consumer_psychologist",
-  "compliance_reviewer",
-];
+export const EXCELLENCE_REVIEWERS: SpecialistSlug[] = SPECIALIST_SLUGS;
 
-export const EXCELLENCE_REVIEWER_LABELS: Record<ExcellenceReviewer, string> = {
-  product_strategist: "Product Strategist",
-  copy_chief: "Copy Chief",
-  conversion_expert: "Conversion Expert",
-  creative_director: "Creative Director",
-  funnel_architect: "Funnel Architect",
-  media_buyer: "Media Buyer",
-  consumer_psychologist: "Consumer Psychologist",
-  compliance_reviewer: "Compliance Reviewer",
-};
+export const EXCELLENCE_REVIEWER_LABELS = SPECIALIST_LABELS;
 
-export const EXCELLENCE_APPROVE_THRESHOLD = 85;
-export const EXCELLENCE_REGENERATE_THRESHOLD = 70;
+export type ExcellenceReviewer = SpecialistSlug;
 
-export type ExcellenceReviewStatus = "approved" | "regenerate" | "blocked";
-
-export type SpecialistReviewPayload = {
-  reviewer: ExcellenceReviewer;
-  score: number;
-  strengths: string[];
-  weaknesses: string[];
-  recommendations: string[];
-};
+export type { ExcellenceReviewStatus, SpecialistReviewPayload };
+export { clampScore };
 
 export type ExcellenceReviewResult = {
   assetType: ExcellenceAssetType;
@@ -110,117 +103,24 @@ export type ExcellenceIntake = {
   force_refresh?: boolean;
 };
 
-const REVIEWER_WEIGHTS: Record<ExcellenceAssetType, Partial<Record<ExcellenceReviewer, number>>> = {
-  product: {
-    product_strategist: 0.25,
-    copy_chief: 0.15,
-    conversion_expert: 0.2,
-    consumer_psychologist: 0.2,
-    compliance_reviewer: 0.2,
-  },
-  ebook: {
-    product_strategist: 0.2,
-    copy_chief: 0.2,
-    conversion_expert: 0.15,
-    consumer_psychologist: 0.2,
-    compliance_reviewer: 0.25,
-  },
-  copy: {
-    copy_chief: 0.3,
-    conversion_expert: 0.25,
-    consumer_psychologist: 0.25,
-    compliance_reviewer: 0.2,
-  },
-  creative: {
-    creative_director: 0.3,
-    copy_chief: 0.2,
-    conversion_expert: 0.2,
-    media_buyer: 0.15,
-    compliance_reviewer: 0.15,
-  },
-  landing: {
-    conversion_expert: 0.25,
-    copy_chief: 0.2,
-    creative_director: 0.15,
-    funnel_architect: 0.15,
-    compliance_reviewer: 0.15,
-    consumer_psychologist: 0.1,
-  },
-  offer: {
-    product_strategist: 0.2,
-    conversion_expert: 0.25,
-    copy_chief: 0.2,
-    consumer_psychologist: 0.15,
-    compliance_reviewer: 0.2,
-  },
-  funnel: {
-    funnel_architect: 0.3,
-    conversion_expert: 0.25,
-    product_strategist: 0.15,
-    creative_director: 0.1,
-    compliance_reviewer: 0.2,
-  },
-  campaign: {
-    media_buyer: 0.3,
-    creative_director: 0.2,
-    conversion_expert: 0.2,
-    copy_chief: 0.15,
-    compliance_reviewer: 0.15,
-  },
-  strategy: {
-    product_strategist: 0.25,
-    funnel_architect: 0.25,
-    conversion_expert: 0.2,
-    media_buyer: 0.15,
-    compliance_reviewer: 0.15,
-  },
-};
-
 export function getReviewersForAssetType(
   assetType: ExcellenceAssetType
-): Array<{ reviewer: ExcellenceReviewer; weight: number }> {
-  const weights = REVIEWER_WEIGHTS[assetType] ?? REVIEWER_WEIGHTS.product;
-  const entries = Object.entries(weights) as Array<[ExcellenceReviewer, number]>;
-  const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
-  return entries.map(([reviewer, weight]) => ({
-    reviewer,
-    weight: total > 0 ? weight / total : weight,
+): Array<{ reviewer: SpecialistSlug; weight: number }> {
+  return getSpecialistsForAssetType(assetType).map((entry) => ({
+    reviewer: entry.specialist.slug,
+    weight: entry.weight,
   }));
 }
 
-export function clampScore(score: number): number {
-  return Math.max(0, Math.min(100, Math.round(score * 100) / 100));
-}
-
 export function resolveExcellenceStatus(finalScore: number): ExcellenceReviewStatus {
-  if (finalScore >= EXCELLENCE_APPROVE_THRESHOLD) return "approved";
-  if (finalScore >= EXCELLENCE_REGENERATE_THRESHOLD) return "regenerate";
-  return "blocked";
+  return resolveSpecialistStatus(finalScore);
 }
 
 export function calculateFinalScore(
   reviews: Array<Pick<SpecialistReviewPayload, "reviewer" | "score">>,
   assetType: ExcellenceAssetType
 ): number {
-  const weights = getReviewersForAssetType(assetType);
-  const weightMap = new Map(weights.map((entry) => [entry.reviewer, entry.weight]));
-
-  let weightedSum = 0;
-  let weightTotal = 0;
-
-  for (const review of reviews) {
-    const weight = weightMap.get(review.reviewer) ?? 0;
-    if (weight <= 0) continue;
-    weightedSum += clampScore(review.score) * weight;
-    weightTotal += weight;
-  }
-
-  if (weightTotal <= 0) {
-    const avg = reviews.reduce((sum, review) => sum + clampScore(review.score), 0) / reviews.length;
-    return clampScore(Number.isFinite(avg) ? avg : 0);
-  }
-
-  return clampScore(weightedSum / weightTotal);
+  return calculateSpecialistFinalScore(reviews, assetType);
 }
 
 export function isAssetApproved(finalScore: number): boolean {
@@ -255,7 +155,9 @@ export function computeExcellenceDashboard(
     };
   });
 
-  const approved = cards.filter((card) => card.approved || card.status === "approved");
+  const approved = cards.filter(
+    (card) => card.approved || card.status === "approved" || card.status === "premium"
+  );
   const rejected = cards.filter((card) => !card.approved && card.status === "blocked");
   const regenerate = cards.filter((card) => card.status === "regenerate");
 
@@ -265,7 +167,9 @@ export function computeExcellenceDashboard(
       : 0;
 
   const sorted = [...cards].sort((a, b) => b.finalScore - a.finalScore);
-  const melhoresAtivos = sorted.filter((card) => card.finalScore >= EXCELLENCE_APPROVE_THRESHOLD).slice(0, 5);
+  const melhoresAtivos = sorted
+    .filter((card) => card.finalScore >= EXCELLENCE_APPROVE_THRESHOLD)
+    .slice(0, 5);
   const ativosParaMelhoria = sorted
     .filter((card) => card.finalScore < EXCELLENCE_APPROVE_THRESHOLD)
     .slice(0, 5);
@@ -299,7 +203,7 @@ export function buildExcellenceAuraContext(dashboard: ExcellenceDashboard): stri
 }
 
 export function normalizeSpecialistReview(
-  raw: Partial<SpecialistReviewPayload> & { reviewer: ExcellenceReviewer }
+  raw: Partial<SpecialistReviewPayload> & { reviewer: SpecialistSlug }
 ): SpecialistReviewPayload {
   return {
     reviewer: raw.reviewer,
@@ -313,51 +217,28 @@ export function normalizeSpecialistReview(
 }
 
 export function heuristicSpecialistReview(
-  reviewer: ExcellenceReviewer,
+  reviewer: SpecialistSlug,
   content: string,
   assetType: ExcellenceAssetType
 ): SpecialistReviewPayload {
-  const length = content.trim().length;
-  const hasCta = /cta|compre|garanta|comece|inscreva|clique|saiba mais/i.test(content);
-  const hasPromise = /promessa|resultado|transform|método|passo|solução/i.test(content);
-  const hasComplianceRisk = /garantido|100%|enriqueça|milionário|sem esforço|renda passiva/i.test(content);
-
-  let base = 55;
-  if (length > 120) base += 8;
-  if (length > 400) base += 7;
-  if (hasCta) base += 6;
-  if (hasPromise) base += 5;
-  if (hasComplianceRisk) base -= 12;
-
-  const reviewerBonus: Partial<Record<ExcellenceReviewer, number>> = {
-    copy_chief: hasPromise ? 8 : -4,
-    conversion_expert: hasCta ? 8 : -3,
-    compliance_reviewer: hasComplianceRisk ? -15 : 10,
-    creative_director: /visual|imagem|thumb|hook|headline/i.test(content) ? 8 : 0,
-    funnel_architect: /funil|etapa|upsell|downsell|order bump/i.test(content) ? 10 : 0,
-    media_buyer: /campanha|público|segmentação|criativo|budget/i.test(content) ? 8 : 0,
-    product_strategist: /produto|avatar|nicho|ticket|oferta/i.test(content) ? 8 : 0,
-    consumer_psychologist: /dor|desejo|objeção|prova|urgência/i.test(content) ? 8 : 0,
+  const specialist = getSpecialistDefinition(reviewer);
+  if (!specialist) {
+    return normalizeSpecialistReview({
+      reviewer,
+      score: 50,
+      strengths: [],
+      weaknesses: ["Especialista não configurado."],
+      recommendations: ["Configure o Specialist Engine."],
+    });
+  }
+  const detail = evaluateSpecialistByCriteria(specialist, content, assetType);
+  return {
+    reviewer: detail.reviewer,
+    score: detail.score,
+    strengths: detail.strengths,
+    weaknesses: detail.weaknesses,
+    recommendations: detail.recommendations,
   };
-
-  const score = clampScore(base + (reviewerBonus[reviewer] ?? 0));
-
-  return normalizeSpecialistReview({
-    reviewer,
-    score,
-    strengths:
-      score >= 75
-        ? [`${EXCELLENCE_REVIEWER_LABELS[reviewer]} identificou boa coerência para ${EXCELLENCE_ASSET_LABELS[assetType]}.`]
-        : [`Base estrutural presente para ${EXCELLENCE_ASSET_LABELS[assetType]}.`],
-    weaknesses:
-      score < EXCELLENCE_APPROVE_THRESHOLD
-        ? [`Score abaixo do padrão Excellence (${EXCELLENCE_APPROVE_THRESHOLD}+).`]
-        : [],
-    recommendations:
-      score < EXCELLENCE_APPROVE_THRESHOLD
-        ? ["Reforce clareza, prova e CTA antes da entrega."]
-        : ["Ativo pronto para entrega com monitoramento pós-publicação."],
-  });
 }
 
 export function reviewsToResult(
@@ -425,10 +306,12 @@ export function formatExcellenceScore(score: number): string {
 
 export function excellenceStatusLabel(status: ExcellenceReviewStatus): string {
   switch (status) {
+    case "premium":
+      return "Premium";
     case "approved":
       return "Aprovado";
     case "regenerate":
-      return "Regenerar";
+      return "Melhorar";
     case "blocked":
       return "Bloqueado";
   }
@@ -436,6 +319,8 @@ export function excellenceStatusLabel(status: ExcellenceReviewStatus): string {
 
 export function excellenceStatusColor(status: ExcellenceReviewStatus): string {
   switch (status) {
+    case "premium":
+      return "text-violet-400";
     case "approved":
       return "text-emerald-400";
     case "regenerate":
