@@ -41,19 +41,30 @@ export async function computeCommercialExcellenceForFlow(params: {
   funnelId?: string | null;
   campaignId?: string | null;
   factoryId?: string | null;
+  productId?: string | null;
+  landingId?: string | null;
+  creativeAssetId?: string | null;
+  offerId?: string | null;
 }): Promise<CommercialExcellenceResult> {
   const targets: Array<{ assetType: string; assetId: string }> = [];
+  if (params.factoryId) targets.push({ assetType: "ebook", assetId: params.factoryId });
+  else if (params.productId) targets.push({ assetType: "ebook", assetId: params.productId });
+  if (params.offerId) targets.push({ assetType: "offer", assetId: params.offerId });
   if (params.copylabId) targets.push({ assetType: "copy", assetId: params.copylabId });
+  if (params.landingId) targets.push({ assetType: "landing", assetId: params.landingId });
+  if (params.creativeAssetId) targets.push({ assetType: "creative", assetId: params.creativeAssetId });
   if (params.funnelId) targets.push({ assetType: "funnel", assetId: params.funnelId });
   if (params.campaignId) targets.push({ assetType: "campaign", assetId: params.campaignId });
-  if (params.factoryId) targets.push({ assetType: "ebook", assetId: params.factoryId });
 
   const assets = await loadCommercialAssetScores(targets);
   return computeCommercialExcellenceResult(assets);
 }
 
 async function improveCommercialTargets(
-  targets: Array<{ assetType: "copy" | "funnel" | "campaign" | "ebook" | "landing" | "creative"; assetId: string }>,
+  targets: Array<{
+    assetType: "copy" | "funnel" | "campaign" | "ebook" | "landing" | "creative" | "offer";
+    assetId: string;
+  }>,
   label?: string
 ): Promise<void> {
   const { improveAsset } = await import("./excellence-auto-improve.service");
@@ -84,8 +95,10 @@ export async function runCommercialExcellence(params: {
   funnelId?: string | null;
   campaignId?: string | null;
   factoryId?: string | null;
+  productId?: string | null;
   landingId?: string | null;
   creativeAssetId?: string | null;
+  offerId?: string | null;
   label?: string;
 }): Promise<{
   score: number;
@@ -95,15 +108,17 @@ export async function runCommercialExcellence(params: {
   error: string | null;
 }> {
   const targets: Array<{
-    assetType: "copy" | "funnel" | "campaign" | "ebook" | "landing" | "creative";
+    assetType: "copy" | "funnel" | "campaign" | "ebook" | "landing" | "creative" | "offer";
     assetId: string;
   }> = [];
-  if (params.copylabId) targets.push({ assetType: "copy", assetId: params.copylabId });
-  if (params.funnelId) targets.push({ assetType: "funnel", assetId: params.funnelId });
-  if (params.campaignId) targets.push({ assetType: "campaign", assetId: params.campaignId });
   if (params.factoryId) targets.push({ assetType: "ebook", assetId: params.factoryId });
+  else if (params.productId) targets.push({ assetType: "ebook", assetId: params.productId });
+  if (params.offerId) targets.push({ assetType: "offer", assetId: params.offerId });
+  if (params.copylabId) targets.push({ assetType: "copy", assetId: params.copylabId });
   if (params.landingId) targets.push({ assetType: "landing", assetId: params.landingId });
   if (params.creativeAssetId) targets.push({ assetType: "creative", assetId: params.creativeAssetId });
+  if (params.funnelId) targets.push({ assetType: "funnel", assetId: params.funnelId });
+  if (params.campaignId) targets.push({ assetType: "campaign", assetId: params.campaignId });
 
   let cycles = 0;
   let summary = await computeCommercialExcellenceForFlow(params);

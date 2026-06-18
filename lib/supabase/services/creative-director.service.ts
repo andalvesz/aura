@@ -13,6 +13,7 @@ import { getMetaIntelligence } from "@/lib/supabase/services/meta-intelligence.s
 import { linkCreativeFactoryAssetToOperation } from "@/lib/supabase/services/operation-center.service";
 import type { CreativeAsset, Json, OperationCenter } from "@/types/database";
 import { calculateProfit, calculateRoi, calculateRoas } from "@/utils/revenue-ai";
+import { resolveCurrencyForMarket } from "@/utils/creator-locale";
 import { resolveOperationProductName } from "@/utils/operation-product";
 import {
   buildCreativeFactoryDownloadUrl,
@@ -223,6 +224,22 @@ async function feedCreativeDirectorIntegrations(params: {
   }
 
   const { registerRevenue } = await import("./revenue-ai.service");
+  const { loadCreatorBundles } = await import("./creator.service");
+  const { bundles } = await loadCreatorBundles();
+  const productBundle = params.operation.product_id
+    ? bundles.find((b) => b.product.id === params.operation.product_id)
+    : null;
+  const marketCurrency = resolveCurrencyForMarket({
+    country: productBundle?.product.target_country,
+    language: productBundle?.product.target_language,
+    currency: productBundle?.product.currency,
+  });
+  const marketCountry =
+    marketCurrency === "USD"
+      ? "US"
+      : marketCurrency === "BRL"
+        ? "BR"
+        : productBundle?.product.target_country ?? "US";
 
   const estimatedRevenue = params.creativeScore.overall * 10;
   const estimatedSpend = 100;
@@ -230,8 +247,8 @@ async function feedCreativeDirectorIntegrations(params: {
     operationId: params.operation.id,
     productId: params.operation.product_id,
     platform: "creative_director",
-    country: "BR",
-    currency: "BRL",
+    country: marketCountry,
+    currency: marketCurrency,
     revenue: estimatedRevenue,
     spend: estimatedSpend,
     roas: calculateRoas(estimatedRevenue, estimatedSpend),

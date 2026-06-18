@@ -28,7 +28,7 @@ import {
   type BudgetSuggestion,
   type RiskAnalysis,
 } from "@/utils/ads-commander";
-import { localeFromFields } from "@/utils/creator-locale";
+import { localeFromFields, resolveCurrencyForMarket } from "@/utils/creator-locale";
 import { isCreativeGeneratedAssetDelivered } from "@/utils/creative-generated-assets";
 import { readCreativeDirectorMetadata } from "@/utils/creative-director";
 import { computeInvestimentoFromBudget } from "@/utils/campaign-budget";
@@ -255,10 +255,19 @@ export async function generateBudgetSuggestions(params: {
   if (!context) return { suggestion: null, error: "Contexto indisponível." };
 
   const base = computeInvestimentoFromBudget(context.availableBudget);
+  const { bundles } = await loadCreatorBundles();
+  const bundle = context.operation?.product_id
+    ? bundles.find((b) => b.product.id === context.operation?.product_id)
+    : null;
+  const marketCurrency = resolveCurrencyForMarket({
+    country: bundle?.product.target_country,
+    language: bundle?.product.target_language,
+    currency: bundle?.product.currency,
+  });
 
   const ai = await callAdsCommanderAi<BudgetSuggestion>(
     `Você é o Ads Commander — sugere orçamento diário para ${context.platform}.
-Responda APENAS JSON: { "daily_min": number, "daily_max": number, "monthly_estimate": number, "level": "baixo"|"medio"|"escala", "rationale": string, "currency": "BRL" }`,
+Responda APENAS JSON: { "daily_min": number, "daily_max": number, "monthly_estimate": number, "level": "baixo"|"medio"|"escala", "rationale": string, "currency": "${marketCurrency}" }`,
     JSON.stringify({
       product: context.productName,
       available_budget: context.availableBudget,
@@ -272,8 +281,8 @@ Responda APENAS JSON: { "daily_min": number, "daily_max": number, "monthly_estim
     daily_max: base.investimento_diario_max,
     monthly_estimate: base.investimento_mensal_previsto,
     level: base.orcamento_nivel,
-    rationale: `Orçamento baseado em R$ ${context.availableBudget} disponíveis.`,
-    currency: "BRL",
+    rationale: `Orçamento baseado em ${marketCurrency} ${context.availableBudget} disponíveis.`,
+    currency: marketCurrency,
   };
 
   return { suggestion, error: null };
@@ -620,11 +629,15 @@ async function feedAdsCommanderIntegrations(campaign: AdCampaign): Promise<void>
   const { calculateRoas, calculateRoi, calculateProfit } = await import("@/utils/revenue-ai");
   const spend = budget?.monthly_estimate ?? Number(campaign.budget ?? 0) * 30;
   const revenue = spend * 2.5;
+  const campaignCurrency = resolveCurrencyForMarket({
+    country: campaign.country,
+    language: campaign.language,
+  });
   void registerRevenue({
     operationId: campaign.operation_id,
     platform: "ads_commander",
-    country: campaign.country ?? "BR",
-    currency: "BRL",
+    country: campaign.country ?? "US",
+    currency: campaignCurrency,
     revenue,
     spend,
     roas: calculateRoas(revenue, spend),

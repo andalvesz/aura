@@ -61,7 +61,11 @@ export async function createStripePaymentLink(input: {
 }): Promise<{ checkoutId: string; checkoutUrl: string }> {
   const secretKey = input.secretKey.trim();
   const priceCents = Math.max(Math.round(input.priceCents), 100);
-  const currency = (input.currency || "BRL").toLowerCase();
+  const currencyInput = input.currency?.trim();
+  if (!currencyInput) {
+    throw new Error("Moeda obrigatória para criar payment link Stripe.");
+  }
+  const currency = currencyInput.toLowerCase();
 
   const product = await stripePost<{ id: string }>(secretKey, "/products", {
     name: input.productName.slice(0, 250),

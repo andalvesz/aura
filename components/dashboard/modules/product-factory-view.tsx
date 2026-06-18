@@ -66,9 +66,10 @@ import { cn } from "@/utils/cn";
 function QualityScorePanel({ bundle }: { bundle: ProductFactoryBundle }) {
   const pro = parseProContent(bundle.factory.conteudo);
   const quality = computeProductQualityScore(bundle.factory, bundle.compliance);
-  const score = pro.quality_score ?? quality.score;
-  const ready = pro.ready_to_sell ?? quality.readyToSell;
-  const issues = pro.quality_issues ?? quality.issues;
+  const score = quality.score;
+  const ready = quality.readyToSell;
+  const issues = quality.issues;
+  const persistedScore = pro.quality_score;
 
   return (
     <div
@@ -93,8 +94,10 @@ function QualityScorePanel({ bundle }: { bundle: ProductFactoryBundle }) {
         </span>
       </div>
       <p className="mt-1 text-[10px] text-zinc-500">
-        ~{pro.estimated_pages ?? quality.estimatedPages} páginas estimadas · mínimo{" "}
-        {PRODUCT_QUALITY_MIN_SCORE} para vender
+        ~{quality.estimatedPages} páginas estimadas · mínimo {PRODUCT_QUALITY_MIN_SCORE} para vender
+        {persistedScore != null && persistedScore !== score
+          ? ` · histórico persistido: ${persistedScore}`
+          : ""}
       </p>
       {!ready && (
         <p className="mt-2 text-[11px] text-amber-200">{PRODUCT_NOT_READY_MESSAGE}</p>
@@ -262,7 +265,8 @@ function FactoryDetail({
   const checklist = parseJsonArray<ProductFactoryChecklistItem>(factory.checklist);
   const pro = parseProContent(factory.conteudo);
   const quality = computeProductQualityScore(factory, compliance);
-  const readyToSell = pro.ready_to_sell ?? quality.readyToSell;
+  const readyToSell = quality.readyToSell;
+  const liveIssues = quality.issues;
 
   return (
     <div className="space-y-3 text-[12px]">
@@ -471,7 +475,11 @@ function FactoryDetail({
 
       <div className="flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
         {!readyToSell && (
-          <p className="w-full text-[10px] text-amber-200">{PRODUCT_NOT_READY_PDF_MESSAGE}</p>
+          <p className="w-full text-[10px] text-amber-200">
+            {liveIssues.length > 0
+              ? liveIssues.slice(0, 3).join(" · ")
+              : PRODUCT_NOT_READY_PDF_MESSAGE}
+          </p>
         )}
         <ActionButton onClick={() => onProAction("improve")} disabled={busy} className="gap-1.5">
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
@@ -621,7 +629,13 @@ export function ProductFactoryView() {
       const base64 = pdfBytesToBase64(bytes);
       const { file, error: pdfError } = await publishPdf(bundle.factory.id, base64, premium);
       if (pdfError) {
-        toast.error(pdfError);
+        const liveQuality = computeProductQualityScore(bundle.factory, bundle.compliance);
+        toast.error(
+          pdfError,
+          liveQuality.issues.length
+            ? { description: liveQuality.issues.slice(0, 3).join(" · ") }
+            : undefined
+        );
         return;
       }
       if (file?.id) {
@@ -648,6 +662,13 @@ export function ProductFactoryView() {
     }
     if (bundle) {
       setSelectedId(bundle.factory.id);
+      const liveQuality = computeProductQualityScore(bundle.factory, bundle.compliance);
+      if (!liveQuality.readyToSell && liveQuality.issues.length > 0) {
+        toast.warning(labels[action], {
+          description: liveQuality.issues.slice(0, 3).join(" · "),
+        });
+        return;
+      }
       toast.success(labels[action]);
     }
   }

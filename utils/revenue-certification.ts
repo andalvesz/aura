@@ -68,6 +68,13 @@ export type ReadyToSellRequirements = {
   landing_url: string | null;
   campaign_id: string | null;
   excellence_score: number | null;
+  product_quality_score?: number | null;
+  landing_quality_score?: number | null;
+  campaign_quality_score?: number | null;
+  creative_asset_delivered?: boolean;
+  landing_html?: string | null;
+  explicit_publish_approval?: boolean;
+  certification_gaps?: string[] | null;
 };
 
 export type ReadyToSellCertification = {
@@ -82,7 +89,9 @@ export function evaluateReadyToSellCertification(
 ): ReadyToSellCertification {
   const gaps: string[] = [];
 
-  if (!requirements.checkout_url?.trim()) gaps.push("checkout_url ausente");
+  if (!validateCheckoutUrl(requirements.checkout_url)) {
+    gaps.push("checkout_url ausente ou inválida");
+  }
   if (!requirements.funnel_url?.trim()) gaps.push("funnel_url ausente");
   if (!requirements.landing_url?.trim()) gaps.push("landing_url ausente");
   if (!requirements.campaign_id?.trim()) gaps.push("campaign_id ausente");
@@ -91,6 +100,36 @@ export function evaluateReadyToSellCertification(
     requirements.excellence_score < READY_TO_SELL_EXCELLENCE_MIN
   ) {
     gaps.push(`excellence_score < ${READY_TO_SELL_EXCELLENCE_MIN}`);
+  }
+  if (
+    requirements.product_quality_score == null ||
+    requirements.product_quality_score < READY_TO_SELL_EXCELLENCE_MIN
+  ) {
+    gaps.push(`product_quality_score < ${READY_TO_SELL_EXCELLENCE_MIN}`);
+  }
+  if (
+    requirements.landing_quality_score == null ||
+    requirements.landing_quality_score < READY_TO_SELL_EXCELLENCE_MIN
+  ) {
+    gaps.push(`landing_quality_score < ${READY_TO_SELL_EXCELLENCE_MIN}`);
+  }
+  if (
+    requirements.campaign_quality_score == null ||
+    requirements.campaign_quality_score < READY_TO_SELL_EXCELLENCE_MIN
+  ) {
+    gaps.push(`campaign_quality_score < ${READY_TO_SELL_EXCELLENCE_MIN}`);
+  }
+  if (!requirements.creative_asset_delivered) {
+    gaps.push("creative_generated_asset real não entregue");
+  }
+  if (!validateLandingCta(requirements.landing_html, requirements.checkout_url)) {
+    gaps.push("landing CTA não aponta para checkout_url");
+  }
+  if (requirements.explicit_publish_approval === false) {
+    gaps.push("aprovação explícita de publicação pendente");
+  }
+  for (const gap of requirements.certification_gaps ?? []) {
+    if (gap.trim()) gaps.push(gap.trim());
   }
 
   const ready = gaps.length === 0;

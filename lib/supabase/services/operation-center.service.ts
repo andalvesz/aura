@@ -35,6 +35,7 @@ import {
   intakeFromProductName,
   type CopylabIntake,
 } from "@/utils/copylab";
+import { resolveCurrencyForMarket } from "@/utils/creator-locale";
 import { rankProductsForLaunch, type CreatorProductBundle } from "@/utils/creator";
 import { mergeCreativeFactoryMetadata } from "@/utils/creative-factory";
 import { readCreativeDirectorMetadata } from "@/utils/creative-director";
@@ -177,9 +178,13 @@ async function ensureCreatorProductFromKiwify(
     receita_prevista: null,
     roi_estimado: null,
     used_aura_data: true,
-    target_country: "BR",
+    target_country: "Brasil",
     target_language: "pt-BR",
-    currency: kiwifyProduct.currency || "BRL",
+    currency: resolveCurrencyForMarket({
+      country: "BR",
+      language: "pt-BR",
+      currency: kiwifyProduct.currency,
+    }),
   } satisfies Omit<TableInsert<"creator_products">, "user_id">);
 
   if (error || !product) {

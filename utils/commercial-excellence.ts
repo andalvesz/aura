@@ -80,6 +80,7 @@ export function computeCommercialExcellenceResult(
 function assetTypeToDimension(assetType: string): CommercialDimension | null {
   const map: Record<string, CommercialDimension> = {
     ebook: "produto",
+    product: "produto",
     copy: "oferta",
     offer: "oferta",
     landing: "landing",

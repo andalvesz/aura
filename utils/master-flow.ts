@@ -37,6 +37,9 @@ export type MasterFlowMetadata = {
   copylab_id?: string | null;
   factory_id?: string | null;
   operation_id?: string | null;
+  offer_id?: string | null;
+  landing_id?: string | null;
+  creative_asset_id?: string | null;
   opportunity_name?: string | null;
   niche?: string | null;
   country?: string | null;
@@ -56,6 +59,7 @@ export type MasterFlowMetadata = {
   checkout_completion?: import("@/utils/revenue-certification").CheckoutCompletionResult | null;
   commercial_status?: "ready_to_sell" | "incomplete" | null;
   certification_gaps?: string[] | null;
+  explicit_publish_approval?: boolean | null;
   last_error?: string | null;
   completed_steps?: MasterFlowStep[];
 };

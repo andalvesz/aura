@@ -593,14 +593,14 @@ const AUTO_ELITE_CYCLES: Array<{
     versionLabel: "revisado",
   },
   {
-    action: "premium",
-    changelog: "v3 — Premium automático Elite",
-    versionLabel: "final",
+    action: "expand_content",
+    changelog: "v3 — Expansão automática Elite",
+    versionLabel: "revisado",
   },
   {
-    action: "improve",
-    changelog: "v4 — Melhoria automática final Elite",
-    versionLabel: "revisado",
+    action: "premium",
+    changelog: "v4 — Premium automático Elite",
+    versionLabel: "final",
   },
 ];
 
@@ -832,8 +832,7 @@ export async function publishProductFactoryPdf(input: {
     status: "pdf_ready",
     conteudo: mergeQualityIntoContent(
       (factory.conteudo as Record<string, unknown>) ?? {},
-      quality,
-      { ready_to_sell: true }
+      quality
     ) as Json,
   });
 

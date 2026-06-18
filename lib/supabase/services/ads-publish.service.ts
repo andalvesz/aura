@@ -16,6 +16,7 @@ import {
   MetaConnectionsRepository,
 } from "@/lib/supabase/repositories/meta.repository";
 import { LandingPagesRepository } from "@/lib/supabase/repositories/landing-factory.repository";
+import { OperationCenterRepository } from "@/lib/supabase/repositories/operation-center.repository";
 import { logIntegrationAction } from "@/lib/supabase/services/integration-logs.service";
 import { resolveMetaCreativeIdForAsset } from "@/lib/supabase/services/meta-upload.service";
 import type { AdCampaign, AdCreative, AdPlatformConnection, AdSet, Database, Json } from "@/types/database";
@@ -26,6 +27,9 @@ import {
   mergeAdsCommanderMetadata,
   requiresExplicitPublishApproval,
 } from "@/utils/ads-commander";
+import { readCheckoutUrlFromMetadata } from "@/utils/checkout-engine";
+import { resolveCurrencyForMarket } from "@/utils/creator-locale";
+import { validateLandingCta } from "@/utils/revenue-certification";
 import { readGeneratedAssetId } from "@/utils/meta-upload";
 import { getOptionalDataContext } from "./context";
 
@@ -103,16 +107,57 @@ export async function getAdPlatformConnections(): Promise<{
   return { connections: data ?? [], error };
 }
 
+async function resolveCheckoutUrlForCampaign(
+  campaign: AdCampaign,
+  userId: string,
+  supabase: SupabaseClient<Database>
+): Promise<string | null> {
+  if (campaign.landing_id) {
+    const landingRepo = new LandingPagesRepository(supabase, userId);
+    const { data: landing } = await landingRepo.findById(campaign.landing_id);
+    const fromMetadata = readCheckoutUrlFromMetadata(landing?.metadata ?? null);
+    if (fromMetadata) return fromMetadata;
+  }
+
+  if (campaign.operation_id) {
+    const opRepo = new OperationCenterRepository(supabase, userId);
+    const { data: operation } = await opRepo.findById(campaign.operation_id);
+    if (operation?.product_id) {
+      const { getCheckoutUrl } = await import("./checkout-engine.service");
+      const { checkoutUrl } = await getCheckoutUrl(operation.product_id);
+      return checkoutUrl;
+    }
+  }
+
+  return null;
+}
+
+async function assertLandingCheckoutCta(
+  campaign: AdCampaign,
+  userId: string,
+  supabase: SupabaseClient<Database>
+): Promise<void> {
+  if (!campaign.landing_id) return;
+
+  const landingRepo = new LandingPagesRepository(supabase, userId);
+  const { data: landing } = await landingRepo.findById(campaign.landing_id);
+  const checkoutUrl = await resolveCheckoutUrlForCampaign(campaign, userId, supabase);
+
+  if (!validateLandingCta(landing?.html, checkoutUrl)) {
+    throw new Error("Landing CTA não aponta para checkout_url — sincronize checkout antes de publicar.");
+  }
+}
+
 async function resolveLandingUrl(
   campaign: AdCampaign,
   userId: string,
   supabase: SupabaseClient<Database>
-): Promise<string> {
-  if (!campaign.landing_id) return "https://example.com";
+): Promise<string | null> {
+  if (!campaign.landing_id) return null;
 
   const landingRepo = new LandingPagesRepository(supabase, userId);
   const { data: landing } = await landingRepo.findById(campaign.landing_id);
-  return landing?.published_url ?? landing?.preview_url ?? "https://example.com";
+  return landing?.published_url ?? landing?.preview_url ?? null;
 }
 
 async function publishMetaCampaign(params: {
@@ -144,6 +189,16 @@ async function publishMetaCampaign(params: {
   }
 
   const landingUrl = await resolveLandingUrl(params.campaign, ctx.userId, ctx.supabase);
+  if (!landingUrl?.trim()) {
+    throw new Error("Campanha não pode ser publicada sem landing_url real.");
+  }
+
+  await assertLandingCheckoutCta(params.campaign, ctx.userId, ctx.supabase);
+
+  const campaignCurrency = resolveCurrencyForMarket({
+    country: params.campaign.country,
+    language: params.campaign.language,
+  });
   const campaignBudgetCents = toDailyBudgetCents(params.campaign.budget);
 
   const { externalCampaignId } = await createMetaCampaign(token, accountId, {
@@ -261,7 +316,7 @@ async function publishMetaCampaign(params: {
     effective_status: "PAUSED",
     objective: params.campaign.objective,
     daily_budget_cents: campaignBudgetCents,
-    currency: "BRL",
+    currency: campaignCurrency,
     aura_created: true,
     requires_approval: !params.explicitApproval,
     last_synced_at: new Date().toISOString(),
@@ -376,6 +431,22 @@ export async function publishCampaign(
       message: "",
       error: "Campanha incompleta — prepare conjuntos e criativos antes de publicar.",
     };
+  }
+
+  const landingUrl = await resolveLandingUrl(campaign, ctx.userId, ctx.supabase);
+  if (!landingUrl?.trim()) {
+    return {
+      campaign: null,
+      message: "",
+      error: "Campanha não pode ser publicada sem landing_url real.",
+    };
+  }
+
+  try {
+    await assertLandingCheckoutCta(campaign, ctx.userId, ctx.supabase);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Landing CTA inválida.";
+    return { campaign: null, message: "", error: message };
   }
 
   await campaignRepo.update(campaignId, {

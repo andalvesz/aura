@@ -11,7 +11,7 @@ export type PublishOrchestratorResult = {
 };
 
 export const PUBLISH_ORCHESTRATOR_MASTER_FLOW = {
-  bypassExplicitApproval: true,
+  bypassExplicitApproval: false,
   publishFunnel: true,
   publishCampaign: true,
 };

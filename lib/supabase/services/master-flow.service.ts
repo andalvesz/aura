@@ -288,7 +288,7 @@ async function executeStep(flow: MasterFlow): Promise<{
         }
 
         const { generateOfferStack } = await import("./offer-engine.service");
-        const { error } = await generateOfferStack({
+        const { bundle: offerBundle, error } = await generateOfferStack({
           product_id: flow.product_id,
           funnel_id: flow.funnel_id,
         });
@@ -296,7 +296,18 @@ async function executeStep(flow: MasterFlow): Promise<{
           return { flow: await failFlow(repo, flow, error), error };
         }
 
-        return { flow: await markStepCompleted(repo, flow, step), error: null };
+        const frontOffer =
+          offerBundle?.offers.find((offer) => offer.offer_type === "front_end") ??
+          offerBundle?.offers[0] ??
+          null;
+
+        const { data: updated } = await repo.update(flow.id, {
+          metadata: mergeMasterFlowMetadata(flow.metadata, {
+            offer_id: frontOffer?.id ?? null,
+          }),
+        });
+
+        return { flow: await markStepCompleted(repo, updated ?? flow, step), error: null };
       }
 
       case "funnel_engine": {
@@ -337,12 +348,19 @@ async function executeStep(flow: MasterFlow): Promise<{
         }
 
         const { generateFunnelPages } = await import("./funnel-pages.service");
-        const { error } = await generateFunnelPages({ funnel_id: flow.funnel_id });
+        const { bundle: pagesBundle, error } = await generateFunnelPages({ funnel_id: flow.funnel_id });
         if (error) {
           return { flow: await failFlow(repo, flow, error), error };
         }
 
-        return { flow: await markStepCompleted(repo, flow, step), error: null };
+        const primaryLandingId = pagesBundle?.pages?.[0]?.landing_page_id ?? null;
+        const { data: updated } = await repo.update(flow.id, {
+          metadata: mergeMasterFlowMetadata(flow.metadata, {
+            landing_id: primaryLandingId,
+          }),
+        });
+
+        return { flow: await markStepCompleted(repo, updated ?? flow, step), error: null };
       }
 
       case "checkout_engine": {
@@ -413,13 +431,17 @@ async function executeStep(flow: MasterFlow): Promise<{
         }
 
         const { generateCreativePackage } = await import("./creative-director.service");
-        const { error } = await generateCreativePackage(operationId);
+        const { generatedAssets, error } = await generateCreativePackage(operationId);
         if (error) {
           return { flow: await failFlow(repo, flow, error), error };
         }
 
+        const primaryCreativeAssetId = generatedAssets?.[0]?.id ?? null;
         const { data: updated } = await repo.update(flow.id, {
-          metadata: mergeMasterFlowMetadata(flow.metadata, { operation_id: operationId }),
+          metadata: mergeMasterFlowMetadata(flow.metadata, {
+            operation_id: operationId,
+            creative_asset_id: primaryCreativeAssetId,
+          }),
         });
 
         return { flow: await markStepCompleted(repo, updated ?? flow, step), error: null };
@@ -460,6 +482,7 @@ async function executeStep(flow: MasterFlow): Promise<{
             funnel_url: result.funnelUrl ?? meta.funnel_url ?? null,
             landing_url: result.landingUrl ?? meta.landing_url ?? null,
             campaign_id: result.campaignId ?? flow.campaign_id ?? null,
+            explicit_publish_approval: result.campaignPublished,
           }),
         });
 
@@ -478,6 +501,10 @@ async function executeStep(flow: MasterFlow): Promise<{
           funnelId: flow.funnel_id,
           campaignId: flow.campaign_id,
           factoryId: meta.factory_id,
+          productId: flow.product_id,
+          landingId: meta.landing_id,
+          creativeAssetId: meta.creative_asset_id,
+          offerId: meta.offer_id,
           label: meta.opportunity_name ?? undefined,
         });
         if (excellenceError) {

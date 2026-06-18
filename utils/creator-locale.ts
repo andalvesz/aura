@@ -131,6 +131,58 @@ export function resolveCreatorLocale(partial?: CreatorLocalePartial | CreatorLoc
   return { target_country: country, target_language: language, currency };
 }
 
+function normalizeCountryCode(country?: string | null): string | null {
+  if (!country?.trim()) return null;
+  const value = country.trim();
+  if (value === "US" || value === "Estados Unidos") return "US";
+  if (value === "BR" || value === "Brasil") return "BR";
+  if (isCreatorCountry(value as CreatorCountry)) {
+    const map: Partial<Record<CreatorCountry, string>> = {
+      Brasil: "BR",
+      "Estados Unidos": "US",
+      Canadá: "CA",
+      "Reino Unido": "GB",
+      Portugal: "PT",
+      Espanha: "ES",
+      Alemanha: "DE",
+      França: "FR",
+    };
+    return map[value as CreatorCountry] ?? value;
+  }
+  return value.toUpperCase();
+}
+
+function normalizeLanguageCode(language?: string | null): string | null {
+  if (!language?.trim()) return null;
+  const value = language.trim();
+  if (value === "en-US" || value === "Inglês") return "en-US";
+  if (value === "pt-BR" || value === "Português") return "pt-BR";
+  return value;
+}
+
+/** Resolve currency from market context — never defaults globally to BRL. */
+export function resolveCurrencyForMarket(params: {
+  country?: string | null;
+  language?: string | null;
+  currency?: string | null;
+}): CreatorCurrency {
+  if (isCreatorCurrency(params.currency)) {
+    return params.currency;
+  }
+
+  const countryCode = normalizeCountryCode(params.country);
+  const languageCode = normalizeLanguageCode(params.language);
+
+  if (countryCode === "US" || languageCode === "en-US") return "USD";
+  if (countryCode === "BR" || languageCode === "pt-BR") return "BRL";
+
+  return resolveCreatorLocale({
+    target_country: isCreatorCountry(params.country) ? params.country : undefined,
+    target_language: isCreatorLanguage(params.language) ? params.language : undefined,
+    currency: params.currency ?? undefined,
+  }).currency;
+}
+
 export function localeFromFields(fields?: CreatorLocaleFields | null): CreatorLocale {
   return resolveCreatorLocale(fields ?? undefined);
 }

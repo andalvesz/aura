@@ -921,7 +921,7 @@ export type OperationCenter = {
   updated_at: string;
 };
 
-export type MasterFlowStatus = "pending" | "running" | "completed" | "ready_to_sell" | "failed" | "paused";
+export type MasterFlowStatus = "pending" | "running" | "completed" | "ready_for_approval" | "ready_to_sell" | "failed" | "paused";
 
 export type MasterFlowStep =
   | "market_hunter"
