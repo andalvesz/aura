@@ -690,7 +690,7 @@ export async function approveCampaign(campaignId: string): Promise<{
       approved_at: new Date().toISOString(),
       approved_by: "manual",
       auto_publish: false,
-      publish_note: "Status READY_TO_PUBLISH — publique manualmente na plataforma.",
+      publish_note: "Status READY_TO_PUBLISH — use Publicar para enviar à plataforma.",
     }),
   });
 
@@ -701,10 +701,12 @@ export async function approveCampaign(campaignId: string): Promise<{
   return {
     campaign: updated,
     message:
-      "Campanha aprovada — status READY_TO_PUBLISH. Publique manualmente na plataforma (Aura não publica automaticamente).",
+      "Campanha aprovada — status READY_TO_PUBLISH. Clique em Publicar para enviar à plataforma conectada.",
     error: null,
   };
 }
+
+export { publishCampaign, getAdPlatformConnections, syncAdPlatformConnections } from "./ads-publish.service";
 
 export async function getAdsCommanderDashboard(): Promise<{
   dashboard: AdsCommanderDashboard | null;

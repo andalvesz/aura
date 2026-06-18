@@ -20,6 +20,20 @@ export class AdSetsRepository {
     };
   }
 
+  async update(id: string, patch: Partial<Omit<AdSet, "id" | "campaign_id" | "created_at">>) {
+    const { data, error } = await this.supabase
+      .from("ad_sets")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    return {
+      data: (data as AdSet | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
   async create(payload: Omit<TableInsert<"ad_sets">, "id">) {
     const { data, error } = await this.supabase
       .from("ad_sets")

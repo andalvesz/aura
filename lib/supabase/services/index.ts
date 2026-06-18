@@ -45,6 +45,7 @@ export * from "./creative-director.service";
 export * from "./creative-generated-assets.service";
 export * from "./creative-media.service";
 export * from "./ads-commander.service";
+export * from "./ads-publish.service";
 export * from "./landing-factory.service";
 export * from "./funnel-engine.service";
 export * from "./funnel-pages.service";

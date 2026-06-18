@@ -97,5 +97,35 @@ export function useAdsCommander() {
     }
   }
 
-  return { dashboard, loading, error, busy, refresh, prepareCampaign, approveCampaign };
+  async function publishCampaign(campaignId: string) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/ads-commander", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "publish",
+          campaignId,
+          explicitApproval: true,
+        }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        message?: string;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok) {
+        return { message: null, error: data?.error ?? parseError ?? "Erro ao publicar campanha." };
+      }
+
+      await refresh();
+      return { message: data?.message ?? "Campanha publicada.", error: data?.error ?? null };
+    } catch {
+      return { message: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { dashboard, loading, error, busy, refresh, prepareCampaign, approveCampaign, publishCampaign };
 }

@@ -1,14 +1,31 @@
 import type { AdCampaign, AdCreative, AdSet, Json } from "@/types/database";
 
 export const ADS_COMMANDER_SAFE_MODE = {
-  active: true,
+  active: process.env.ADS_SAFE_MODE !== "false",
   message:
-    "Ads Commander prepara campanhas completas — nunca publica anúncios automaticamente. Aprovação manual obrigatória.",
+    "Ads Commander prepara campanhas completas — publicação exige aprovação explícita (SAFE_MODE ativo).",
 };
+
+export function isAdsPublishEnabled(): boolean {
+  return process.env.ADS_PUBLISH_ENABLED === "true";
+}
+
+export function requiresExplicitPublishApproval(): boolean {
+  return ADS_COMMANDER_SAFE_MODE.active;
+}
 
 export type AdPlatform = "meta" | "google" | "tiktok" | "other";
 
-export type AdCampaignStatus = "draft" | "pending_approval" | "ready_to_publish" | "cancelled";
+export type AdCampaignStatus =
+  | "draft"
+  | "pending_approval"
+  | "ready_to_publish"
+  | "publishing"
+  | "published"
+  | "publish_failed"
+  | "cancelled";
+
+export type AdCampaignPublishStatus = "not_published" | "publishing" | "published" | "failed";
 
 export type AdSetStatus = "draft" | "ready";
 
@@ -85,6 +102,9 @@ export function getAdCampaignStatusLabel(status: AdCampaignStatus): string {
     draft: "Rascunho",
     pending_approval: "Aguardando aprovação",
     ready_to_publish: "Pronta para publicar",
+    publishing: "Publicando",
+    published: "Publicada",
+    publish_failed: "Falha na publicação",
     cancelled: "Cancelada",
   };
   return labels[status];
@@ -163,7 +183,11 @@ export function computeAdsCommanderDashboard(params: {
   const { campaigns, adSetsByCampaign, creativesByCampaign } = params;
 
   const prepared = campaigns.filter(
-    (c) => c.status === "pending_approval" || c.status === "ready_to_publish"
+    (c) =>
+      c.status === "pending_approval" ||
+      c.status === "ready_to_publish" ||
+      c.status === "published" ||
+      c.status === "publishing"
   );
   const awaiting = campaigns.filter((c) => c.status === "pending_approval");
 
@@ -253,6 +277,10 @@ export function mergeAdsCommanderMetadata(
 
 export function canApproveCampaign(status: AdCampaignStatus): boolean {
   return status === "pending_approval";
+}
+
+export function canPublishCampaign(status: AdCampaignStatus): boolean {
+  return status === "ready_to_publish" || status === "publish_failed";
 }
 
 export function buildAdsCommanderAuraContext(dashboard: AdsCommanderDashboard): string {

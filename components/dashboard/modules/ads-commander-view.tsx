@@ -6,6 +6,7 @@ import {
   Loader2,
   Megaphone,
   RefreshCw,
+  Rocket,
   Shield,
   Target,
   TrendingUp,
@@ -22,12 +23,13 @@ import { useAdsCommander } from "@/hooks/use-ads-commander";
 import { cn } from "@/utils/cn";
 import {
   AD_PLATFORMS,
+  canPublishCampaign,
   getAdCampaignStatusLabel,
   getAdPlatformLabel,
 } from "@/utils/ads-commander";
 
 export function AdsCommanderView() {
-  const { dashboard, loading, error, busy, refresh, prepareCampaign, approveCampaign } =
+  const { dashboard, loading, error, busy, refresh, prepareCampaign, approveCampaign, publishCampaign } =
     useAdsCommander();
   const [platform, setPlatform] = useState<"meta" | "google" | "tiktok">("meta");
   const [syncing, setSyncing] = useState(false);
@@ -54,6 +56,21 @@ export function AdsCommanderView() {
 
   async function handleApprove(campaignId: string) {
     const { message, error: actionError } = await approveCampaign(campaignId);
+    if (actionError && !message) {
+      toast.error(actionError);
+      return;
+    }
+    if (message) toast.success(message);
+    if (actionError) toast.warning(actionError);
+  }
+
+  async function handlePublish(campaignId: string) {
+    const confirmed = window.confirm(
+      "Publicar campanha na plataforma conectada? A campanha será criada em modo PAUSED na Meta."
+    );
+    if (!confirmed) return;
+
+    const { message, error: actionError } = await publishCampaign(campaignId);
     if (actionError && !message) {
       toast.error(actionError);
       return;
@@ -185,7 +202,7 @@ export function AdsCommanderView() {
             Montar campanha completa
           </ActionButton>
           <p className="text-[10px] text-zinc-500">
-            Fluxo: campanha → conjuntos → anúncios → risco → orçamento → aguarda aprovação
+            Fluxo: campanha → conjuntos → anúncios → rascunho → aprovação → publicar
           </p>
         </PanelContent>
       </Panel>
@@ -259,6 +276,22 @@ export function AdsCommanderView() {
                     className="border-emerald-500/30"
                   >
                     Aprovar Campanha
+                  </ActionButton>
+                )}
+                {canPublishCampaign(campaign.status) && (
+                  <ActionButton
+                    icon={
+                      busy ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Rocket className="size-3.5 text-orange-400" />
+                      )
+                    }
+                    onClick={() => void handlePublish(campaign.id)}
+                    disabled={busy}
+                    className="border-orange-500/30"
+                  >
+                    Publicar
                   </ActionButton>
                 )}
               </div>

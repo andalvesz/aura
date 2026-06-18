@@ -369,3 +369,165 @@ export async function listMetaCustomAudiences(
     adAccountId: adAccountExternalId,
   }));
 }
+
+export type MetaPublishCampaignInput = {
+  name: string;
+  objective?: string | null;
+  dailyBudgetCents?: number;
+  status?: "PAUSED" | "ACTIVE";
+};
+
+export type MetaPublishAdSetInput = {
+  campaignId: string;
+  name: string;
+  dailyBudgetCents: number;
+  country?: string | null;
+  status?: "PAUSED" | "ACTIVE";
+};
+
+export type MetaPublishCreativeInput = {
+  name: string;
+  pageId: string;
+  linkUrl: string;
+  headline: string;
+  primaryText: string;
+  description?: string | null;
+  ctaType?: string;
+};
+
+export type MetaPublishAdInput = {
+  name: string;
+  adSetId: string;
+  creativeId: string;
+  status?: "PAUSED" | "ACTIVE";
+};
+
+function mapMetaCtaType(cta?: string | null): string {
+  const normalized = (cta ?? "").trim().toLowerCase();
+  if (normalized.includes("compr")) return "SHOP_NOW";
+  if (normalized.includes("cadastr") || normalized.includes("sign")) return "SIGN_UP";
+  if (normalized.includes("whatsapp") || normalized.includes("contat")) return "CONTACT_US";
+  return "LEARN_MORE";
+}
+
+function mapMetaObjective(objective?: string | null): string {
+  const value = (objective ?? "").trim().toLowerCase();
+  if (value.includes("trafego") || value.includes("traffic")) return "OUTCOME_TRAFFIC";
+  if (value.includes("lead")) return "OUTCOME_LEADS";
+  return "OUTCOME_SALES";
+}
+
+function mapCountryCode(country?: string | null): string {
+  const value = (country ?? "BR").trim().toUpperCase();
+  if (value === "BR" || value === "BRASIL" || value === "BRAZIL") return "BR";
+  if (value === "US" || value === "USA" || value === "ESTADOS UNIDOS") return "US";
+  if (value === "PT" || value === "PORTUGAL") return "PT";
+  return value.length === 2 ? value : "BR";
+}
+
+export async function createMetaCampaign(
+  accessToken: string,
+  adAccountExternalId: string,
+  input: MetaPublishCampaignInput
+) {
+  const data = await metaFetch<{ id: string }>(
+    `/${actId(adAccountExternalId)}/campaigns`,
+    accessToken,
+    {
+      method: "POST",
+      body: {
+        name: input.name,
+        objective: mapMetaObjective(input.objective),
+        status: input.status ?? "PAUSED",
+        special_ad_categories: "[]",
+      },
+    }
+  );
+
+  return { externalCampaignId: data.id };
+}
+
+export async function createMetaAdSet(
+  accessToken: string,
+  adAccountExternalId: string,
+  input: MetaPublishAdSetInput
+) {
+  const dailyBudget = Math.max(Math.round(input.dailyBudgetCents), 100);
+  const country = mapCountryCode(input.country);
+  const targeting = JSON.stringify({
+    geo_locations: { countries: [country] },
+  });
+
+  const data = await metaFetch<{ id: string }>(
+    `/${actId(adAccountExternalId)}/adsets`,
+    accessToken,
+    {
+      method: "POST",
+      body: {
+        name: input.name,
+        campaign_id: input.campaignId,
+        daily_budget: String(dailyBudget),
+        billing_event: "IMPRESSIONS",
+        optimization_goal: "OFFSITE_CONVERSIONS",
+        bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+        targeting,
+        status: input.status ?? "PAUSED",
+      },
+    }
+  );
+
+  return { externalAdSetId: data.id };
+}
+
+export async function createMetaAdCreative(
+  accessToken: string,
+  adAccountExternalId: string,
+  input: MetaPublishCreativeInput
+) {
+  const objectStorySpec = JSON.stringify({
+    page_id: input.pageId,
+    link_data: {
+      link: input.linkUrl,
+      message: input.primaryText,
+      name: input.headline,
+      description: input.description ?? "",
+      call_to_action: { type: mapMetaCtaType(input.ctaType) },
+    },
+  });
+
+  const data = await metaFetch<{ id: string }>(
+    `/${actId(adAccountExternalId)}/adcreatives`,
+    accessToken,
+    {
+      method: "POST",
+      body: {
+        name: input.name,
+        object_story_spec: objectStorySpec,
+      },
+    }
+  );
+
+  return { externalCreativeId: data.id };
+}
+
+export async function createMetaAd(
+  accessToken: string,
+  adAccountExternalId: string,
+  input: MetaPublishAdInput
+) {
+  const data = await metaFetch<{ id: string }>(
+    `/${actId(adAccountExternalId)}/ads`,
+    accessToken,
+    {
+      method: "POST",
+      body: {
+        name: input.name,
+        adset_id: input.adSetId,
+        creative: JSON.stringify({ creative_id: input.creativeId }),
+        status: input.status ?? "PAUSED",
+      },
+    }
+  );
+
+  return { externalAdId: data.id };
+}

@@ -20,6 +20,23 @@ export class AdCreativesRepository {
     };
   }
 
+  async update(
+    id: string,
+    patch: Partial<Omit<AdCreative, "id" | "campaign_id" | "created_at">>
+  ) {
+    const { data, error } = await this.supabase
+      .from("ad_creatives")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    return {
+      data: (data as AdCreative | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
   async create(payload: Omit<TableInsert<"ad_creatives">, "id">) {
     const { data, error } = await this.supabase
       .from("ad_creatives")

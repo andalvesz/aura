@@ -1259,7 +1259,34 @@ export type CreativeGeneratedAsset = {
 
 export type AdPlatform = "meta" | "google" | "tiktok" | "other";
 
-export type AdCampaignStatus = "draft" | "pending_approval" | "ready_to_publish" | "cancelled";
+export type AdCampaignStatus =
+  | "draft"
+  | "pending_approval"
+  | "ready_to_publish"
+  | "publishing"
+  | "published"
+  | "publish_failed"
+  | "cancelled";
+
+export type AdCampaignPublishStatus = "not_published" | "publishing" | "published" | "failed";
+
+export type AdPlatformConnectionStatus = "connected" | "disconnected" | "error";
+
+export type AdPlatformConnection = {
+  id: string;
+  user_id: string;
+  platform: AdPlatform;
+  meta_connection_id: string | null;
+  platform_connection_id: string | null;
+  external_account_id: string;
+  account_label: string | null;
+  status: AdPlatformConnectionStatus;
+  is_default: boolean;
+  metadata: Json;
+  last_sync_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export type AdSetStatus = "draft" | "ready";
 
@@ -1281,6 +1308,10 @@ export type AdCampaign = {
   landing_id: string | null;
   status: AdCampaignStatus;
   approval_required: boolean;
+  platform_connection_id: string | null;
+  external_campaign_id: string | null;
+  published_at: string | null;
+  publish_status: AdCampaignPublishStatus;
   metadata: Json;
   created_at: string;
   updated_at: string;
@@ -4410,6 +4441,10 @@ export type Database = {
           | "landing_id"
           | "status"
           | "approval_required"
+          | "platform_connection_id"
+          | "external_campaign_id"
+          | "published_at"
+          | "publish_status"
           | "metadata"
         > & {
           id?: string;
@@ -4426,7 +4461,38 @@ export type Database = {
           landing_id?: string | null;
           status?: AdCampaignStatus;
           approval_required?: boolean;
+          platform_connection_id?: string | null;
+          external_campaign_id?: string | null;
+          published_at?: string | null;
+          publish_status?: AdCampaignPublishStatus;
           metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      ad_platform_connections: TableDef<
+        AdPlatformConnection,
+        Omit<
+          AdPlatformConnection,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "platform"
+          | "external_account_id"
+          | "status"
+          | "is_default"
+          | "metadata"
+        > & {
+          id?: string;
+          platform?: AdPlatform;
+          meta_connection_id?: string | null;
+          platform_connection_id?: string | null;
+          external_account_id?: string;
+          account_label?: string | null;
+          status?: AdPlatformConnectionStatus;
+          is_default?: boolean;
+          metadata?: Json;
+          last_sync_at?: string | null;
           created_at?: string;
           updated_at?: string;
         }
@@ -5664,6 +5730,7 @@ export type UserScopedTable =
   | "product_compliance_checks"
   | "creative_assets"
   | "creative_generated_assets"
+  | "ad_platform_connections"
   | "ad_campaigns"
   | "landing_pages"
   | "funnels"

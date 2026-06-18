@@ -3,8 +3,10 @@ import { describe, it } from "node:test";
 import type { AdCampaign } from "@/types/database";
 import {
   canApproveCampaign,
+  canPublishCampaign,
   computeAdsCommanderDashboard,
   getAdCampaignStatusLabel,
+  requiresExplicitPublishApproval,
 } from "./ads-commander";
 
 describe("ads-commander", () => {
@@ -17,6 +19,17 @@ describe("ads-commander", () => {
     assert.equal(canApproveCampaign("pending_approval"), true);
     assert.equal(canApproveCampaign("ready_to_publish"), false);
     assert.equal(canApproveCampaign("draft"), false);
+  });
+
+  it("allows publish only for ready_to_publish or publish_failed", () => {
+    assert.equal(canPublishCampaign("ready_to_publish"), true);
+    assert.equal(canPublishCampaign("publish_failed"), true);
+    assert.equal(canPublishCampaign("pending_approval"), false);
+    assert.equal(canPublishCampaign("published"), false);
+  });
+
+  it("requires explicit approval when safe mode is active", () => {
+    assert.equal(requiresExplicitPublishApproval(), true);
   });
 
   it("computes dashboard metrics", () => {
@@ -37,6 +50,10 @@ describe("ads-commander", () => {
         landing_id: null,
         status: "pending_approval",
         approval_required: true,
+        platform_connection_id: null,
+        external_campaign_id: null,
+        published_at: null,
+        publish_status: "not_published",
         metadata: {
           budget_suggestion: { daily_min: 30, daily_max: 80, monthly_estimate: 1500, level: "medio", rationale: "", currency: "BRL" },
           audience_suggestions: [{ name: "Interesses", type: "interest", targeting: "x", rationale: "y", score: 85 }],
