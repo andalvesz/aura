@@ -46,3 +46,4 @@ export * from "./ads-commander.service";
 export * from "./landing-factory.service";
 export * from "./campaign-budget.service";
 export * from "./aura-brain.service";
+export * from "./aura-decision-engine.service";

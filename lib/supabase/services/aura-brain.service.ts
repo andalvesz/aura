@@ -173,6 +173,7 @@ async function loadBrainData(userId: string) {
     metaIntelligence,
     operationCenter,
     marketHunter,
+    decisionEngine,
     globalMarketsRes,
     globalStrategiesRes,
     globalResultsRes,
@@ -210,6 +211,7 @@ async function loadBrainData(userId: string) {
     getMetaIntelligenceContext(),
     import("./operation-center.service").then((mod) => mod.getOperationCenterContext()),
     import("./market-hunter.service").then((mod) => mod.getMarketHunterContext()),
+    import("./aura-decision-engine.service").then((mod) => mod.getDecisionEngineContext()),
     new GlobalMarketsRepository(supabase, userId).findAllOrdered(),
     new GlobalStrategiesRepository(supabase, userId).findAllOrdered(),
     new GlobalResultsRepository(supabase, userId).findAllOrdered(),
@@ -358,6 +360,7 @@ async function loadBrainData(userId: string) {
 
   const globalSection = [
     globalContext,
+    decisionEngine.context ? decisionEngine.context : "",
     marketHunter.context ? marketHunter.context : "",
     localeRes.locale
       ? `**Locale ativo:** ${localeRes.locale.target_country} · ${localeRes.locale.target_language} · ${localeRes.locale.currency}`
@@ -779,13 +782,14 @@ export async function getAuraBrainOpeningSummary(): Promise<{
     const today = todayIsoDate();
     const { supabase, userId } = ctx;
 
-    const [ceoSessionRes, executionPlanRes, monitorsRes, adsRes, actionsRes] =
+    const [ceoSessionRes, executionPlanRes, monitorsRes, adsRes, actionsRes, bestProductRes] =
       await Promise.all([
         new AuraCeoSessionsRepository(supabase, userId).findActive(),
         new ExecutionPlansRepository(supabase, userId).findByDate(today),
         new AutopilotMonitorsRepository(supabase, userId).findAllOrdered(),
         loadAdsCampaigns(),
         new AutopilotActionsRepository(supabase, userId).findAllOrdered(),
+        import("./aura-decision-engine.service").then((mod) => mod.resolveBestProduct()),
       ]);
 
     let executionTaskTitles: string[] = [];
@@ -804,7 +808,9 @@ export async function getAuraBrainOpeningSummary(): Promise<{
       displayName,
       metaPrincipal: resolveMetaPrincipal(brain),
       tarefasHoje: resolveDailyTasks(brain, executionTaskTitles),
-      melhorOportunidade: resolveMelhorOportunidade(brain, ceoSessionRes.data),
+      melhorOportunidade:
+        bestProductRes.decision?.label ??
+        resolveMelhorOportunidade(brain, ceoSessionRes.data),
       riscoAtual: resolveRiscoAtual(monitorsRes.data, adsRes.records),
       sugestao: resolveSugestao(actionsRes.data),
     });
