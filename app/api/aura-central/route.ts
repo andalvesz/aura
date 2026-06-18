@@ -1327,7 +1327,12 @@ export async function POST(req: Request) {
 
       const ctx = await getOptionalDataContext();
       const displayName = ctx ? await resolveUserDisplayName(ctx) : "Anderson";
-      let { text, mode } = resolveCoachResponse(coachMode, coachData, displayName);
+      const { text: coachText, mode: coachModeResolved } = resolveCoachResponse(
+        coachMode,
+        coachData,
+        displayName
+      );
+      let text = coachText;
 
       if (coachMode === "goals" || coachMode === "goals-late") {
         const { context: legacyContext } = await getUserLegacyContext();
@@ -1336,13 +1341,13 @@ export async function POST(req: Request) {
         }
       }
 
-      await persistAiTurn("aura_central", message, text, { kind: "coach", coachMode: mode });
+      await persistAiTurn("aura_central", message, text, { kind: "coach", coachMode: coachModeResolved });
 
       return Response.json({
         text,
         module: "global",
         kind: "coach",
-        coachMode: mode,
+        coachMode: coachModeResolved,
       });
     }
 

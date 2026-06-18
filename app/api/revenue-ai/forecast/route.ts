@@ -1,4 +1,4 @@
-import { generateForecast } from "@/lib/supabase/services/revenue-ai.service";
+import { getLatestForecast } from "@/lib/supabase/services/revenue-ai.service";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     | "scale"
     | null;
 
-  const { forecast, result, error } = await generateForecast({
+  const { forecast, result, error } = await getLatestForecast({
     period: period ?? undefined,
     forecastType: forecastType ?? undefined,
   });

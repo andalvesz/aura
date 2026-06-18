@@ -427,7 +427,7 @@ export async function generateCreativePackage(operationId: string): Promise<{
   const metaHints = await loadMetaRejectionHints();
   const { data: metaData } = await getMetaIntelligence();
 
-  let creativeScore =
+  const creativeScore =
     (await evaluateCreativeScoreWithAi({
       assets: readyAssets,
       copyHeadline,

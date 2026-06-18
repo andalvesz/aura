@@ -4,7 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BI_NAV,
+  BLACK_HEALTH_NAV,
+  DECISION_ENGINE_NAV,
   DIAGNOSTICS_NAV,
+  FEED_INSPECTOR_NAV,
   GOALS_NAV,
   LEGADO_NAV,
   LOGS_NAV,
@@ -38,6 +41,9 @@ export function DashboardNav({
   const NotificationsIcon = NOTIFICATIONS_NAV.icon;
   const DiagnosticsIcon = DIAGNOSTICS_NAV.icon;
   const LogsIcon = LOGS_NAV.icon;
+  const BlackHealthIcon = BLACK_HEALTH_NAV.icon;
+  const FeedInspectorIcon = FEED_INSPECTOR_NAV.icon;
+  const DecisionEngineIcon = DECISION_ENGINE_NAV.icon;
 
   return (
     <nav className={cn("flex flex-col gap-0.5", className)}>
@@ -229,6 +235,69 @@ export function DashboardNav({
           )}
         />
         {LOGS_NAV.label}
+      </Link>
+      <Link
+        href={BLACK_HEALTH_NAV.href}
+        onClick={onNavigate}
+        className={cn(
+          "group flex min-h-11 items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-[color,background-color] duration-200 ease-out md:min-h-0 md:px-2 md:py-1.5",
+          isModuleActive(pathname, BLACK_HEALTH_NAV.href)
+            ? "bg-white/[0.06] text-zinc-100"
+            : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300",
+          linkClassName
+        )}
+      >
+        <BlackHealthIcon
+          className={cn(
+            "size-[15px] shrink-0",
+            isModuleActive(pathname, BLACK_HEALTH_NAV.href)
+              ? "text-rose-400"
+              : "text-zinc-600 group-hover:text-zinc-400"
+          )}
+        />
+        {BLACK_HEALTH_NAV.label}
+      </Link>
+      <Link
+        href={FEED_INSPECTOR_NAV.href}
+        onClick={onNavigate}
+        className={cn(
+          "group flex min-h-11 items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-[color,background-color] duration-200 ease-out md:min-h-0 md:px-2 md:py-1.5",
+          isModuleActive(pathname, FEED_INSPECTOR_NAV.href)
+            ? "bg-white/[0.06] text-zinc-100"
+            : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300",
+          linkClassName
+        )}
+      >
+        <FeedInspectorIcon
+          className={cn(
+            "size-[15px] shrink-0",
+            isModuleActive(pathname, FEED_INSPECTOR_NAV.href)
+              ? "text-cyan-400"
+              : "text-zinc-600 group-hover:text-zinc-400"
+          )}
+        />
+        {FEED_INSPECTOR_NAV.label}
+      </Link>
+      <Link
+        href={DECISION_ENGINE_NAV.href}
+        onClick={onNavigate}
+        className={cn(
+          "group flex min-h-11 items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-[color,background-color] duration-200 ease-out md:min-h-0 md:px-2 md:py-1.5",
+          isModuleActive(pathname, DECISION_ENGINE_NAV.href)
+            ? "bg-white/[0.06] text-zinc-100"
+            : "text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300",
+          linkClassName
+        )}
+      >
+        <DecisionEngineIcon
+          className={cn(
+            "size-[15px] shrink-0",
+            isModuleActive(pathname, DECISION_ENGINE_NAV.href)
+              ? "text-violet-400"
+              : "text-zinc-600 group-hover:text-zinc-400"
+          )}
+        />
+        {DECISION_ENGINE_NAV.label}
       </Link>
       <p className="mb-0.5 mt-3 px-2 text-[10px] font-medium uppercase tracking-wider text-zinc-600">
         Módulos

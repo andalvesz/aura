@@ -46,7 +46,27 @@ export function useRevenueAi() {
     }
   }, []);
 
+  const generateForecast = useCallback(async () => {
+    const res = await fetch("/api/revenue-ai/generate-forecast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ period: "monthly", type: "revenue" }),
+    });
+    const { data, error: parseError } = await parseJsonResponse<{
+      result?: RevenueForecastResult;
+      error?: string;
+      message?: string;
+    }>(res);
+
+    if (parseError || !res.ok || data?.error) {
+      return { error: data?.error ?? parseError ?? "Erro ao gerar previsão." };
+    }
+
+    setForecast(data?.result ?? null);
+    return { error: null, message: data?.message ?? "Previsão gerada." };
+  }, []);
+
   useMountFetch(refresh, [refresh]);
 
-  return { dashboard, forecast, loading, error, refresh };
+  return { dashboard, forecast, loading, error, refresh, generateForecast };
 }

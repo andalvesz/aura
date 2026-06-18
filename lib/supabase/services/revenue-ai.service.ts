@@ -178,6 +178,44 @@ export async function registerRevenue(
 
 export { calculateRoas, calculateRoi, calculateProfit } from "@/utils/revenue-ai";
 
+function forecastRowToResult(forecast: RevenueForecast): RevenueForecastResult {
+  return {
+    forecast,
+    predictedRevenue: Number(forecast.predicted_revenue ?? 0),
+    predictedProfit: Number(forecast.predicted_profit ?? 0),
+    confidence: Number(forecast.confidence ?? 0),
+    recommendation: forecast.recommendation ?? "",
+  };
+}
+
+export async function getLatestForecast(params?: {
+  period?: "weekly" | "monthly" | "quarterly";
+  forecastType?: "revenue" | "profit" | "growth" | "scale";
+}): Promise<{
+  forecast: RevenueForecast | null;
+  result: RevenueForecastResult | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { forecast: null, result: null, error: "Usuário não autenticado." };
+
+  const period = params?.period ?? "monthly";
+  const forecastType = params?.forecastType ?? "revenue";
+
+  const forecastsRepo = new RevenueForecastsRepository(ctx.supabase, ctx.userId);
+  const { data, error } = await forecastsRepo.findLatest(forecastType, period);
+  if (error) return { forecast: null, result: null, error };
+
+  const latest = data?.[0] ?? null;
+  if (!latest) return { forecast: null, result: null, error: null };
+
+  return {
+    forecast: latest,
+    result: forecastRowToResult(latest),
+    error: null,
+  };
+}
+
 export async function generateForecast(params?: {
   period?: "weekly" | "monthly" | "quarterly";
   forecastType?: "revenue" | "profit" | "growth" | "scale";

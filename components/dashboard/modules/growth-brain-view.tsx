@@ -73,14 +73,18 @@ function BestCard({
 }
 
 export function GrowthBrainView() {
-  const { dashboard, loading, error, refresh } = useGrowthBrain();
+  const { dashboard, loading, error, syncPatterns } = useGrowthBrain();
   const [syncing, setSyncing] = useState(false);
 
   async function handleRefresh() {
     setSyncing(true);
     try {
-      await refresh();
-      toast.success("Growth Brain atualizado.");
+      const { error: syncError, message } = await syncPatterns();
+      if (syncError) {
+        toast.error(syncError);
+        return;
+      }
+      toast.success(message ?? "Growth Brain atualizado.");
     } finally {
       setSyncing(false);
     }

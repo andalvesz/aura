@@ -464,6 +464,28 @@ function averageScore(memories: GrowthBrainMemory[]): number {
   return memories.reduce((sum, item) => sum + computeMemoryScore(item), 0) / memories.length;
 }
 
+export async function syncGrowthPatternsFromMemories(): Promise<{
+  patterns: GrowthPattern[];
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { patterns: [], error: "Usuário não autenticado." };
+
+  const memoriesRepo = new GrowthBrainMemoriesRepository(ctx.supabase, ctx.userId);
+  const patternsRepo = new GrowthPatternsRepository(ctx.supabase, ctx.userId);
+
+  const memoriesRes = await memoriesRepo.findRecent(1000);
+  if (memoriesRes.error) return { patterns: [], error: memoriesRes.error };
+
+  await syncPatternsFromMemories(
+    (memoriesRes.data ?? []).filter((m) => m.status === "active"),
+    patternsRepo
+  );
+
+  const refreshed = await patternsRepo.findAll();
+  return { patterns: refreshed.data ?? [], error: refreshed.error };
+}
+
 export async function getGrowthBrainDashboard(): Promise<{
   dashboard: GrowthBrainDashboard | null;
   error: string | null;
@@ -486,10 +508,7 @@ export async function getGrowthBrainDashboard(): Promise<{
   const memories = memoriesRes.data ?? [];
   const patterns = patternsRes.data ?? [];
 
-  await syncPatternsFromMemories(memories.filter((m) => m.status === "active"), patternsRepo);
-  const refreshedPatterns = await patternsRepo.findAll();
-
-  const dashboard = computeGrowthBrainDashboard(memories, refreshedPatterns.data ?? patterns);
+  const dashboard = computeGrowthBrainDashboard(memories, patterns);
   return { dashboard, error: null };
 }
 

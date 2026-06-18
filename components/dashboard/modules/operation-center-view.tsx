@@ -58,7 +58,7 @@ export function OperationCenterView() {
     backgroundLoading,
     error,
     busy,
-    refresh,
+    syncState,
     generateCopy,
     generateAssets,
     generateCreative,
@@ -222,7 +222,7 @@ export function OperationCenterView() {
           {error && (
             <button
               type="button"
-              onClick={() => void refresh()}
+              onClick={() => void syncState().then((ok) => ok && toast.success("Operation Center sincronizado."))}
               className="ml-2 underline hover:text-amber-100"
             >
               Tentar novamente
@@ -238,7 +238,7 @@ export function OperationCenterView() {
         </p>
         <button
           type="button"
-          onClick={() => void refresh()}
+          onClick={() => void syncState().then((ok) => ok && toast.success("Operation Center sincronizado."))}
           disabled={busy}
           className="ml-auto inline-flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300"
         >

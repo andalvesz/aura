@@ -85,14 +85,21 @@ async function loadDecisionEngineInput(): Promise<{
   };
 }
 
-export async function getUnifiedDecisions(): Promise<{
+export async function getUnifiedDecisionsReadOnly(): Promise<{
   decisions: UnifiedDecisionEngineResult | null;
   error: string | null;
 }> {
   const { input, error } = await loadDecisionEngineInput();
   if (error || !input) return { decisions: null, error: error ?? "Erro ao carregar decisões." };
+  return { decisions: computeUnifiedDecisions(input), error: null };
+}
 
-  const decisions = computeUnifiedDecisions(input);
+export async function getUnifiedDecisions(): Promise<{
+  decisions: UnifiedDecisionEngineResult | null;
+  error: string | null;
+}> {
+  const { decisions, error } = await getUnifiedDecisionsReadOnly();
+  if (error || !decisions) return { decisions: null, error: error ?? "Erro ao carregar decisões." };
   console.info("[decision-engine] unified decisions computed", {
     sourcesUsed: decisions.sourcesUsed,
     confidence: decisions.confidence,

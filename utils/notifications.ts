@@ -205,13 +205,13 @@ export function buildNotificationCandidates(params: {
     if (!tier) continue;
 
     const relatedId = item.lead?.id ?? item.orcamento?.id ?? null;
-    const module = item.lead ? "crescimento" : "alvesz";
+    const relatedModule = item.lead ? "crescimento" : "alvesz";
 
     candidates.push({
       type: "lead_followup",
       title: `Lead sem follow-up há ${ctx.idleDays} dias`,
       message: `${ctx.nome}: ${ctx.tipoEvento} · ${formatBRL(ctx.valor)} · ${ctx.statusLabel} (${getFollowUpTierLabel(tier)}).`,
-      related_module: module,
+      related_module: relatedModule,
       related_id: relatedId,
       scheduled_for: nowIso,
     });

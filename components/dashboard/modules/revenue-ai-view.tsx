@@ -98,7 +98,7 @@ function SparklineChart({
 }
 
 export function RevenueAiView() {
-  const { dashboard, forecast, loading, error, refresh } = useRevenueAi();
+  const { dashboard, forecast, loading, error, refresh, generateForecast } = useRevenueAi();
   const [syncing, setSyncing] = useState(false);
 
   async function handleRefresh() {
@@ -106,6 +106,20 @@ export function RevenueAiView() {
     try {
       await refresh();
       toast.success("Revenue AI atualizado.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleGenerateForecast() {
+    setSyncing(true);
+    try {
+      const { error: genError, message } = await generateForecast();
+      if (genError) {
+        toast.error(genError);
+        return;
+      }
+      toast.success(message ?? "Previsão gerada.");
     } finally {
       setSyncing(false);
     }
@@ -268,7 +282,24 @@ export function RevenueAiView() {
             <p className="text-[11px] text-zinc-400">{forecast.recommendation}</p>
           </PanelContent>
         </Panel>
-      ) : null}
+      ) : (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Previsão mensal</PanelTitle>
+          </PanelHeader>
+          <PanelContent className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] text-zinc-500">Nenhuma previsão salva. Gere uma nova previsão.</p>
+            <ActionButton variant="ghost" disabled={syncing} onClick={() => void handleGenerateForecast()}>
+              {syncing ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <TrendingUp className="size-3.5" />
+              )}
+              Gerar previsão
+            </ActionButton>
+          </PanelContent>
+        </Panel>
+      )}
 
       {dashboard.insights.length > 0 ? (
         <Panel>

@@ -598,6 +598,24 @@ export const LOGS_NAV = {
   icon: ScrollText,
 };
 
+export const BLACK_HEALTH_NAV = {
+  href: "/dashboard/black-health",
+  label: "Black Health",
+  icon: Stethoscope,
+};
+
+export const FEED_INSPECTOR_NAV = {
+  href: "/dashboard/feed-inspector",
+  label: "Feed Inspector",
+  icon: Crosshair,
+};
+
+export const DECISION_ENGINE_NAV = {
+  href: "/dashboard/decision-engine",
+  label: "Decision Engine",
+  icon: Cpu,
+};
+
 export function getModule(id: ModuleId): ModuleConfig {
   const mod = MODULES.find((m) => m.id === id);
 

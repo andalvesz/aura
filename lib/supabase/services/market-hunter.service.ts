@@ -277,7 +277,7 @@ export async function getMarketHunterDashboard(): Promise<{
   const opportunitiesRepo = new MarketOpportunitiesRepository(ctx.supabase, ctx.userId);
   const watchlistRepo = new MarketWatchlistRepository(ctx.supabase, ctx.userId);
 
-  let [opportunitiesRes, watchlistRes] = await Promise.all([
+  const [opportunitiesRes, watchlistRes] = await Promise.all([
     opportunitiesRepo.findTopScored(50),
     watchlistRepo.findActive(),
   ]);
@@ -287,16 +287,6 @@ export async function getMarketHunterDashboard(): Promise<{
       dashboard: null,
       error: opportunitiesRes.error ?? watchlistRes.error,
     };
-  }
-
-  if ((opportunitiesRes.data ?? []).length === 0) {
-    const identified = await identifyOpportunities();
-    if (identified.error) return { dashboard: null, error: identified.error };
-
-    [opportunitiesRes, watchlistRes] = await Promise.all([
-      opportunitiesRepo.findTopScored(50),
-      watchlistRepo.findActive(),
-    ]);
   }
 
   const dashboard = computeMarketHunterDashboard(

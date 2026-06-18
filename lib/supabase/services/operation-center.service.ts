@@ -658,6 +658,22 @@ async function logOperationAction(
   return logs;
 }
 
+async function buildOperationCenterDashboardFromOperation(
+  operation: OperationCenter
+): Promise<OperationCenterDashboard> {
+  const integrations = await loadIntegrations();
+  const bundle = await loadBundleForOperation(operation);
+  const hasCreativeFactoryAssets = await loadCreativeFactoryAssetsFlag(operation.id);
+  const landingPage = await loadLandingPageSummary(operation.landing_id);
+  return computeOperationCenterDashboard({
+    operation,
+    bundle,
+    ...integrations,
+    hasCreativeFactoryAssets,
+    landingPage,
+  });
+}
+
 export async function getOperationCenterState(): Promise<{
   dashboard: OperationCenterDashboard | null;
   error: string | null;
@@ -680,27 +696,7 @@ export async function getOperationCenterState(): Promise<{
       return { dashboard: emptyOperationDashboard(), error: null };
     }
 
-    const metadata = readOperationMetadata(operation);
-    const linkedOperation = await ensureOperationProductLinked(repo, operation, {
-      pergunta: typeof metadata.pergunta === "string" ? metadata.pergunta : null,
-    });
-
-    const integrations = await loadIntegrations();
-    const bundle = await loadBundleForOperation(linkedOperation);
-    const hasCreativeFactoryAssets = await loadCreativeFactoryAssetsFlag(linkedOperation.id);
-
-    await persistOperationUpdate(repo, linkedOperation, bundle, integrations);
-    const { data: refreshed } = await repo.findById(linkedOperation.id);
-    const finalOperation = refreshed ?? linkedOperation;
-    const finalBundle = await loadBundleForOperation(finalOperation);
-    const landingPage = await loadLandingPageSummary(finalOperation.landing_id);
-    const dashboard = computeOperationCenterDashboard({
-      operation: finalOperation,
-      bundle: finalBundle,
-      ...integrations,
-      hasCreativeFactoryAssets,
-      landingPage,
-    });
+    const dashboard = await buildOperationCenterDashboardFromOperation(operation);
     return { dashboard, error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -709,6 +705,49 @@ export async function getOperationCenterState(): Promise<{
     }
     console.warn("[operation-center] getOperationCenterState:", message);
     return { dashboard: emptyOperationDashboard(), error: null };
+  }
+}
+
+export async function syncOperationCenterState(): Promise<{
+  dashboard: OperationCenterDashboard | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { dashboard: null, error: "Usuário não autenticado." };
+  }
+
+  try {
+    const repo = new OperationCenterRepository(ctx.supabase, ctx.userId);
+    const { data: operation, error: operationError } = await repo.findActive();
+
+    if (operationError) {
+      return { dashboard: null, error: operationError };
+    }
+
+    if (!operation) {
+      return { dashboard: emptyOperationDashboard(), error: null };
+    }
+
+    const metadata = readOperationMetadata(operation);
+    const linkedOperation = await ensureOperationProductLinked(repo, operation, {
+      pergunta: typeof metadata.pergunta === "string" ? metadata.pergunta : null,
+    });
+
+    const integrations = await loadIntegrations();
+    const bundle = await loadBundleForOperation(linkedOperation);
+
+    await persistOperationUpdate(repo, linkedOperation, bundle, integrations);
+    const { data: refreshed } = await repo.findById(linkedOperation.id);
+    const finalOperation = refreshed ?? linkedOperation;
+    const dashboard = await buildOperationCenterDashboardFromOperation(finalOperation);
+    return { dashboard, error: null };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (isMissingSupabaseTableError(message)) {
+      return { dashboard: emptyOperationDashboard(), error: null };
+    }
+    return { dashboard: null, error: message };
   }
 }
 
@@ -836,7 +875,7 @@ export async function upsertOperationFromCeo(params: {
         ),
       } as Omit<TableInsert<"operation_center">, "user_id">);
 
-    let { data, error } = await tryCreate(operationFields);
+    const { data, error } = await tryCreate(operationFields);
 
     if (error || !data) {
       console.error("[operation-center] upsertOperationFromCeo: create failed", {

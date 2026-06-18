@@ -35,7 +35,19 @@ export function useGrowthBrain() {
     }
   }, []);
 
+  const syncPatterns = useCallback(async () => {
+    const res = await fetch("/api/growth-brain/sync-patterns", { method: "POST" });
+    const { data, error: parseError } = await parseJsonResponse<{ error?: string; message?: string }>(
+      res
+    );
+    if (parseError || !res.ok || data?.error) {
+      return { error: data?.error ?? parseError ?? "Erro ao sincronizar padrões." };
+    }
+    await refresh();
+    return { error: null, message: data?.message ?? "Padrões sincronizados." };
+  }, [refresh]);
+
   useMountFetch(refresh, [refresh]);
 
-  return { dashboard, loading, error, refresh };
+  return { dashboard, loading, error, refresh, syncPatterns };
 }

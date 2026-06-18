@@ -87,6 +87,32 @@ export function useOperationCenter() {
     }
   }, []);
 
+  const syncState = useCallback(async (): Promise<boolean> => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/operation-center/sync", { method: "POST" });
+      const { data, error: parseError } = await parseJsonResponse<{
+        dashboard?: OperationCenterDashboard;
+        message?: string;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok || data?.error) {
+        setError(data?.error ?? parseError ?? "Erro ao sincronizar Operation Center.");
+        return false;
+      }
+
+      setDashboard(data?.dashboard ?? emptyOperationDashboard());
+      return true;
+    } catch (err) {
+      console.error("[useOperationCenter] syncState failed:", err);
+      setError("Erro de conexão.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   const refreshInBackground = useCallback(async () => {
     setBackgroundLoading(true);
     try {
@@ -514,6 +540,7 @@ export function useOperationCenter() {
     error,
     busy,
     refresh,
+    syncState,
     generateCopy,
     generateAssets,
     generateCreative,
