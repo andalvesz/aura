@@ -2,6 +2,8 @@ import type { GrowthBrainMemory, GrowthPattern, Json } from "@/types/database";
 
 export type GrowthBrainMemoryStatus = "active" | "archived" | "learning";
 
+export type GrowthBrainMetricType = "estimated" | "real";
+
 export type GrowthResultInput = {
   operationId?: string | null;
   productId?: string | null;
@@ -23,6 +25,7 @@ export type GrowthResultInput = {
   status?: GrowthBrainMemoryStatus;
   lesson?: string | null;
   recommendation?: string | null;
+  metricType?: GrowthBrainMetricType;
   metadata?: Json;
 };
 
@@ -79,6 +82,25 @@ function readMetaString(metadata: Json, key: string): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+export function readGrowthMetricType(memory: GrowthBrainMemory): GrowthBrainMetricType {
+  if (
+    memory.metadata &&
+    typeof memory.metadata === "object" &&
+    !Array.isArray(memory.metadata)
+  ) {
+    const meta = memory.metadata as Record<string, unknown>;
+    if (meta.metric_type === "estimated" || meta.metric_type === "real") {
+      return meta.metric_type;
+    }
+    if (meta.estimated === true) return "estimated";
+  }
+  return "real";
+}
+
+export function isStrongLearningMemory(memory: GrowthBrainMemory): boolean {
+  return readGrowthMetricType(memory) === "real";
+}
+
 export function computeMemoryScore(memory: GrowthBrainMemory): number {
   const roas = Number(memory.roas ?? 0);
   const ctr = Number(memory.ctr ?? 0);
@@ -87,7 +109,8 @@ export function computeMemoryScore(memory: GrowthBrainMemory): number {
   const spend = Number(memory.spend ?? 0);
   const roiFactor = spend > 0 ? revenue / spend : revenue > 0 ? 1 : 0;
 
-  return roas * 40 + ctr * 1000 + conversion * 100 + roiFactor * 20;
+  const base = roas * 40 + ctr * 1000 + conversion * 100 + roiFactor * 20;
+  return readGrowthMetricType(memory) === "estimated" ? base * 0.3 : base;
 }
 
 function pickBest(
@@ -173,41 +196,43 @@ export function computeGrowthBrainDashboard(
   patterns: GrowthPattern[]
 ): GrowthBrainDashboard {
   const active = memories.filter((m) => m.status === "active");
-  const roasValues = active.map((m) => Number(m.roas ?? 0)).filter((v) => v > 0);
-  const ctrValues = active.map((m) => Number(m.ctr ?? 0)).filter((v) => v > 0);
+  const strongLearning = active.filter(isStrongLearningMemory);
+  const learningPool = strongLearning.length > 0 ? strongLearning : active;
+  const roasValues = learningPool.map((m) => Number(m.roas ?? 0)).filter((v) => v > 0);
+  const ctrValues = learningPool.map((m) => Number(m.ctr ?? 0)).filter((v) => v > 0);
 
-  const insights = generateGrowthInsightsFromMemories(active);
-  const recommendations = generateRecommendationsFromMemories(active, patterns);
+  const insights = generateGrowthInsightsFromMemories(learningPool);
+  const recommendations = generateRecommendationsFromMemories(learningPool, patterns);
 
   return {
     melhorCopy: pickBest(
-      active,
+      learningPool,
       (m) => Boolean(m.copy_id),
       (m) => readMetaString(m.metadata, "copy_label") ?? `Copy ${m.copy_id?.slice(0, 8)}`,
       (m) => m.copy_id
     ),
     melhorCriativo: pickBest(
-      active,
+      learningPool,
       (m) => Boolean(m.creative_id),
       (m) => readMetaString(m.metadata, "creative_label") ?? `Criativo ${m.creative_id?.slice(0, 8)}`,
       (m) => m.creative_id
     ),
     melhorLanding: pickBest(
-      active,
+      learningPool,
       (m) => Boolean(m.landing_id),
       (m) => readMetaString(m.metadata, "landing_label") ?? `Landing ${m.landing_id?.slice(0, 8)}`,
       (m) => m.landing_id
     ),
     melhorCampanha: pickBest(
-      active,
+      learningPool,
       (m) => Boolean(m.campaign_id),
       (m) =>
         readMetaString(m.metadata, "campaign_label") ?? `Campanha ${m.campaign_id?.slice(0, 8)}`,
       (m) => m.campaign_id
     ),
-    melhorNicho: pickBestGrouped(active, (m) => readMetaString(m.metadata, "niche")),
-    melhorPais: pickBestGrouped(active, (m) => m.country),
-    melhorIdioma: pickBestGrouped(active, (m) => m.language),
+    melhorNicho: pickBestGrouped(learningPool, (m) => readMetaString(m.metadata, "niche")),
+    melhorPais: pickBestGrouped(learningPool, (m) => m.country),
+    melhorIdioma: pickBestGrouped(learningPool, (m) => m.language),
     totalMemories: memories.length,
     activeMemories: active.length,
     avgRoas:

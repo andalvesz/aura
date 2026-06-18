@@ -14,7 +14,9 @@ export type DecisionSource =
   | "revenue_ai"
   | "market_hunter"
   | "operation_center"
-  | "performance_ai";
+  | "performance_ai"
+  | "kiwify"
+  | "meta";
 
 export type UnifiedDecision = {
   label: string;
@@ -36,6 +38,18 @@ export type DecisionEngineInput = {
     analysis: PerformanceAiAnalysis | null;
     executiveMemory: PerformanceExecutiveMemory | null;
   } | null;
+  kiwify: {
+    connected: boolean;
+    topProductName: string | null;
+    topProductRevenue: number;
+    conversionPct: number;
+  } | null;
+  meta: {
+    connected: boolean;
+    topCampaignName: string | null;
+    roas: number | null;
+    spend: number;
+  } | null;
 };
 
 export type UnifiedDecisionEngineResult = {
@@ -56,6 +70,8 @@ const SOURCE_WEIGHT: Record<DecisionSource, number> = {
   market_hunter: 1.2,
   operation_center: 1.15,
   performance_ai: 1.05,
+  kiwify: 1.08,
+  meta: 1.06,
 };
 
 function weightedScore(source: DecisionSource, score: number): number {
@@ -107,9 +123,21 @@ export function selectBestProduct(input: DecisionEngineInput): UnifiedDecision |
       card.label,
       card.value > 0 ? Math.min(100, card.value / 10) : 50,
       "revenue_ai",
-      `Melhor produto por receita (${card.currency})`,
+      `Melhor produto por receita real (${card.currency})`,
       null,
       { roas: card.roas, roi: card.roi }
+    );
+    if (c) candidates.push(c);
+  }
+
+  if (input.kiwify?.connected && input.kiwify.topProductName) {
+    const c = candidate(
+      input.kiwify.topProductName,
+      Math.min(100, input.kiwify.topProductRevenue / 10),
+      "kiwify",
+      `Top produto Kiwify — conversão ${input.kiwify.conversionPct.toFixed(1)}%`,
+      null,
+      { revenue: input.kiwify.topProductRevenue }
     );
     if (c) candidates.push(c);
   }
@@ -415,7 +443,19 @@ export function selectBestCampaign(input: DecisionEngineInput): UnifiedDecision 
       `Campanha ${card.label}`,
       card.roas != null ? Math.min(100, card.roas * 25) : 50,
       "revenue_ai",
-      "Melhor plataforma por receita de campanha"
+      "Melhor plataforma por receita real de campanha"
+    );
+    if (c) candidates.push(c);
+  }
+
+  if (input.meta?.connected && input.meta.topCampaignName) {
+    const c = candidate(
+      input.meta.topCampaignName,
+      input.meta.roas != null ? Math.min(100, input.meta.roas * 25) : 55,
+      "meta",
+      `Campanha Meta — ROAS ${input.meta.roas?.toFixed(2) ?? "—"}x`,
+      null,
+      { spend: input.meta.spend }
     );
     if (c) candidates.push(c);
   }
@@ -430,6 +470,8 @@ export function computeUnifiedDecisions(input: DecisionEngineInput): UnifiedDeci
   if (input.marketHunter) sourcesUsed.push("market_hunter");
   if (input.operationCenter?.operation) sourcesUsed.push("operation_center");
   if (input.performance?.dashboard) sourcesUsed.push("performance_ai");
+  if (input.kiwify?.connected) sourcesUsed.push("kiwify");
+  if (input.meta?.connected) sourcesUsed.push("meta");
 
   const decisions = [
     selectBestProduct(input),
@@ -445,7 +487,7 @@ export function computeUnifiedDecisions(input: DecisionEngineInput): UnifiedDeci
     decisions.length > 0
       ? Math.round(
           (decisions.reduce((sum, d) => sum + d.score, 0) / decisions.length) *
-            (sourcesUsed.length / 5) *
+            (sourcesUsed.length / 7) *
             100
         ) / 100
       : 0;

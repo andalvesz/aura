@@ -116,6 +116,10 @@ export async function runMissionAction(action: MissionActionId): Promise<{
   const ctx = await getOptionalDataContext();
   if (!ctx) return { message: "", error: "Usuário não autenticado." };
 
+  await import("./aura-decision-engine.service").then((mod) =>
+    mod.consultDecisionEngine("mission_control")
+  );
+
   if (!MISSION_CONTROL_SAFE_MODE) {
     return { message: "", error: "Modo seguro desativado — ação bloqueada." };
   }

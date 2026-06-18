@@ -173,6 +173,7 @@ async function feedCreativeDirectorIntegrations(params: {
       creativeId: primaryAsset.id,
       sourcePlatform: "creative_factory",
       conversionRate: params.creativeScore.overall / 100,
+      metricType: "estimated",
       lesson: `Pacote Creative Director — score ${params.creativeScore.overall}/100`,
       recommendation:
         params.creativeScore.risco_reprovacao > 50
@@ -180,6 +181,7 @@ async function feedCreativeDirectorIntegrations(params: {
           : "Pacote pronto para testes A/B na campanha.",
       metadata: {
         source: "creative_director",
+        product_label: params.operation.product_nome,
         creative_score: params.creativeScore,
         asset_count: params.assets.length,
         headline: params.copyHeadline,
@@ -202,10 +204,10 @@ async function feedCreativeDirectorIntegrations(params: {
     spend: estimatedSpend,
     roas: calculateRoas(estimatedRevenue, estimatedSpend),
     roi: calculateRoi(calculateProfit(estimatedRevenue, estimatedSpend), estimatedSpend),
+    metricType: "estimated",
     metadata: {
       source: "creative_director",
       creative_score: params.creativeScore,
-      estimated: true,
     },
   });
   integrations.revenue_ai = !revenue.error;

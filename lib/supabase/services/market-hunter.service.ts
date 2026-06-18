@@ -114,8 +114,8 @@ export async function analyzeMarket(): Promise<{
         currency: dashboard.melhorProduto.currency ?? "BRL",
         estimatedDemand: Math.min(100, dashboard.melhorProduto.value / 100),
         estimatedCompetition: 45,
-        estimatedConversion: Number(dashboard.roasMedio ?? 1) / 10,
-        metadata: { source: "revenue_ai", roas: dashboard.roasMedio },
+        estimatedConversion: Number(dashboard.roasMedioReal ?? dashboard.roasMedio ?? 1) / 10,
+        metadata: { source: "revenue_ai", roas: dashboard.roasMedioReal ?? dashboard.roasMedio },
       });
     }
 
@@ -321,6 +321,12 @@ export async function feedMarketHunterFromGrowthBrain(params: {
   country?: string | null;
   score?: number | null;
 }): Promise<void> {
+  console.info("[market-hunter] feed from Growth Brain", {
+    productName: params.productName,
+    niche: params.niche,
+    score: params.score,
+  });
+
   const ctx = await getOptionalDataContext();
   if (!ctx) return;
 

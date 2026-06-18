@@ -11,6 +11,7 @@ import {
   calculateRoi,
   computeRevenueAiDashboard,
   generateRevenueInsightsFromMetrics,
+  readMetricType,
   type RevenueAiDashboard,
   type RevenueForecastResult,
   type RevenueInsight,
@@ -27,6 +28,8 @@ function toMetricPayload(
   const profit = input.profit != null ? Number(input.profit) : calculateProfit(revenue, spend);
   const roas = input.roas != null ? Number(input.roas) : calculateRoas(revenue, spend);
   const roi = input.roi != null ? Number(input.roi) : calculateRoi(profit, spend);
+
+  const metricType = input.metricType ?? "real";
 
   return {
     operation_id: input.operationId ?? null,
@@ -45,11 +48,18 @@ function toMetricPayload(
     cpc: input.cpc ?? null,
     cpa: input.cpa ?? null,
     date: input.date ?? todayIsoDate(),
-    metadata: input.metadata ?? ({} as Json),
+    metric_type: metricType,
+    metadata: {
+      ...(typeof input.metadata === "object" && input.metadata && !Array.isArray(input.metadata)
+        ? (input.metadata as Record<string, unknown>)
+        : {}),
+      metric_type: metricType,
+    } as Json,
   };
 }
 
 async function feedGrowthBrainFromRevenueMetric(metric: RevenueMetric): Promise<void> {
+  if (readMetricType(metric) === "estimated") return;
   const { feedGrowthBrainFromRevenue } = await import("./growth-brain.service");
   await feedGrowthBrainFromRevenue({
     revenue: Number(metric.revenue ?? 0),
@@ -69,25 +79,37 @@ export async function registerRevenue(
   const result = await repo.create(toMetricPayload(input));
 
   if (result.data) {
-    void feedGrowthBrainFromRevenueMetric(result.data).catch(() => undefined);
-    const productName =
-      result.data.metadata &&
-      typeof result.data.metadata === "object" &&
-      !Array.isArray(result.data.metadata)
-        ? String((result.data.metadata as Record<string, unknown>).productName ?? "") || null
-        : null;
-    void import("./market-hunter.service")
-      .then(({ feedMarketHunterFromRevenue }) =>
-        feedMarketHunterFromRevenue({
-          productName: productName ?? `Receita ${result.data!.platform ?? "geral"}`,
-          platform: result.data!.platform,
-          country: result.data!.country,
-          currency: result.data!.currency,
-          revenue: Number(result.data!.revenue ?? 0),
-          roas: Number(result.data!.roas ?? 0),
-        })
-      )
-      .catch(() => undefined);
+    const metricType = readMetricType(result.data);
+    console.info("[revenue-ai] metric registered", {
+      platform: result.data.platform,
+      metricType,
+      revenue: result.data.revenue,
+      roas: result.data.roas,
+    });
+
+    if (metricType === "real") {
+      void feedGrowthBrainFromRevenueMetric(result.data).catch(() => undefined);
+      const productName =
+        result.data.metadata &&
+        typeof result.data.metadata === "object" &&
+        !Array.isArray(result.data.metadata)
+          ? String((result.data.metadata as Record<string, unknown>).productName ?? "") ||
+            String((result.data.metadata as Record<string, unknown>).product_label ?? "") ||
+            null
+          : null;
+      void import("./market-hunter.service")
+        .then(({ feedMarketHunterFromRevenue }) =>
+          feedMarketHunterFromRevenue({
+            productName: productName ?? `Receita ${result.data!.platform ?? "geral"}`,
+            platform: result.data!.platform,
+            country: result.data!.country,
+            currency: result.data!.currency,
+            revenue: Number(result.data!.revenue ?? 0),
+            roas: Number(result.data!.roas ?? 0),
+          })
+        )
+        .catch(() => undefined);
+    }
   }
 
   return { metric: result.data, error: result.error };
@@ -155,11 +177,12 @@ export async function generateRevenueInsights(): Promise<{
   void import("./growth-brain.service")
     .then(({ feedGrowthBrainFromRevenue }) => {
       const dashboard = computeRevenueAiDashboard(data ?? []);
+      if (dashboard.receitaReal <= 0) return;
       return feedGrowthBrainFromRevenue({
-        revenue: dashboard.receitaTotal,
-        spend: data?.reduce((sum, m) => sum + Number(m.spend ?? 0), 0) ?? 0,
-        roas: dashboard.roasMedio ?? 0,
-        conversionRate: dashboard.roiMedio != null ? dashboard.roiMedio / 100 : null,
+        revenue: dashboard.receitaReal,
+        spend: data?.filter((m) => readMetricType(m) === "real").reduce((sum, m) => sum + Number(m.spend ?? 0), 0) ?? 0,
+        roas: dashboard.roasMedioReal ?? 0,
+        conversionRate: dashboard.roiMedioReal != null ? dashboard.roiMedioReal / 100 : null,
       });
     })
     .catch(() => undefined);
@@ -261,6 +284,7 @@ export async function feedRevenueAiFromOperation(params: {
     spend,
     roi: params.roiPrevisto ?? calculateRoi(calculateProfit(revenue, spend), spend),
     roas: calculateRoas(revenue, spend),
+    metricType: revenue > 0 || spend > 0 ? "real" : "estimated",
     metadata: { source: "operation_center", product_label: params.productName },
   });
 }

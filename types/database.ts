@@ -819,6 +819,8 @@ export type RevenueForecastType = "revenue" | "profit" | "growth" | "scale";
 
 export type RevenueForecastPeriod = "weekly" | "monthly" | "quarterly";
 
+export type RevenueMetricType = "estimated" | "real";
+
 export type RevenueMetric = {
   id: string;
   user_id: string;
@@ -838,6 +840,7 @@ export type RevenueMetric = {
   cpc: number | null;
   cpa: number | null;
   date: string;
+  metric_type: RevenueMetricType;
   metadata: Json;
   created_at: string;
 };
@@ -4920,6 +4923,7 @@ export type Database = {
           | "cpc"
           | "cpa"
           | "date"
+          | "metric_type"
         > & {
           id?: string;
           metadata?: Json;
@@ -4928,6 +4932,7 @@ export type Database = {
           platform?: string | null;
           country?: string | null;
           currency?: string;
+          metric_type?: RevenueMetricType;
           revenue?: number;
           spend?: number;
           profit?: number;

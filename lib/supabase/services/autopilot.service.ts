@@ -616,6 +616,13 @@ export async function evaluateAutopilotRules(): Promise<{
     return { evaluated: 0, triggered: 0, actions: [], error: "Usuário não autenticado." };
   }
 
+  const { decisions } = await import("./aura-decision-engine.service").then((mod) =>
+    mod.consultDecisionEngine("autopilot")
+  );
+  const strategicHint = decisions?.bestProduct
+    ? `Produto estratégico: ${decisions.bestProduct.label} (${decisions.bestProduct.source}).`
+    : "";
+
   const settingsRepo = new AutopilotSettingsRepository(ctx.supabase, ctx.userId);
   const monitorsRepo = new AutopilotMonitorsRepository(ctx.supabase, ctx.userId);
   const actionsRepo = new AutopilotActionsRepository(ctx.supabase, ctx.userId);
@@ -662,8 +669,10 @@ export async function evaluateAutopilotRules(): Promise<{
         metric_detected: hit.metricDetected,
         metric_value: hit.metricValue,
         reason: hit.reason,
-        suggestion: hit.suggestion,
-        payload: { metrics } as unknown as Json,
+        suggestion: strategicHint
+          ? `${hit.suggestion} ${strategicHint}`
+          : hit.suggestion,
+        payload: { metrics, decisionEngine: decisions ?? null } as unknown as Json,
       } satisfies Omit<TableInsert<"autopilot_actions">, "user_id">);
 
       if (error || !action) continue;

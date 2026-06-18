@@ -1,4 +1,4 @@
-import type { RevenueForecast, RevenueMetric, Json } from "@/types/database";
+import type { RevenueForecast, RevenueMetric, RevenueMetricType, Json } from "@/types/database";
 
 export type RevenueRegisterInput = {
   operationId?: string | null;
@@ -17,6 +17,7 @@ export type RevenueRegisterInput = {
   cpc?: number | null;
   cpa?: number | null;
   date?: string | null;
+  metricType?: RevenueMetricType;
   metadata?: Json;
 };
 
@@ -43,6 +44,8 @@ export type RevenueInsight = {
 
 export type RevenueAiDashboard = {
   receitaTotal: number;
+  receitaReal: number;
+  receitaEstimada: number;
   lucroTotal: number;
   melhorProduto: RevenueBestCard | null;
   melhorPais: RevenueBestCard | null;
@@ -50,12 +53,18 @@ export type RevenueAiDashboard = {
   receitaPorMoeda: RevenueChartPoint[];
   roasMedio: number | null;
   roiMedio: number | null;
+  roasMedioReal: number | null;
+  roiMedioReal: number | null;
+  roasPrevisto: number | null;
+  roiPrevisto: number | null;
   chartReceita30Dias: RevenueChartPoint[];
   chartReceita90Dias: RevenueChartPoint[];
   chartReceitaPorPais: RevenueChartPoint[];
   chartReceitaPorPlataforma: RevenueChartPoint[];
   insights: RevenueInsight[];
   totalMetrics: number;
+  totalMetricsReal: number;
+  totalMetricsEstimated: number;
 };
 
 export type RevenueForecastResult = {
@@ -84,6 +93,34 @@ function readMetaString(metadata: Json, key: string): string | null {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
   const value = (metadata as Record<string, unknown>)[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function readMetricType(metric: RevenueMetric): RevenueMetricType {
+  if (metric.metric_type === "estimated" || metric.metric_type === "real") {
+    return metric.metric_type;
+  }
+  if (
+    metric.metadata &&
+    typeof metric.metadata === "object" &&
+    !Array.isArray(metric.metadata) &&
+    (metric.metadata as Record<string, unknown>).estimated === true
+  ) {
+    return "estimated";
+  }
+  return "real";
+}
+
+function splitMetricsByType(metrics: RevenueMetric[]): {
+  real: RevenueMetric[];
+  estimated: RevenueMetric[];
+} {
+  const real: RevenueMetric[] = [];
+  const estimated: RevenueMetric[] = [];
+  for (const metric of metrics) {
+    if (readMetricType(metric) === "estimated") estimated.push(metric);
+    else real.push(metric);
+  }
+  return { real, estimated };
 }
 
 function groupSum(
@@ -164,20 +201,29 @@ function pickBestGrouped(
 }
 
 export function computeRevenueAiDashboard(metrics: RevenueMetric[]): RevenueAiDashboard {
-  const receitaTotal = metrics.reduce((sum, m) => sum + Number(m.revenue ?? 0), 0);
+  const { real, estimated } = splitMetricsByType(metrics);
+
+  const receitaReal = real.reduce((sum, m) => sum + Number(m.revenue ?? 0), 0);
+  const receitaEstimada = estimated.reduce((sum, m) => sum + Number(m.revenue ?? 0), 0);
+  const receitaTotal = receitaReal + receitaEstimada;
   const lucroTotal = metrics.reduce((sum, m) => sum + Number(m.profit ?? 0), 0);
 
   const roasValues = metrics.map((m) => Number(m.roas ?? 0)).filter((v) => v > 0);
   const roiValues = metrics.map((m) => Number(m.roi ?? 0)).filter((v) => v !== 0);
+  const roasRealValues = real.map((m) => Number(m.roas ?? 0)).filter((v) => v > 0);
+  const roiRealValues = real.map((m) => Number(m.roi ?? 0)).filter((v) => v !== 0);
+  const roasEstimatedValues = estimated.map((m) => Number(m.roas ?? 0)).filter((v) => v > 0);
+  const roiEstimatedValues = estimated.map((m) => Number(m.roi ?? 0)).filter((v) => v !== 0);
 
-  const productGroups = groupSum(metrics, (m) =>
+  const productGroups = groupSum(real.length > 0 ? real : metrics, (m) =>
     m.product_id ? readMetaString(m.metadata, "product_label") ?? m.product_id.slice(0, 8) : null
   );
 
   let melhorProduto: RevenueBestCard | null = null;
   if (productGroups.size > 0) {
     const [label, value] = [...productGroups.entries()].sort((a, b) => b[1] - a[1])[0];
-    const groupMetrics = metrics.filter(
+    const sourceMetrics = real.length > 0 ? real : metrics;
+    const groupMetrics = sourceMetrics.filter(
       (m) =>
         m.product_id &&
         (readMetaString(m.metadata, "product_label") ?? m.product_id.slice(0, 8)) === label
@@ -193,19 +239,29 @@ export function computeRevenueAiDashboard(metrics: RevenueMetric[]): RevenueAiDa
 
   return {
     receitaTotal,
+    receitaReal,
+    receitaEstimada,
     lucroTotal,
     melhorProduto,
-    melhorPais: pickBestGrouped(metrics, (m) => m.country),
-    melhorPlataforma: pickBestGrouped(metrics, (m) => m.platform),
-    receitaPorMoeda: mapToChartPoints(groupSum(metrics, (m) => m.currency ?? "BRL")),
+    melhorPais: pickBestGrouped(real.length > 0 ? real : metrics, (m) => m.country),
+    melhorPlataforma: pickBestGrouped(real.length > 0 ? real : metrics, (m) => m.platform),
+    receitaPorMoeda: mapToChartPoints(groupSum(real.length > 0 ? real : metrics, (m) => m.currency ?? "BRL")),
     roasMedio: average(roasValues),
     roiMedio: average(roiValues),
-    chartReceita30Dias: buildDailyChart(metrics, 30),
-    chartReceita90Dias: buildDailyChart(metrics, 90),
-    chartReceitaPorPais: mapToChartPoints(groupSum(metrics, (m) => m.country ?? "—")),
-    chartReceitaPorPlataforma: mapToChartPoints(groupSum(metrics, (m) => m.platform ?? "—")),
+    roasMedioReal: average(roasRealValues),
+    roiMedioReal: average(roiRealValues),
+    roasPrevisto: average(roasEstimatedValues),
+    roiPrevisto: average(roiEstimatedValues),
+    chartReceita30Dias: buildDailyChart(real.length > 0 ? real : metrics, 30),
+    chartReceita90Dias: buildDailyChart(real.length > 0 ? real : metrics, 90),
+    chartReceitaPorPais: mapToChartPoints(groupSum(real.length > 0 ? real : metrics, (m) => m.country ?? "—")),
+    chartReceitaPorPlataforma: mapToChartPoints(
+      groupSum(real.length > 0 ? real : metrics, (m) => m.platform ?? "—")
+    ),
     insights: generateRevenueInsightsFromMetrics(metrics),
     totalMetrics: metrics.length,
+    totalMetricsReal: real.length,
+    totalMetricsEstimated: estimated.length,
   };
 }
 
@@ -229,19 +285,28 @@ export function generateRevenueInsightsFromMetrics(metrics: RevenueMetric[]): Re
   const dashboard = computeRevenueAiDashboard(metrics);
   const insights: RevenueInsight[] = [];
 
-  if (dashboard.roasMedio != null && dashboard.roasMedio >= 2) {
+  if (dashboard.roasMedioReal != null && dashboard.roasMedioReal >= 2) {
     insights.push({
       id: "scale-roas",
       title: "ROAS saudável",
-      summary: `ROAS médio de ${dashboard.roasMedio.toFixed(2)}x — considere escalar investimento.`,
+      summary: `ROAS real de ${dashboard.roasMedioReal.toFixed(2)}x — considere escalar investimento.`,
       priority: "high",
     });
-  } else if (dashboard.roasMedio != null && dashboard.roasMedio < 1) {
+  } else if (dashboard.roasMedioReal != null && dashboard.roasMedioReal < 1) {
     insights.push({
       id: "fix-roas",
       title: "ROAS abaixo do ideal",
-      summary: "Retorno abaixo do investimento — revise criativos, oferta e funil.",
+      summary: "Retorno real abaixo do investimento — revise criativos, oferta e funil.",
       priority: "high",
+    });
+  }
+
+  if (dashboard.receitaEstimada > 0 && dashboard.totalMetricsReal === 0) {
+    insights.push({
+      id: "estimated-only",
+      title: "Apenas hipóteses registradas",
+      summary: "Métricas estimadas detectadas — conecte Kiwify ou Meta para aprendizado real.",
+      priority: "medium",
     });
   }
 
@@ -312,10 +377,15 @@ export function buildRevenueForecast(params: {
 export function buildRevenueAiAuraContext(dashboard: RevenueAiDashboard): string {
   return [
     "## REVENUE AI",
-    `Receita total: R$ ${dashboard.receitaTotal.toFixed(2)}`,
+    `Receita real: R$ ${dashboard.receitaReal.toFixed(2)}`,
+    dashboard.receitaEstimada > 0
+      ? `Receita estimada (hipótese): R$ ${dashboard.receitaEstimada.toFixed(2)}`
+      : null,
     `Lucro total: R$ ${dashboard.lucroTotal.toFixed(2)}`,
-    dashboard.roasMedio != null ? `ROAS médio: ${dashboard.roasMedio.toFixed(2)}x` : null,
-    dashboard.roiMedio != null ? `ROI médio: ${dashboard.roiMedio.toFixed(1)}%` : null,
+    dashboard.roasMedioReal != null ? `ROAS real: ${dashboard.roasMedioReal.toFixed(2)}x` : null,
+    dashboard.roiMedioReal != null ? `ROI real: ${dashboard.roiMedioReal.toFixed(1)}%` : null,
+    dashboard.roasPrevisto != null ? `ROAS previsto: ${dashboard.roasPrevisto.toFixed(2)}x` : null,
+    dashboard.roiPrevisto != null ? `ROI previsto: ${dashboard.roiPrevisto.toFixed(1)}%` : null,
     dashboard.melhorPlataforma
       ? `Melhor plataforma: ${dashboard.melhorPlataforma.label}`
       : null,

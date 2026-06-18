@@ -289,6 +289,15 @@ export async function prepareSmartLaunch(input: SmartLaunchIntake): Promise<{
 
   const warnings: string[] = [];
 
+  const { decisions: launchDecisions } = await import("./aura-decision-engine.service").then(
+    (mod) => mod.consultDecisionEngine("smart_launch")
+  );
+  if (launchDecisions?.bestProduct) {
+    warnings.push(
+      `Decision Engine recomenda: ${launchDecisions.bestProduct.label} (${launchDecisions.bestProduct.source})`
+    );
+  }
+
   const { bundle, researchId, error: productError } = await resolveOrCreateProduct(input);
   if (productError || !bundle) {
     await repo.update(sessionRecord.id, { status: "failed" });
@@ -394,6 +403,14 @@ Tipo: ${input.product_type}`,
       meta_intelligence: metaCtx.context?.slice(0, 800),
       revenue: revenueCtx.context?.slice(0, 500),
       performance: performanceCtx.context?.slice(0, 500),
+      decision_engine: launchDecisions
+        ? {
+            bestProduct: launchDecisions.bestProduct,
+            bestCountry: launchDecisions.bestCountry,
+            bestOffer: launchDecisions.bestOffer,
+            confidence: launchDecisions.confidence,
+          }
+        : null,
       warnings,
       safe_mode: SMART_LAUNCH_SAFE_MODE,
     })

@@ -19,11 +19,13 @@ import { getOptionalDataContext } from "./context";
 function toMemoryPayload(
   input: GrowthResultInput
 ): Omit<TableInsert<"growth_brain_memories">, "user_id"> {
+  const metricType = input.metricType ?? "real";
   const metadata: Json = {
     ...(typeof input.metadata === "object" && input.metadata && !Array.isArray(input.metadata)
       ? (input.metadata as Record<string, unknown>)
       : {}),
     ...(input.niche ? { niche: input.niche } : {}),
+    metric_type: metricType,
   };
 
   return {
@@ -50,6 +52,46 @@ function toMemoryPayload(
   };
 }
 
+function readMetaLabel(memory: GrowthBrainMemory, keys: string[]): string | null {
+  if (!memory.metadata || typeof memory.metadata !== "object" || Array.isArray(memory.metadata)) {
+    return null;
+  }
+  const meta = memory.metadata as Record<string, unknown>;
+  for (const key of keys) {
+    const value = meta[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function extractProductNameFromMemory(memory: GrowthBrainMemory): string | null {
+  return (
+    readMetaLabel(memory, ["product_label", "product_name", "campaign_label"]) ??
+    readNiche(memory)
+  );
+}
+
+async function feedMarketHunterFromMemory(memory: GrowthBrainMemory): Promise<void> {
+  const productName = extractProductNameFromMemory(memory);
+  if (!productName) return;
+
+  const score = Math.round(computeMemoryScore(memory));
+  const { feedMarketHunterFromGrowthBrain } = await import("./market-hunter.service");
+  await feedMarketHunterFromGrowthBrain({
+    productName,
+    niche: readNiche(memory),
+    country: memory.country,
+    score,
+  });
+
+  console.info("[growth-brain-feed] Market Hunter updated", {
+    productName,
+    score,
+    memoryId: memory.id,
+    sourcePlatform: memory.source_platform,
+  });
+}
+
 async function persistMemory(
   input: GrowthResultInput
 ): Promise<{ memory: GrowthBrainMemory | null; error: string | null }> {
@@ -58,6 +100,16 @@ async function persistMemory(
 
   const repo = new GrowthBrainMemoriesRepository(ctx.supabase, ctx.userId);
   const result = await repo.create(toMemoryPayload(input));
+
+  if (result.data) {
+    void feedMarketHunterFromMemory(result.data).catch((err) => {
+      console.warn("[growth-brain-feed] Market Hunter feed failed", {
+        memoryId: result.data?.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
   return { memory: result.data, error: result.error };
 }
 
@@ -416,6 +468,7 @@ export async function feedGrowthBrainFromOperation(params: {
     sourcePlatform: "operation_center",
     roas: params.roiPrevisto,
     conversionRate: params.operationalScore != null ? params.operationalScore / 100 : null,
+    metricType: "estimated",
     lesson: params.productName
       ? `Operação ${params.productName} aprovada com score ${params.operationalScore ?? "—"}`
       : "Operação aprovada no Operation Center",

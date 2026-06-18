@@ -233,6 +233,32 @@ async function resolveOperationProductForCeo(params: {
     };
   }
 
+  const { decision } = await import("./aura-decision-engine.service").then((mod) =>
+    mod.resolveBestProduct()
+  );
+  if (decision?.label) {
+    console.info("[decision-engine] operation product candidate", {
+      label: decision.label,
+      source: decision.source,
+      score: decision.score,
+    });
+    const matchedBundle = bundles.find(
+      (b) =>
+        b.product.nome === decision.label ||
+        b.product.nicho === decision.label ||
+        (b.product.nome != null && decision.label.includes(b.product.nome))
+    );
+    if (matchedBundle) {
+      return {
+        productId: matchedBundle.product.id,
+        productName:
+          matchedBundle.product.nome ?? matchedBundle.product.nicho ?? decision.label,
+        source: "creator",
+        kiwifyProductId: null,
+      };
+    }
+  }
+
   const ranked = rankProductsForLaunch(bundles);
   if (ranked[0]) {
     return {
@@ -1620,6 +1646,18 @@ export async function continueOperation(
 
   const nextFromSteps =
     parseOperationNextSteps(dashboard.operation.next_steps)[0] ?? dashboard.nextSteps[0] ?? "";
+
+  const { decisions } = await import("./aura-decision-engine.service").then((mod) =>
+    mod.consultDecisionEngine("operation_center")
+  );
+  console.info("[decision-engine] operation next step context", {
+    operationId,
+    bestCreative: decisions?.bestCreative?.label ?? null,
+    bestLanding: decisions?.bestLanding?.label ?? null,
+    bestCampaign: decisions?.bestCampaign?.label ?? null,
+    nextFromSteps,
+  });
+
   const executableAction = resolveNextExecutableOperationAction({
     progress: dashboard.progress,
     nextSteps: dashboard.nextSteps,

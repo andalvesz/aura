@@ -429,6 +429,9 @@ export async function createCeoPlan(pergunta: string): Promise<{
   }
 
   const moduleData = await loadAllModuleContexts();
+  const { decisions: unifiedDecisions } = await import("./aura-decision-engine.service").then(
+    (mod) => mod.consultDecisionEngine("aura_ceo")
+  );
   const baseRadar = computeOpportunityRadarFromData({
     bundles: moduleData.creator,
     research: moduleData.research,
@@ -477,6 +480,15 @@ Regras:
       pergunta: trimmed,
       radarBase: baseRadar,
       budget: budgetBlock,
+      decision_engine: unifiedDecisions
+        ? {
+            bestProduct: unifiedDecisions.bestProduct,
+            bestCountry: unifiedDecisions.bestCountry,
+            bestOffer: unifiedDecisions.bestOffer,
+            confidence: unifiedDecisions.confidence,
+            sourcesUsed: unifiedDecisions.sourcesUsed,
+          }
+        : null,
       ...moduleData,
     })
   );
@@ -509,7 +521,15 @@ Regras:
   }
 
   const ranked = rankProductsForLaunch(moduleData.creator);
-  const mainProduct = ranked[0]?.product ?? null;
+  let mainProduct = ranked[0]?.product ?? null;
+  if (unifiedDecisions?.bestProduct) {
+    const matched = ranked.find(
+      (entry) =>
+        entry.product.nome === unifiedDecisions.bestProduct!.label ||
+        entry.product.nicho === unifiedDecisions.bestProduct!.label
+    );
+    if (matched) mainProduct = matched.product;
+  }
 
   console.info("[ceo] createCeoPlan: syncing Operation Center", {
     sessionId: session.id,

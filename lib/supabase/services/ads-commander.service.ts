@@ -540,9 +540,10 @@ async function feedAdsCommanderIntegrations(campaign: AdCampaign): Promise<void>
     country: campaign.country,
     language: campaign.language,
     spend: budget?.daily_max ?? Number(campaign.budget ?? 0),
+    metricType: "estimated",
     lesson: `Campanha ${campaign.campaign_name} preparada no Ads Commander`,
     recommendation: "Aprove manualmente — Aura nunca publica automaticamente.",
-    metadata: { source: "ads_commander", risk_analysis: risk },
+    metadata: { source: "ads_commander", risk_analysis: risk, campaign_label: campaign.campaign_name },
   }).catch(() => undefined);
 
   const { registerRevenue } = await import("./revenue-ai.service");
@@ -558,7 +559,8 @@ async function feedAdsCommanderIntegrations(campaign: AdCampaign): Promise<void>
     spend,
     roas: calculateRoas(revenue, spend),
     roi: calculateRoi(calculateProfit(revenue, spend), spend),
-    metadata: { source: "ads_commander", campaign_id: campaign.id, estimated: true },
+    metricType: "estimated",
+    metadata: { source: "ads_commander", campaign_id: campaign.id },
   }).catch(() => undefined);
 }
 
