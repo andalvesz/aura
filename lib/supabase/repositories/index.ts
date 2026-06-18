@@ -92,4 +92,8 @@ export {
 export { FunnelsRepository, FunnelStepsRepository } from "./funnel-engine.repository";
 export { FunnelPagesRepository } from "./funnel-pages.repository";
 export { ConversionInsightsRepository } from "./conversion-intelligence.repository";
+export {
+  QualityReviewsRepository,
+  QualityScoresRepository,
+} from "./aura-excellence.repository";
 export { OffersRepository } from "./offer-engine.repository";

@@ -1141,6 +1141,54 @@ export type ConversionInsight = {
   created_at: string;
 };
 
+export type ExcellenceAssetType =
+  | "product"
+  | "ebook"
+  | "offer"
+  | "copy"
+  | "creative"
+  | "landing"
+  | "funnel"
+  | "campaign"
+  | "strategy";
+
+export type ExcellenceReviewer =
+  | "product_strategist"
+  | "copy_chief"
+  | "conversion_expert"
+  | "creative_director"
+  | "funnel_architect"
+  | "media_buyer"
+  | "consumer_psychologist"
+  | "compliance_reviewer";
+
+export type QualityReview = {
+  id: string;
+  user_id: string;
+  asset_type: ExcellenceAssetType;
+  asset_id: string;
+  reviewer: ExcellenceReviewer;
+  score: number;
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: string[];
+  approved: boolean;
+  metadata: Json;
+  created_at: string;
+};
+
+export type QualityScore = {
+  id: string;
+  user_id: string;
+  asset_type: ExcellenceAssetType;
+  asset_id: string;
+  final_score: number;
+  approved: boolean;
+  regeneration_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreativeAsset = {
   id: string;
   user_id: string;
@@ -4575,6 +4623,44 @@ export type Database = {
           created_at?: string;
         }
       >;
+      quality_reviews: TableDef<
+        QualityReview,
+        Omit<
+          QualityReview,
+          | "id"
+          | "created_at"
+          | "strengths"
+          | "weaknesses"
+          | "recommendations"
+          | "approved"
+          | "metadata"
+        > & {
+          id?: string;
+          strengths?: string[];
+          weaknesses?: string[];
+          recommendations?: string[];
+          approved?: boolean;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      quality_scores: TableDef<
+        QualityScore,
+        Omit<
+          QualityScore,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "approved"
+          | "regeneration_count"
+        > & {
+          id?: string;
+          approved?: boolean;
+          regeneration_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       platform_connections: TableDef<
         PlatformConnection,
         Omit<
@@ -5481,6 +5567,8 @@ export type UserScopedTable =
   | "funnels"
   | "funnel_pages"
   | "conversion_insights"
+  | "quality_reviews"
+  | "quality_scores"
   | "offers"
   | "platform_connections"
   | "platform_sync_logs"

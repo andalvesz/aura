@@ -37,6 +37,7 @@ import {
   Wallet,
   CircleDollarSign,
   Gift,
+  ShieldCheck,
 } from "lucide-react";
 
 export type ModuleId =
@@ -67,6 +68,7 @@ export type ModuleId =
   | "offer-engine"
   | "funnel-pages"
   | "conversion-intelligence"
+  | "excellence"
   | "ads-commander"
   | "autopilot"
   | "product-factory"
@@ -485,6 +487,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Insights",
       value: "0",
       hint: "Analise padrões de Growth Brain e Revenue AI",
+    },
+  },
+  {
+    id: "excellence",
+    href: "/dashboard/excellence",
+    label: "Aura Excellence Engine",
+    shortLabel: "Excellence",
+    description:
+      "Auditoria de especialistas virtuais — nenhum ativo é entregue sem score de qualidade.",
+    icon: ShieldCheck,
+    accent: "text-violet-400",
+    overview: {
+      metric: "Média",
+      value: "—",
+      hint: "Audite produtos, copies, criativos e campanhas",
     },
   },
   {
