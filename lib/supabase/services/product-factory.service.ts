@@ -42,6 +42,7 @@ import {
   mergeQualityIntoContent,
   normalizeProGenerated,
   parseProContent,
+  PRODUCT_MANUAL_REVIEW_MESSAGE,
   PRODUCT_NOT_READY_MESSAGE,
   type ProGeneratedProduct,
   type ProductFactoryProAction,
@@ -399,12 +400,32 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
   });
 
   const { data: refreshed } = await factoryRepo.findById(factory.id);
-  const bundle = refreshed
+  let bundle = refreshed
     ? await loadBundleForFactory(refreshed as ProductFactory)
     : await loadBundleForFactory(draftFactory);
 
-  const productId = refreshed?.product_id ?? input.product_id ?? factory.product_id;
-  if (productId) {
+  const initialQuality = computeProductQualityScore(bundle.factory, bundle.compliance);
+  if (!initialQuality.readyToSell) {
+    const eliteResult = await autoImproveToElite(ctx, factory.id, bundle);
+    bundle = eliteResult.bundle;
+    if (eliteResult.error) {
+      return { bundle, error: eliteResult.error };
+    }
+  } else {
+    await factoryRepo.update(factory.id, {
+      status: "content_ready",
+      conteudo: mergeQualityIntoContent(
+        (bundle.factory.conteudo as Record<string, unknown>) ?? {},
+        initialQuality
+      ) as Json,
+    });
+    const { data: eliteReady } = await factoryRepo.findById(factory.id);
+    if (eliteReady) bundle = await loadBundleForFactory(eliteReady as ProductFactory);
+  }
+
+  const finalQuality = computeProductQualityScore(bundle.factory, bundle.compliance);
+  const productId = bundle.factory.product_id ?? input.product_id ?? factory.product_id;
+  if (productId && finalQuality.readyToSell) {
     void import("./checkout-engine.service")
       .then((mod) => mod.createCheckout({ productId }))
       .catch((err) => console.error("[checkout-engine] auto-create failed", err));
@@ -413,37 +434,42 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
       .then((mod) =>
         mod.generateFunnel({
           product_id: productId,
-          copylab_id: input.copylab_id ?? refreshed?.copylab_id ?? null,
-          factory_id: refreshed?.id ?? factory.id,
-          funnel_name: generated.titulo ?? input.titulo,
+          copylab_id: input.copylab_id ?? bundle.factory.copylab_id ?? null,
+          factory_id: bundle.factory.id,
+          funnel_name: bundle.factory.titulo ?? input.titulo,
           niche: input.publico ?? input.avatar,
         })
       )
       .catch((err) => console.error("[funnel-engine] auto-generate failed", err));
   }
 
-  void import("./excellence-integration.service")
-    .then(({ scheduleExcellenceReview }) => {
-      scheduleExcellenceReview(
-        "ebook",
-        refreshed?.id ?? factory.id,
-        generated.titulo ?? input.titulo,
-        "product-factory"
-      );
-    })
-    .catch(() => undefined);
+  if (finalQuality.readyToSell) {
+    void import("./excellence-integration.service")
+      .then(({ scheduleExcellenceReview }) => {
+        scheduleExcellenceReview(
+          "ebook",
+          bundle.factory.id,
+          bundle.factory.titulo ?? input.titulo,
+          "product-factory"
+        );
+      })
+      .catch(() => undefined);
+  }
 
   return { bundle, error: null };
 }
 
-export async function runProductFactoryProAction(
-  factoryId: string,
-  action: ProductFactoryProAction
-): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
-  const ctx = await getOptionalDataContext();
-  if (!ctx) return { bundle: null, error: "Usuário não autenticado." };
-  if (!getOpenAi()) return { bundle: null, error: "IA indisponível (OPENAI_API_KEY)." };
+type ProActionOverrides = {
+  changelog?: string;
+  versionLabel?: ProductVersionLabel;
+};
 
+async function executeProductFactoryProActionInternal(
+  ctx: NonNullable<Awaited<ReturnType<typeof getOptionalDataContext>>>,
+  factoryId: string,
+  action: ProductFactoryProAction,
+  overrides?: ProActionOverrides
+): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
   const factoryRepo = new ProductFactoryRepository(ctx.supabase, ctx.userId);
   const complianceRepo = new ProductComplianceChecksRepository(ctx.supabase, ctx.userId);
   const versionsRepo = new ProductVersionsRepository(ctx.supabase, ctx.userId);
@@ -509,6 +535,10 @@ export async function runProductFactoryProAction(
     quality
   );
 
+  const versionLabel =
+    overrides?.versionLabel ??
+    (nextVersion >= 3 ? "final" : nextVersion === 2 ? "revisado" : "rascunho");
+
   const { error: updateError } = await factoryRepo.update(factoryId, {
     ...payload,
     conteudo: enrichedContent as Json,
@@ -532,7 +562,7 @@ export async function runProductFactoryProAction(
   await versionsRepo.create({
     factory_id: factoryId,
     version_number: nextVersion,
-    version_label: nextVersion >= 3 ? "final" : nextVersion === 2 ? "revisado" : "rascunho",
+    version_label: versionLabel,
     snapshot: {
       titulo: generated.titulo,
       promessa: generated.promessa,
@@ -541,13 +571,85 @@ export async function runProductFactoryProAction(
       quality_score: quality.score,
       action,
     },
-    changelog: `v${nextVersion} — ${actionLabels[action]} · score ${quality.score}`,
+    changelog:
+      overrides?.changelog ??
+      `v${nextVersion} — ${actionLabels[action]} · score ${quality.score}`,
     file_id: null,
   });
 
   const { data: refreshed } = await factoryRepo.findById(factoryId);
   if (!refreshed) return { bundle: null, error: "Erro ao recarregar produto." };
   return { bundle: await loadBundleForFactory(refreshed as ProductFactory), error: null };
+}
+
+const AUTO_ELITE_CYCLES: Array<{
+  action: ProductFactoryProAction;
+  changelog: string;
+  versionLabel: ProductVersionLabel;
+}> = [
+  {
+    action: "improve",
+    changelog: "v2 — Melhoria automática Elite",
+    versionLabel: "revisado",
+  },
+  {
+    action: "premium",
+    changelog: "v3 — Premium automático Elite",
+    versionLabel: "final",
+  },
+  {
+    action: "improve",
+    changelog: "v4 — Melhoria automática final Elite",
+    versionLabel: "revisado",
+  },
+];
+
+async function autoImproveToElite(
+  ctx: NonNullable<Awaited<ReturnType<typeof getOptionalDataContext>>>,
+  factoryId: string,
+  initialBundle: ProductFactoryBundle
+): Promise<{ bundle: ProductFactoryBundle; error: string | null }> {
+  let bundle = initialBundle;
+
+  for (const cycle of AUTO_ELITE_CYCLES) {
+    const quality = computeProductQualityScore(bundle.factory, bundle.compliance);
+    if (quality.readyToSell) break;
+
+    const { bundle: improved, error } = await executeProductFactoryProActionInternal(
+      ctx,
+      factoryId,
+      cycle.action,
+      { changelog: cycle.changelog, versionLabel: cycle.versionLabel }
+    );
+
+    if (error || !improved) {
+      console.warn("[product-factory] auto-improve cycle failed", {
+        factoryId,
+        action: cycle.action,
+        error,
+      });
+      break;
+    }
+    bundle = improved;
+  }
+
+  const finalQuality = computeProductQualityScore(bundle.factory, bundle.compliance);
+  if (!finalQuality.readyToSell) {
+    return { bundle, error: PRODUCT_MANUAL_REVIEW_MESSAGE };
+  }
+
+  return { bundle, error: null };
+}
+
+export async function runProductFactoryProAction(
+  factoryId: string,
+  action: ProductFactoryProAction
+): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { bundle: null, error: "Usuário não autenticado." };
+  if (!getOpenAi()) return { bundle: null, error: "IA indisponível (OPENAI_API_KEY)." };
+
+  return executeProductFactoryProActionInternal(ctx, factoryId, action);
 }
 
 export async function publishProductFactoryPdf(input: {

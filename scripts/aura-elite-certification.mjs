@@ -207,6 +207,10 @@ try {
       })),
       promessa_transformacao: "Transform your body",
       proximos_passos: "CTA final — start now",
+      faqs: Array.from({ length: 5 }, (_, i) => ({
+        pergunta: `FAQ ${i + 1}?`,
+        resposta: `Resposta ${"detalhada ".repeat(30)}${i + 1}.`,
+      })),
     },
   };
 

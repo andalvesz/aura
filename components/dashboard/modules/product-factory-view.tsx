@@ -58,6 +58,7 @@ import {
   computeProductQualityScore,
   parseProContent,
   PRODUCT_NOT_READY_MESSAGE,
+  PRODUCT_NOT_READY_PDF_MESSAGE,
   PRODUCT_QUALITY_MIN_SCORE,
 } from "@/utils/product-factory-pro";
 import { cn } from "@/utils/cn";
@@ -375,6 +376,25 @@ function FactoryDetail({
               <p className="mt-1 text-zinc-300">{factory.conclusao}</p>
             </div>
           )}
+
+          {(pro.faqs?.length ?? 0) > 0 && (
+            <div>
+              <p className="mb-2 text-[10px] uppercase tracking-wide text-amber-400">
+                Perguntas frequentes (FAQ)
+              </p>
+              <div className="space-y-2">
+                {pro.faqs!.map((faq) => (
+                  <div
+                    key={faq.pergunta}
+                    className="rounded-md border border-white/[0.06] bg-white/[0.02] p-3"
+                  >
+                    <p className="font-medium text-zinc-200">{faq.pergunta}</p>
+                    <p className="mt-1 text-zinc-400">{faq.resposta}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -450,6 +470,9 @@ function FactoryDetail({
       )}
 
       <div className="flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
+        {!readyToSell && (
+          <p className="w-full text-[10px] text-amber-200">{PRODUCT_NOT_READY_PDF_MESSAGE}</p>
+        )}
         <ActionButton onClick={() => onProAction("improve")} disabled={busy} className="gap-1.5">
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
           Melhorar Produto
@@ -481,7 +504,11 @@ function FactoryDetail({
           <Crown className="h-3 w-3" />
           Gerar Versão Premium
         </ActionButton>
-        <ActionButton onClick={onPublishPdf} disabled={busy} className="gap-1.5">
+        <ActionButton
+          onClick={onPublishPdf}
+          disabled={busy || !readyToSell}
+          className="gap-1.5"
+        >
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
           {latestPdf ? "Atualizar PDF" : "Gerar PDF"}
         </ActionButton>
@@ -585,7 +612,7 @@ export function ProductFactoryView() {
 
   async function handlePublishPdf(bundle: ProductFactoryBundle, premium = false) {
     try {
-      const bytes = await generateProductFactoryPdf(bundle.factory, { premium: true });
+      const bytes = await generateProductFactoryPdf(bundle.factory, { premium });
       console.info("[ebook] pdf generated", {
         factoryId: bundle.factory.id,
         bytes: bytes.length,

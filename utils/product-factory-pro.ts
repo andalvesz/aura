@@ -15,6 +15,11 @@ export type ProductFactoryTemplateId =
   | "business_pro"
   | "relationship_soft";
 
+export type ProductFactoryFaq = {
+  pergunta: string;
+  resposta: string;
+};
+
 export type ProductFactoryProContent = {
   introducao?: string;
   metodologia?: string;
@@ -22,6 +27,7 @@ export type ProductFactoryProContent = {
   promessa_transformacao?: string;
   sumario?: string[];
   plano_acao?: { item: string; prazo: string; acao: string }[];
+  faqs?: ProductFactoryFaq[];
   aviso_responsavel?: string;
   quality_score?: number;
   quality_breakdown?: ProductQualityBreakdown;
@@ -69,10 +75,14 @@ export const PRODUCT_FACTORY_TEMPLATES: {
 export const PRODUCT_QUALITY_MIN_SCORE = 85;
 export const PRODUCT_QUALITY_MIN_PAGES = 20;
 export const PRODUCT_QUALITY_MIN_WORDS = 5000;
+export const PRODUCT_QUALITY_MIN_FAQS = 5;
 export const PRODUCT_QUALITY_IDEAL_PAGES_MIN = 30;
 export const PRODUCT_QUALITY_IDEAL_PAGES_MAX = 50;
 
 export const PRODUCT_NOT_READY_MESSAGE = "Produto precisa de melhoria antes de vender.";
+export const PRODUCT_NOT_READY_PDF_MESSAGE =
+  "Produto precisa atingir score 85+ antes de gerar PDF vendável.";
+export const PRODUCT_MANUAL_REVIEW_MESSAGE = "Produto precisa de revisão manual.";
 
 const SENSITIVE_NICHE_KEYWORDS = [
   "emagrec",
@@ -97,6 +107,19 @@ const SENSITIVE_NICHE_KEYWORDS = [
 export const SENSITIVE_NICHE_DISCLAIMER =
   "Aviso importante: este material é educativo e não substitui orientação de profissional qualificado (médico, nutricionista, psicólogo, consultor financeiro ou outro especialista). Consulte um profissional de saúde ou especialista da área antes de tomar decisões. Resultados variam conforme dedicação, contexto e acompanhamento profissional.";
 
+export function parseFaqs(value: unknown): ProductFactoryFaq[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const raw = item as { pergunta?: string; resposta?: string };
+      return {
+        pergunta: String(raw.pergunta ?? "").trim(),
+        resposta: String(raw.resposta ?? "").trim(),
+      };
+    })
+    .filter((f) => f.pergunta && f.resposta);
+}
+
 export function parseProContent(value: unknown): ProductFactoryProContent {
   const raw = (value ?? {}) as ProductFactoryProContent;
   return {
@@ -112,6 +135,7 @@ export function parseProContent(value: unknown): ProductFactoryProContent {
           acao: String(p.acao ?? ""),
         }))
       : [],
+    faqs: parseFaqs(raw.faqs),
     aviso_responsavel: raw.aviso_responsavel ?? "",
     quality_score: typeof raw.quality_score === "number" ? raw.quality_score : undefined,
     quality_breakdown: raw.quality_breakdown,
@@ -210,6 +234,10 @@ export function estimateProductWords(factory: ProductFactory): number {
     total += wordCount(step.item) + wordCount(step.acao) + wordCount(step.prazo);
   }
 
+  for (const faq of pro.faqs ?? []) {
+    total += wordCount(faq.pergunta) + wordCount(faq.resposta);
+  }
+
   return total;
 }
 
@@ -241,6 +269,9 @@ export function estimateProductPages(factory: ProductFactory): number {
   pages += Math.max(1, Math.ceil((pro.plano_acao?.length ?? 0) / 4));
   pages += factory.bonus ? Math.max(1, Math.ceil(wordCount(factory.bonus) / 300)) : 0;
   pages += factory.conclusao ? Math.max(1, Math.ceil(wordCount(factory.conclusao) / 300)) : 0;
+  if ((pro.faqs?.length ?? 0) > 0) {
+    pages += Math.max(1, Math.ceil((pro.faqs?.length ?? 0) / 3));
+  }
   if (pro.aviso_responsavel || pro.sensitive_niche) pages += 1;
 
   return Math.max(pages, 8);
@@ -281,6 +312,19 @@ export function computeProductQualityScore(
   }
   if (chapters.length < 5) {
     issues.push(`Apenas ${chapters.length} capítulos (mínimo 5).`);
+  }
+
+  const faqCount = pro.faqs?.length ?? 0;
+  const faqScore =
+    faqCount >= PRODUCT_QUALITY_MIN_FAQS
+      ? 100
+      : faqCount >= 3
+        ? 60
+        : faqCount > 0
+          ? 35
+          : 0;
+  if (faqCount < PRODUCT_QUALITY_MIN_FAQS) {
+    issues.push(`Apenas ${faqCount} FAQ(s) (mínimo ${PRODUCT_QUALITY_MIN_FAQS}).`);
   }
 
   const depthScore = chapterDepthScore(chapters);
@@ -338,11 +382,12 @@ export function computeProductQualityScore(
     checklist.length >= 5,
     exercises.length >= 5,
     Boolean(factory.bonus),
+    faqCount >= PRODUCT_QUALITY_MIN_FAQS,
   ];
   const completude = Math.round(
     (completudeBlocks.filter(Boolean).length / completudeBlocks.length) * 100
   );
-  if (completude < 85) issues.push("Estrutura premium incompleta (capa, sumário, capítulos, CTA final).");
+  if (completude < 85) issues.push("Estrutura premium incompleta (capa, sumário, capítulos, FAQs, CTA final).");
 
   const breakdown: ProductQualityBreakdown = {
     pages: pagesScore,
@@ -359,12 +404,13 @@ export function computeProductQualityScore(
   };
 
   const score = Math.round(
-    profundidade * 0.22 +
-      valorPercebido * 0.2 +
-      transformacao * 0.18 +
-      completude * 0.2 +
+    profundidade * 0.2 +
+      valorPercebido * 0.18 +
+      transformacao * 0.16 +
+      completude * 0.18 +
       pagesScore * 0.1 +
-      complianceScore * 0.1
+      complianceScore * 0.1 +
+      faqScore * 0.08
   );
 
   const product_quality_score = score;
@@ -399,6 +445,17 @@ export function mergeQualityIntoContent(
 }
 
 export function buildProGenerationSystemPrompt(productType: string, sensitive: boolean): string {
+  const typeRules = buildProductTypeRules(productType);
+  const sensitiveBlock = sensitive
+    ? `
+NICHO SENSÍVEL DETECTADO — OBRIGATÓRIO:
+- NÃO prometer cura, resultado garantido ou transformação instantânea
+- Incluir aviso_responsavel: consulte profissional de saúde/especialista
+- Focar em hábitos, organização, consistência e educação
+- Evitar claims extremos de emagrecimento, renda ou saúde
+- compliance.status deve ser "pass" ou "warning", nunca prometer milagres`
+    : "- Compliance rigoroso: nunca prometa resultados garantidos; evite claims médicos/financeiros proibidos";
+
   return `Você é a Aura Product Factory Pro V1 — cria produtos digitais PREMIUM, profundos e vendáveis para o mercado brasileiro.
 Tipo de produto: ${productType}
 
@@ -428,8 +485,10 @@ Responda APENAS JSON válido com esta estrutura:
     "promessa_transformacao": string,
     "sumario": string[],
     "plano_acao": [{ "item": string, "prazo": string, "acao": string }],
+    "faqs": [{ "pergunta": string, "resposta": string }],
     "aviso_responsavel": string
   },
+  "faqs": [{ "pergunta": string, "resposta": string }],
   "exercicios": [{ "titulo": string, "instrucao": string, "reflexao": string }],
   "bonus": string,
   "checklist": [{ "item": string, "descricao": string }],
@@ -457,23 +516,74 @@ Responda APENAS JSON válido com esta estrutura:
 }
 
 REGRAS OBRIGATÓRIAS ELITE (product_quality_score ≥ 85):
-- E-book PREMIUM completo: capa profissional, sumário, introdução, 6 a 8 capítulos, conclusão, plano de ação, checklist, exercícios, FAQs, bônus, CTA final
-- Conteúdo PROFUNDO: cada capítulo com 400+ palavras no conteudo, exemplo real, aplicação prática, exercício e mini-checklist
-- Mínimo 6 exercícios práticos + checklist final com 8+ itens + FAQs com 5+ perguntas
-- Plano de ação com 6+ passos (item, prazo, ação)
-- Bônus tangível e valioso (200+ palavras)
-- Design premium: template_id coerente; paleta 4-5 cores hex; capa e layout detalhados
+- Mínimo 5 FAQs com pergunta e resposta completas (campo faqs e conteudo.faqs)
 - Volume mínimo: 20 páginas e 5000 palavras (ideal 30-50 páginas)
 - CTA final persuasivo no proximos_passos
 - Português do Brasil (ou idioma do mercado), tom profissional e transformacional
-${sensitive ? `
-NICHO SENSÍVEL DETECTADO — OBRIGATÓRIO:
-- NÃO prometer cura, resultado garantido ou transformação instantânea
-- Incluir aviso_responsavel: consulte profissional de saúde/especialista
-- Focar em hábitos, organização, consistência e educação
-- Evitar claims extremos de emagrecimento, renda ou saúde
-- compliance.status deve ser "pass" ou "warning", nunca prometer milagres
-` : "- Compliance rigoroso: nunca prometa resultados garantidos; evite claims médicos/financeiros proibidos"}`;
+${typeRules}
+${sensitiveBlock}`;
+}
+
+function buildProductTypeRules(productType: string): string {
+  switch (productType) {
+    case "checklist":
+      return `
+ESTRUTURA CHECKLIST (não é e-book narrativo):
+- 8 a 12 seções práticas em capitulos (cada uma = categoria do checklist)
+- Cada seção: titulo da categoria, conteudo com itens acionáveis, checklist com 5+ itens verificáveis
+- exercicios: transformações práticas por seção
+- checklist final: 10+ itens de implementação
+- plano_acao: 6+ passos de execução imediata
+- Menos narrativa, mais itens acionáveis e checkboxes mentais`;
+
+    case "workbook":
+      return `
+ESTRUTURA WORKBOOK (foco em exercícios guiados):
+- 6 a 8 módulos em capitulos com exercício obrigatório em cada um
+- Cada módulo: explicacao breve + exemplo + aplicacao_pratica + exercicio preenchível
+- exercicios: mínimo 8 exercícios com reflexao guiada
+- Incluir espaços de reflexão e campos para preenchimento no conteudo
+- plano_acao: jornada de 14-30 dias de prática`;
+
+    case "plano_7_dias":
+    case "plano_30_dias":
+      return `
+ESTRUTURA PLANO ${productType === "plano_30_dias" ? "30 DIAS" : "7 DIAS"} (formato dia-a-dia):
+- Exatamente ${productType === "plano_30_dias" ? "30" : "7"} capitulos — um por dia
+- Cada dia: titulo "Dia N — [foco]", resumo do objetivo, conteudo da ação do dia, exercicio do dia
+- plano_acao: cronograma completo dia-a-dia
+- sumario: lista dos dias
+- Não usar formato de e-book longo — priorize ações diárias claras e mensuráveis`;
+
+    case "mini_curso":
+      return `
+ESTRUTURA MINI CURSO (NÃO use formato de e-book):
+- 4 a 6 modulos em capitulos — cada módulo = uma aula
+- Cada módulo: titulo da aula, resumo = objetivo de aprendizagem, conteudo = aula principal
+- exemplo = demonstração prática, aplicacao_pratica = tarefa da aula, exercicio = quiz/atividade
+- exercicios: avaliações por módulo (quiz, reflexão, entrega)
+- Incluir progressão pedagógica: básico → intermediário → aplicação
+- sumario: lista de aulas/módulos, não capítulos de livro`;
+
+    case "guia_pratico":
+      return `
+ESTRUTURA GUIA PRÁTICO:
+- 5 a 7 capítulos focados em passo-a-passo executável
+- Cada capítulo: problema → solução → aplicação imediata
+- Ênfase em aplicacao_pratica e exemplos reais
+- plano_acao: roteiro de implementação em 7-14 dias`;
+
+    case "ebook":
+    default:
+      return `
+ESTRUTURA E-BOOK PREMIUM:
+- Capa profissional, sumário, introdução, 6 a 8 capítulos, conclusão, plano de ação, checklist, exercícios, FAQs, bônus, CTA final
+- Conteúdo PROFUNDO: cada capítulo com 400+ palavras no conteudo, exemplo real, aplicação prática, exercício e mini-checklist
+- Mínimo 6 exercícios práticos + checklist final com 8+ itens
+- Plano de ação com 6+ passos (item, prazo, ação)
+- Bônus tangível e valioso (200+ palavras)
+- Design premium: template_id coerente; paleta 4-5 cores hex; capa e layout detalhados`;
+  }
 }
 
 export type ProChapter = ProductFactoryChapter & {
@@ -487,6 +597,7 @@ export type ProChapter = ProductFactoryChapter & {
 export type ProGeneratedProduct = Omit<GeneratedProductFactory, "conteudo"> & {
   promessa_transformacao?: string;
   sumario?: string[];
+  faqs?: ProductFactoryFaq[];
   design: ProductFactoryDesign & { template_id?: ProductFactoryTemplateId };
   conteudo?: Partial<ProductFactoryProContent> & Record<string, string>;
 };
@@ -528,6 +639,10 @@ export function normalizeProGenerated(
     generated.conteudo?.sumario ??
     capitulos.map((c) => c.titulo);
 
+  const faqs = parseFaqs(
+    generated.faqs ?? generated.conteudo?.faqs ?? []
+  );
+
   const conteudo: Record<string, unknown> = {
     ...generated.conteudo,
     introducao: generated.conteudo?.introducao ?? "",
@@ -539,6 +654,7 @@ export function normalizeProGenerated(
       generated.promessa,
     sumario,
     plano_acao: generated.conteudo?.plano_acao ?? [],
+    faqs,
     aviso_responsavel:
       sensitive || generated.conteudo?.aviso_responsavel
         ? generated.conteudo?.aviso_responsavel || SENSITIVE_NICHE_DISCLAIMER
@@ -577,12 +693,12 @@ export function buildProActionPrompt(
 
   switch (action) {
     case "improve":
-      return `Melhore este produto digital para padrão PRO vendável. Aprofunde promessa, clareza, exercícios e plano de ação. Retorne JSON completo no schema Pro V1.\n${base}`;
+      return `Melhore este produto digital para padrão PRO vendável (score ≥ 85). Aprofunde promessa, clareza, exercícios, plano de ação e inclua 5+ FAQs. Retorne JSON completo no schema Pro V1.\n${base}`;
     case "regenerate_design":
       return `Regenere APENAS o design premium (template_id, paleta, capa, estilo, tipografia, moodboard, paginas_internas) coerente com o produto. Retorne JSON completo Pro V1 mantendo conteúdo similar mas design novo.\n${base}`;
     case "expand_content":
-      return `Expanda o conteúdo para 5-8 capítulos profundos (300+ palavras cada), mais exercícios e checklist. Retorne JSON completo Pro V1.\n${base}`;
+      return `Expanda o conteúdo para 5-8 capítulos profundos (300+ palavras cada), mais exercícios, checklist e 5+ FAQs. Retorne JSON completo Pro V1.\n${base}`;
     case "premium":
-      return `Gere versão PREMIUM completa: máximo profissionalismo, 20-35 páginas equivalentes, todos os blocos Pro V1.\n${base}`;
+      return `Gere versão PREMIUM completa: máximo profissionalismo, 20-35 páginas equivalentes, todos os blocos Pro V1, 5+ FAQs detalhadas.\n${base}`;
   }
 }

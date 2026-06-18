@@ -248,24 +248,38 @@ class ProPdfBuilder {
     this.y += 4;
   }
 
-  coverPage(factory: ProductFactory): void {
+  coverPage(factory: ProductFactory, premium = false): void {
     const pageH = this.doc.internal.pageSize.getHeight();
     this.setFill(this.theme.primary);
     this.doc.rect(0, 0, this.pageW, pageH, "F");
-    this.setFill(this.theme.accent);
-    this.doc.rect(0, pageH * 0.62, this.pageW, 4, "F");
+
+    if (premium) {
+      this.setFill(this.theme.accent);
+      this.doc.rect(0, 0, this.pageW, 6, "F");
+      this.setColor(this.theme.onPrimary);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(10);
+      this.doc.text("EDIÇÃO PREMIUM", this.margin, 14);
+    } else {
+      this.setFill(this.theme.accent);
+      this.doc.rect(0, pageH * 0.62, this.pageW, 3, "F");
+    }
 
     this.setColor(this.theme.onPrimary);
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(9);
-    this.doc.text("AURA PRODUCT FACTORY PRO", this.margin, 24);
+    this.doc.text(
+      premium ? "AURA PRODUCT FACTORY PRO · PREMIUM" : "AURA PRODUCT FACTORY",
+      this.margin,
+      premium ? 24 : 24
+    );
 
-    this.doc.setFontSize(26);
+    this.doc.setFontSize(premium ? 28 : 24);
     const titleLines = this.doc.splitTextToSize(factory.titulo ?? "E-book Premium", this.contentW) as string[];
-    let ty = 52;
+    let ty = premium ? 48 : 52;
     for (const line of titleLines) {
       this.doc.text(line, this.margin, ty);
-      ty += 12;
+      ty += premium ? 13 : 12;
     }
 
     if (factory.subtitulo) {
@@ -283,6 +297,15 @@ class ProPdfBuilder {
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(9);
       this.wrapTextFixed(design.capa, this.margin, ty + 4, this.contentW, 5, 9);
+    }
+
+    if (premium) {
+      this.setFill(this.theme.accent);
+      this.doc.roundedRect(this.margin, pageH - 28, 52, 10, 2, 2, "F");
+      this.setColor(this.theme.onPrimary);
+      this.doc.setFont("helvetica", "bold");
+      this.doc.setFontSize(9);
+      this.doc.text("PREMIUM", this.margin + 6, pageH - 21);
     }
 
     this.doc.setFontSize(8);
@@ -342,12 +365,21 @@ class ProPdfBuilder {
     }
   }
 
-  chapter(ch: ProductFactoryChapter, index: number): void {
+  chapter(ch: ProductFactoryChapter, index: number, premium = false): void {
     this.addContentPage();
     this.sectionTitle(`Capítulo ${index + 1}: ${ch.titulo}`);
     if (ch.resumo) {
       this.highlightCard("Visão geral", ch.resumo);
     }
+
+    if (!premium) {
+      this.setColor(this.theme.text);
+      this.doc.setFont("helvetica", "normal");
+      const body = ch.conteudo || ch.explicacao || "";
+      if (body.trim()) this.wrapText(body, this.margin, this.contentW, 5.8, 11);
+      return;
+    }
+
     const blocks: { title: string; text: string }[] = [
       { title: "Explicação", text: ch.explicacao ?? ch.conteudo },
       { title: "Exemplo prático", text: ch.exemplo ?? "" },
@@ -379,6 +411,10 @@ class ProPdfBuilder {
     }
   }
 
+  chapterSimple(ch: ProductFactoryChapter, index: number): void {
+    this.chapter(ch, index, false);
+  }
+
   exercisesSection(exercises: ProductFactoryExercise[]): void {
     if (exercises.length === 0) return;
     this.addContentPage();
@@ -404,16 +440,44 @@ class ProPdfBuilder {
     }
   }
 
-  bonusSection(bonus: string): void {
+  bonusSection(bonus: string, premium = false): void {
     if (!bonus.trim()) return;
     this.addContentPage();
-    this.sectionTitle("Bônus exclusivo");
-    this.setFill(this.theme.secondary);
-    this.doc.roundedRect(this.margin, this.y, this.contentW, 40, 2, 2, "F");
-    this.setColor(this.theme.text);
+    this.sectionTitle(premium ? "Bônus exclusivo" : "Bônus");
+    if (premium) {
+      this.setFill(this.theme.secondary);
+      this.doc.roundedRect(this.margin, this.y, this.contentW, 40, 2, 2, "F");
+      this.setColor(this.theme.text);
+      this.doc.setFont("helvetica", "normal");
+      this.wrapText(bonus, this.margin + 6, this.contentW - 12, 5.8, 11);
+      this.y += 10;
+    } else {
+      this.wrapText(bonus.slice(0, 600), this.margin, this.contentW, 5.8, 10);
+    }
+  }
+
+  faqSection(faqs: { pergunta: string; resposta: string }[]): void {
+    if (faqs.length === 0) return;
+    this.addContentPage();
+    this.sectionTitle("Perguntas frequentes (FAQ)");
+    for (const faq of faqs) {
+      this.highlightCard(`P: ${faq.pergunta}`, faq.resposta);
+    }
+  }
+
+  premiumCta(text: string): void {
+    if (!text.trim()) return;
+    this.addContentPage();
+    this.setFill(this.theme.primary);
+    this.doc.roundedRect(this.margin, this.y, this.contentW, 36, 3, 3, "F");
+    this.setColor(this.theme.onPrimary);
+    this.doc.setFont("helvetica", "bold");
+    this.doc.setFontSize(14);
+    this.doc.text("Próximos passos", this.margin + 6, this.y + 10);
     this.doc.setFont("helvetica", "normal");
-    this.wrapText(bonus, this.margin + 6, this.contentW - 12, 5.8, 11);
-    this.y += 10;
+    this.doc.setFontSize(11);
+    this.wrapText(text, this.margin + 6, this.contentW - 12, 5.5, 11);
+    this.y += 20;
   }
 
   conclusion(text: string): void {
@@ -466,48 +530,47 @@ export async function generateProductFactoryPdf(
   const chapters = parseJsonArray<ProductFactoryChapter>(factory.capitulos);
   const exercises = parseJsonArray<ProductFactoryExercise>(factory.exercicios);
   const checklist = parseJsonArray<ProductFactoryChecklistItem>(factory.checklist);
-  const premium = options?.premium !== false;
+  const faqs = pro.faqs ?? [];
+  const premium = options?.premium === true;
 
   const builder = new ProPdfBuilder(doc, theme);
-  builder.coverPage(factory);
+  builder.coverPage(factory, premium);
 
   const promessaTransformacao =
     pro.promessa_transformacao ?? factory.promessa ?? "Transforme sua rotina com método prático e aplicável.";
-  builder.promisePage(promessaTransformacao, factory.publico);
+  builder.promisePage(promessaTransformacao, premium ? factory.publico : undefined);
 
-  const sumario =
-    pro.sumario && pro.sumario.length > 0
-      ? pro.sumario
-      : [
-          "Introdução",
-          ...chapters.map((c) => c.titulo),
-          "Exercícios práticos",
-          "Checklist",
-          "Plano de ação",
-          "Bônus",
-          "Conclusão",
-        ];
+  const baseSumario = [
+    "Introdução",
+    ...chapters.map((c) => c.titulo),
+    ...(premium ? ["Exercícios práticos", "Checklist", "Plano de ação", "Bônus", "FAQ", "Conclusão"] : ["Conclusão"]),
+  ];
+  const sumario = pro.sumario && pro.sumario.length > 0 ? pro.sumario : baseSumario;
   builder.tableOfContents(sumario);
 
   builder.introduction(
     pro.introducao ?? "",
-    pro.metodologia ?? "",
-    factory.problema,
-    factory.solucao
+    premium ? (pro.metodologia ?? "") : "",
+    premium ? factory.problema : undefined,
+    premium ? factory.solucao : undefined
   );
 
-  chapters.forEach((ch, i) => builder.chapter(ch, i));
-  builder.exercisesSection(exercises);
-  builder.checklistSection(checklist);
-  builder.actionPlan(pro.plano_acao ?? []);
-  builder.bonusSection(factory.bonus ?? "");
-  builder.conclusion(factory.conclusao ?? "");
-
-  const disclaimer = pro.aviso_responsavel ?? (pro.sensitive_niche ? "" : "");
-  if (disclaimer.trim()) builder.disclaimer(disclaimer);
-
-  if (premium && pro.proximos_passos) {
-    builder.nextSteps(pro.proximos_passos);
+  if (premium) {
+    chapters.forEach((ch, i) => builder.chapter(ch, i, true));
+    builder.exercisesSection(exercises);
+    builder.checklistSection(checklist);
+    builder.actionPlan(pro.plano_acao ?? []);
+    builder.bonusSection(factory.bonus ?? "", true);
+    builder.faqSection(faqs);
+    builder.conclusion(factory.conclusao ?? "");
+    const disclaimer = pro.aviso_responsavel ?? (pro.sensitive_niche ? "" : "");
+    if (disclaimer.trim()) builder.disclaimer(disclaimer);
+    if (pro.proximos_passos) builder.premiumCta(pro.proximos_passos);
+  } else {
+    chapters.forEach((ch, i) => builder.chapterSimple(ch, i));
+    builder.conclusion(factory.conclusao ?? "");
+    const disclaimer = pro.aviso_responsavel ?? "";
+    if (disclaimer.trim()) builder.disclaimer(disclaimer);
   }
 
   builder.finalize();
