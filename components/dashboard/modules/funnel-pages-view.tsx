@@ -6,6 +6,7 @@ import {
   Globe,
   Loader2,
   RefreshCw,
+  Rocket,
   Sparkles,
   Target,
   TrendingUp,
@@ -53,7 +54,7 @@ function FunnelPagesRow({ bundle }: { bundle: FunnelPagesBundle }) {
 }
 
 export function FunnelPagesView() {
-  const { dashboard, bundles, loading, error, busy, refresh, generate } = useFunnelPages();
+  const { dashboard, bundles, loading, error, busy, refresh, generate, publish } = useFunnelPages();
   const [syncing, setSyncing] = useState(false);
   const [selectedFunnelId, setSelectedFunnelId] = useState("");
 
@@ -92,6 +93,34 @@ export function FunnelPagesView() {
         operation_id: bundle?.funnel.operation_id ?? null,
       });
       if (ok) toast.success("Páginas do funil geradas.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handlePublish() {
+    const funnelId = selectedFunnelId || funnelOptions[0]?.id;
+    if (!funnelId) {
+      toast.error("Selecione um funil com páginas geradas.");
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      const result = await publish(funnelId);
+      if (!result) return;
+
+      const publishedCount = result.pages.filter(
+        (page) => page.status === "published" || page.status === "already_published"
+      ).length;
+
+      if (result.status === "published") {
+        toast.success(`Funil publicado — ${publishedCount} páginas ao vivo.`);
+      } else if (result.status === "partial") {
+        toast.warning(`Publicação parcial — ${publishedCount}/${result.pages.length} páginas.`);
+      } else {
+        toast.error("Nenhuma página foi publicada.");
+      }
     } finally {
       setSyncing(false);
     }
@@ -154,6 +183,17 @@ export function FunnelPagesView() {
               <Sparkles className="size-3.5" />
             )}
             Gerar páginas
+          </ActionButton>
+          <ActionButton
+            disabled={syncing || busy || funnelOptions.length === 0}
+            onClick={() => void handlePublish()}
+          >
+            {syncing || busy ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Rocket className="size-3.5" />
+            )}
+            Publicar funil
           </ActionButton>
         </div>
       </div>

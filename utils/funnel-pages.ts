@@ -1,9 +1,68 @@
-import type { Funnel, FunnelPage, FunnelPageType, LandingPage, Offer } from "@/types/database";
+import type { Funnel, FunnelPage, FunnelPageType, FunnelStepType, LandingPage, Offer } from "@/types/database";
 
 export const FUNNEL_PAGES_SAFE_MODE = {
-  active: true,
-  message:
-    "Funnel Pages Pro gera páginas em rascunho — publique cada landing manualmente no Landing Factory.",
+  active: false,
+  message: "Use Publicar funil para publicar todas as páginas de uma vez.",
+};
+
+export type FunnelPublishPageKey =
+  | "front_end"
+  | "order_bump"
+  | "upsell_1"
+  | "upsell_2"
+  | "downsell"
+  | "thank_you";
+
+export type FunnelPublishPageStatus =
+  | "published"
+  | "already_published"
+  | "failed"
+  | "skipped";
+
+export type FunnelPublishPageResult = {
+  key: FunnelPublishPageKey;
+  label: string;
+  funnel_page_id: string | null;
+  landing_page_id: string | null;
+  status: FunnelPublishPageStatus;
+  url: string | null;
+  published_at: string | null;
+  error: string | null;
+};
+
+export type FunnelPublishResult = {
+  funnel_id: string;
+  status: "published" | "partial" | "failed";
+  published_at: string | null;
+  pages: FunnelPublishPageResult[];
+  log_id: string | null;
+};
+
+export const FUNNEL_PUBLISH_ORDER: FunnelPublishPageKey[] = [
+  "front_end",
+  "order_bump",
+  "upsell_1",
+  "upsell_2",
+  "downsell",
+  "thank_you",
+];
+
+const FUNNEL_PUBLISH_LABELS: Record<FunnelPublishPageKey, string> = {
+  front_end: "Front End",
+  order_bump: "Bump",
+  upsell_1: "Upsell 1",
+  upsell_2: "Upsell 2",
+  downsell: "Downsell",
+  thank_you: "Thank You",
+};
+
+const STEP_TYPE_BY_PUBLISH_KEY: Record<FunnelPublishPageKey, FunnelStepType> = {
+  front_end: "front_end",
+  order_bump: "order_bump",
+  upsell_1: "upsell_1",
+  upsell_2: "upsell_2",
+  downsell: "downsell",
+  thank_you: "thank_you",
 };
 
 export type FunnelPagesIntake = {
@@ -156,4 +215,62 @@ export function mergeFunnelPageMetadata(
       ? (current as Record<string, unknown>)
       : {};
   return { ...base, ...patch } as FunnelPage["metadata"];
+}
+
+function readUpsellIndex(page: FunnelPage): number {
+  const metadata = page.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return 0;
+  const index = (metadata as Record<string, unknown>).upsell_index;
+  return typeof index === "number" && Number.isFinite(index) ? index : 0;
+}
+
+export function funnelPublishPageLabel(key: FunnelPublishPageKey): string {
+  return FUNNEL_PUBLISH_LABELS[key];
+}
+
+export function funnelPublishStepType(key: FunnelPublishPageKey): FunnelStepType {
+  return STEP_TYPE_BY_PUBLISH_KEY[key];
+}
+
+export function resolvePageForPublishKey(
+  pages: FunnelPage[],
+  key: FunnelPublishPageKey
+): FunnelPage | null {
+  if (key === "upsell_1") {
+    return (
+      pages.find((page) => page.page_type === "upsell" && readUpsellIndex(page) === 0) ?? null
+    );
+  }
+  if (key === "upsell_2") {
+    return (
+      pages.find((page) => page.page_type === "upsell" && readUpsellIndex(page) === 1) ?? null
+    );
+  }
+
+  const pageTypeByKey: Record<
+    Exclude<FunnelPublishPageKey, "upsell_1" | "upsell_2">,
+    FunnelPageType
+  > = {
+    front_end: "front_end",
+    order_bump: "order_bump",
+    downsell: "downsell",
+    thank_you: "thank_you",
+  };
+
+  return pages.find((page) => page.page_type === pageTypeByKey[key]) ?? null;
+}
+
+export function computeFunnelPublishStatus(
+  pages: FunnelPublishPageResult[]
+): "published" | "partial" | "failed" {
+  const successes = pages.filter(
+    (page) => page.status === "published" || page.status === "already_published"
+  ).length;
+  const failures = pages.filter(
+    (page) => page.status === "failed" || page.status === "skipped"
+  ).length;
+
+  if (successes === 0) return "failed";
+  if (failures === 0) return "published";
+  return "partial";
 }

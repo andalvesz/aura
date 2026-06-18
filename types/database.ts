@@ -1133,6 +1133,19 @@ export type FunnelPage = {
   updated_at: string;
 };
 
+export type FunnelPublishStatus = "publishing" | "published" | "partial" | "failed";
+
+export type FunnelPublishLog = {
+  id: string;
+  user_id: string;
+  funnel_id: string;
+  status: FunnelPublishStatus;
+  published_at: string | null;
+  page_results: Json;
+  metadata: Json;
+  created_at: string;
+};
+
 export type ConversionInsight = {
   id: string;
   user_id: string;
@@ -4716,6 +4729,27 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      funnel_publish_logs: TableDef<
+        FunnelPublishLog,
+        Omit<
+          FunnelPublishLog,
+          | "id"
+          | "created_at"
+          | "funnel_id"
+          | "status"
+          | "published_at"
+          | "page_results"
+          | "metadata"
+        > & {
+          id?: string;
+          funnel_id?: string;
+          status?: FunnelPublishStatus;
+          published_at?: string | null;
+          page_results?: Json;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       conversion_insights: TableDef<
         ConversionInsight,
         Omit<
@@ -5735,6 +5769,7 @@ export type UserScopedTable =
   | "landing_pages"
   | "funnels"
   | "funnel_pages"
+  | "funnel_publish_logs"
   | "conversion_insights"
   | "quality_reviews"
   | "quality_scores"

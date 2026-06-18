@@ -112,4 +112,21 @@ export class FunnelStepsRepository {
     const { error } = await this.supabase.from("funnel_steps").delete().eq("funnel_id", funnelId);
     return { error: error?.message ?? null };
   }
+
+  async updateStep(
+    stepId: string,
+    payload: Partial<Pick<FunnelStep, "landing_id" | "status" | "offer_id">>
+  ) {
+    const { data, error } = await this.supabase
+      .from("funnel_steps")
+      .update(payload)
+      .eq("id", stepId)
+      .select("*")
+      .single();
+
+    return {
+      data: (data as FunnelStep | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
 }

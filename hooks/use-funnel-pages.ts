@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { FunnelPagesBundle, FunnelPagesDashboard, FunnelPagesIntake } from "@/utils/funnel-pages";
+import type {
+  FunnelPagesBundle,
+  FunnelPagesDashboard,
+  FunnelPagesIntake,
+  FunnelPublishResult,
+} from "@/utils/funnel-pages";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { useMountFetch } from "./use-mount-fetch";
 
@@ -73,7 +78,43 @@ export function useFunnelPages() {
     [refresh]
   );
 
+  const publish = useCallback(
+    async (funnelId: string): Promise<FunnelPublishResult | null> => {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/funnel-pages/publish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ funnel_id: funnelId }),
+        });
+        const { data, error: parseError } = await parseJsonResponse<{
+          result?: FunnelPublishResult;
+          error?: string;
+        }>(res);
+
+        if (parseError || !res.ok || !data?.result) {
+          setError(data?.error ?? parseError ?? "Erro ao publicar funil.");
+          return null;
+        }
+
+        if (data.error) {
+          setError(data.error);
+        }
+
+        await refresh();
+        return data.result;
+      } catch {
+        setError("Erro de conexão.");
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refresh]
+  );
+
   useMountFetch(refresh, [refresh]);
 
-  return { dashboard, bundles, loading, error, busy, refresh, generate };
+  return { dashboard, bundles, loading, error, busy, refresh, generate, publish };
 }
