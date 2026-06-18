@@ -35,6 +35,7 @@ import {
   TrendingUp,
   Wallet,
   CircleDollarSign,
+  Gift,
 } from "lucide-react";
 
 export type ModuleId =
@@ -62,6 +63,7 @@ export type ModuleId =
   | "performance"
   | "growth-brain"
   | "market-hunter"
+  | "offer-engine"
   | "ads-commander"
   | "autopilot"
   | "product-factory"
@@ -435,6 +437,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Score",
       value: "—",
       hint: "Execute uma análise de mercado",
+    },
+  },
+  {
+    id: "offer-engine",
+    href: "/dashboard/offer-engine",
+    label: "Offer Engine Pro",
+    shortLabel: "Offers",
+    description:
+      "Monetização automática — gera bumps, upsells, downsells, VIP e continuidade por produto.",
+    icon: Gift,
+    accent: "text-fuchsia-400",
+    overview: {
+      metric: "AOV",
+      value: "—",
+      hint: "Gere a stack de ofertas de um produto",
     },
   },
   {

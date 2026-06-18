@@ -501,7 +501,7 @@ export async function generateFunnel(input: FunnelEngineIntake): Promise<{
   }
 
   const stepDrafts: StepDraft[] = [];
-  let copyId = input.copylab_id ?? null;
+  const copyId = input.copylab_id ?? null;
   let landingId: string | null = null;
 
   if (input.auto_generate_landing !== false) {
@@ -640,6 +640,17 @@ export async function generateFunnel(input: FunnelEngineIntake): Promise<{
   void feedIntegrationsFromFunnel(bundle).catch((err) => {
     console.error("[funnel-engine] integration feed failed", err);
   });
+
+  void import("./offer-engine.service")
+    .then((mod) =>
+      mod.generateOfferStack({
+        product_id: productId,
+        funnel_id: updatedFunnel.id,
+        factory_id: input.factory_id ?? null,
+        front_price: integrationContext.frontPrice,
+      })
+    )
+    .catch((err) => console.error("[offer-engine] auto-generate failed", err));
 
   return { bundle, error: null };
 }

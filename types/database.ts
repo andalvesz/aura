@@ -1061,6 +1061,34 @@ export type FunnelStep = {
   created_at: string;
 };
 
+export type OfferType =
+  | "front_end"
+  | "order_bump"
+  | "upsell"
+  | "downsell"
+  | "vip_offer"
+  | "continuity";
+
+export type OfferStatus = "draft" | "suggested" | "ready" | "active" | "archived";
+
+export type Offer = {
+  id: string;
+  user_id: string;
+  funnel_id: string | null;
+  product_id: string | null;
+  offer_type: OfferType;
+  title: string;
+  description: string | null;
+  price: number;
+  currency: string;
+  expected_take_rate: number | null;
+  expected_revenue: number | null;
+  status: OfferStatus;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreativeAsset = {
   id: string;
   user_id: string;
@@ -4380,6 +4408,41 @@ export type Database = {
           created_at?: string;
         }
       >;
+      offers: TableDef<
+        Offer,
+        Omit<
+          Offer,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "funnel_id"
+          | "product_id"
+          | "offer_type"
+          | "title"
+          | "description"
+          | "price"
+          | "currency"
+          | "expected_take_rate"
+          | "expected_revenue"
+          | "status"
+          | "metadata"
+        > & {
+          id?: string;
+          funnel_id?: string | null;
+          product_id?: string | null;
+          offer_type?: OfferType;
+          title?: string;
+          description?: string | null;
+          price?: number;
+          currency?: string;
+          expected_take_rate?: number | null;
+          expected_revenue?: number | null;
+          status?: OfferStatus;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       platform_connections: TableDef<
         PlatformConnection,
         Omit<
@@ -5284,6 +5347,7 @@ export type UserScopedTable =
   | "ad_campaigns"
   | "landing_pages"
   | "funnels"
+  | "offers"
   | "platform_connections"
   | "platform_sync_logs"
   | "affiliate_products"
