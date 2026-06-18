@@ -1,5 +1,10 @@
 import type { GrowthBrainDashboard } from "@/utils/growth-brain";
 import type { MarketHunterDashboard } from "@/utils/market-hunter";
+import type { MasterFlowIntent } from "@/utils/master-flow-intent";
+import {
+  nicheMatches,
+  scopeMarketHunterDashboard,
+} from "@/utils/master-flow-intent";
 import type { OperationCenterDashboard } from "@/utils/operation-center";
 import type {
   PerformanceAiAnalysis,
@@ -50,6 +55,7 @@ export type DecisionEngineInput = {
     roas: number | null;
     spend: number;
   } | null;
+  intent?: MasterFlowIntent | null;
 };
 
 export type UnifiedDecisionEngineResult = {
@@ -102,8 +108,15 @@ function candidate(
   };
 }
 
+function scopedMarketHunter(input: DecisionEngineInput): MarketHunterDashboard | null {
+  if (!input.marketHunter) return null;
+  if (!input.intent?.niche?.trim()) return input.marketHunter;
+  return scopeMarketHunterDashboard(input.marketHunter, input.intent);
+}
+
 export function selectBestProduct(input: DecisionEngineInput): UnifiedDecision | null {
   const candidates: UnifiedDecision[] = [];
+  const marketHunter = scopedMarketHunter(input);
 
   if (input.growthBrain?.melhorCampanha) {
     const card = input.growthBrain.melhorCampanha;
@@ -142,25 +155,27 @@ export function selectBestProduct(input: DecisionEngineInput): UnifiedDecision |
     if (c) candidates.push(c);
   }
 
-  if (input.marketHunter?.report.bestProduct) {
-    const item = input.marketHunter.report.bestProduct;
+  if (marketHunter?.report.bestProduct) {
+    const item = marketHunter.report.bestProduct;
     const c = candidate(
       item.productName,
       item.score,
       "market_hunter",
       item.recommendation ?? "Top oportunidade do Market Hunter",
-      item.id
+      item.id,
+      { niche: item.niche }
     );
     if (c) candidates.push(c);
   }
 
-  for (const item of input.marketHunter?.topOportunidades.slice(0, 3) ?? []) {
+  for (const item of marketHunter?.topOportunidades.slice(0, 3) ?? []) {
     const c = candidate(
       item.productName,
       item.score,
       "market_hunter",
       item.recommendation ?? "Oportunidade de mercado identificada",
-      item.id
+      item.id,
+      { niche: item.niche }
     );
     if (c) candidates.push(c);
   }
@@ -204,11 +219,30 @@ export function selectBestProduct(input: DecisionEngineInput): UnifiedDecision |
     if (c) candidates.push(c);
   }
 
+  if (input.intent?.niche) {
+    const nicheFiltered = candidates.filter((item) =>
+      nicheMatches(String(item.metadata.niche ?? item.label), input.intent?.niche)
+    );
+    if (nicheFiltered.length > 0) return pickBest(nicheFiltered);
+  }
+
   return pickBest(candidates);
 }
 
 export function selectBestCountry(input: DecisionEngineInput): UnifiedDecision | null {
   const candidates: UnifiedDecision[] = [];
+
+  if (input.intent?.country) {
+    const c = candidate(
+      input.intent.country,
+      92,
+      "market_hunter",
+      `País definido na intenção do Master Flow (${input.intent.country})`,
+      null,
+      { fromIntent: true }
+    );
+    if (c) candidates.push(c);
+  }
 
   if (input.growthBrain?.melhorPais) {
     const card = input.growthBrain.melhorPais;
@@ -249,6 +283,18 @@ export function selectBestCountry(input: DecisionEngineInput): UnifiedDecision |
 export function selectBestLanguage(input: DecisionEngineInput): UnifiedDecision | null {
   const candidates: UnifiedDecision[] = [];
 
+  if (input.intent?.language) {
+    const c = candidate(
+      input.intent.language,
+      90,
+      "market_hunter",
+      "Idioma definido na intenção do Master Flow",
+      null,
+      { fromIntent: true }
+    );
+    if (c) candidates.push(c);
+  }
+
   if (input.growthBrain?.melhorIdioma) {
     const card = input.growthBrain.melhorIdioma;
     const c = candidate(
@@ -260,7 +306,7 @@ export function selectBestLanguage(input: DecisionEngineInput): UnifiedDecision 
     if (c) candidates.push(c);
   }
 
-  for (const item of input.marketHunter?.topOportunidades ?? []) {
+  for (const item of scopedMarketHunter(input)?.topOportunidades ?? []) {
     if (!item.country) continue;
     const c = candidate(
       item.country === "BR" ? "pt-BR" : item.country === "US" ? "en-US" : item.country,
@@ -300,8 +346,9 @@ export function selectBestOffer(input: DecisionEngineInput): UnifiedDecision | n
     if (c) candidates.push(c);
   }
 
-  if (input.marketHunter?.topOportunidades[0]) {
-    const item = input.marketHunter.topOportunidades[0];
+  const marketHunter = scopedMarketHunter(input);
+  if (marketHunter?.topOportunidades[0]) {
+    const item = marketHunter.topOportunidades[0];
     const c = candidate(
       item.productName,
       item.score,

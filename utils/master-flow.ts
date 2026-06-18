@@ -33,6 +33,11 @@ export type MasterFlowMetadata = {
   operation_id?: string | null;
   opportunity_name?: string | null;
   niche?: string | null;
+  country?: string | null;
+  language?: string | null;
+  avatar?: string | null;
+  ticket?: number | null;
+  user_intent?: string | null;
   last_error?: string | null;
   completed_steps?: MasterFlowStep[];
 };

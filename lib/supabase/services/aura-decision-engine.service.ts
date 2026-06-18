@@ -14,8 +14,10 @@ import {
   type UnifiedDecisionEngineResult,
 } from "@/utils/aura-decision-engine";
 import { getOptionalDataContext } from "./context";
+import type { MasterFlowIntentInput } from "@/utils/master-flow-intent";
+import { resolveMasterFlowIntent } from "@/utils/master-flow-intent";
 
-async function loadDecisionEngineInput(): Promise<{
+async function loadDecisionEngineInput(intentInput?: MasterFlowIntentInput | null): Promise<{
   input: DecisionEngineInput | null;
   error: string | null;
 }> {
@@ -49,6 +51,7 @@ async function loadDecisionEngineInput(): Promise<{
   }
 
   const kiwifyTop = kiwify.data?.metrics.topSellingProducts[0] ?? null;
+  const intent = resolveMasterFlowIntent(intentInput);
 
   return {
     input: {
@@ -80,25 +83,26 @@ async function loadDecisionEngineInput(): Promise<{
             spend: meta.data.metrics.performance.spendCents / 100,
           }
         : null,
+      intent: intent,
     },
     error: null,
   };
 }
 
-export async function getUnifiedDecisionsReadOnly(): Promise<{
+export async function getUnifiedDecisionsReadOnly(intentInput?: MasterFlowIntentInput | null): Promise<{
   decisions: UnifiedDecisionEngineResult | null;
   error: string | null;
 }> {
-  const { input, error } = await loadDecisionEngineInput();
+  const { input, error } = await loadDecisionEngineInput(intentInput);
   if (error || !input) return { decisions: null, error: error ?? "Erro ao carregar decisões." };
   return { decisions: computeUnifiedDecisions(input), error: null };
 }
 
-export async function getUnifiedDecisions(): Promise<{
+export async function getUnifiedDecisions(intentInput?: MasterFlowIntentInput | null): Promise<{
   decisions: UnifiedDecisionEngineResult | null;
   error: string | null;
 }> {
-  const { decisions, error } = await getUnifiedDecisionsReadOnly();
+  const { decisions, error } = await getUnifiedDecisionsReadOnly(intentInput);
   if (error || !decisions) return { decisions: null, error: error ?? "Erro ao carregar decisões." };
   console.info("[decision-engine] unified decisions computed", {
     sourcesUsed: decisions.sourcesUsed,

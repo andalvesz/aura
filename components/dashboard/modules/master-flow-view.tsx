@@ -18,6 +18,7 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 import { useMasterFlow } from "@/hooks/use-master-flow";
 import type { MasterFlowStepStatus } from "@/utils/master-flow";
+import type { MasterFlowIntentInput } from "@/utils/master-flow-intent";
 
 function StepIcon({ state }: { state: MasterFlowStepStatus["state"] }) {
   if (state === "completed") return <CheckCircle2 className="size-4 text-emerald-400" />;
@@ -41,11 +42,31 @@ function PipelineStep({ item }: { item: MasterFlowStepStatus }) {
 export function MasterFlowView() {
   const { status, loading, error, running, refresh, createBusiness, runNextStep } = useMasterFlow();
   const [syncing, setSyncing] = useState(false);
+  const [intent, setIntent] = useState<MasterFlowIntentInput>({
+    raw: "",
+    niche: "",
+    country: "",
+    language: "",
+    avatar: "",
+    ticket: null,
+  });
+
+  function buildIntentPayload(): MasterFlowIntentInput {
+    const ticket = intent.ticket != null && intent.ticket > 0 ? intent.ticket : null;
+    return {
+      raw: intent.raw?.trim() || null,
+      niche: intent.niche?.trim() || null,
+      country: intent.country?.trim() || null,
+      language: intent.language?.trim() || null,
+      avatar: intent.avatar?.trim() || null,
+      ticket,
+    };
+  }
 
   async function handleCreate() {
     setSyncing(true);
     try {
-      const ok = await createBusiness();
+      const ok = await createBusiness(buildIntentPayload());
       if (ok) toast.success("Pipeline Aura Master Flow iniciado.");
     } finally {
       setSyncing(false);
@@ -89,6 +110,78 @@ export function MasterFlowView() {
 
   return (
     <div className="space-y-3">
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Intenção do negócio</PanelTitle>
+        </PanelHeader>
+        <PanelContent className="space-y-3">
+          <label className="block space-y-1">
+            <span className="text-[11px] text-zinc-400">Descreva o que você quer vender</span>
+            <textarea
+              value={intent.raw ?? ""}
+              onChange={(e) => setIntent((prev) => ({ ...prev, raw: e.target.value }))}
+              placeholder='Ex: "Quero vender emagrecimento nos EUA"'
+              rows={2}
+              className="w-full rounded-md border border-white/[0.08] bg-zinc-900/60 px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600"
+            />
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block space-y-1">
+              <span className="text-[11px] text-zinc-400">Nicho</span>
+              <input
+                value={intent.niche ?? ""}
+                onChange={(e) => setIntent((prev) => ({ ...prev, niche: e.target.value }))}
+                placeholder="emagrecimento"
+                className="w-full rounded-md border border-white/[0.08] bg-zinc-900/60 px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-zinc-400">País</span>
+              <input
+                value={intent.country ?? ""}
+                onChange={(e) => setIntent((prev) => ({ ...prev, country: e.target.value }))}
+                placeholder="EUA, BR, US"
+                className="w-full rounded-md border border-white/[0.08] bg-zinc-900/60 px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-zinc-400">Idioma</span>
+              <input
+                value={intent.language ?? ""}
+                onChange={(e) => setIntent((prev) => ({ ...prev, language: e.target.value }))}
+                placeholder="en-US, pt-BR"
+                className="w-full rounded-md border border-white/[0.08] bg-zinc-900/60 px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-zinc-400">Avatar</span>
+              <input
+                value={intent.avatar ?? ""}
+                onChange={(e) => setIntent((prev) => ({ ...prev, avatar: e.target.value }))}
+                placeholder="Mulher 35+ que quer emagrecer"
+                className="w-full rounded-md border border-white/[0.08] bg-zinc-900/60 px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600"
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-[11px] text-zinc-400">Ticket (front-end)</span>
+              <input
+                type="number"
+                min={1}
+                value={intent.ticket ?? ""}
+                onChange={(e) =>
+                  setIntent((prev) => ({
+                    ...prev,
+                    ticket: e.target.value ? Number(e.target.value) : null,
+                  }))
+                }
+                placeholder="97"
+                className="w-full rounded-md border border-white/[0.08] bg-zinc-900/60 px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600"
+              />
+            </label>
+          </div>
+        </PanelContent>
+      </Panel>
+
       <div className="flex flex-wrap items-center gap-2">
         <ActionButton onClick={handleCreate} disabled={syncing || running}>
           {syncing || running ? (
@@ -137,7 +230,13 @@ export function MasterFlowView() {
             <MetricCard
               label="Produto"
               value={(meta.opportunity_name as string) ?? "—"}
-              hint={flow?.product_id ? "Vinculado" : "Pendente"}
+              hint={
+                (meta.niche as string)
+                  ? `${meta.niche as string}${meta.country ? ` · ${meta.country as string}` : ""}`
+                  : flow?.product_id
+                    ? "Vinculado"
+                    : "Pendente"
+              }
             />
           </div>
 

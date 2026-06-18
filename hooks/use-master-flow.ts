@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { MasterFlowStatusView } from "@/utils/master-flow";
+import type { MasterFlowIntentInput } from "@/utils/master-flow-intent";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { useMountFetch } from "./use-mount-fetch";
 
@@ -37,14 +38,14 @@ export function useMasterFlow() {
     }
   }, []);
 
-  const createBusiness = useCallback(async () => {
+  const createBusiness = useCallback(async (intent?: MasterFlowIntentInput) => {
     setRunning(true);
     setError(null);
     try {
       const res = await fetch("/api/master-flow", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create" }),
+        body: JSON.stringify({ action: "create", intent }),
       });
       const { data, error: parseError } = await parseJsonResponse<{
         status?: MasterFlowStatusView;

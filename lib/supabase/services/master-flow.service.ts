@@ -15,6 +15,15 @@ import {
   type MasterFlowStatusView,
 } from "@/utils/master-flow";
 import { intakeFromProductBundle as factoryIntakeFromBundle } from "@/utils/product-factory";
+import {
+  intentFromMetadata,
+  intentToMetadata,
+  resolveMasterFlowIntent,
+  toCreatorCountryFromIntent,
+  toCreatorLanguageFromIntent,
+  type MasterFlowIntentInput,
+} from "@/utils/master-flow-intent";
+import { resolveCreatorLocale } from "@/utils/creator-locale";
 import { getOptionalDataContext } from "./context";
 
 async function markStepCompleted(
@@ -56,12 +65,27 @@ async function failFlow(
 
 async function ensureCreatorProduct(
   flow: MasterFlow,
-  hints: { name: string; niche?: string | null; promessa?: string | null }
+  hints: {
+    name: string;
+    niche?: string | null;
+    promessa?: string | null;
+    avatar?: string | null;
+    country?: string | null;
+    language?: string | null;
+    ticket?: number | null;
+  }
 ): Promise<{ productId: string | null; error: string | null }> {
   if (flow.product_id) return { productId: flow.product_id, error: null };
 
   const ctx = await getOptionalDataContext();
   if (!ctx) return { productId: null, error: "Usuário não autenticado." };
+
+  const creatorCountry = toCreatorCountryFromIntent(hints.country);
+  const creatorLanguage = toCreatorLanguageFromIntent(hints.language, hints.country);
+  const locale = resolveCreatorLocale({
+    target_country: creatorCountry,
+    target_language: creatorLanguage,
+  });
 
   const productsRepo = new CreatorProductsRepository(ctx.supabase, ctx.userId);
   const { data: product, error } = await productsRepo.create({
@@ -71,16 +95,18 @@ async function ensureCreatorProduct(
     problema: hints.promessa ?? `Resolver desafios em ${hints.niche ?? "mercado digital"}`,
     solucao: hints.promessa ?? hints.name,
     promessa: hints.promessa ?? hints.name,
-    avatar: hints.niche ?? "Empreendedor digital",
-    publico_alvo: hints.niche ?? "Público digital",
-    publico_alvo_input: hints.niche ?? null,
+    avatar: hints.avatar ?? hints.niche ?? "Empreendedor digital",
+    publico_alvo: hints.avatar ?? hints.niche ?? "Público digital",
+    publico_alvo_input: hints.avatar ?? hints.niche ?? null,
     conhecimento: hints.niche ?? null,
     mecanismo_unico: hints.name,
     diferenciais: hints.name,
     used_aura_data: true,
-    target_country: "BR",
-    target_language: "pt-BR",
-    currency: "BRL",
+    target_country: locale.target_country,
+    target_language: locale.target_language,
+    currency: locale.currency,
+    faixa_preco_min: hints.ticket ?? null,
+    faixa_preco_max: hints.ticket != null ? Math.round(hints.ticket * 1.5) : null,
     investimento_previsto: null,
     receita_prevista: null,
     roi_estimado: null,
@@ -129,6 +155,7 @@ async function executeStep(flow: MasterFlow): Promise<{
   const repo = new MasterFlowRepository(ctx.supabase, ctx.userId);
   const step = flow.current_step;
   const meta = readMasterFlowMetadata(flow);
+  const intent = intentFromMetadata(meta);
 
   recordSystemLog({
     tipo: "info",
@@ -141,14 +168,16 @@ async function executeStep(flow: MasterFlow): Promise<{
     switch (step) {
       case "market_hunter": {
         const { identifyOpportunities } = await import("./market-hunter.service");
-        const { opportunities, error } = await identifyOpportunities();
+        const { opportunities, error } = await identifyOpportunities(intent);
         if (error) return { flow: await failFlow(repo, flow, error), error };
 
         const top = opportunities[0];
         const { data: updated } = await repo.update(flow.id, {
           metadata: mergeMasterFlowMetadata(flow.metadata, {
-            opportunity_name: top?.product_name ?? "Oportunidade digital",
-            niche: top?.niche ?? null,
+            opportunity_name: top?.product_name ?? (intent.niche ? `Programa de ${intent.niche}` : "Oportunidade digital"),
+            niche: top?.niche ?? intent.niche ?? null,
+            country: top?.country ?? intent.country ?? null,
+            language: top?.language ?? intent.language ?? null,
           }),
         });
 
@@ -157,19 +186,21 @@ async function executeStep(flow: MasterFlow): Promise<{
 
       case "decision_engine": {
         const { getUnifiedDecisions } = await import("./aura-decision-engine.service");
-        const { decisions, error } = await getUnifiedDecisions();
+        const { decisions, error } = await getUnifiedDecisions(intent);
         if (error) return { flow: await failFlow(repo, flow, error), error };
 
         const best = decisions?.bestProduct;
         const name =
           best?.label ??
           meta.opportunity_name ??
-          "Negócio digital Aura";
+          (intent.niche ? `Programa de ${intent.niche}` : "Negócio digital Aura");
 
         const { data: updated } = await repo.update(flow.id, {
           metadata: mergeMasterFlowMetadata(flow.metadata, {
             opportunity_name: name,
-            niche: (best?.metadata?.niche as string | undefined) ?? meta.niche ?? null,
+            niche: (best?.metadata?.niche as string | undefined) ?? meta.niche ?? intent.niche ?? null,
+            country: intent.country ?? decisions?.bestCountry?.label ?? meta.country ?? null,
+            language: intent.language ?? decisions?.bestLanguage?.label ?? meta.language ?? null,
           }),
         });
 
@@ -182,6 +213,10 @@ async function executeStep(flow: MasterFlow): Promise<{
           name: productName,
           niche: meta.niche,
           promessa: productName,
+          avatar: meta.avatar,
+          country: meta.country,
+          language: meta.language,
+          ticket: meta.ticket,
         });
         if (productError || !productId) {
           return { flow: await failFlow(repo, flow, productError ?? "Produto não criado."), error: productError };
@@ -196,7 +231,7 @@ async function executeStep(flow: MasterFlow): Promise<{
           : {
               titulo: productName,
               promessa: productName,
-              avatar: meta.niche ?? "Empreendedor digital",
+              avatar: meta.avatar ?? meta.niche ?? "Empreendedor digital",
               problema: `Resolver desafios em ${meta.niche ?? "mercado digital"}`,
               solucao: productName,
               product_id: productId,
@@ -391,12 +426,15 @@ async function executeStep(flow: MasterFlow): Promise<{
   }
 }
 
-export async function createBusiness(): Promise<{
+export async function createBusiness(intentInput?: MasterFlowIntentInput): Promise<{
   status: MasterFlowStatusView | null;
   error: string | null;
 }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return { status: null, error: "Usuário não autenticado." };
+
+  const intent = resolveMasterFlowIntent(intentInput);
+  const intentMetadata = intentToMetadata(intent);
 
   const repo = new MasterFlowRepository(ctx.supabase, ctx.userId);
   const { data: active } = await repo.findActive();
@@ -414,7 +452,7 @@ export async function createBusiness(): Promise<{
     product_id: null,
     funnel_id: null,
     campaign_id: null,
-    metadata: { completed_steps: [] },
+    metadata: { completed_steps: [], ...intentMetadata },
   } satisfies Omit<TableInsert<"master_flows">, "user_id">);
 
   if (error || !flow) {
@@ -425,7 +463,7 @@ export async function createBusiness(): Promise<{
     tipo: "info",
     modulo: "master-flow",
     mensagem: "Novo negócio iniciado via Aura Master Flow",
-    detalhes: { flowId: flow.id },
+    detalhes: { flowId: flow.id, intent },
   });
 
   const { flow: afterStep, error: stepError } = await executeStep(flow);

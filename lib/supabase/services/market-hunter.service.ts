@@ -15,6 +15,11 @@ import {
   type MarketOpportunityReport,
 } from "@/utils/market-hunter";
 import { getOptionalDataContext } from "./context";
+import {
+  injectIntentCandidates,
+  resolveMasterFlowIntent,
+  type MasterFlowIntentInput,
+} from "@/utils/master-flow-intent";
 
 export type MarketAnalysisResult = {
   candidates: MarketCandidate[];
@@ -49,10 +54,11 @@ function toOpportunityPayload(
   };
 }
 
-export async function analyzeMarket(): Promise<{
+export async function analyzeMarket(intentInput?: MasterFlowIntentInput): Promise<{
   analysis: MarketAnalysisResult | null;
   error: string | null;
 }> {
+  const intent = resolveMasterFlowIntent(intentInput);
   const ctx = await getOptionalDataContext();
   if (!ctx) return { analysis: null, error: "Usuário não autenticado." };
 
@@ -194,10 +200,12 @@ export async function analyzeMarket(): Promise<{
     }
   }
 
-  const ranked = rankProducts(candidates);
+  const ranked = injectIntentCandidates(rankProducts(candidates), intent);
   const summary =
     ranked.length > 0
-      ? `${ranked.length} produtos analisados de ${sources.length} fontes (${sources.join(", ")}).`
+      ? intent.niche
+        ? `${ranked.length} produtos analisados no nicho "${intent.niche}" (${sources.join(", ")}).`
+        : `${ranked.length} produtos analisados de ${sources.length} fontes (${sources.join(", ")}).`
       : "Nenhum dado disponível. Conecte plataformas e registre resultados.";
 
   return {
@@ -208,14 +216,14 @@ export async function analyzeMarket(): Promise<{
 
 export { rankProducts } from "@/utils/market-hunter";
 
-export async function identifyOpportunities(): Promise<{
+export async function identifyOpportunities(intentInput?: MasterFlowIntentInput): Promise<{
   opportunities: MarketOpportunity[];
   error: string | null;
 }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return { opportunities: [], error: "Usuário não autenticado." };
 
-  const { analysis, error } = await analyzeMarket();
+  const { analysis, error } = await analyzeMarket(intentInput);
   if (error || !analysis) return { opportunities: [], error: error ?? "Erro na análise." };
 
   const repo = new MarketOpportunitiesRepository(ctx.supabase, ctx.userId);

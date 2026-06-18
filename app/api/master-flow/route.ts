@@ -4,6 +4,7 @@ import {
   runFullFlow,
   runNextStep,
 } from "@/lib/supabase/services/master-flow.service";
+import type { MasterFlowIntentInput } from "@/utils/master-flow-intent";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -22,7 +23,11 @@ export async function POST(request: Request) {
   let action = "create";
 
   try {
-    const body = (await request.json()) as { action?: string; flowId?: string };
+    const body = (await request.json()) as {
+      action?: string;
+      flowId?: string;
+      intent?: MasterFlowIntentInput;
+    };
     if (body.action) action = body.action;
     const flowId = body.flowId;
 
@@ -42,7 +47,7 @@ export async function POST(request: Request) {
       return Response.json({ status, error });
     }
 
-    const { status, error } = await createBusiness();
+    const { status, error } = await createBusiness(body.intent);
     if (error && !status) {
       return Response.json({ error }, { status: error === "Usuário não autenticado." ? 401 : 500 });
     }
