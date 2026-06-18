@@ -616,9 +616,11 @@ export async function generatePerformanceReport(options?: {
     .then(({ feedGrowthBrainFromPerformance }) =>
       feedGrowthBrainFromPerformance({
         score,
-        roas: dashboard.roiEstimado ?? null,
+        roasEstimado: dashboard.roiEstimado ?? null,
         revenue: dashboard.receita ?? null,
         operationId: options?.operationContext?.operationId ?? null,
+        productLabel: options?.operationContext?.productName ?? null,
+        metricType: "estimated",
         lesson: panel.melhorProjeto,
         recommendation: panel.conselhoCeo,
       })
@@ -629,8 +631,10 @@ export async function generatePerformanceReport(options?: {
     .then(({ feedRevenueAiFromPerformance }) =>
       feedRevenueAiFromPerformance({
         revenue: dashboard.receita ?? null,
-        roas: dashboard.roiEstimado ?? null,
+        roasEstimado: dashboard.roiEstimado ?? null,
+        roiEstimado: dashboard.roiEstimado ?? null,
         operationId: options?.operationContext?.operationId ?? null,
+        productLabel: options?.operationContext?.productName ?? null,
       })
     )
     .catch(() => undefined);

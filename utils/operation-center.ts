@@ -322,6 +322,70 @@ export function resolveContinueOperationAction(nextStep: string): string | null 
   return null;
 }
 
+export type DecisionEngineActionHint = {
+  bestProduct?: { label: string; score: number } | null;
+  bestCreative?: { label: string; score: number } | null;
+  bestLanding?: { label: string; score: number } | null;
+  bestCampaign?: { label: string; score: number } | null;
+  bestOffer?: { label: string; score: number } | null;
+};
+
+export function selectOperationActionFromDecisionEngine(params: {
+  progress: OperationProgressItem[];
+  nextSteps: string[];
+  missingForApproval: string[];
+  decisions: DecisionEngineActionHint | null;
+}): CeoOperationCommand | null {
+  const pipelineAction = resolveNextExecutableOperationAction({
+    progress: params.progress,
+    nextSteps: params.nextSteps,
+    missingForApproval: params.missingForApproval,
+  });
+
+  if (!params.decisions) return pipelineAction;
+
+  const pendingActions: CeoOperationCommand[] = [];
+  for (const { stepId, action } of EXECUTABLE_PIPELINE_STEPS) {
+    const step = params.progress.find((item) => item.id === stepId);
+    if (step && step.status !== "done") {
+      pendingActions.push(action);
+    }
+  }
+
+  if (pendingActions.length === 0) {
+    return params.missingForApproval.length === 0 ? "approve" : pipelineAction;
+  }
+
+  const scores: Partial<Record<CeoOperationCommand, number>> = {};
+  for (const action of pendingActions) {
+    scores[action] = 0;
+  }
+
+  const d = params.decisions;
+  if (pendingActions.includes("copy")) {
+    scores.copy = (d.bestOffer?.score ?? 0) + (d.bestProduct?.score ?? 0) * 0.5;
+  }
+  if (pendingActions.includes("creatives") && d.bestCreative) {
+    scores.creatives = d.bestCreative.score;
+  }
+  if (pendingActions.includes("landing") && d.bestLanding) {
+    scores.landing = d.bestLanding.score;
+  }
+  if (pendingActions.includes("campaign") && d.bestCampaign) {
+    scores.campaign = d.bestCampaign.score;
+  }
+  if (pendingActions.includes("performance")) {
+    scores.performance = d.bestCampaign?.score ?? 40;
+  }
+
+  const ranked = pendingActions
+    .map((action) => ({ action, score: scores[action] ?? 0 }))
+    .sort((a, b) => b.score - a.score);
+
+  if ((ranked[0]?.score ?? 0) > 0) return ranked[0].action;
+  return pipelineAction;
+}
+
 export function parseOperationSteps(raw: unknown): OperationSteps {
   if (!raw || typeof raw !== "object") return { ...DEFAULT_STEPS };
   const obj = raw as Record<string, unknown>;

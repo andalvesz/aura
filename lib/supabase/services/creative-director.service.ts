@@ -12,6 +12,7 @@ import { getMetaIntelligence } from "@/lib/supabase/services/meta-intelligence.s
 import { linkCreativeFactoryAssetToOperation } from "@/lib/supabase/services/operation-center.service";
 import type { CreativeAsset, Json, OperationCenter } from "@/types/database";
 import { calculateProfit, calculateRoi, calculateRoas } from "@/utils/revenue-ai";
+import { resolveOperationProductName } from "@/utils/operation-product";
 import {
   buildCreativeFactoryDownloadUrl,
   type CreativeFactoryIntake,
@@ -164,6 +165,15 @@ async function feedCreativeDirectorIntegrations(params: {
     operation_center: true,
   };
 
+  const opMeta =
+    params.operation.metadata &&
+    typeof params.operation.metadata === "object" &&
+    !Array.isArray(params.operation.metadata)
+      ? (params.operation.metadata as Record<string, unknown>)
+      : undefined;
+  const productLabel =
+    resolveOperationProductName(params.operation, opMeta) ?? params.operation.product_nome;
+
   if (primaryAsset) {
     const { registerCreativeResult } = await import("./growth-brain.service");
     const gb = await registerCreativeResult({
@@ -181,7 +191,7 @@ async function feedCreativeDirectorIntegrations(params: {
           : "Pacote pronto para testes A/B na campanha.",
       metadata: {
         source: "creative_director",
-        product_label: params.operation.product_nome,
+        product_label: productLabel,
         creative_score: params.creativeScore,
         asset_count: params.assets.length,
         headline: params.copyHeadline,
@@ -207,6 +217,7 @@ async function feedCreativeDirectorIntegrations(params: {
     metricType: "estimated",
     metadata: {
       source: "creative_director",
+      product_label: productLabel,
       creative_score: params.creativeScore,
     },
   });

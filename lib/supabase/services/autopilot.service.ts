@@ -623,6 +623,20 @@ export async function evaluateAutopilotRules(): Promise<{
     ? `Produto estratégico: ${decisions.bestProduct.label} (${decisions.bestProduct.source}).`
     : "";
 
+  if (decisions) {
+    recordSystemLog({
+      tipo: "info",
+      modulo: "decision-engine",
+      mensagem: "Autopilot priorizou com Decision Engine",
+      detalhes: {
+        module: "autopilot",
+        bestProduct: decisions.bestProduct?.label ?? null,
+        bestCampaign: decisions.bestCampaign?.label ?? null,
+        confidence: decisions.confidence,
+      },
+    });
+  }
+
   const settingsRepo = new AutopilotSettingsRepository(ctx.supabase, ctx.userId);
   const monitorsRepo = new AutopilotMonitorsRepository(ctx.supabase, ctx.userId);
   const actionsRepo = new AutopilotActionsRepository(ctx.supabase, ctx.userId);

@@ -1,3 +1,4 @@
+import { recordSystemLog } from "@/lib/logs/record";
 import { ProductFactoryRepository } from "@/lib/supabase/repositories/product-factory.repository";
 import { generateCopylab } from "@/lib/supabase/services/copylab.service";
 import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
@@ -116,9 +117,24 @@ export async function runMissionAction(action: MissionActionId): Promise<{
   const ctx = await getOptionalDataContext();
   if (!ctx) return { message: "", error: "Usuário não autenticado." };
 
-  await import("./aura-decision-engine.service").then((mod) =>
+  const { decisions } = await import("./aura-decision-engine.service").then((mod) =>
     mod.consultDecisionEngine("mission_control")
   );
+
+  if (decisions) {
+    recordSystemLog({
+      tipo: "info",
+      modulo: "decision-engine",
+      mensagem: `Mission Control: ação ${action} com prioridade do Decision Engine`,
+      detalhes: {
+        module: "mission_control",
+        action,
+        bestProduct: decisions.bestProduct?.label ?? null,
+        bestCampaign: decisions.bestCampaign?.label ?? null,
+        confidence: decisions.confidence,
+      },
+    });
+  }
 
   if (!MISSION_CONTROL_SAFE_MODE) {
     return { message: "", error: "Modo seguro desativado — ação bloqueada." };

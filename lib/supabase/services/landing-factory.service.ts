@@ -333,6 +333,25 @@ export async function generateLandingPage(input: LandingFactoryIntake): Promise<
     };
   }
 
+  void import("./growth-brain.service")
+    .then(({ registerLandingResult }) =>
+      registerLandingResult({
+        landingId: page.id,
+        productId: page.product_id,
+        operationId: page.operation_id,
+        metricType: "estimated",
+        lesson: `Landing gerada: ${page.title ?? page.headline ?? slug}`,
+        recommendation: "Publique e vincule à operação para medir conversão.",
+        metadata: {
+          source: "landing_factory",
+          type: "landing",
+          landing_label: page.title ?? page.headline,
+          product_label: bundle?.product.nome ?? titleBase,
+        },
+      })
+    )
+    .catch(() => undefined);
+
   const message = `Landing "${page.title ?? slug}" gerada em rascunho. Preview interno disponível.`;
 
   return { page, message, error: null };

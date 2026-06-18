@@ -56,6 +56,7 @@ import {
   resolveCeoOperationCommand,
   resolveContinueOperationAction,
   resolveNextExecutableOperationAction,
+  selectOperationActionFromDecisionEngine,
   type CeoOperationCommand,
   type OperationCenterDashboard,
   type OperationExecutiveLogEntry,
@@ -1658,11 +1659,38 @@ export async function continueOperation(
     nextFromSteps,
   });
 
-  const executableAction = resolveNextExecutableOperationAction({
+  const decisionAction = selectOperationActionFromDecisionEngine({
     progress: dashboard.progress,
     nextSteps: dashboard.nextSteps,
     missingForApproval: dashboard.missingForApproval,
+    decisions,
   });
+
+  const executableAction = decisionAction;
+
+  if (decisionAction) {
+    console.info("[decision-engine] next action selected", {
+      operationId,
+      action: decisionAction,
+      bestProduct: decisions?.bestProduct?.label ?? null,
+      bestCreative: decisions?.bestCreative?.label ?? null,
+      bestLanding: decisions?.bestLanding?.label ?? null,
+      bestCampaign: decisions?.bestCampaign?.label ?? null,
+    });
+    recordSystemLog({
+      tipo: "info",
+      modulo: "decision-engine",
+      mensagem: `[decision-engine] next action selected: ${decisionAction}`,
+      detalhes: {
+        operationId,
+        action: decisionAction,
+        bestProduct: decisions?.bestProduct?.label ?? null,
+        bestCreative: decisions?.bestCreative?.label ?? null,
+        bestLanding: decisions?.bestLanding?.label ?? null,
+        bestCampaign: decisions?.bestCampaign?.label ?? null,
+      },
+    });
+  }
 
   console.info("[ceo-operation] action resolved", {
     operationId,

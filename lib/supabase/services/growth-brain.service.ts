@@ -1,3 +1,4 @@
+import { recordSystemLog } from "@/lib/logs/record";
 import {
   GrowthBrainMemoriesRepository,
   GrowthPatternsRepository,
@@ -11,10 +12,14 @@ import {
   generateRecommendationsFromMemories,
   type GrowthBrainDashboard,
   type GrowthInsight,
+  readGrowthMetricType,
   type GrowthRecommendation,
   type GrowthResultInput,
 } from "@/utils/growth-brain";
+import { enrichGrowthProductLabelInput } from "./growth-product-label.service";
 import { getOptionalDataContext } from "./context";
+
+export { resolveGrowthProductLabel, enrichGrowthProductLabelInput } from "./growth-product-label.service";
 
 function toMemoryPayload(
   input: GrowthResultInput
@@ -90,6 +95,18 @@ async function feedMarketHunterFromMemory(memory: GrowthBrainMemory): Promise<vo
     memoryId: memory.id,
     sourcePlatform: memory.source_platform,
   });
+
+  recordSystemLog({
+    tipo: "info",
+    modulo: "growth-brain-feed",
+    mensagem: `Market Hunter alimentado: ${productName}`,
+    detalhes: {
+      productName,
+      score,
+      memoryId: memory.id,
+      sourcePlatform: memory.source_platform,
+    },
+  });
 }
 
 async function persistMemory(
@@ -98,14 +115,58 @@ async function persistMemory(
   const ctx = await getOptionalDataContext();
   if (!ctx) return { memory: null, error: "Usuário não autenticado." };
 
+  const baseMeta =
+    input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata)
+      ? (input.metadata as Record<string, unknown>)
+      : {};
+  const enriched = await enrichGrowthProductLabelInput({
+    operationId: input.operationId,
+    productId: input.productId,
+    copyId: input.copyId,
+    creativeId: input.creativeId,
+    landingId: input.landingId,
+    campaignId: input.campaignId,
+    niche: input.niche,
+    metadata: baseMeta,
+  });
+
+  const payload = toMemoryPayload({
+    ...input,
+    operationId: enriched.operationId,
+    productId: enriched.productId,
+    niche: enriched.niche,
+    metadata: enriched.metadata as Json,
+  });
+
   const repo = new GrowthBrainMemoriesRepository(ctx.supabase, ctx.userId);
-  const result = await repo.create(toMemoryPayload(input));
+  const result = await repo.create(payload);
 
   if (result.data) {
+    recordSystemLog({
+      tipo: "info",
+      modulo: "growth-brain-feed",
+      mensagem: `Memória registrada: ${result.data.source_platform ?? "growth_brain"}`,
+      detalhes: {
+        memoryId: result.data.id,
+        productLabel: extractProductNameFromMemory(result.data),
+        metricType: readGrowthMetricType(result.data),
+        sourcePlatform: result.data.source_platform,
+      },
+    });
+
     void feedMarketHunterFromMemory(result.data).catch((err) => {
       console.warn("[growth-brain-feed] Market Hunter feed failed", {
         memoryId: result.data?.id,
         error: err instanceof Error ? err.message : String(err),
+      });
+      recordSystemLog({
+        tipo: "warning",
+        modulo: "growth-brain-feed",
+        mensagem: "Falha ao alimentar Market Hunter",
+        detalhes: {
+          memoryId: result.data?.id,
+          error: err instanceof Error ? err.message : String(err),
+        },
       });
     });
   }
@@ -396,18 +457,21 @@ export async function getGrowthBrainContext(): Promise<{ context: string; error:
 
 export async function feedGrowthBrainFromPerformance(params: {
   score: number;
-  roas?: number | null;
+  roasEstimado?: number | null;
   revenue?: number | null;
   spend?: number | null;
   operationId?: string | null;
   productId?: string | null;
+  productLabel?: string | null;
   copyId?: string | null;
   creativeId?: string | null;
   landingId?: string | null;
   campaignId?: string | null;
   lesson?: string | null;
   recommendation?: string | null;
+  metricType?: "estimated" | "real";
 }): Promise<void> {
+  const metricType = params.metricType ?? "estimated";
   await registerCampaignResult({
     operationId: params.operationId,
     productId: params.productId,
@@ -416,13 +480,21 @@ export async function feedGrowthBrainFromPerformance(params: {
     landingId: params.landingId,
     campaignId: params.campaignId,
     sourcePlatform: "performance_ai",
-    roas: params.roas,
+    roas: metricType === "real" ? params.roasEstimado : null,
     revenue: params.revenue,
     spend: params.spend,
     conversionRate: params.score / 100,
+    metricType,
     lesson: params.lesson ?? `Performance score ${params.score}`,
     recommendation: params.recommendation,
-    metadata: { source: "performance_ai" },
+    metadata: {
+      source: "performance_ai",
+      product_label: params.productLabel,
+      roas_estimado: params.roasEstimado ?? null,
+      roas_real: metricType === "real" ? params.roasEstimado ?? null : null,
+      roi_estimado: params.roasEstimado ?? null,
+      roi_real: null,
+    },
   });
 }
 
@@ -476,6 +548,7 @@ export async function feedGrowthBrainFromOperation(params: {
     metadata: {
       source: "operation_center",
       product_name: params.productName,
+      product_label: params.productName,
     },
   });
 }

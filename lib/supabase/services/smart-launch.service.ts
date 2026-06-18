@@ -1,3 +1,4 @@
+import { recordSystemLog } from "@/lib/logs/record";
 import OpenAI from "openai";
 import { AuraSmartLaunchRepository } from "@/lib/supabase/repositories/smart-launch.repository";
 import { buildAuraContext } from "@/lib/supabase/services/aura-brain.service";
@@ -296,6 +297,18 @@ export async function prepareSmartLaunch(input: SmartLaunchIntake): Promise<{
     warnings.push(
       `Decision Engine recomenda: ${launchDecisions.bestProduct.label} (${launchDecisions.bestProduct.source})`
     );
+    recordSystemLog({
+      tipo: "info",
+      modulo: "decision-engine",
+      mensagem: "Smart Launch priorizado pelo Decision Engine",
+      detalhes: {
+        module: "smart_launch",
+        recommendedProduct: launchDecisions.bestProduct.label,
+        source: launchDecisions.bestProduct.source,
+        confidence: launchDecisions.confidence,
+        sessionId: sessionRecord.id,
+      },
+    });
   }
 
   const { bundle, researchId, error: productError } = await resolveOrCreateProduct(input);

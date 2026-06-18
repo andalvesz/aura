@@ -254,6 +254,24 @@ ${buildLocaleAiRules(locale)}`,
     return { record: null, error: createError ?? "Erro ao salvar copy." };
   }
 
+  void import("./growth-brain.service")
+    .then(({ registerCopyResult }) =>
+      registerCopyResult({
+        copyId: record.id,
+        productId: input.product_id ?? record.product_id,
+        metricType: "estimated",
+        lesson: `Hipótese de copy criada: ${generated.headline?.slice(0, 120) ?? "nova copy"}`,
+        recommendation: "Teste variações e vincule à operação para medir performance real.",
+        metadata: {
+          source: "copylab",
+          type: "copy",
+          copy_label: input.nome || generated.headline,
+          product_label: input.nome || generated.headline,
+        },
+      })
+    )
+    .catch(() => undefined);
+
   return { record: record as CreatorCopylab, error: null };
 }
 

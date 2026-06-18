@@ -12,6 +12,7 @@ import {
   resolveCeoOperationCommand,
   resolveContinueOperationAction,
   resolveNextExecutableOperationAction,
+  selectOperationActionFromDecisionEngine,
 } from "./operation-center";
 import type { OperationCenter } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
@@ -259,4 +260,24 @@ test("resolveContinueOperationAction routes copy step", () => {
   assert.equal(resolveContinueOperationAction("Concluir etapa: Criativos"), "creatives");
   assert.equal(resolveContinueOperationAction("Concluir etapa: Meta Ads"), "campaign");
   assert.equal(resolveContinueOperationAction("Enviar para Performance AI"), "performance");
+});
+
+test("selectOperationActionFromDecisionEngine prefers decision-backed pending step", () => {
+  const progress = [
+    { id: "copy" as const, label: "Copy", status: "done" as const },
+    { id: "criativos" as const, label: "Criativos", status: "pending" as const },
+    { id: "landing" as const, label: "Landing", status: "pending" as const },
+  ];
+
+  const action = selectOperationActionFromDecisionEngine({
+    progress,
+    nextSteps: [],
+    missingForApproval: ["Criativos", "Landing"],
+    decisions: {
+      bestLanding: { label: "Landing vencedora", score: 90 },
+      bestCreative: { label: "Criativo A", score: 40 },
+    },
+  });
+
+  assert.equal(action, "landing");
 });

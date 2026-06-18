@@ -1,3 +1,4 @@
+import { recordSystemLog } from "@/lib/logs/record";
 import {
   RevenueForecastsRepository,
   RevenueMetricsRepository,
@@ -85,6 +86,20 @@ export async function registerRevenue(
       metricType,
       revenue: result.data.revenue,
       roas: result.data.roas,
+    });
+
+    recordSystemLog({
+      tipo: "info",
+      modulo: "revenue-ai",
+      mensagem: `Métrica registrada (${metricType}): ${result.data.platform ?? "geral"}`,
+      detalhes: {
+        metricId: result.data.id,
+        platform: result.data.platform,
+        metricType,
+        revenue: result.data.revenue,
+        roas: result.data.roas,
+        roi: result.data.roi,
+      },
     });
 
     if (metricType === "real") {
@@ -292,21 +307,36 @@ export async function feedRevenueAiFromOperation(params: {
 export async function feedRevenueAiFromPerformance(params: {
   revenue?: number | null;
   spend?: number | null;
-  roas?: number | null;
+  roasEstimado?: number | null;
+  roiEstimado?: number | null;
   operationId?: string | null;
+  productId?: string | null;
+  productLabel?: string | null;
 }): Promise<void> {
   const revenue = Number(params.revenue ?? 0);
   const spend = Number(params.spend ?? 0);
+  const roasEstimado = params.roasEstimado ?? null;
+  const roiEstimado = params.roiEstimado ?? roasEstimado;
+
   await registerRevenue({
     operationId: params.operationId,
+    productId: params.productId,
     platform: "performance_ai",
     country: "BR",
     currency: "BRL",
     revenue,
     spend,
-    roas: params.roas ?? calculateRoas(revenue, spend),
-    roi: calculateRoi(calculateProfit(revenue, spend), spend),
-    metadata: { source: "performance_ai" },
+    roas: null,
+    roi: null,
+    metricType: "estimated",
+    metadata: {
+      source: "performance_ai",
+      product_label: params.productLabel,
+      roas_estimado: roasEstimado,
+      roas_real: null,
+      roi_estimado: roiEstimado,
+      roi_real: null,
+    },
   });
 }
 

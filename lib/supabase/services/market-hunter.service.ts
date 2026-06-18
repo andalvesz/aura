@@ -1,3 +1,4 @@
+import { recordSystemLog } from "@/lib/logs/record";
 import {
   MarketOpportunitiesRepository,
   MarketWatchlistRepository,
@@ -344,6 +345,17 @@ export async function feedMarketHunterFromGrowthBrain(params: {
     opportunity_score: Number(params.score ?? 50),
     recommendation: "Alimentado pelo Growth Brain — padrão de crescimento detectado.",
     metadata: { source: "growth_brain_feed" } as Json,
+  });
+
+  recordSystemLog({
+    tipo: "info",
+    modulo: "market-hunter",
+    mensagem: `Oportunidade atualizada via Growth Brain: ${params.productName}`,
+    detalhes: {
+      productName: params.productName,
+      niche: params.niche,
+      score: params.score,
+    },
   });
 }
 

@@ -1,3 +1,4 @@
+import { recordSystemLog } from "@/lib/logs/record";
 import {
   buildDecisionEngineAuraContext,
   computeUnifiedDecisions,
@@ -99,6 +100,20 @@ export async function getUnifiedDecisions(): Promise<{
     bestCampaign: decisions.bestCampaign?.label ?? null,
   });
 
+  recordSystemLog({
+    tipo: "info",
+    modulo: "decision-engine",
+    mensagem: "Decisões unificadas computadas",
+    detalhes: {
+      sourcesUsed: decisions.sourcesUsed,
+      confidence: decisions.confidence,
+      bestProduct: decisions.bestProduct?.label ?? null,
+      bestCreative: decisions.bestCreative?.label ?? null,
+      bestLanding: decisions.bestLanding?.label ?? null,
+      bestCampaign: decisions.bestCampaign?.label ?? null,
+    },
+  });
+
   return { decisions, error: null };
 }
 
@@ -118,7 +133,21 @@ export async function consultDecisionEngine(module: string): Promise<{
   error: string | null;
 }> {
   console.info("[decision-engine] consulting for module", { module });
-  return getUnifiedDecisions();
+  const result = await getUnifiedDecisions();
+  if (result.decisions) {
+    recordSystemLog({
+      tipo: "info",
+      modulo: "decision-engine",
+      mensagem: `Decision Engine consultado por ${module}`,
+      detalhes: {
+        module,
+        confidence: result.decisions.confidence,
+        bestProduct: result.decisions.bestProduct?.label ?? null,
+        bestCampaign: result.decisions.bestCampaign?.label ?? null,
+      },
+    });
+  }
+  return result;
 }
 
 export async function resolveBestProduct(): Promise<{
