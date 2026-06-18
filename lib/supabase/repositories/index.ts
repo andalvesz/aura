@@ -90,4 +90,5 @@ export {
   ProductComplianceChecksRepository,
 } from "./product-factory.repository";
 export { FunnelsRepository, FunnelStepsRepository } from "./funnel-engine.repository";
+export { FunnelPagesRepository } from "./funnel-pages.repository";
 export { OffersRepository } from "./offer-engine.repository";

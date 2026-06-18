@@ -24,6 +24,7 @@ import {
   Megaphone,
   MapPin,
   Globe,
+  Layers,
   LineChart,
   Rocket,
   Share2,
@@ -64,6 +65,7 @@ export type ModuleId =
   | "growth-brain"
   | "market-hunter"
   | "offer-engine"
+  | "funnel-pages"
   | "ads-commander"
   | "autopilot"
   | "product-factory"
@@ -452,6 +454,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "AOV",
       value: "—",
       hint: "Gere a stack de ofertas de um produto",
+    },
+  },
+  {
+    id: "funnel-pages",
+    href: "/dashboard/funnel-pages",
+    label: "Funnel Pages Pro",
+    shortLabel: "Funnel Pages",
+    description:
+      "Gera automaticamente todas as páginas do funil — front-end, upsells, downsells, quiz e thank you.",
+    icon: Layers,
+    accent: "text-cyan-400",
+    overview: {
+      metric: "Páginas",
+      value: "0",
+      hint: "Gere páginas após criar funil e ofertas",
     },
   },
   {

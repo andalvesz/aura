@@ -45,6 +45,7 @@ export * from "./creative-director.service";
 export * from "./ads-commander.service";
 export * from "./landing-factory.service";
 export * from "./funnel-engine.service";
+export * from "./funnel-pages.service";
 export * from "./offer-engine.service";
 export * from "./campaign-budget.service";
 export * from "./aura-brain.service";

@@ -15,15 +15,21 @@ import {
   calculateExpectedTakeRate,
   computeOfferEngineDashboard,
   computeOfferExpectedRevenue,
+  formatOfferPrice,
   generateOfferRecommendations,
   isSubscriptionProduct,
   mergeOfferMetadata,
+  nicheMatchesSignal,
+  readStoredStrategyDecision,
+  resolveCountryAndCurrency,
   resolveOfferStackStrategy,
+  selectBestOfferStructure,
   type GeneratedOfferPayload,
   type OfferEngineDashboard,
   type OfferEngineIntake,
   type OfferStackBundle,
-  type OfferStackStrategy,
+  type OfferStackStrategyDecision,
+  type OfferStructureSignals,
 } from "@/utils/offer-engine";
 import { getOptionalDataContext } from "./context";
 
@@ -34,7 +40,10 @@ Regras:
 - Ofertas complementares e coerentes com o ticket do front-end
 - Copy honesta, sem promessas proibidas
 - take_rate_hint entre 0 e 1
-- Preços em BRL salvo indicação contrária
+- Respeite país, moeda e nicho informados
+- Order bump: 15–40% do ticket principal
+- Upsell: complementar ao produto principal
+- Downsell: opção acessível para quem recusou upsell
 
 Responda APENAS JSON conforme solicitado.`;
 
@@ -46,16 +55,19 @@ type OfferIntegrationContext = {
   solucao: string;
   avatar: string;
   niche: string;
+  country: string | null;
   frontPrice: number;
   currency: string;
   isSubscription: boolean;
-  strategy: OfferStackStrategy;
+  strategy: OfferStackStrategyDecision;
   copyContext: string;
   factoryContext: string;
   growthConversionRate: number | null;
   revenueConversionRate: number | null;
+  revenueRoas: number | null;
   marketScore: number | null;
   decisionHints: string[];
+  growthHistorySummary: string[];
 };
 
 function getOpenAi() {
@@ -114,7 +126,13 @@ async function buildIntegrationContext(
   input: OfferEngineIntake
 ): Promise<OfferIntegrationContext> {
   const frontPrice = resolveFrontPrice(product, input.front_price);
-  const currency = input.currency ?? product.currency ?? "BRL";
+  const { country, currency } = resolveCountryAndCurrency({
+    country: input.country,
+    currency: input.currency,
+    productCountry: product.target_country,
+    productCurrency: product.currency,
+  });
+  const niche = product.nicho?.trim() || product.publico_alvo?.trim() || "geral";
 
   let factoryContext = "Sem registro no Product Factory.";
   let productType: string | null = product.formato;
@@ -138,7 +156,6 @@ async function buildIntegrationContext(
     promessa: product.promessa,
     productType,
   });
-  const strategy = resolveOfferStackStrategy(frontPrice, isSubscription);
 
   const { records: copyRecords } = await loadCopylabRecords();
   const copy = copyRecords.find((r) => r.product_id === product.id);
@@ -150,26 +167,45 @@ async function buildIntegrationContext(
       ].join("\n")
     : "Sem copy no CopyLab.";
 
-  const [growthBrain, decisionEngine, marketHunter] = await Promise.all([
+  const [growthBrain, decisionEngine, marketHunter, revenueAi] = await Promise.all([
     import("./growth-brain.service").then((mod) => mod.getGrowthBrainDashboard()),
-    import("./aura-decision-engine.service").then((mod) => mod.getUnifiedDecisionsReadOnly()),
+    import("./aura-decision-engine.service").then((mod) => mod.consultDecisionEngine("offer_engine")),
     import("./market-hunter.service").then((mod) => mod.getMarketHunterDashboard()),
+    import("./revenue-ai.service").then((mod) => mod.getRevenueAiDashboard()),
   ]);
 
+  const growthDashboard = growthBrain.dashboard;
   const growthConversionRate =
-    growthBrain.dashboard?.melhorLanding?.metrics?.conversionRate ??
-    growthBrain.dashboard?.melhorCampanha?.metrics?.conversionRate ??
+    growthDashboard?.melhorLanding?.metrics?.conversionRate ??
+    growthDashboard?.melhorCampanha?.metrics?.conversionRate ??
     null;
 
+  const growthNicheScore = nicheMatchesSignal(niche, growthDashboard?.melhorNicho?.label)
+    ? growthDashboard?.melhorNicho?.score ?? null
+    : null;
+  const growthCountryScore =
+    country && growthDashboard?.melhorPais?.label?.toUpperCase().includes(country)
+      ? growthDashboard.melhorPais.score
+      : null;
+
   let revenueConversionRate: number | null = null;
+  let revenueRoas: number | null = revenueAi.dashboard?.roasMedioReal ?? revenueAi.dashboard?.roasMedio ?? null;
   if (ctx) {
     const revenueRepo = new RevenueMetricsRepository(ctx.supabase, ctx.userId);
     const { data: metrics } = await revenueRepo.findRecent(50);
-    const revenueMetric = metrics?.find((m) => m.conversions && m.clicks);
+    const filtered = (metrics ?? []).filter((metric) => {
+      if (country && metric.country && metric.country.toUpperCase() !== country) return false;
+      if (metric.product_id && metric.product_id !== product.id) return false;
+      return true;
+    });
+    const revenueMetric = filtered.find((m) => m.conversions && m.clicks) ?? metrics?.find((m) => m.conversions && m.clicks);
     revenueConversionRate =
       revenueMetric && revenueMetric.clicks
         ? Number(revenueMetric.conversions) / Math.max(Number(revenueMetric.clicks), 1)
         : null;
+    if (revenueMetric?.roas != null) {
+      revenueRoas = Number(revenueMetric.roas);
+    }
   }
 
   const marketScore =
@@ -177,7 +213,37 @@ async function buildIntegrationContext(
     marketHunter.dashboard?.scoreMedio ??
     null;
 
-  const decisionHints: string[] = [];
+  const growthHistorySummary: string[] = [];
+  for (const pattern of growthDashboard?.patterns ?? []) {
+    if (pattern.pattern_type !== "niche" && pattern.pattern_type !== "revenue") continue;
+    if (pattern.niche && !nicheMatchesSignal(niche, pattern.niche)) continue;
+    if (pattern.country && country && pattern.country.toUpperCase() !== country) continue;
+    growthHistorySummary.push(
+      `${pattern.pattern_type}: ${pattern.lesson ?? pattern.recommendation ?? "padrão positivo"} (score ${pattern.score})`
+    );
+  }
+  for (const insight of growthDashboard?.insights.slice(0, 2) ?? []) {
+    growthHistorySummary.push(`${insight.title}: ${insight.summary}`);
+  }
+
+  const signals: OfferStructureSignals = {
+    frontPrice,
+    isSubscription,
+    niche,
+    country,
+    currency,
+    growthConversionRate,
+    growthNicheScore,
+    growthCountryScore,
+    growthAvgRoas: growthDashboard?.avgRoas ?? null,
+    revenueConversionRate,
+    revenueRoas,
+    marketScore,
+  };
+
+  const strategy = selectBestOfferStructure(signals, decisionEngine.decisions);
+
+  const decisionHints: string[] = [...strategy.reasons.slice(0, 4)];
   const decisions = decisionEngine.decisions;
   if (decisions?.bestOffer) {
     decisionHints.push(`Oferta: ${decisions.bestOffer.label} — ${decisions.bestOffer.reason}`);
@@ -193,7 +259,8 @@ async function buildIntegrationContext(
     problema: product.problema?.trim() || "",
     solucao: product.solucao?.trim() || "",
     avatar: product.avatar?.trim() || product.publico_alvo?.trim() || "",
-    niche: product.nicho?.trim() || product.publico_alvo?.trim() || "geral",
+    niche,
+    country,
     frontPrice,
     currency,
     isSubscription,
@@ -202,8 +269,10 @@ async function buildIntegrationContext(
     factoryContext,
     growthConversionRate,
     revenueConversionRate,
+    revenueRoas,
     marketScore,
     decisionHints,
+    growthHistorySummary,
   };
 }
 
@@ -223,6 +292,7 @@ function buildOfferPrompt(
       solucao: context.solucao,
       avatar: context.avatar,
       niche: context.niche,
+      country: context.country,
       front_price: context.frontPrice,
       currency: context.currency,
       is_subscription: context.isSubscription,
@@ -231,7 +301,12 @@ function buildOfferPrompt(
     copyContext: context.copyContext,
     factoryContext: context.factoryContext,
     decisionHints: context.decisionHints,
+    growthHistory: context.growthHistorySummary,
     marketScore: context.marketScore,
+    revenueSignals: {
+      conversionRate: context.revenueConversionRate,
+      roas: context.revenueRoas,
+    },
     extra,
     response: {
       offer: {
@@ -259,6 +334,7 @@ async function persistGeneratedOffer(
     frontPrice: context.frontPrice,
     takeRateHint: payload.take_rate_hint,
     growthConversionRate: context.growthConversionRate,
+    revenueConversionRate: context.revenueConversionRate,
     marketScore: context.marketScore,
   });
 
@@ -280,6 +356,9 @@ async function persistGeneratedOffer(
       take_rate_hint: payload.take_rate_hint,
       stack_order: payload.stack_order ?? null,
       strategy: context.strategy.label,
+      strategy_decision: context.strategy,
+      niche: context.niche,
+      country: context.country,
     }),
   } satisfies Omit<TableInsert<"offers">, "user_id">;
 
@@ -295,30 +374,59 @@ async function persistGeneratedOffer(
   return { offer: result.data, error: result.error };
 }
 
-async function feedIntegrationsFromOfferStack(bundle: OfferStackBundle): Promise<void> {
+async function feedIntegrationsFromOfferStack(
+  bundle: OfferStackBundle,
+  context: OfferIntegrationContext
+): Promise<void> {
   const { registerCampaignResult } = await import("./growth-brain.service");
   await registerCampaignResult({
     sourcePlatform: "offer_engine",
     productId: bundle.product_id,
+    country: context.country,
+    language: context.product.target_language,
     revenue: bundle.metrics.expectedAov,
     spend: 0,
-    roas: 0,
-    conversionRate: bundle.metrics.expectedAverageTicket / Math.max(bundle.metrics.frontPrice, 1),
+    roas: context.revenueRoas ?? 0,
+    conversionRate:
+      context.revenueConversionRate ??
+      bundle.metrics.expectedAverageTicket / Math.max(bundle.metrics.frontPrice, 1),
     metricType: "estimated",
-    niche: null,
-    lesson: `Offer stack · AOV R$ ${bundle.metrics.expectedAov.toFixed(2)}`,
+    niche: context.niche,
+    lesson: `Offer stack · AOV ${formatOfferPrice(bundle.metrics.expectedAov, context.currency)}`,
     recommendation: bundle.recommendations[0]?.summary ?? bundle.metrics.strategy.label,
     metadata: {
       source: "offer_engine",
       funnel_id: bundle.funnel_id,
       total_offers: bundle.offers.length,
+      decision_source: bundle.metrics.strategyDecision?.decisionSource ?? context.strategy.decisionSource,
+      confidence: bundle.metrics.strategyDecision?.confidence ?? context.strategy.confidence,
+    } as Json,
+  });
+
+  const { registerRevenue } = await import("./revenue-ai.service");
+  await registerRevenue({
+    productId: bundle.product_id,
+    platform: "offer_engine",
+    country: context.country,
+    currency: context.currency,
+    revenue: bundle.metrics.expectedAov,
+    spend: 0,
+    roas: context.revenueRoas ?? null,
+    conversions: 1,
+    clicks: Math.max(1, Math.round(1 / Math.max(context.revenueConversionRate ?? 0.05, 0.05))),
+    metricType: "estimated",
+    metadata: {
+      source: "offer_engine",
+      funnel_id: bundle.funnel_id,
+      strategy: bundle.metrics.strategy.label,
+      niche: context.niche,
     } as Json,
   });
 
   const { feedMarketHunterFromGrowthBrain } = await import("./market-hunter.service");
   await feedMarketHunterFromGrowthBrain({
-    productName: bundle.offers[0]?.title ?? "Produto",
-    niche: null,
+    productName: context.productName,
+    niche: context.niche,
     score: Math.round(bundle.metrics.expectedAov),
   });
 }
@@ -379,23 +487,36 @@ export async function getOfferEngineDashboard(): Promise<{
 
   const stacks: OfferStackBundle[] = [...stackKeys.values()].map((group) => {
     const first = group[0];
-    const strategy = resolveOfferStackStrategy(
-      Number(group.find((o) => o.offer_type === "front_end")?.price ?? 97),
-      group.some((o) => o.offer_type === "continuity")
-    );
+    const frontOffer = group.find((o) => o.offer_type === "front_end");
+    const storedDecision = frontOffer ? readStoredStrategyDecision(frontOffer) : null;
+    const frontPrice = Number(frontOffer?.price ?? 97);
+    const strategy =
+      storedDecision ??
+      resolveOfferStackStrategy(
+        frontPrice,
+        group.some((o) => o.offer_type === "continuity")
+      );
+    const meta =
+      frontOffer?.metadata && typeof frontOffer.metadata === "object" && !Array.isArray(frontOffer.metadata)
+        ? (frontOffer.metadata as Record<string, unknown>)
+        : {};
     const metrics = {
       expectedAov: calculateExpectedAOV(group),
       expectedAverageTicket: calculateExpectedAverageTicket(group),
-      frontPrice: Number(group.find((o) => o.offer_type === "front_end")?.price ?? 0),
+      frontPrice,
       totalOffers: group.length,
       strategy,
+      strategyDecision: storedDecision ?? undefined,
+      currency: first.currency ?? "BRL",
+      country: typeof meta.country === "string" ? meta.country : null,
+      niche: typeof meta.niche === "string" ? meta.niche : "geral",
     };
     return {
       product_id: first.product_id ?? "",
       funnel_id: first.funnel_id,
       offers: group,
       metrics,
-      recommendations: generateOfferRecommendations(group, strategy),
+      recommendations: generateOfferRecommendations(group, strategy, metrics.currency),
     };
   });
 
@@ -409,7 +530,8 @@ export async function generateOrderBumpOffer(
 ): Promise<{ offer: Offer | null; error: string | null }> {
   const generated = await callOfferEngineAi<{ offer: GeneratedOfferPayload }>(
     buildOfferPrompt(context, "generate_order_bump", "order_bump", {
-      instruction: "Order bump entre 15% e 40% do ticket principal.",
+      instruction: `Order bump entre 15% e 40% do ticket principal (${formatOfferPrice(context.frontPrice, context.currency)}).`,
+      price_ceiling: Math.round(context.frontPrice * 0.4 * 100) / 100,
     })
   );
   if (!generated?.offer?.title) {
@@ -433,10 +555,10 @@ export async function generateUpsellOffer(
       upsell_total: context.strategy.upsellCount,
       instruction:
         context.frontPrice <= 97
-          ? "Upsell complementar agressivo para ticket baixo."
+          ? `Upsell complementar agressivo para ticket baixo em ${context.currency}.`
           : context.frontPrice > 197
-            ? "Upsell premium enxuto para ticket alto."
-            : "Upsell complementar equilibrado.",
+            ? `Upsell premium enxuto para ticket alto em ${context.country ?? "mercado"}.`
+            : `Upsell complementar equilibrado para nicho ${context.niche}.`,
     })
   );
   if (!generated?.offer?.title) {
@@ -456,7 +578,8 @@ export async function generateDownsellOffer(
 ): Promise<{ offer: Offer | null; error: string | null }> {
   const generated = await callOfferEngineAi<{ offer: GeneratedOfferPayload }>(
     buildOfferPrompt(context, "generate_downsell", "downsell", {
-      instruction: "Downsell acessível para quem recusou upsell.",
+      instruction: `Downsell acessível (${context.currency}) para quem recusou upsell — ideal entre 30% e 60% do front-end.`,
+      price_ceiling: Math.round(context.frontPrice * 0.6 * 100) / 100,
     })
   );
   if (!generated?.offer?.title) {
@@ -533,6 +656,7 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
     frontPrice: context.frontPrice,
     takeRateHint: 1,
     growthConversionRate: context.growthConversionRate,
+    revenueConversionRate: context.revenueConversionRate,
     marketScore: context.marketScore,
   });
 
@@ -549,6 +673,9 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
     status: "ready",
     metadata: mergeOfferMetadata({} as Json, {
       strategy: context.strategy.label,
+      strategy_decision: context.strategy,
+      niche: context.niche,
+      country: context.country,
       rationale: "Front-end principal do produto",
     }),
   } satisfies Omit<TableInsert<"offers">, "user_id">);
@@ -589,8 +716,16 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
     frontPrice: context.frontPrice,
     totalOffers: persisted.length,
     strategy: context.strategy,
+    strategyDecision: context.strategy,
+    currency: context.currency,
+    country: context.country,
+    niche: context.niche,
   };
-  const recommendations = generateOfferRecommendations(persisted, context.strategy);
+  const recommendations = generateOfferRecommendations(
+    persisted,
+    context.strategy,
+    context.currency
+  );
 
   const bundle: OfferStackBundle = {
     product_id: productId,
@@ -610,12 +745,29 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
       totalOffers: persisted.length,
       expectedAov: metrics.expectedAov,
       strategy: context.strategy.label,
+      decisionSource: context.strategy.decisionSource,
+      confidence: context.strategy.confidence,
+      country: context.country,
+      currency: context.currency,
+      niche: context.niche,
     },
   });
 
-  void feedIntegrationsFromOfferStack(bundle).catch((err) => {
+  void feedIntegrationsFromOfferStack(bundle, context).catch((err) => {
     console.error("[offer-engine] integration feed failed", err);
   });
+
+  const funnelId = input.funnel_id?.trim();
+  if (funnelId) {
+    void import("./funnel-pages.service")
+      .then((mod) =>
+        mod.generateFunnelPages({
+          funnel_id: funnelId,
+          product_id: productId,
+        })
+      )
+      .catch((err) => console.error("[funnel-pages] auto-generate failed", err));
+  }
 
   return { bundle, error: null };
 }

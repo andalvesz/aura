@@ -1089,6 +1089,33 @@ export type Offer = {
   updated_at: string;
 };
 
+export type FunnelPageType =
+  | "front_end"
+  | "order_bump"
+  | "upsell"
+  | "downsell"
+  | "thank_you"
+  | "webinar"
+  | "quiz";
+
+export type FunnelPageStatus = "draft" | "generating" | "ready" | "published" | "archived";
+
+export type FunnelPage = {
+  id: string;
+  user_id: string;
+  funnel_id: string;
+  offer_id: string | null;
+  page_type: FunnelPageType;
+  landing_page_id: string | null;
+  slug: string;
+  title: string;
+  status: FunnelPageStatus;
+  conversion_goal: number | null;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreativeAsset = {
   id: string;
   user_id: string;
@@ -4443,6 +4470,37 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      funnel_pages: TableDef<
+        FunnelPage,
+        Omit<
+          FunnelPage,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "funnel_id"
+          | "offer_id"
+          | "page_type"
+          | "landing_page_id"
+          | "slug"
+          | "title"
+          | "status"
+          | "conversion_goal"
+          | "metadata"
+        > & {
+          id?: string;
+          funnel_id?: string;
+          offer_id?: string | null;
+          page_type?: FunnelPageType;
+          landing_page_id?: string | null;
+          slug?: string;
+          title?: string;
+          status?: FunnelPageStatus;
+          conversion_goal?: number | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
       platform_connections: TableDef<
         PlatformConnection,
         Omit<
@@ -5347,6 +5405,7 @@ export type UserScopedTable =
   | "ad_campaigns"
   | "landing_pages"
   | "funnels"
+  | "funnel_pages"
   | "offers"
   | "platform_connections"
   | "platform_sync_logs"
