@@ -172,6 +172,7 @@ async function loadBrainData(userId: string) {
     kiwifyIntelligence,
     metaIntelligence,
     operationCenter,
+    marketHunter,
     globalMarketsRes,
     globalStrategiesRes,
     globalResultsRes,
@@ -208,6 +209,7 @@ async function loadBrainData(userId: string) {
     getKiwifyIntelligenceContext(),
     getMetaIntelligenceContext(),
     import("./operation-center.service").then((mod) => mod.getOperationCenterContext()),
+    import("./market-hunter.service").then((mod) => mod.getMarketHunterContext()),
     new GlobalMarketsRepository(supabase, userId).findAllOrdered(),
     new GlobalStrategiesRepository(supabase, userId).findAllOrdered(),
     new GlobalResultsRepository(supabase, userId).findAllOrdered(),
@@ -356,6 +358,7 @@ async function loadBrainData(userId: string) {
 
   const globalSection = [
     globalContext,
+    marketHunter.context ? marketHunter.context : "",
     localeRes.locale
       ? `**Locale ativo:** ${localeRes.locale.target_country} · ${localeRes.locale.target_language} · ${localeRes.locale.currency}`
       : "",

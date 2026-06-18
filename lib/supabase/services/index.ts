@@ -37,6 +37,7 @@ export * from "./ceo.service";
 export * from "./execution.service";
 export * from "./performance.service";
 export * from "./growth-brain.service";
+export * from "./market-hunter.service";
 export * from "./autopilot.service";
 export * from "./product-factory.service";
 export * from "./creative-factory.service";

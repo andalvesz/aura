@@ -70,6 +70,24 @@ export async function registerRevenue(
 
   if (result.data) {
     void feedGrowthBrainFromRevenueMetric(result.data).catch(() => undefined);
+    const productName =
+      result.data.metadata &&
+      typeof result.data.metadata === "object" &&
+      !Array.isArray(result.data.metadata)
+        ? String((result.data.metadata as Record<string, unknown>).productName ?? "") || null
+        : null;
+    void import("./market-hunter.service")
+      .then(({ feedMarketHunterFromRevenue }) =>
+        feedMarketHunterFromRevenue({
+          productName: productName ?? `Receita ${result.data!.platform ?? "geral"}`,
+          platform: result.data!.platform,
+          country: result.data!.country,
+          currency: result.data!.currency,
+          revenue: Number(result.data!.revenue ?? 0),
+          roas: Number(result.data!.roas ?? 0),
+        })
+      )
+      .catch(() => undefined);
   }
 
   return { metric: result.data, error: result.error };

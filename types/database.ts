@@ -855,6 +855,37 @@ export type RevenueForecast = {
   created_at: string;
 };
 
+export type MarketWatchlistStatus = "watching" | "active" | "launched" | "archived";
+
+export type MarketOpportunity = {
+  id: string;
+  user_id: string;
+  source_platform: string | null;
+  product_name: string;
+  niche: string | null;
+  country: string | null;
+  language: string | null;
+  currency: string;
+  estimated_demand: number | null;
+  estimated_competition: number | null;
+  estimated_conversion: number | null;
+  opportunity_score: number;
+  recommendation: string | null;
+  metadata: Json;
+  created_at: string;
+};
+
+export type MarketWatchlist = {
+  id: string;
+  user_id: string;
+  product_name: string;
+  source_platform: string | null;
+  score: number | null;
+  status: MarketWatchlistStatus;
+  notes: string | null;
+  created_at: string;
+};
+
 export type OperationCenterStatus =
   | "draft"
   | "preparing"
@@ -4936,6 +4967,58 @@ export type Database = {
           created_at?: string;
         }
       >;
+      market_opportunities: TableDef<
+        MarketOpportunity,
+        Omit<
+          MarketOpportunity,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "source_platform"
+          | "niche"
+          | "country"
+          | "language"
+          | "currency"
+          | "estimated_demand"
+          | "estimated_competition"
+          | "estimated_conversion"
+          | "opportunity_score"
+          | "recommendation"
+        > & {
+          id?: string;
+          metadata?: Json;
+          source_platform?: string | null;
+          niche?: string | null;
+          country?: string | null;
+          language?: string | null;
+          currency?: string;
+          estimated_demand?: number | null;
+          estimated_competition?: number | null;
+          estimated_conversion?: number | null;
+          opportunity_score?: number;
+          recommendation?: string | null;
+          created_at?: string;
+        }
+      >;
+      market_watchlist: TableDef<
+        MarketWatchlist,
+        Omit<
+          MarketWatchlist,
+          | "id"
+          | "created_at"
+          | "source_platform"
+          | "score"
+          | "status"
+          | "notes"
+        > & {
+          id?: string;
+          source_platform?: string | null;
+          score?: number | null;
+          status?: MarketWatchlistStatus;
+          notes?: string | null;
+          created_at?: string;
+        }
+      >;
       operation_center: TableDef<
         OperationCenter,
         Omit<
@@ -5117,7 +5200,9 @@ export type UserScopedTable =
   | "growth_brain_memories"
   | "growth_patterns"
   | "revenue_metrics"
-  | "revenue_forecasts";
+  | "revenue_forecasts"
+  | "market_opportunities"
+  | "market_watchlist";
 
 export type AiModule =
   | "aura_central"

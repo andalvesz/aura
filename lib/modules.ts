@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Castle,
   ClipboardCheck,
+  Crosshair,
   Crown,
   Cpu,
   Bot,
@@ -60,6 +61,7 @@ export type ModuleId =
   | "execution"
   | "performance"
   | "growth-brain"
+  | "market-hunter"
   | "ads-commander"
   | "autopilot"
   | "product-factory"
@@ -418,6 +420,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Memórias",
       value: "0",
       hint: "Registre resultados para aprender padrões",
+    },
+  },
+  {
+    id: "market-hunter",
+    href: "/dashboard/market-hunter",
+    label: "Market Hunter",
+    shortLabel: "Market Hunter",
+    description:
+      "Descoberta automática de oportunidades — encontre o produto certo para vender agora.",
+    icon: Crosshair,
+    accent: "text-emerald-400",
+    overview: {
+      metric: "Score",
+      value: "—",
+      hint: "Execute uma análise de mercado",
     },
   },
   {

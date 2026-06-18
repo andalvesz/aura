@@ -1536,6 +1536,19 @@ export async function approveOperation(
         })
       )
       .catch(() => undefined);
+
+    if (updated.product_nome) {
+      void import("./market-hunter.service")
+        .then(({ feedMarketHunterFromOperation }) =>
+          feedMarketHunterFromOperation({
+            productName: updated.product_nome!,
+            operationId: updated.id,
+            operationalScore: updated.operational_score,
+            roiPrevisto: updated.roi_previsto != null ? Number(updated.roi_previsto) : null,
+          })
+        )
+        .catch(() => undefined);
+    }
   }
 
   return {

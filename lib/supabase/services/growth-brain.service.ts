@@ -486,4 +486,18 @@ export async function feedGrowthBrainFromKiwify(params: {
       product_label: params.productName,
     },
   });
+
+  if (params.productName) {
+    void import("./market-hunter.service")
+      .then(({ feedMarketHunterFromKiwify }) =>
+        feedMarketHunterFromKiwify({
+          productName: params.productName!,
+          productId: params.productId,
+          niche: params.niche,
+          revenue: params.revenue,
+          conversionRate: params.conversionRate,
+        })
+      )
+      .catch(() => undefined);
+  }
 }
