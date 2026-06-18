@@ -18,12 +18,11 @@ import { intakeFromProductBundle as factoryIntakeFromBundle } from "@/utils/prod
 import {
   intentFromMetadata,
   intentToMetadata,
-  resolveMasterFlowIntent,
-  toCreatorCountryFromIntent,
-  toCreatorLanguageFromIntent,
   type MasterFlowIntentInput,
 } from "@/utils/master-flow-intent";
+import { resolveIntentV2 } from "@/utils/intent-engine-v2";
 import { resolveCreatorLocale } from "@/utils/creator-locale";
+import { toCreatorCountryFromIntent, toCreatorLanguageFromIntent } from "@/utils/master-flow-intent";
 import { getOptionalDataContext } from "./context";
 
 async function markStepCompleted(
@@ -343,6 +342,44 @@ async function executeStep(flow: MasterFlow): Promise<{
         return { flow: await markStepCompleted(repo, flow, step), error: null };
       }
 
+      case "checkout_engine": {
+        if (!flow.product_id) {
+          return { flow: await failFlow(repo, flow, "Produto não vinculado."), error: "Produto não vinculado." };
+        }
+
+        const { createCheckout, syncCheckout, applyCheckoutToProduct, getCheckoutUrl } =
+          await import("./checkout-engine.service");
+        const { checkout, error: createError } = await createCheckout({
+          productId: flow.product_id,
+          productName: meta.opportunity_name ?? undefined,
+        });
+        if (createError) {
+          return { flow: await failFlow(repo, flow, createError), error: createError };
+        }
+
+        let checkoutUrl = checkout?.checkout_url ?? null;
+        if (checkout && !checkoutUrl) {
+          const synced = await syncCheckout(checkout.id);
+          checkoutUrl = synced.checkout?.checkout_url ?? null;
+        }
+
+        if (checkoutUrl) {
+          await applyCheckoutToProduct(flow.product_id);
+        } else {
+          const resolved = await getCheckoutUrl(flow.product_id);
+          checkoutUrl = resolved.checkoutUrl;
+        }
+
+        const { data: updated } = await repo.update(flow.id, {
+          metadata: mergeMasterFlowMetadata(flow.metadata, {
+            checkout_url: checkoutUrl,
+            checkout_id: checkout?.id ?? null,
+          }),
+        });
+
+        return { flow: await markStepCompleted(repo, updated ?? flow, step), error: null };
+      }
+
       case "creative_director": {
         const productName = meta.opportunity_name ?? "Negócio digital";
         const { operationId, error: opError } = await ensureOperation(flow, productName);
@@ -377,41 +414,101 @@ async function executeStep(flow: MasterFlow): Promise<{
 
         const { data: updated } = await repo.update(flow.id, {
           campaign_id: campaign?.id ?? null,
+          metadata: mergeMasterFlowMetadata(flow.metadata, {
+            campaign_id: campaign?.id ?? null,
+          }),
         });
 
         return { flow: await markStepCompleted(repo, updated ?? flow, step), error: null };
       }
 
-      case "excellence": {
-        const { improveAsset } = await import("./excellence-auto-improve.service");
-        const { isAutoImproveAssetType } = await import("@/utils/excellence-auto-improve");
+      case "publish_orchestrator": {
+        const { orchestratePublish } = await import("./publish-orchestrator.service");
+        const { result, error } = await orchestratePublish({
+          funnelId: flow.funnel_id,
+          campaignId: flow.campaign_id ?? meta.campaign_id,
+          mode: "master_flow",
+        });
 
-        const targets: Array<{ assetType: "copy" | "funnel" | "campaign" | "ebook"; assetId: string }> = [];
-        if (meta.copylab_id) targets.push({ assetType: "copy", assetId: meta.copylab_id });
-        if (flow.funnel_id) targets.push({ assetType: "funnel", assetId: flow.funnel_id });
-        if (flow.campaign_id) targets.push({ assetType: "campaign", assetId: flow.campaign_id });
-        if (meta.factory_id) targets.push({ assetType: "ebook", assetId: meta.factory_id });
+        const { data: updated } = await repo.update(flow.id, {
+          metadata: mergeMasterFlowMetadata(flow.metadata, {
+            funnel_url: result.funnelUrl ?? meta.funnel_url ?? null,
+            landing_url: result.landingUrl ?? meta.landing_url ?? null,
+            campaign_id: result.campaignId ?? flow.campaign_id ?? null,
+          }),
+        });
 
-        for (const target of targets) {
-          if (isAutoImproveAssetType(target.assetType)) {
-            await improveAsset({
-              assetType: target.assetType,
-              assetId: target.assetId,
-              label: meta.opportunity_name ?? undefined,
-              module: "master-flow",
-            });
-          } else {
-            const { runExcellencePipeline } = await import("./excellence-integration.service");
-            await runExcellencePipeline({
-              assetType: target.assetType,
-              assetId: target.assetId,
-              label: meta.opportunity_name ?? undefined,
-              module: "master-flow",
-            });
-          }
+        if (error && !result.funnelUrl && !flow.campaign_id) {
+          return { flow: await failFlow(repo, updated ?? flow, error), error };
         }
 
-        return { flow: await markStepCompleted(repo, flow, step), error: null };
+        return { flow: await markStepCompleted(repo, updated ?? flow, step), error: null };
+      }
+
+      case "commercial_excellence":
+      case "excellence": {
+        const { runCommercialExcellence } = await import("./commercial-excellence.service");
+        const { score, error: excellenceError } = await runCommercialExcellence({
+          copylabId: meta.copylab_id,
+          funnelId: flow.funnel_id,
+          campaignId: flow.campaign_id,
+          factoryId: meta.factory_id,
+          label: meta.opportunity_name ?? undefined,
+        });
+        if (excellenceError) {
+          return { flow: await failFlow(repo, flow, excellenceError), error: excellenceError };
+        }
+
+        const flowWithScore = await repo.update(flow.id, {
+          metadata: mergeMasterFlowMetadata(flow.metadata, {
+            excellence_score: score,
+          }),
+        });
+
+        const certifiedMetadata = mergeMasterFlowMetadata(flowWithScore.data?.metadata ?? flow.metadata, {
+          excellence_score: score,
+        });
+
+        const interimFlow = {
+          ...(flowWithScore.data ?? flow),
+          metadata: certifiedMetadata,
+        } as MasterFlow;
+
+        const completedMeta = readMasterFlowMetadata(interimFlow);
+        const completed = new Set(completedMeta.completed_steps ?? []);
+        completed.add("commercial_excellence");
+
+        const { applyReadyToSellCertification } = await import("./revenue-certification.service");
+        const { certification, status: certifiedStatus } =
+          await applyReadyToSellCertification(interimFlow);
+
+        const { data: certifiedFlow } = await repo.update(flow.id, {
+          current_step: "done",
+          progress: 100,
+          status: certifiedStatus,
+          metadata: mergeMasterFlowMetadata(certifiedMetadata, {
+            completed_steps: Array.from(completed),
+            commercial_status: certification.commercial_status,
+            certification_gaps: certification.gaps.length ? certification.gaps : null,
+            checkout_url: certification.requirements.checkout_url,
+            funnel_url: certification.requirements.funnel_url,
+            landing_url: certification.requirements.landing_url,
+            campaign_id: certification.requirements.campaign_id,
+            excellence_score: certification.requirements.excellence_score,
+            last_error: certification.ready ? null : certification.gaps.join("; "),
+          }),
+        });
+
+        recordSystemLog({
+          tipo: certification.ready ? "info" : "warning",
+          modulo: "master-flow",
+          mensagem: certification.ready
+            ? "Aura Master Flow certificado READY_TO_SELL"
+            : "Pipeline concluído sem certificação READY_TO_SELL",
+          detalhes: { flowId: flow.id, certification },
+        });
+
+        return { flow: certifiedFlow, error: certification.ready ? null : certification.gaps.join("; ") };
       }
 
       case "done":
@@ -433,7 +530,7 @@ export async function createBusiness(intentInput?: MasterFlowIntentInput): Promi
   const ctx = await getOptionalDataContext();
   if (!ctx) return { status: null, error: "Usuário não autenticado." };
 
-  const intent = resolveMasterFlowIntent(intentInput);
+  const intent = resolveIntentV2(intentInput);
   const intentMetadata = intentToMetadata(intent);
 
   const repo = new MasterFlowRepository(ctx.supabase, ctx.userId);
@@ -547,4 +644,4 @@ export async function runFullFlow(flowId?: string): Promise<{
   return { status: lastStatus, error: lastError };
 }
 
-const MASTER_FLOW_MAX_ITERATIONS = 12;
+const MASTER_FLOW_MAX_ITERATIONS = 16;

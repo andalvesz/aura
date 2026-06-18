@@ -281,13 +281,14 @@ async function publishMetaCampaign(params: {
 
 export async function publishCampaign(
   campaignId: string,
-  options?: { explicitApproval?: boolean }
+  options?: { explicitApproval?: boolean; orchestratorMode?: "master_flow" | "manual" }
 ): Promise<{
   campaign: AdCampaign | null;
   message: string;
   error: string | null;
 }> {
   const explicitApproval = options?.explicitApproval === true;
+  const orchestratorMode = options?.orchestratorMode ?? "manual";
 
   if (requiresExplicitPublishApproval() && !explicitApproval) {
     console.info("[ads] publish failed", { campaignId, reason: "explicit_approval_required" });
@@ -299,6 +300,19 @@ export async function publishCampaign(
   }
 
   if (!isAdsPublishEnabled()) {
+    if (orchestratorMode === "master_flow") {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) {
+        return { campaign: null, message: "", error: "Usuário não autenticado." };
+      }
+      const campaignRepo = new AdCampaignsRepository(ctx.supabase, ctx.userId);
+      const { data: campaign } = await campaignRepo.findById(campaignId);
+      return {
+        campaign: campaign ?? null,
+        message: "Campanha preparada — publicação externa desabilitada (ADS_PUBLISH_ENABLED).",
+        error: null,
+      };
+    }
     console.info("[ads] publish failed", { campaignId, reason: "publish_disabled" });
     return {
       campaign: null,

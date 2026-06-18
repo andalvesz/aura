@@ -1,4 +1,5 @@
 import type { MasterFlow, MasterFlowStatus, MasterFlowStep } from "@/types/database";
+import { isReadyToSellStatus } from "@/utils/revenue-certification";
 
 export const MASTER_FLOW_STEPS: MasterFlowStep[] = [
   "market_hunter",
@@ -8,9 +9,11 @@ export const MASTER_FLOW_STEPS: MasterFlowStep[] = [
   "offer_engine",
   "funnel_engine",
   "funnel_pages",
+  "checkout_engine",
   "creative_director",
   "ads_commander",
-  "excellence",
+  "publish_orchestrator",
+  "commercial_excellence",
 ];
 
 export const MASTER_FLOW_STEP_LABELS: Record<MasterFlowStep, string> = {
@@ -21,8 +24,11 @@ export const MASTER_FLOW_STEP_LABELS: Record<MasterFlowStep, string> = {
   offer_engine: "Offer Engine",
   funnel_engine: "Funnel Engine",
   funnel_pages: "Funnel Pages",
+  checkout_engine: "Checkout Engine",
   creative_director: "Creative Director",
   ads_commander: "Ads Commander",
+  publish_orchestrator: "Publish Orchestrator",
+  commercial_excellence: "Commercial Excellence",
   excellence: "Excellence",
   done: "Concluído",
 };
@@ -38,6 +44,14 @@ export type MasterFlowMetadata = {
   avatar?: string | null;
   ticket?: number | null;
   user_intent?: string | null;
+  checkout_url?: string | null;
+  checkout_id?: string | null;
+  funnel_url?: string | null;
+  landing_url?: string | null;
+  campaign_id?: string | null;
+  excellence_score?: number | null;
+  commercial_status?: "ready_to_sell" | "incomplete" | null;
+  certification_gaps?: string[] | null;
   last_error?: string | null;
   completed_steps?: MasterFlowStep[];
 };
@@ -53,6 +67,7 @@ export type MasterFlowStatusView = {
   steps: MasterFlowStepStatus[];
   currentLabel: string;
   isComplete: boolean;
+  isReadyToSell: boolean;
   canRunNext: boolean;
 };
 
@@ -71,23 +86,36 @@ export function mergeMasterFlowMetadata(
   return { ...base, ...patch } as MasterFlow["metadata"];
 }
 
+const LEGACY_STEP_MAP: Partial<Record<MasterFlowStep, MasterFlowStep>> = {
+  excellence: "commercial_excellence",
+};
+
+export function normalizeMasterFlowStep(step: MasterFlowStep): MasterFlowStep {
+  return LEGACY_STEP_MAP[step] ?? step;
+}
+
 export function getNextMasterFlowStep(step: MasterFlowStep): MasterFlowStep {
-  const index = MASTER_FLOW_STEPS.indexOf(step);
+  const normalized = normalizeMasterFlowStep(step);
+  const index = MASTER_FLOW_STEPS.indexOf(normalized);
   if (index < 0 || index >= MASTER_FLOW_STEPS.length - 1) return "done";
   return MASTER_FLOW_STEPS[index + 1]!;
 }
 
 export function computeMasterFlowProgress(step: MasterFlowStep): number {
   if (step === "done") return 100;
-  const index = MASTER_FLOW_STEPS.indexOf(step);
+  const normalized = normalizeMasterFlowStep(step);
+  const index = MASTER_FLOW_STEPS.indexOf(normalized);
   if (index < 0) return 0;
   return Math.round((index / MASTER_FLOW_STEPS.length) * 100);
 }
 
 export function buildMasterFlowStatusView(flow: MasterFlow): MasterFlowStatusView {
-  const completed = new Set(readMasterFlowMetadata(flow).completed_steps ?? []);
-  const activeStep = flow.current_step;
-  const isComplete = flow.status === "completed" || activeStep === "done";
+  const meta = readMasterFlowMetadata(flow);
+  const completed = new Set((meta.completed_steps ?? []).map(normalizeMasterFlowStep));
+  const activeStep = normalizeMasterFlowStep(flow.current_step);
+  const isReadyToSell = isReadyToSellStatus(flow.status) || meta.commercial_status === "ready_to_sell";
+  const isComplete =
+    isReadyToSell || flow.status === "completed" || activeStep === "done";
   const isFailed = flow.status === "failed";
 
   const steps: MasterFlowStepStatus[] = MASTER_FLOW_STEPS.map((step) => {
@@ -107,8 +135,11 @@ export function buildMasterFlowStatusView(flow: MasterFlow): MasterFlowStatusVie
   return {
     flow,
     steps,
-    currentLabel: MASTER_FLOW_STEP_LABELS[activeStep],
+    currentLabel: isReadyToSell
+      ? "READY TO SELL"
+      : MASTER_FLOW_STEP_LABELS[activeStep],
     isComplete,
+    isReadyToSell,
     canRunNext: flow.status === "running" && !isComplete,
   };
 }

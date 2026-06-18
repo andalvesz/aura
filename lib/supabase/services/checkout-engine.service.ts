@@ -264,7 +264,8 @@ async function createHotmartCheckoutRecord(
 
 async function feedCheckoutIntegrations(
   checkout: CheckoutProduct,
-  context: ProductCheckoutContext
+  context: ProductCheckoutContext,
+  intentCountry?: string | null
 ): Promise<void> {
   if (!isCheckoutReady(checkout.status) || !checkout.checkout_url) return;
 
@@ -272,6 +273,7 @@ async function feedCheckoutIntegrations(
   void registerCampaignResult({
     productId: context.productId,
     sourcePlatform: "checkout_engine",
+    country: intentCountry ?? (context.currency === "USD" ? "US" : "BR"),
     revenue: context.priceCents / 100,
     spend: 0,
     roas: 0,
@@ -286,15 +288,16 @@ async function feedCheckoutIntegrations(
     } as Json,
   }).catch(() => undefined);
 
-  const { registerRevenue } = await import("./revenue-ai.service");
-  void registerRevenue({
+  const { registerTruthRevenue } = await import("./revenue-truth-engine.service");
+  void registerTruthRevenue({
     productId: context.productId,
     platform: checkout.platform,
-    country: "BR",
+    country: intentCountry ?? undefined,
     currency: context.currency,
     revenue: context.priceCents / 100,
     spend: 0,
     metricType: "estimated",
+    hasPlatformConnection: isCheckoutReady(checkout.status),
     metadata: {
       source: "checkout_engine",
       checkout_url: checkout.checkout_url,

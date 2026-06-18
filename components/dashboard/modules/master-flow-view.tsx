@@ -212,7 +212,7 @@ export function MasterFlowView() {
       {!status ? (
         <EmptyState
           title="Nenhum fluxo ativo"
-          description="Clique em Criar Negócio para iniciar o pipeline automatizado: Market Hunter → Decision Engine → Product Factory → CopyLab → Offer Engine → Funnel Engine → Funnel Pages → Creative Director → Ads Commander → Excellence."
+          description="Clique em Criar Negócio para iniciar o pipeline: Market Hunter → Decision Engine → Product Factory → CopyLab → Offer → Funnel → Checkout → Creative → Ads → Publish → Commercial Excellence → READY_TO_SELL."
         />
       ) : (
         <>
@@ -224,8 +224,14 @@ export function MasterFlowView() {
             />
             <MetricCard
               label="Status"
-              value={flow?.status ?? "—"}
-              hint={status.isComplete ? "Pipeline concluído" : "Em execução"}
+              value={status.isReadyToSell ? "READY_TO_SELL" : (flow?.status ?? "—")}
+              hint={
+                status.isReadyToSell
+                  ? "Certificado para venda"
+                  : status.isComplete
+                    ? "Pipeline concluído"
+                    : "Em execução"
+              }
             />
             <MetricCard
               label="Produto"
@@ -254,12 +260,21 @@ export function MasterFlowView() {
           {status.isComplete ? (
             <Panel>
               <PanelHeader>
-                <PanelTitle>Resultado</PanelTitle>
+                <PanelTitle>{status.isReadyToSell ? "READY TO SELL" : "Resultado"}</PanelTitle>
               </PanelHeader>
               <PanelContent className="space-y-1 text-[12px] text-zinc-300">
+                {meta.excellence_score != null ? (
+                  <p>Excellence: {String(meta.excellence_score)}/100</p>
+                ) : null}
+                {meta.checkout_url ? <p>Checkout: {String(meta.checkout_url)}</p> : null}
+                {meta.funnel_url ? <p>Funil: {String(meta.funnel_url)}</p> : null}
+                {meta.landing_url ? <p>Landing: {String(meta.landing_url)}</p> : null}
                 {flow?.product_id ? <p>Produto: {flow.product_id}</p> : null}
-                {flow?.funnel_id ? <p>Funil: {flow.funnel_id}</p> : null}
+                {flow?.funnel_id ? <p>Funil ID: {flow.funnel_id}</p> : null}
                 {flow?.campaign_id ? <p>Campanha: {flow.campaign_id}</p> : null}
+                {Array.isArray(meta.certification_gaps) && meta.certification_gaps.length > 0 ? (
+                  <p className="text-amber-300">Gaps: {(meta.certification_gaps as string[]).join(", ")}</p>
+                ) : null}
               </PanelContent>
             </Panel>
           ) : null}

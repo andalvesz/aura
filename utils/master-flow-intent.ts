@@ -213,8 +213,10 @@ export function resolveMasterFlowIntent(input?: MasterFlowIntentInput | null): M
   const country = normalizeMarketCountry(merged.country);
   const language = normalizeMarketLanguage(merged.language, country ?? merged.country);
 
+  const rawNiche = merged.niche?.trim() || parsed.niche?.trim() || null;
+
   return {
-    niche: merged.niche?.trim() || null,
+    niche: rawNiche,
     country,
     language,
     avatar: merged.avatar?.trim() || null,
