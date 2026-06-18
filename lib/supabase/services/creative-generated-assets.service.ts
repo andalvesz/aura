@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { CreativeAssetsRepository } from "@/lib/supabase/repositories/creative-factory.repository";
 import { CreativeGeneratedAssetsRepository } from "@/lib/supabase/repositories/creative-generated-assets.repository";
 import { checkCreativeFilesBucketReady } from "@/lib/supabase/services/creative-factory.service";
+import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import {
   generateRealMedia,
   isImageProviderAvailable,
@@ -29,6 +30,8 @@ import {
   resolveMediaDimensions,
 } from "@/utils/creative-media-providers";
 import { CREATIVE_FILES_BUCKET } from "@/utils/creative-factory";
+import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
+import { getWinnerContext } from "./winner-pattern.service";
 import { getOptionalDataContext } from "./context";
 
 const BUCKET = CREATIVE_FILES_BUCKET;
@@ -44,6 +47,8 @@ async function optimizePromptForRealAsset(params: {
   basePrompt: string;
   copy?: string | null;
   title?: string | null;
+  niche?: string | null;
+  country?: string | null;
 }): Promise<string> {
   const openai = getOpenAi();
   const dimensions = resolveMediaDimensions(params.assetType);
@@ -52,12 +57,19 @@ async function optimizePromptForRealAsset(params: {
     return params.basePrompt.trim() || "Professional ad creative, high quality, clean composition";
   }
 
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "creative-director",
+    niche: params.niche,
+    country: params.country,
+  });
+
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
-        content: `Você é o Creative Director da Aura — otimiza prompts para geradores de imagem (DALL-E / Flux).
+        content: applyWinnerPatternToSystemPrompt(
+          `Você é o Creative Director da Aura — otimiza prompts para geradores de imagem (DALL-E / Flux).
 Responda APENAS JSON: { "prompt": string }
 Regras:
 - Prompt final em inglês, detalhado, sem texto ilegível na imagem
@@ -65,6 +77,9 @@ Regras:
 - Estilo profissional para Meta Ads
 - Sem promessas médicas/financeiras enganosas
 - Sem logos de marcas reais`,
+          promptBlock,
+          "creative-director"
+        ),
       },
       {
         role: "user",
@@ -73,6 +88,7 @@ Regras:
           base_prompt: params.basePrompt,
           ad_copy: params.copy ?? "",
           title: params.title ?? "",
+          winnerContext,
         }),
       },
     ],
@@ -285,12 +301,24 @@ export async function generateRealCreativeAsset(input: CreativeGeneratedAssetInt
     return { asset: null, message: "", error: createError ?? "Erro ao iniciar geração." };
   }
 
+  const productId = brief?.product_id?.trim() || null;
+  let niche: string | null = null;
+  let country: string | null = null;
+  if (productId) {
+    const { bundles } = await loadCreatorBundles();
+    const productBundle = bundles.find((b) => b.product.id === productId);
+    niche = productBundle?.product.nicho ?? productBundle?.product.publico_alvo ?? null;
+    country = productBundle?.product.target_country ?? null;
+  }
+
   try {
     const optimizedPrompt = await optimizePromptForRealAsset({
       assetType: input.asset_type,
       basePrompt,
       copy: input.copy ?? brief?.copy,
       title: input.title ?? brief?.title,
+      niche,
+      country,
     });
 
     await repo.update(pending.id, {

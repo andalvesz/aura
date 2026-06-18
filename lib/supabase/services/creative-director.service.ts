@@ -8,6 +8,7 @@ import {
   downloadCreativeAsset,
   generateCreativeAsset,
 } from "@/lib/supabase/services/creative-factory.service";
+import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
 import { getMetaIntelligence } from "@/lib/supabase/services/meta-intelligence.service";
 import { linkCreativeFactoryAssetToOperation } from "@/lib/supabase/services/operation-center.service";
 import type { CreativeAsset, Json, OperationCenter } from "@/types/database";
@@ -30,6 +31,8 @@ import {
   type CreativePackageManifest,
   type CreativeScore,
 } from "@/utils/creative-director";
+import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
+import { getWinnerContext } from "./winner-pattern.service";
 import { getOptionalDataContext } from "./context";
 
 const BUCKET = "product-files";
@@ -59,9 +62,17 @@ async function evaluateCreativeScoreWithAi(params: {
   assets: CreativeAsset[];
   copyHeadline: string | null;
   metaHints: string[];
+  niche?: string | null;
+  country?: string | null;
 }): Promise<CreativeScore | null> {
   const openai = getOpenAi();
   if (!openai) return null;
+
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "creative-director",
+    niche: params.niche,
+    country: params.country,
+  });
 
   const summary = params.assets
     .filter((a) => a.status === "ready")
@@ -76,7 +87,8 @@ async function evaluateCreativeScoreWithAi(params: {
     messages: [
       {
         role: "system",
-        content: `Você é o Creative Director da Aura — avalia pacotes criativos para campanhas Meta.
+        content: applyWinnerPatternToSystemPrompt(
+          `Você é o Creative Director da Aura — avalia pacotes criativos para campanhas Meta.
 Responda APENAS JSON:
 {
   "clareza": number,
@@ -87,6 +99,9 @@ Responda APENAS JSON:
   "risco_reprovacao": number
 }
 Cada score de 0 a 100. risco_reprovacao: quanto maior, pior (mais chance de reprovação Meta).`,
+          promptBlock,
+          "creative-director"
+        ),
       },
       {
         role: "user",
@@ -94,6 +109,7 @@ Cada score de 0 a 100. risco_reprovacao: quanto maior, pior (mais chance de repr
           headline_copylab: params.copyHeadline,
           meta_rejection_hints: params.metaHints,
           assets: summary,
+          winnerContext,
         }),
       },
     ],
@@ -426,12 +442,16 @@ export async function generateCreativePackage(operationId: string): Promise<{
   const copyHeadline = await loadCopyHeadlineForOperation(operation);
   const metaHints = await loadMetaRejectionHints();
   const { data: metaData } = await getMetaIntelligence();
+  const { bundles } = await loadCreatorBundles();
+  const productBundle = bundles.find((b) => b.product.id === operation.product_id);
 
   const creativeScore =
     (await evaluateCreativeScoreWithAi({
       assets: readyAssets,
       copyHeadline,
       metaHints,
+      niche: productBundle?.product.nicho ?? productBundle?.product.publico_alvo,
+      country: productBundle?.product.target_country,
     })) ??
     computeHeuristicCreativeScore({
       assets: readyAssets,

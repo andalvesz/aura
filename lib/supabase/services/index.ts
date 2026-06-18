@@ -56,3 +56,4 @@ export * from "./offer-engine.service";
 export * from "./campaign-budget.service";
 export * from "./aura-brain.service";
 export * from "./aura-decision-engine.service";
+export * from "./winner-pattern.service";

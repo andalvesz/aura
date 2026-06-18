@@ -47,6 +47,8 @@ import {
   type ProductFactoryProAction,
 } from "@/utils/product-factory-pro";
 import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
+import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
+import { getWinnerContext } from "./winner-pattern.service";
 import { getOptionalDataContext } from "./context";
 
 const PDF_BUCKET = PRODUCT_FILES_BUCKET;
@@ -327,9 +329,24 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
   const nicheText = `${input.titulo} ${input.promessa} ${input.problema} ${input.publico ?? ""}`;
   const sensitive = detectSensitiveNiche(nicheText);
 
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "product-factory",
+    niche: input.publico ?? input.promessa,
+  });
+
   const generated = await callProductFactoryAi<ProGeneratedProduct>(
-    buildProGenerationSystemPrompt(productType, sensitive),
-    JSON.stringify({ intake: input, product_type: productType, integrations, pro_v1: true })
+    applyWinnerPatternToSystemPrompt(
+      buildProGenerationSystemPrompt(productType, sensitive),
+      promptBlock,
+      "product-factory"
+    ),
+    JSON.stringify({
+      intake: input,
+      product_type: productType,
+      integrations,
+      pro_v1: true,
+      winnerContext,
+    })
   );
 
   if (!generated?.titulo || !generated.capitulos?.length) {
@@ -437,9 +454,18 @@ export async function runProductFactoryProAction(
   const sensitive =
     detectSensitiveNiche(nicheText) || !!parseProContent(record.conteudo).sensitive_niche;
 
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "product-factory",
+    niche: record.publico ?? record.promessa,
+  });
+
   const generated = await callProductFactoryAi<ProGeneratedProduct>(
-    buildProGenerationSystemPrompt(record.product_type ?? "ebook", sensitive),
-    buildProActionPrompt(action, record)
+    applyWinnerPatternToSystemPrompt(
+      buildProGenerationSystemPrompt(record.product_type ?? "ebook", sensitive),
+      promptBlock,
+      "product-factory"
+    ),
+    `${buildProActionPrompt(action, record)}\n${JSON.stringify({ winnerContext })}`
   );
 
   if (!generated?.titulo || !generated.capitulos?.length) {

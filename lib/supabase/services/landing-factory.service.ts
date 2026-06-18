@@ -16,6 +16,9 @@ import {
   type LandingFactoryDashboardMetrics,
   type LandingFactoryIntake,
 } from "@/utils/landing-factory";
+import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
+import type { WinnerContext } from "@/utils/winner-pattern";
+import { getWinnerContext } from "./winner-pattern.service";
 import { getOptionalDataContext } from "./context";
 
 const LANDING_FACTORY_SYSTEM = `${COPYLAB_AI_CONTEXT}
@@ -145,7 +148,8 @@ async function resolveIntakeContext(input: LandingFactoryIntake): Promise<{
 function buildUserPrompt(
   input: LandingFactoryIntake,
   bundle: CreatorProductBundle | null,
-  copyContext: string
+  copyContext: string,
+  winnerContext: WinnerContext
 ): string {
   const product = bundle?.product;
   return JSON.stringify({
@@ -164,6 +168,7 @@ function buildUserPrompt(
       : null,
     copylabContext: copyContext,
     headlineHint: input.headline ?? null,
+    winnerContext,
     instruction:
       "Gere landing de alta conversão para produto digital. Status inicial será rascunho — não inclua URLs externas de checkout.",
   });
@@ -271,12 +276,18 @@ export async function generateLandingPage(input: LandingFactoryIntake): Promise<
     input.promessa?.trim() ||
     "landing";
 
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "landing-factory",
+    niche: bundle?.product.nicho ?? bundle?.product.publico_alvo,
+    country: bundle?.product.target_country,
+  });
+
   const repo = new LandingPagesRepository(ctx.supabase, ctx.userId);
   const slug = await resolveUniqueSlug(repo, titleBase);
 
   const generated = await callLandingFactoryAi<GeneratedLandingPage>(
-    LANDING_FACTORY_SYSTEM,
-    buildUserPrompt(input, bundle, copyContext)
+    applyWinnerPatternToSystemPrompt(LANDING_FACTORY_SYSTEM, promptBlock, "landing-factory"),
+    buildUserPrompt(input, bundle, copyContext, winnerContext)
   );
 
   if (!generated?.headline) {

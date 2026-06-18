@@ -23,6 +23,9 @@ import {
   type CreativeMediaProvider,
 } from "@/utils/creative-factory";
 import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
+import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
+import type { WinnerContext } from "@/utils/winner-pattern";
+import { getWinnerContext } from "./winner-pattern.service";
 import { getOptionalDataContext } from "./context";
 
 const BUCKET = CREATIVE_FILES_BUCKET;
@@ -307,7 +310,8 @@ async function resolveIntakeContext(intake: CreativeFactoryIntake): Promise<{
 function buildUserPrompt(
   intake: CreativeFactoryIntake,
   bundle: CreatorProductBundle | null,
-  copyHeadline: string | null
+  copyHeadline: string | null,
+  winnerContext: WinnerContext
 ): string {
   return JSON.stringify({
     asset_type: intake.asset_type,
@@ -318,6 +322,7 @@ function buildUserPrompt(
     solucao: intake.solucao ?? bundle?.product.solucao ?? "",
     headline: copyHeadline ?? "",
     provider: intake.provider ?? "text-only",
+    winnerContext,
   });
 }
 
@@ -476,10 +481,15 @@ export async function generateCreativeAsset(input: CreativeFactoryIntake): Promi
   }
 
   const { bundle, copyHeadline } = await resolveIntakeContext(input);
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "creative-director",
+    niche: bundle?.product.nicho ?? bundle?.product.publico_alvo,
+    country: bundle?.product.target_country,
+  });
   const promptConfig = GENERATION_PROMPTS[assetType];
   const generated = await callCreativeFactoryAi<Record<string, unknown>>(
-    promptConfig.system,
-    buildUserPrompt(input, bundle, copyHeadline)
+    applyWinnerPatternToSystemPrompt(promptConfig.system, promptBlock, "creative-director"),
+    buildUserPrompt(input, bundle, copyHeadline, winnerContext)
   );
 
   if (!generated) {

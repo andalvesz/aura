@@ -19,6 +19,8 @@ import {
   resolveCreatorLocale,
 } from "@/utils/creator-locale";
 import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
+import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
+import { getWinnerContext } from "./winner-pattern.service";
 import { getOptionalDataContext } from "./context";
 
 async function getFinanceContext(): Promise<string> {
@@ -174,8 +176,15 @@ export async function generateCopylab(input: CopylabIntake): Promise<{
     if (product) locale = resolveCreatorLocale(product);
   }
 
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "copylab",
+    niche: input.avatar ?? input.problema,
+    country: locale.target_country,
+  });
+
   const generated = await callCopylabAi<GeneratedCopylab>(
-    `${buildCopylabAiContext(locale)}
+    applyWinnerPatternToSystemPrompt(
+      `${buildCopylabAiContext(locale)}
 Gere toda a comunicação de vendas com base nos dados do produto.
 Responda APENAS JSON:
 {
@@ -205,6 +214,9 @@ Regras:
 - email_lancamento, whatsapp_venda: textos prontos para enviar
 - instagram_post, facebook_ad, google_ad: criativos com headline + corpo + CTA
 ${buildLocaleAiRules(locale)}`,
+      promptBlock,
+      "copylab"
+    ),
     JSON.stringify({
       intake: input,
       legacyContext: legacy.context ?? null,
@@ -215,6 +227,7 @@ ${buildLocaleAiRules(locale)}`,
         problema: r.problema,
         diferencial: r.diferencial_sugerido,
       })),
+      winnerContext,
     })
   );
 

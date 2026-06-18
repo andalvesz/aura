@@ -31,6 +31,9 @@ import {
   type OfferStackStrategyDecision,
   type OfferStructureSignals,
 } from "@/utils/offer-engine";
+import { logWinnerPatternApplied } from "@/utils/winner-pattern";
+import type { WinnerContext } from "@/utils/winner-pattern";
+import { getWinnerContext } from "./winner-pattern.service";
 import { getOptionalDataContext } from "./context";
 
 const OFFER_ENGINE_SYSTEM = `${COPYLAB_AI_CONTEXT}
@@ -91,14 +94,21 @@ function parseJsonBlock<T>(text: string): T | null {
   }
 }
 
-async function callOfferEngineAi<T>(user: string): Promise<T | null> {
+async function callOfferEngineAi<T>(
+  user: string,
+  winnerPromptBlock?: string
+): Promise<T | null> {
   const openai = getOpenAi();
   if (!openai) return null;
+
+  const systemPrompt = winnerPromptBlock
+    ? `${OFFER_ENGINE_SYSTEM}\n\n${winnerPromptBlock}`
+    : OFFER_ENGINE_SYSTEM;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: OFFER_ENGINE_SYSTEM },
+      { role: "system", content: systemPrompt },
       { role: "user", content: user },
     ],
     response_format: { type: "json_object" },
@@ -280,7 +290,8 @@ function buildOfferPrompt(
   context: OfferIntegrationContext,
   task: string,
   offerType: OfferType,
-  extra?: Record<string, unknown>
+  extra?: Record<string, unknown>,
+  winnerContext?: WinnerContext
 ): string {
   return JSON.stringify({
     task,
@@ -302,6 +313,7 @@ function buildOfferPrompt(
     factoryContext: context.factoryContext,
     decisionHints: context.decisionHints,
     growthHistory: context.growthHistorySummary,
+    winnerContext: winnerContext ?? null,
     marketScore: context.marketScore,
     revenueSignals: {
       conversionRate: context.revenueConversionRate,
@@ -523,16 +535,29 @@ export async function getOfferEngineDashboard(): Promise<{
   return { dashboard, stacks, error: null };
 }
 
+type WinnerPatternInjection = {
+  winnerContext: WinnerContext;
+  winnerPromptBlock: string;
+};
+
 export async function generateOrderBumpOffer(
   context: OfferIntegrationContext,
   input: OfferEngineIntake,
-  repo: OffersRepository
+  repo: OffersRepository,
+  winnerPattern?: WinnerPatternInjection
 ): Promise<{ offer: Offer | null; error: string | null }> {
   const generated = await callOfferEngineAi<{ offer: GeneratedOfferPayload }>(
-    buildOfferPrompt(context, "generate_order_bump", "order_bump", {
-      instruction: `Order bump entre 15% e 40% do ticket principal (${formatOfferPrice(context.frontPrice, context.currency)}).`,
-      price_ceiling: Math.round(context.frontPrice * 0.4 * 100) / 100,
-    })
+    buildOfferPrompt(
+      context,
+      "generate_order_bump",
+      "order_bump",
+      {
+        instruction: `Order bump entre 15% e 40% do ticket principal (${formatOfferPrice(context.frontPrice, context.currency)}).`,
+        price_ceiling: Math.round(context.frontPrice * 0.4 * 100) / 100,
+      },
+      winnerPattern?.winnerContext
+    ),
+    winnerPattern?.winnerPromptBlock
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar order bump." };
@@ -547,19 +572,27 @@ export async function generateUpsellOffer(
   context: OfferIntegrationContext,
   input: OfferEngineIntake,
   repo: OffersRepository,
-  index: number
+  index: number,
+  winnerPattern?: WinnerPatternInjection
 ): Promise<{ offer: Offer | null; error: string | null }> {
   const generated = await callOfferEngineAi<{ offer: GeneratedOfferPayload }>(
-    buildOfferPrompt(context, "generate_upsell", "upsell", {
-      upsell_index: index + 1,
-      upsell_total: context.strategy.upsellCount,
-      instruction:
-        context.frontPrice <= 97
-          ? `Upsell complementar agressivo para ticket baixo em ${context.currency}.`
-          : context.frontPrice > 197
-            ? `Upsell premium enxuto para ticket alto em ${context.country ?? "mercado"}.`
-            : `Upsell complementar equilibrado para nicho ${context.niche}.`,
-    })
+    buildOfferPrompt(
+      context,
+      "generate_upsell",
+      "upsell",
+      {
+        upsell_index: index + 1,
+        upsell_total: context.strategy.upsellCount,
+        instruction:
+          context.frontPrice <= 97
+            ? `Upsell complementar agressivo para ticket baixo em ${context.currency}.`
+            : context.frontPrice > 197
+              ? `Upsell premium enxuto para ticket alto em ${context.country ?? "mercado"}.`
+              : `Upsell complementar equilibrado para nicho ${context.niche}.`,
+      },
+      winnerPattern?.winnerContext
+    ),
+    winnerPattern?.winnerPromptBlock
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar upsell." };
@@ -574,13 +607,21 @@ export async function generateUpsellOffer(
 export async function generateDownsellOffer(
   context: OfferIntegrationContext,
   input: OfferEngineIntake,
-  repo: OffersRepository
+  repo: OffersRepository,
+  winnerPattern?: WinnerPatternInjection
 ): Promise<{ offer: Offer | null; error: string | null }> {
   const generated = await callOfferEngineAi<{ offer: GeneratedOfferPayload }>(
-    buildOfferPrompt(context, "generate_downsell", "downsell", {
-      instruction: `Downsell acessível (${context.currency}) para quem recusou upsell — ideal entre 30% e 60% do front-end.`,
-      price_ceiling: Math.round(context.frontPrice * 0.6 * 100) / 100,
-    })
+    buildOfferPrompt(
+      context,
+      "generate_downsell",
+      "downsell",
+      {
+        instruction: `Downsell acessível (${context.currency}) para quem recusou upsell — ideal entre 30% e 60% do front-end.`,
+        price_ceiling: Math.round(context.frontPrice * 0.6 * 100) / 100,
+      },
+      winnerPattern?.winnerContext
+    ),
+    winnerPattern?.winnerPromptBlock
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar downsell." };
@@ -594,12 +635,20 @@ export async function generateDownsellOffer(
 export async function generateVipOffer(
   context: OfferIntegrationContext,
   input: OfferEngineIntake,
-  repo: OffersRepository
+  repo: OffersRepository,
+  winnerPattern?: WinnerPatternInjection
 ): Promise<{ offer: Offer | null; error: string | null }> {
   const generated = await callOfferEngineAi<{ offer: GeneratedOfferPayload }>(
-    buildOfferPrompt(context, "generate_vip_offer", "vip_offer", {
-      instruction: "Oferta VIP exclusiva com acesso premium ou mentoria leve.",
-    })
+    buildOfferPrompt(
+      context,
+      "generate_vip_offer",
+      "vip_offer",
+      {
+        instruction: "Oferta VIP exclusiva com acesso premium ou mentoria leve.",
+      },
+      winnerPattern?.winnerContext
+    ),
+    winnerPattern?.winnerPromptBlock
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar oferta VIP." };
@@ -613,12 +662,20 @@ export async function generateVipOffer(
 async function generateContinuityOffer(
   context: OfferIntegrationContext,
   input: OfferEngineIntake,
-  repo: OffersRepository
+  repo: OffersRepository,
+  winnerPattern?: WinnerPatternInjection
 ): Promise<{ offer: Offer | null; error: string | null }> {
   const generated = await callOfferEngineAi<{ offer: GeneratedOfferPayload }>(
-    buildOfferPrompt(context, "generate_continuity", "continuity", {
-      instruction: "Plano de continuidade recorrente complementar à assinatura.",
-    })
+    buildOfferPrompt(
+      context,
+      "generate_continuity",
+      "continuity",
+      {
+        instruction: "Plano de continuidade recorrente complementar à assinatura.",
+      },
+      winnerPattern?.winnerContext
+    ),
+    winnerPattern?.winnerPromptBlock
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar continuidade." };
@@ -645,6 +702,14 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
   if (!productBundle) return { bundle: null, error: "Produto não encontrado." };
 
   const context = await buildIntegrationContext(productBundle.product, input);
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "offer-engine",
+    niche: context.niche,
+    country: context.country,
+  });
+  const winnerPattern: WinnerPatternInjection = { winnerContext, winnerPromptBlock: promptBlock };
+  if (promptBlock) logWinnerPatternApplied("offer-engine");
+
   const offersRepo = new OffersRepository(ctx.supabase, ctx.userId);
 
   await offersRepo.deleteByProductAndFunnel(productId, input.funnel_id ?? null);
@@ -686,27 +751,27 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
   persisted.push(frontOffer);
 
   if (context.strategy.includeOrderBump) {
-    const bump = await generateOrderBumpOffer(context, input, offersRepo);
+    const bump = await generateOrderBumpOffer(context, input, offersRepo, winnerPattern);
     if (bump.offer) persisted.push(bump.offer);
   }
 
   for (let i = 0; i < context.strategy.upsellCount; i += 1) {
-    const upsell = await generateUpsellOffer(context, input, offersRepo, i);
+    const upsell = await generateUpsellOffer(context, input, offersRepo, i, winnerPattern);
     if (upsell.offer) persisted.push(upsell.offer);
   }
 
   if (context.strategy.includeDownsell) {
-    const downsell = await generateDownsellOffer(context, input, offersRepo);
+    const downsell = await generateDownsellOffer(context, input, offersRepo, winnerPattern);
     if (downsell.offer) persisted.push(downsell.offer);
   }
 
   if (context.strategy.includeVip) {
-    const vip = await generateVipOffer(context, input, offersRepo);
+    const vip = await generateVipOffer(context, input, offersRepo, winnerPattern);
     if (vip.offer) persisted.push(vip.offer);
   }
 
   if (context.strategy.includeContinuity) {
-    const continuity = await generateContinuityOffer(context, input, offersRepo);
+    const continuity = await generateContinuityOffer(context, input, offersRepo, winnerPattern);
     if (continuity.offer) persisted.push(continuity.offer);
   }
 
