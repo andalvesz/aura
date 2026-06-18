@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { GrowthBrainDashboard } from "@/utils/growth-brain";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useGrowthBrain() {
   const [dashboard, setDashboard] = useState<GrowthBrainDashboard | null>(null);
@@ -34,9 +35,7 @@ export function useGrowthBrain() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   return { dashboard, loading, error, refresh };
 }

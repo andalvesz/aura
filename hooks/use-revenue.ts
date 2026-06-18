@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { RevenueDashboardMetrics } from "@/utils/revenue";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useRevenue() {
   const [dashboard, setDashboard] = useState<RevenueDashboardMetrics | null>(null);
@@ -34,9 +35,7 @@ export function useRevenue() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   return { dashboard, loading, error, refresh };
 }

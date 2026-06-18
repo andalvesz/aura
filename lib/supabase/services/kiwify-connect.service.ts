@@ -328,6 +328,10 @@ export async function syncKiwifyConnection() {
       },
     });
 
+    void import("./kiwify-intelligence.service")
+      .then(({ feedKiwifyIntelligenceAfterSync }) => feedKiwifyIntelligenceAfterSync())
+      .catch(() => undefined);
+
     return {
       error: null,
       synced: {

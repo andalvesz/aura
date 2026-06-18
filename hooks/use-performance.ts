@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { PerformanceInsight, PerformanceMetric, PerformanceReport } from "@/types/database";
 import type {
   PerformanceAiAnalysis,
@@ -9,6 +9,7 @@ import type {
   PerformancePanel,
 } from "@/utils/performance";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function usePerformance() {
   const [dashboard, setDashboard] = useState<PerformanceDashboardMetrics | null>(null);
@@ -71,9 +72,7 @@ export function usePerformance() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   async function generateReport() {
     setBusy(true);

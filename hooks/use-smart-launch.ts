@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { AuraSmartLaunchSession } from "@/types/database";
 import type {
   SmartLaunchCenterData,
@@ -8,6 +8,7 @@ import type {
   SmartLaunchIntake,
 } from "@/utils/smart-launch";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useSmartLaunch(sessionId?: string | null) {
   const [dashboard, setDashboard] = useState<SmartLaunchDashboardMetrics | null>(null);
@@ -51,9 +52,7 @@ export function useSmartLaunch(sessionId?: string | null) {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh(sessionId);
-  }, [refresh, sessionId]);
+  useMountFetch(() => refresh(sessionId), [refresh, sessionId]);
 
   async function prepare(input: SmartLaunchIntake) {
     setBusy(true);

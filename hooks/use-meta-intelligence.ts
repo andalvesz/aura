@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type {
   MetaAd,
   MetaAdSet,
@@ -23,6 +23,7 @@ import type {
 } from "@/utils/meta-intelligence";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { INTEGRATION_SYNC_INTERVAL_MS } from "@/utils/integrations";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useMetaIntelligence() {
   const [connection, setConnection] = useState<MetaConnection | null>(null);
@@ -95,9 +96,7 @@ export function useMetaIntelligence() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   async function connect(input: {
     accessToken: string;

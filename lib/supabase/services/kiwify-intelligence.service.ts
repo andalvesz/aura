@@ -86,43 +86,6 @@ export async function getKiwifyIntelligence(): Promise<{
 
   const insights = generateKiwifyPerformanceInsights({ metrics, products, sales });
 
-  if (connected) {
-    const topProduct = metrics.topSellingProducts[0];
-    const matchedProduct = topProduct
-      ? products.find((product) => product.id === topProduct.id || product.name === topProduct.name)
-      : null;
-    void import("./growth-brain.service")
-      .then(({ feedGrowthBrainFromKiwify }) =>
-        feedGrowthBrainFromKiwify({
-          productId: matchedProduct?.id ?? topProduct?.id ?? null,
-          productName: topProduct?.name ?? null,
-          niche:
-            matchedProduct?.metadata &&
-            typeof matchedProduct.metadata === "object" &&
-            !Array.isArray(matchedProduct.metadata)
-              ? String((matchedProduct.metadata as Record<string, unknown>).niche ?? "") || null
-              : null,
-          revenue: metrics.revenueMonthCents / 100,
-          conversionRate: metrics.conversionPct / 100,
-          recommendation: insights[0]?.recommendation ?? null,
-        })
-      )
-      .catch(() => undefined);
-
-    void import("./revenue-ai.service")
-      .then(({ feedRevenueAiFromKiwify }) =>
-        feedRevenueAiFromKiwify({
-          productId: matchedProduct?.id ?? topProduct?.id ?? null,
-          productName: topProduct?.name ?? null,
-          revenue: metrics.revenueMonthCents / 100,
-          country: "BR",
-          currency: "BRL",
-          conversions: metrics.salesTodayCount || 1,
-        })
-      )
-      .catch(() => undefined);
-  }
-
   return {
     error: null,
     data: {
@@ -135,6 +98,52 @@ export async function getKiwifyIntelligence(): Promise<{
       connected,
     },
   };
+}
+
+export async function feedKiwifyIntelligenceAfterSync(): Promise<void> {
+  const loaded = await loadKiwifyData();
+  if (loaded.error || !loaded.data) return;
+
+  const { connection, products, sales, commissions } = loaded.data;
+  if (connection?.status !== "connected") return;
+
+  const metrics = computeKiwifyIntelligenceMetrics({
+    products,
+    sales,
+    commissions,
+    connection,
+  });
+  const insights = generateKiwifyPerformanceInsights({ metrics, products, sales });
+
+  const topProduct = metrics.topSellingProducts[0];
+  const matchedProduct = topProduct
+    ? products.find((product) => product.id === topProduct.id || product.name === topProduct.name)
+    : null;
+
+  const { feedGrowthBrainFromKiwify } = await import("./growth-brain.service");
+  await feedGrowthBrainFromKiwify({
+    productId: matchedProduct?.id ?? topProduct?.id ?? null,
+    productName: topProduct?.name ?? null,
+    niche:
+      matchedProduct?.metadata &&
+      typeof matchedProduct.metadata === "object" &&
+      !Array.isArray(matchedProduct.metadata)
+        ? String((matchedProduct.metadata as Record<string, unknown>).niche ?? "") || null
+        : null,
+    revenue: metrics.revenueMonthCents / 100,
+    conversionRate: metrics.conversionPct / 100,
+    recommendation: insights[0]?.recommendation ?? null,
+  });
+
+  const { feedRevenueAiFromKiwify } = await import("./revenue-ai.service");
+  await feedRevenueAiFromKiwify({
+    productId: matchedProduct?.id ?? topProduct?.id ?? null,
+    productName: topProduct?.name ?? null,
+    revenue: metrics.revenueMonthCents / 100,
+    country: "BR",
+    currency: "BRL",
+    conversions: metrics.salesTodayCount || 1,
+  });
 }
 
 export async function getKiwifyIntelligenceContext(): Promise<{ context: string; error: string | null }> {

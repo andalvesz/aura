@@ -104,13 +104,6 @@ export async function getMetaIntelligenceFull(): Promise<{
     }
   }
 
-  void feedMetaToGrowthBrain({
-    connected,
-    metrics: d.metrics,
-    revenueCross,
-    insights,
-  }).catch(() => undefined);
-
   return {
     error: null,
     data: {
@@ -179,6 +172,18 @@ async function feedMetaToGrowthBrain(params: {
       roas: perf.roas ?? best?.roas ?? null,
     })
   );
+}
+
+export async function feedMetaIntelligenceAfterSync(): Promise<void> {
+  const result = await getMetaIntelligenceFull();
+  if (result.error || !result.data?.connected) return;
+
+  await feedMetaToGrowthBrain({
+    connected: result.data.connected,
+    metrics: result.data.metrics,
+    revenueCross: result.data.revenueCross,
+    insights: result.data.insights,
+  });
 }
 
 function formatCents(cents: number): string {

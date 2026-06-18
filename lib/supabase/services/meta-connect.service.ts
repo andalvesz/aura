@@ -615,6 +615,10 @@ export async function syncMetaConnection() {
       details: { accounts: accounts.length },
     });
 
+    void import("./meta-intelligence.service")
+      .then(({ feedMetaIntelligenceAfterSync }) => feedMetaIntelligenceAfterSync())
+      .catch(() => undefined);
+
     return { error: null, synced: accounts.length };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro na sincronização Meta.";

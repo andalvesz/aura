@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type {
   AutopilotAction,
   AutopilotControlLevel,
@@ -15,6 +15,7 @@ import type {
   ManualActionType,
 } from "@/utils/autopilot";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useAutopilot() {
   const [dashboard, setDashboard] = useState<AutopilotDashboardMetrics | null>(null);
@@ -71,9 +72,7 @@ export function useAutopilot() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   async function updateSettings(input: {
     control_level?: AutopilotControlLevel;

@@ -41,6 +41,20 @@ export class GrowthBrainMemoriesRepository extends BaseRepository<"growth_brain_
       error: error?.message ?? null,
     };
   }
+
+  async findByIdempotencyKey(idempotencyKey: string) {
+    const { data, error } = await this.supabase
+      .from("growth_brain_memories")
+      .select("*")
+      .eq("user_id", this.userId)
+      .filter("metadata->>idempotency_key", "eq", idempotencyKey)
+      .maybeSingle();
+
+    return {
+      data: (data as GrowthBrainMemory | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
 }
 
 export class GrowthPatternsRepository extends BaseRepository<"growth_patterns"> {

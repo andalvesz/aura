@@ -18,6 +18,20 @@ import {
 } from "@/utils/growth-brain";
 import { enrichGrowthProductLabelInput } from "./growth-product-label.service";
 import { getOptionalDataContext } from "./context";
+import { todayIsoDate } from "@/utils/health";
+import { buildMetricIdempotencyKey } from "@/utils/metric-idempotency";
+
+function resolveGrowthEntityId(input: GrowthResultInput): string {
+  return (
+    input.campaignId ??
+    input.operationId ??
+    input.productId ??
+    input.creativeId ??
+    input.copyId ??
+    input.landingId ??
+    "global"
+  );
+}
 
 export { resolveGrowthProductLabel, enrichGrowthProductLabelInput } from "./growth-product-label.service";
 
@@ -138,37 +152,67 @@ async function persistMemory(
     metadata: enriched.metadata as Json,
   });
 
+  const metricType = input.metricType ?? "real";
+  const idempotencyKey = buildMetricIdempotencyKey({
+    source: input.sourcePlatform ?? "growth_brain",
+    entityId: resolveGrowthEntityId({
+      ...input,
+      operationId: enriched.operationId,
+      productId: enriched.productId,
+    }),
+    metricType,
+    date: todayIsoDate(),
+  });
+
+  const payloadWithKey = {
+    ...payload,
+    metadata: {
+      ...(typeof payload.metadata === "object" && payload.metadata && !Array.isArray(payload.metadata)
+        ? (payload.metadata as Record<string, unknown>)
+        : {}),
+      idempotency_key: idempotencyKey,
+    } as Json,
+  };
+
   const repo = new GrowthBrainMemoriesRepository(ctx.supabase, ctx.userId);
-  const result = await repo.create(payload);
+  const existing = await repo.findByIdempotencyKey(idempotencyKey);
+  const result = existing.data
+    ? await repo.update(existing.data.id, payloadWithKey)
+    : await repo.create(payloadWithKey);
 
   if (result.data) {
+    const action = existing.data ? "updated" : "created";
     recordSystemLog({
       tipo: "info",
       modulo: "growth-brain-feed",
-      mensagem: `Memória registrada: ${result.data.source_platform ?? "growth_brain"}`,
+      mensagem: `Memória ${action === "updated" ? "atualizada" : "registrada"}: ${result.data.source_platform ?? "growth_brain"}`,
       detalhes: {
         memoryId: result.data.id,
         productLabel: extractProductNameFromMemory(result.data),
         metricType: readGrowthMetricType(result.data),
         sourcePlatform: result.data.source_platform,
+        idempotencyKey,
+        action,
       },
     });
 
-    void feedMarketHunterFromMemory(result.data).catch((err) => {
-      console.warn("[growth-brain-feed] Market Hunter feed failed", {
-        memoryId: result.data?.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      recordSystemLog({
-        tipo: "warning",
-        modulo: "growth-brain-feed",
-        mensagem: "Falha ao alimentar Market Hunter",
-        detalhes: {
+    if (!existing.data) {
+      void feedMarketHunterFromMemory(result.data).catch((err) => {
+        console.warn("[growth-brain-feed] Market Hunter feed failed", {
           memoryId: result.data?.id,
           error: err instanceof Error ? err.message : String(err),
-        },
+        });
+        recordSystemLog({
+          tipo: "warning",
+          modulo: "growth-brain-feed",
+          mensagem: "Falha ao alimentar Market Hunter",
+          detalhes: {
+            memoryId: result.data?.id,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        });
       });
-    });
+    }
   }
 
   return { memory: result.data, error: result.error };

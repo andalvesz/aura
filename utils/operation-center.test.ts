@@ -14,7 +14,7 @@ import {
   resolveNextExecutableOperationAction,
   selectOperationActionFromDecisionEngine,
 } from "./operation-center";
-import type { OperationCenter } from "@/types/database";
+import type { OperationCenter, CreatorProduct } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
 
 const baseOperation: OperationCenter = {
@@ -53,16 +53,13 @@ const fullBundle: CreatorProductBundle = {
     problema: null,
     solucao: null,
     promessa: null,
-    diferencial: null,
-    preco: null,
-    status: "ativo",
-    pipeline_stage: "validacao",
+    status: "validacao",
     target_country: "BR",
     target_language: "pt-BR",
     currency: "BRL",
     created_at: "",
     updated_at: "",
-  },
+  } as CreatorProduct,
   validation: null,
   offer: { id: "o1" } as never,
   launch: null,

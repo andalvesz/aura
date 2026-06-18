@@ -22,6 +22,8 @@ function makeEvento(data_inicio: string): Evento {
     local: null,
     tipo: "geral",
     growth_lead_id: null,
+    google_event_id: null,
+    google_sync_status: null,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
   };

@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { MarketHunterDashboard } from "@/utils/market-hunter";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useMarketHunter() {
   const [dashboard, setDashboard] = useState<MarketHunterDashboard | null>(null);
@@ -56,9 +57,7 @@ export function useMarketHunter() {
     }
   }, [refresh]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   return { dashboard, loading, error, refresh, analyze };
 }

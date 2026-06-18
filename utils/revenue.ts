@@ -44,6 +44,7 @@ export type RevenueProfitMetrics = {
   despesas: RevenuePeriodTotals;
   lucroLiquido: RevenuePeriodTotals;
   roiPct: number;
+  roas: number | null;
   margemPct: number;
   investimentoSugerido: number;
   metaAdsSugerido: number;
@@ -297,6 +298,13 @@ export function computeRevenueDashboard(input: RevenueComputeInput): RevenueDash
         ? 100
         : 0;
 
+  const roas =
+    resumoDespesa.month > 0
+      ? Math.round((resumoReceita.month / resumoDespesa.month) * 10000) / 10000
+      : resumoReceita.month > 0
+        ? null
+        : 0;
+
   const margemPct =
     resumoReceita.month > 0
       ? Math.round((lucroLiquido.month / resumoReceita.month) * 100)
@@ -314,6 +322,7 @@ export function computeRevenueDashboard(input: RevenueComputeInput): RevenueDash
       despesas: resumoDespesa,
       lucroLiquido,
       roiPct,
+      roas,
       margemPct,
       investimentoSugerido,
       metaAdsSugerido,
@@ -331,6 +340,7 @@ export function buildRevenueAuraContext(metrics: RevenueDashboardMetrics): strin
     `Despesas mês: ${formatBRL(metrics.lucro.despesas.month)}`,
     `Lucro líquido mês: ${formatBRL(metrics.lucro.lucroLiquido.month)}`,
     `ROI: ${metrics.lucro.roiPct}%`,
+    `ROAS: ${metrics.lucro.roas != null ? `${metrics.lucro.roas}x` : "—"}`,
     `Margem: ${metrics.lucro.margemPct}%`,
     `Investimento sugerido: ${formatBRL(metrics.lucro.investimentoSugerido)}`,
     `Meta Ads sugerido: ${formatBRL(metrics.lucro.metaAdsSugerido)}`,

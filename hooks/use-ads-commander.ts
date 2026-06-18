@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { AdsCommanderDashboard } from "@/utils/ads-commander";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useAdsCommander() {
   const [dashboard, setDashboard] = useState<AdsCommanderDashboard | null>(null);
@@ -35,9 +36,7 @@ export function useAdsCommander() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   async function prepareCampaign(params?: {
     operationId?: string;

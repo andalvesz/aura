@@ -19,7 +19,25 @@ import {
   type RevenueRegisterInput,
 } from "@/utils/revenue-ai";
 import { todayIsoDate } from "@/utils/health";
+import { buildMetricIdempotencyKey } from "@/utils/metric-idempotency";
 import { getOptionalDataContext } from "./context";
+
+function resolveRevenueEntityId(input: RevenueRegisterInput): string {
+  if (input.operationId) return input.operationId;
+  if (input.productId) return input.productId;
+  if (
+    input.metadata &&
+    typeof input.metadata === "object" &&
+    !Array.isArray(input.metadata)
+  ) {
+    const meta = input.metadata as Record<string, unknown>;
+    const campaignLabel = meta.campaign_label ?? meta.campaignLabel;
+    if (typeof campaignLabel === "string" && campaignLabel.trim()) {
+      return campaignLabel.trim();
+    }
+  }
+  return "global";
+}
 
 function toMetricPayload(
   input: RevenueRegisterInput
@@ -76,33 +94,61 @@ export async function registerRevenue(
   const ctx = await getOptionalDataContext();
   if (!ctx) return { metric: null, error: "Usuário não autenticado." };
 
+  const metricDate = input.date ?? todayIsoDate();
+  const metricType = input.metricType ?? "real";
+  const idempotencyKey = buildMetricIdempotencyKey({
+    source: input.platform ?? "revenue_ai",
+    entityId: resolveRevenueEntityId(input),
+    metricType,
+    date: metricDate,
+  });
+
+  const payload = toMetricPayload({ ...input, date: metricDate, metricType });
+  const payloadWithKey = {
+    ...payload,
+    metadata: {
+      ...(typeof payload.metadata === "object" && payload.metadata && !Array.isArray(payload.metadata)
+        ? (payload.metadata as Record<string, unknown>)
+        : {}),
+      idempotency_key: idempotencyKey,
+    } as Json,
+  };
+
   const repo = new RevenueMetricsRepository(ctx.supabase, ctx.userId);
-  const result = await repo.create(toMetricPayload(input));
+  const existing = await repo.findByIdempotencyKey(idempotencyKey);
+  const result = existing.data
+    ? await repo.update(existing.data.id, payloadWithKey)
+    : await repo.create(payloadWithKey);
 
   if (result.data) {
-    const metricType = readMetricType(result.data);
+    const savedMetricType = readMetricType(result.data);
+    const action = existing.data ? "updated" : "created";
     console.info("[revenue-ai] metric registered", {
       platform: result.data.platform,
-      metricType,
+      metricType: savedMetricType,
       revenue: result.data.revenue,
       roas: result.data.roas,
+      action,
+      idempotencyKey,
     });
 
     recordSystemLog({
       tipo: "info",
       modulo: "revenue-ai",
-      mensagem: `Métrica registrada (${metricType}): ${result.data.platform ?? "geral"}`,
+      mensagem: `Métrica ${action === "updated" ? "atualizada" : "registrada"} (${savedMetricType}): ${result.data.platform ?? "geral"}`,
       detalhes: {
         metricId: result.data.id,
         platform: result.data.platform,
-        metricType,
+        metricType: savedMetricType,
         revenue: result.data.revenue,
         roas: result.data.roas,
         roi: result.data.roi,
+        idempotencyKey,
+        action,
       },
     });
 
-    if (metricType === "real") {
+    if (savedMetricType === "real") {
       void feedGrowthBrainFromRevenueMetric(result.data).catch(() => undefined);
       const productName =
         result.data.metadata &&
@@ -188,19 +234,6 @@ export async function generateRevenueInsights(): Promise<{
   if (error) return { insights: [], error };
 
   const insights = generateRevenueInsightsFromMetrics(data ?? []);
-
-  void import("./growth-brain.service")
-    .then(({ feedGrowthBrainFromRevenue }) => {
-      const dashboard = computeRevenueAiDashboard(data ?? []);
-      if (dashboard.receitaReal <= 0) return;
-      return feedGrowthBrainFromRevenue({
-        revenue: dashboard.receitaReal,
-        spend: data?.filter((m) => readMetricType(m) === "real").reduce((sum, m) => sum + Number(m.spend ?? 0), 0) ?? 0,
-        roas: dashboard.roasMedioReal ?? 0,
-        conversionRate: dashboard.roiMedioReal != null ? dashboard.roiMedioReal / 100 : null,
-      });
-    })
-    .catch(() => undefined);
 
   return { insights, error: null };
 }
@@ -329,17 +362,6 @@ export async function feedRevenueAiFromPerformance(params: {
     roas: null,
     roi: null,
     metricType: "estimated",
-    metadata: {
-      source: "performance_ai",
-      product_label: params.productLabel,
-      roas_estimado: roasEstimado,
-      roas_real: null,
-      roi_estimado: roiEstimado,
-      roi_real: null,
-    },
+    metadata: { source: "performance_ai", product_label: params.productLabel, roas_estimado: roasEstimado, roas_real: null, roi_estimado: roiEstimado, roi_real: null },
   });
-}
-
-export async function feedRevenueAiFromSale(params: RevenueRegisterInput): Promise<void> {
-  await registerRevenue(params);
 }

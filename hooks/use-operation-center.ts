@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { CreativeAssetType, OperationCenter } from "@/types/database";
 import {
   computeOperationCenterDashboard,
@@ -8,6 +8,7 @@ import {
 } from "@/utils/operation-center";
 import { fetchJsonWithTimeout } from "@/utils/fetch-json";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export type OperationAssetType = "creatives" | "landing" | "both";
 
@@ -113,7 +114,7 @@ export function useOperationCenter() {
     }
   }, []);
 
-  useEffect(() => {
+  useMountFetch(() => {
     void (async () => {
       const timedOut = await refresh();
       if (timedOut) {

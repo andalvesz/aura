@@ -387,6 +387,18 @@ export async function feedMarketHunterFromRevenue(params: {
 
   const repo = new MarketOpportunitiesRepository(ctx.supabase, ctx.userId);
   await repo.upsertByProduct(toOpportunityPayload(candidate));
+
+  recordSystemLog({
+    tipo: "info",
+    modulo: "market-hunter",
+    mensagem: `Oportunidade atualizada via Revenue AI: ${params.productName}`,
+    detalhes: {
+      productName: params.productName,
+      platform: params.platform,
+      revenue: params.revenue,
+      roas: params.roas,
+    },
+  });
 }
 
 export async function feedMarketHunterFromKiwify(params: {
@@ -414,6 +426,17 @@ export async function feedMarketHunterFromKiwify(params: {
 
   const repo = new MarketOpportunitiesRepository(ctx.supabase, ctx.userId);
   await repo.upsertByProduct(toOpportunityPayload(candidate));
+
+  recordSystemLog({
+    tipo: "info",
+    modulo: "market-hunter",
+    mensagem: `Oportunidade atualizada via Kiwify: ${params.productName}`,
+    detalhes: {
+      productName: params.productName,
+      productId: params.productId,
+      revenue: params.revenue,
+    },
+  });
 }
 
 export async function feedMarketHunterFromOperation(params: {

@@ -6,7 +6,7 @@ import {
 import {
   KiwifySalesRepository,
 } from "@/lib/supabase/repositories/kiwify-connect.repository";
-import { getKiwifyIntelligence } from "@/lib/supabase/services/kiwify-intelligence.service";
+import { syncKiwifyConnection } from "@/lib/supabase/services/kiwify-connect.service";
 import type {
   FinancialIncome,
   Gasto,
@@ -108,32 +108,6 @@ export async function getRevenueDashboard(): Promise<{
     growthLeads: data.growthLeads,
   });
 
-  void import("./growth-brain.service")
-    .then(({ feedGrowthBrainFromRevenue }) =>
-      feedGrowthBrainFromRevenue({
-        revenue: dashboard.lucro.receita.month,
-        spend: dashboard.lucro.despesas.month,
-        roas: dashboard.lucro.roiPct,
-        conversionRate: dashboard.lucro.margemPct / 100,
-      })
-    )
-    .catch(() => undefined);
-
-  void import("./revenue-ai.service")
-    .then(({ feedRevenueAiFromSale }) =>
-      feedRevenueAiFromSale({
-        platform: "revenue_center",
-        country: "BR",
-        currency: "BRL",
-        revenue: dashboard.lucro.receita.month,
-        spend: dashboard.lucro.despesas.month,
-        roas: dashboard.lucro.roiPct,
-        roi: dashboard.lucro.roiPct,
-        metadata: { source: "revenue_center" },
-      })
-    )
-    .catch(() => undefined);
-
   return {
     dashboard,
     error: null,
@@ -152,5 +126,5 @@ export async function getRevenueContext(): Promise<{ context: string; error: str
 }
 
 export async function syncRevenueWithKiwify(): Promise<void> {
-  await getKiwifyIntelligence();
+  await syncKiwifyConnection();
 }

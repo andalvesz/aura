@@ -41,6 +41,20 @@ export class RevenueMetricsRepository extends BaseRepository<"revenue_metrics"> 
       error: error?.message ?? null,
     };
   }
+
+  async findByIdempotencyKey(idempotencyKey: string) {
+    const { data, error } = await this.supabase
+      .from("revenue_metrics")
+      .select("*")
+      .eq("user_id", this.userId)
+      .filter("metadata->>idempotency_key", "eq", idempotencyKey)
+      .maybeSingle();
+
+    return {
+      data: (data as RevenueMetric | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
 }
 
 export class RevenueForecastsRepository extends BaseRepository<"revenue_forecasts"> {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AuraGlobalSummaryData } from "@/utils/mentor";
+import type { ExecutiveReportData } from "./executive-reports";
 import {
   buildDailyExecutiveReport,
   buildWeeklyExecutiveReport,
@@ -37,17 +37,10 @@ const emptyData = {
   languageProgress: null,
   languageSessions: [],
   languageLessons: [],
-} satisfies AuraGlobalSummaryData & {
-  financialIncome: [];
-  financialGoals: [];
-  financialBalance: null;
-  alveszEventos: [];
-  weekMemories: [];
-  goals: [];
-  languageProgress: null;
-  languageSessions: [];
-  languageLessons: [];
-};
+  auraXp: null,
+  notifications: [],
+  communicationLogs: [],
+} satisfies ExecutiveReportData;
 
 describe("executive-reports", () => {
   it("formata saudação diária", () => {

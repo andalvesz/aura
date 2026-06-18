@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ExecutionTask } from "@/types/database";
 import type { DailyBriefing } from "@/utils/execution";
 import type { MissionActionId, MissionControlDashboard } from "@/utils/mission-control";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useMissionControl() {
   const [dashboard, setDashboard] = useState<MissionControlDashboard | null>(null);
@@ -47,9 +48,7 @@ export function useMissionControl() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   async function runAction(action: MissionActionId) {
     setBusy(true);

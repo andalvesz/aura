@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { AuraCeoSession } from "@/types/database";
 import {
   emptyCeoDashboard,
@@ -11,6 +11,7 @@ import {
 import type { OperationCenterDashboard } from "@/utils/operation-center";
 import { fetchJsonWithTimeout } from "@/utils/fetch-json";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export const CEO_INITIAL_LOAD_TIMEOUT_MS = 8_000;
 export const CEO_BACKGROUND_LOAD_MESSAGE =
@@ -125,9 +126,7 @@ export function useCeo() {
     void loadFullDataInBackground();
   }, [loadFullDataInBackground]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   async function createPlan(pergunta: string) {
     setBusy(true);

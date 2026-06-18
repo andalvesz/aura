@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { RevenueAiDashboard, RevenueForecastResult } from "@/utils/revenue-ai";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { useMountFetch } from "./use-mount-fetch";
 
 export function useRevenueAi() {
   const [dashboard, setDashboard] = useState<RevenueAiDashboard | null>(null);
@@ -45,9 +46,7 @@ export function useRevenueAi() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  useMountFetch(refresh, [refresh]);
 
   return { dashboard, forecast, loading, error, refresh };
 }
