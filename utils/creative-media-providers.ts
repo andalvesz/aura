@@ -87,11 +87,13 @@ export const CREATIVE_GENERATED_STATUS_LABELS: Record<
   import("@/types/database").CreativeGeneratedAssetStatus,
   string
 > = {
-  generating: "Gerando",
-  prompt_ready: "Prompt pronto",
-  ready: "Pronto",
-  failed: "Falhou",
+  briefing: "Briefing",
+  generating: "Gerando imagem",
+  reviewing: "Revisão Excellence",
+  approved: "Aprovado",
   blocked: "Bloqueado",
+  delivered: "Entregue",
+  failed: "Falhou",
 };
 
 export function resolveMediaDimensions(assetType: CreativeGeneratedAssetType): CreativeMediaDimensions {

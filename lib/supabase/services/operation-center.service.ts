@@ -9,7 +9,6 @@ import { prepareLaunch } from "@/lib/supabase/services/campaign-orchestrator.ser
 import { getCeoDashboard } from "@/lib/supabase/services/ceo.service";
 import { generateCopylab } from "@/lib/supabase/services/copylab.service";
 import { loadCreatorBundles } from "@/lib/supabase/services/creator.service";
-import { generateStudioAssets } from "@/lib/supabase/services/creative-studio.service";
 import { getExecutionDashboard, syncOperationCenterTasks } from "@/lib/supabase/services/execution.service";
 import {
   generateLandingPage,
@@ -38,7 +37,7 @@ import {
 } from "@/utils/copylab";
 import { rankProductsForLaunch, type CreatorProductBundle } from "@/utils/creator";
 import { mergeCreativeFactoryMetadata } from "@/utils/creative-factory";
-import { intakeFromProductBundle as studioIntakeFromBundle } from "@/utils/creative-studio";
+import { readCreativeDirectorMetadata } from "@/utils/creative-director";
 import { intakeFromProductBundle as landingIntakeFromBundle } from "@/utils/landing-builder";
 import {
   appendExecutiveLog,
@@ -658,6 +657,28 @@ async function logOperationAction(
   return logs;
 }
 
+async function loadCreativeGeneratedAssetsForOperation(
+  operation: OperationCenter
+): Promise<import("@/utils/creative-generated-assets").CreativeGeneratedAssetSummary[]> {
+  const director = readCreativeDirectorMetadata(operation.metadata);
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return [];
+
+  const { CreativeGeneratedAssetsRepository } = await import(
+    "@/lib/supabase/repositories/creative-generated-assets.repository"
+  );
+  const { toCreativeGeneratedAssetSummary } = await import("@/utils/creative-generated-assets");
+
+  const repo = new CreativeGeneratedAssetsRepository(ctx.supabase, ctx.userId);
+  const generatedIds = director?.generated_asset_ids ?? [];
+  const { data } =
+    generatedIds.length > 0
+      ? await repo.findByIds(generatedIds)
+      : await repo.findByOperationId(operation.id);
+
+  return (data ?? []).map(toCreativeGeneratedAssetSummary);
+}
+
 async function buildOperationCenterDashboardFromOperation(
   operation: OperationCenter
 ): Promise<OperationCenterDashboard> {
@@ -665,12 +686,14 @@ async function buildOperationCenterDashboardFromOperation(
   const bundle = await loadBundleForOperation(operation);
   const hasCreativeFactoryAssets = await loadCreativeFactoryAssetsFlag(operation.id);
   const landingPage = await loadLandingPageSummary(operation.landing_id);
+  const creativeGeneratedAssets = await loadCreativeGeneratedAssetsForOperation(operation);
   return computeOperationCenterDashboard({
     operation,
     bundle,
     ...integrations,
     hasCreativeFactoryAssets,
     landingPage,
+    creativeGeneratedAssets,
   });
 }
 
@@ -1158,6 +1181,37 @@ export async function generateOperationAssets(
     return generateOperationLandingPage(operationId);
   }
 
+  if (assetType === "creatives") {
+    const { generateCreativePackage } = await import(
+      "@/lib/supabase/services/creative-director.service"
+    );
+    const result = await generateCreativePackage(operationId);
+    if (!result.operation) {
+      return {
+        operation: null,
+        message: "",
+        error: result.error ?? "Não foi possível gerar criativos reais.",
+      };
+    }
+
+    const logs = await logOperationAction(
+      operation,
+      "generate_assets",
+      result.message,
+      { assetType: "creatives" }
+    );
+    await repo.update(operation.id, {
+      executive_logs: logsAsJson(logs),
+      status: operation.status === "draft" ? "preparing" : operation.status,
+    });
+
+    return {
+      operation: result.operation,
+      message: result.message,
+      error: result.error,
+    };
+  }
+
   const bundle = await loadBundleForOperation(operation);
   if (!bundle) {
     return { operation: null, message: "", error: "Nenhum produto vinculado à operação." };
@@ -1167,22 +1221,17 @@ export async function generateOperationAssets(
   const updates: TableUpdate<"operation_center"> = { status: "preparing" };
   const messages: string[] = [];
 
-  if (assetType === "creatives" || assetType === "both") {
-    const intake = {
-      ...studioIntakeFromBundle(bundle),
-      product_id: bundle.product.id,
-      copylab_id: operation.copylab_id ?? null,
-    };
-    const { record, error } = await generateStudioAssets(intake, "full");
-    if (record) {
-      updates.assets_id = record.id;
-      messages.push("Criativos gerados.");
-    } else if (error) {
-      messages.push(`Criativos: ${error}`);
-    }
-  }
-
   if (assetType === "both") {
+    const { generateCreativePackage } = await import(
+      "@/lib/supabase/services/creative-director.service"
+    );
+    const creativeResult = await generateCreativePackage(operationId);
+    if (creativeResult.operation) {
+      messages.push(creativeResult.message || "Criativos reais gerados.");
+    } else if (creativeResult.error) {
+      messages.push(`Criativos: ${creativeResult.error}`);
+    }
+
     const landingResult = await generateOperationLandingPage(operationId);
     if (landingResult.operation) {
       updates.landing_id = landingResult.operation.landing_id;
@@ -1192,11 +1241,19 @@ export async function generateOperationAssets(
     }
   }
 
-  if (!updates.assets_id && !updates.landing_id) {
+  if (messages.length === 0) {
     return {
       operation: null,
       message: "",
-      error: messages.join(" ") || "Não foi possível gerar os assets.",
+      error: "Não foi possível gerar os assets.",
+    };
+  }
+
+  if (!updates.landing_id && messages.some((m) => m.startsWith("Criativos:"))) {
+    return {
+      operation: null,
+      message: "",
+      error: messages.join(" "),
     };
   }
 

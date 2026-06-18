@@ -9,14 +9,14 @@ export async function POST(request: Request) {
       return Response.json({ error: "Informe operation_id." }, { status: 400 });
     }
 
-    const { package: pkg, operation, assets, message, error } =
+    const { package: pkg, operation, assets, generatedAssets, message, error } =
       await generateCreativePackage(operationId);
 
     if (error && !pkg) {
-      return Response.json({ error, assets, operation }, { status: 400 });
+      return Response.json({ error, assets, generatedAssets, operation }, { status: 400 });
     }
 
-    return Response.json({ package: pkg, operation, assets, message, error });
+    return Response.json({ package: pkg, operation, assets, generatedAssets, message, error });
   } catch {
     return Response.json({ error: "Erro ao gerar pacote criativo." }, { status: 500 });
   }

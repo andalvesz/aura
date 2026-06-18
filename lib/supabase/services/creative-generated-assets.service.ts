@@ -20,8 +20,11 @@ import {
   buildCreativeGeneratedPreviewUrl,
   buildCreativeGeneratedStoragePath,
   computeCreativeDirectorRealDashboard,
+  isCreativeGeneratedAssetDelivered,
   type CreativeDirectorRealDashboard,
   type CreativeGeneratedAssetIntake,
+  toCreativeGeneratedAssetSummary,
+  type CreativeGeneratedAssetSummary,
 } from "@/utils/creative-generated-assets";
 import {
   mapCreativeAssetToGeneratedType,
@@ -287,7 +290,7 @@ export async function generateRealCreativeAsset(input: CreativeGeneratedAssetInt
     creative_id: creativeId,
     asset_type: input.asset_type,
     provider,
-    status: "generating",
+    status: "briefing",
     prompt: basePrompt,
     metadata: {
       safe_mode: true,
@@ -323,15 +326,17 @@ export async function generateRealCreativeAsset(input: CreativeGeneratedAssetInt
 
     await repo.update(pending.id, {
       prompt: optimizedPrompt,
-      status: "prompt_ready",
+      status: "briefing",
     });
+
+    await repo.update(pending.id, { status: "reviewing" });
 
     const excellence = await reviewPromptWithExcellence({
       creativeId,
       optimizedPrompt,
       copy: input.copy ?? brief?.copy,
       title: input.title ?? brief?.title,
-      module: "creative-director-real",
+      module: "creative-director",
     });
 
     if (!excellence.approved) {
@@ -352,6 +357,19 @@ export async function generateRealCreativeAsset(input: CreativeGeneratedAssetInt
         error: excellence.error ?? "Prompt não aprovado pelo Excellence Engine.",
       };
     }
+
+    await repo.update(pending.id, {
+      status: "approved",
+      metadata: {
+        ...(pending.metadata as Record<string, unknown>),
+        prompt_excellence: {
+          score: excellence.score,
+          approved: true,
+        },
+      } as Json,
+    });
+
+    await repo.update(pending.id, { status: "generating" });
 
     const media = await generateRealMedia({
       provider,
@@ -376,7 +394,7 @@ export async function generateRealCreativeAsset(input: CreativeGeneratedAssetInt
     const downloadUrl = buildCreativeGeneratedDownloadUrl(pending.id);
 
     const { data: asset, error: updateError } = await repo.update(pending.id, {
-      status: "ready",
+      status: "delivered",
       file_url: publicUrl,
       thumbnail_url: publicUrl,
       metadata: {
@@ -475,7 +493,7 @@ export async function downloadRealCreativeAsset(assetId: string): Promise<{
     };
   }
 
-  if (asset.status !== "ready") {
+  if (!isCreativeGeneratedAssetDelivered(asset.status)) {
     return {
       buffer: null,
       fileName: "asset.png",
@@ -540,6 +558,22 @@ export async function downloadRealCreativeAsset(assetId: string): Promise<{
   };
 }
 
+export async function listGeneratedAssetsForOperation(operationId: string): Promise<{
+  assets: CreativeGeneratedAssetSummary[];
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { assets: [], error: "Usuário não autenticado." };
+
+  const repo = new CreativeGeneratedAssetsRepository(ctx.supabase, ctx.userId);
+  const { data, error } = await repo.findByOperationId(operationId);
+  if (error) return { assets: [], error };
+
+  return {
+    assets: (data ?? []).map(toCreativeGeneratedAssetSummary),
+    error: null,
+  };
+}
 export async function getRealCreativeAssetPreview(assetId: string): Promise<{
   asset: CreativeGeneratedAsset | null;
   previewUrl: string | null;
@@ -555,7 +589,7 @@ export async function getRealCreativeAssetPreview(assetId: string): Promise<{
     return { asset: null, previewUrl: null, error: error ?? "Asset não encontrado." };
   }
 
-  if (asset.status !== "ready" || !asset.file_url) {
+  if (!isCreativeGeneratedAssetDelivered(asset.status) || !asset.file_url) {
     return { asset, previewUrl: null, error: "Preview indisponível." };
   }
 

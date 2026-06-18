@@ -61,6 +61,10 @@ export function getCreativeGeneratedStatusLabel(status: CreativeGeneratedAssetSt
   return CREATIVE_GENERATED_STATUS_LABELS[status];
 }
 
+export function isCreativeGeneratedAssetDelivered(status: CreativeGeneratedAssetStatus): boolean {
+  return status === "delivered";
+}
+
 export function computeCreativeDirectorRealDashboard(
   assets: CreativeGeneratedAsset[]
 ): CreativeDirectorRealDashboard {
@@ -73,7 +77,7 @@ export function computeCreativeDirectorRealDashboard(
   for (const asset of assets) {
     byType[asset.asset_type] = (byType[asset.asset_type] ?? 0) + 1;
     byProvider[asset.provider] = (byProvider[asset.provider] ?? 0) + 1;
-    if (asset.status === "ready") ready += 1;
+    if (isCreativeGeneratedAssetDelivered(asset.status)) ready += 1;
     if (asset.status === "blocked") blocked += 1;
     if (asset.status === "failed") failed += 1;
   }
@@ -90,6 +94,33 @@ export function computeCreativeDirectorRealDashboard(
   };
 }
 
+export type CreativeGeneratedAssetSummary = {
+  id: string;
+  asset_type: CreativeGeneratedAssetType;
+  status: CreativeGeneratedAssetStatus;
+  thumbnail_url: string | null;
+  preview_url: string;
+  download_url: string;
+  title: string | null;
+  excellence_score: number | null;
+};
+
+export function toCreativeGeneratedAssetSummary(
+  asset: CreativeGeneratedAsset
+): CreativeGeneratedAssetSummary {
+  const meta = asset.metadata as Record<string, unknown> | null;
+  const excellence = readPromptExcellenceFromMetadata(meta);
+  return {
+    id: asset.id,
+    asset_type: asset.asset_type,
+    status: asset.status,
+    thumbnail_url: asset.thumbnail_url,
+    preview_url: buildCreativeGeneratedPreviewUrl(asset.id),
+    download_url: buildCreativeGeneratedDownloadUrl(asset.id),
+    title: typeof meta?.title === "string" ? meta.title : null,
+    excellence_score: excellence.score,
+  };
+}
 export function readPromptExcellenceFromMetadata(metadata: unknown): {
   score: number | null;
   approved: boolean;

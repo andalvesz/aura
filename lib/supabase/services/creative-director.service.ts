@@ -27,6 +27,7 @@ import {
   CREATIVE_DIRECTOR_SAFE_MODE,
   CREATIVE_PACKAGE_ASSET_TYPES,
   mergeCreativeDirectorMetadata,
+  readCreativeDirectorMetadata,
   type CreativePackageAssetEntry,
   type CreativePackageManifest,
   type CreativeScore,
@@ -314,8 +315,9 @@ export async function linkCreativeDirectorPackageToOperation(
   update: {
     packageId: string;
     assetIds: string[];
+    generatedAssetIds: string[];
     creativeScore: CreativeScore;
-    storagePath: string;
+    deliveredCount: number;
   }
 ): Promise<{ operation: OperationCenter | null; error: string | null }> {
   const ctx = await getOptionalDataContext();
@@ -328,11 +330,12 @@ export async function linkCreativeDirectorPackageToOperation(
   const mergedMetadata = mergeCreativeDirectorMetadata(operation.metadata, {
     package_id: update.packageId,
     asset_ids: update.assetIds,
+    generated_asset_ids: update.generatedAssetIds,
     generated_at: new Date().toISOString(),
     creative_score: update.creativeScore,
-    storage_path: update.storagePath,
-    ready: true,
+    ready: update.deliveredCount > 0,
     asset_count: update.assetIds.length,
+    delivered_count: update.deliveredCount,
   });
 
   let latestOperation = operation;
@@ -362,6 +365,7 @@ export async function generateCreativePackage(operationId: string): Promise<{
   package: CreativePackageManifest | null;
   operation: OperationCenter | null;
   assets: CreativeAsset[];
+  generatedAssets: import("@/types/database").CreativeGeneratedAsset[];
   message: string;
   error: string | null;
 }> {
@@ -371,6 +375,7 @@ export async function generateCreativePackage(operationId: string): Promise<{
       package: null,
       operation: null,
       assets: [],
+      generatedAssets: [],
       message: "",
       error: "Usuário não autenticado.",
     };
@@ -381,6 +386,7 @@ export async function generateCreativePackage(operationId: string): Promise<{
       package: null,
       operation: null,
       assets: [],
+      generatedAssets: [],
       message: "",
       error: "IA indisponível (OPENAI_API_KEY).",
     };
@@ -392,8 +398,22 @@ export async function generateCreativePackage(operationId: string): Promise<{
       package: null,
       operation: null,
       assets: [],
+      generatedAssets: [],
       message: "",
       error: "Bucket product-files não configurado no Supabase Storage.",
+    };
+  }
+
+  const imageProviderAvailable =
+    Boolean(process.env.OPENAI_API_KEY?.trim()) || Boolean(process.env.FLUX_API_KEY?.trim());
+  if (!imageProviderAvailable) {
+    return {
+      package: null,
+      operation: null,
+      assets: [],
+      generatedAssets: [],
+      message: "",
+      error: "Configure OPENAI_API_KEY ou FLUX_API_KEY para gerar imagens reais.",
     };
   }
 
@@ -404,6 +424,7 @@ export async function generateCreativePackage(operationId: string): Promise<{
       package: null,
       operation: null,
       assets: [],
+      generatedAssets: [],
       message: "",
       error: "Operação não encontrada.",
     };
@@ -434,8 +455,31 @@ export async function generateCreativePackage(operationId: string): Promise<{
       package: null,
       operation: null,
       assets: generatedAssets,
+      generatedAssets: [],
       message: "",
-      error: errors[0] ?? "Nenhum ativo foi gerado no pacote.",
+      error: errors[0] ?? "Nenhum briefing criativo foi gerado.",
+    };
+  }
+
+  const { generateRealAssetsForCreativeBriefs } = await import(
+    "./creative-generated-assets.service"
+  );
+  const { assets: realAssets, errors: realErrors } = await generateRealAssetsForCreativeBriefs(
+    readyAssets
+  );
+  const deliveredAssets = realAssets.filter((asset) => asset.status === "delivered");
+
+  if (deliveredAssets.length === 0) {
+    return {
+      package: null,
+      operation: null,
+      assets: readyAssets,
+      generatedAssets: realAssets,
+      message: "",
+      error:
+        realErrors[0] ??
+        errors[0] ??
+        "Nenhuma imagem real foi entregue. Revise o Excellence Engine ou os providers de imagem.",
     };
   }
 
@@ -459,7 +503,28 @@ export async function generateCreativePackage(operationId: string): Promise<{
       metaRejectionHints: metaHints,
     });
 
-  const assetEntries = await buildPackageAssetEntries(readyAssets);
+  const assetEntries = deliveredAssets.map((asset) => {
+    const brief = readyAssets.find((item) => item.id === asset.creative_id);
+    const assetType = brief?.asset_type ?? "image";
+    return {
+      id: asset.id,
+      asset_type: assetType,
+      title:
+        ((asset.metadata as Record<string, unknown> | null)?.title as string | null) ??
+        brief?.title ??
+        null,
+      copy: brief?.copy ?? null,
+      format: brief?.format ?? "image/png",
+      download_url: `/api/creative-director/assets/${asset.id}/download`,
+      content: {
+        real_asset_id: asset.id,
+        thumbnail_url: asset.thumbnail_url,
+        preview_url: `/api/creative-director/assets/${asset.id}/preview`,
+        provider: asset.provider,
+        status: asset.status,
+      },
+    } satisfies CreativePackageAssetEntry;
+  });
   const integrations = await feedCreativeDirectorIntegrations({
     operation,
     assets: readyAssets,
@@ -477,60 +542,44 @@ export async function generateCreativePackage(operationId: string): Promise<{
     integrations,
   });
 
-  const { storagePath, error: uploadError } = await uploadPackageManifest({
-    userId: ctx.userId,
-    operationId,
-    packageId,
-    manifest,
-  });
-
-  if (uploadError) {
-    return {
-      package: null,
-      operation: null,
-      assets: readyAssets,
-      message: "",
-      error: uploadError,
-    };
-  }
-
   const { operation: linkedOp, error: linkError } = await linkCreativeDirectorPackageToOperation(
     operationId,
     {
       packageId,
       assetIds: readyAssets.map((a) => a.id),
+      generatedAssetIds: deliveredAssets.map((a) => a.id),
       creativeScore,
-      storagePath,
+      deliveredCount: deliveredAssets.length,
     }
   );
 
-  const partialNote =
-    errors.length > 0 ? ` (${errors.length} ativo(s) com falha)` : "";
-  const message = `Pacote criativo gerado: ${readyAssets.length}/${CREATIVE_PACKAGE_ASSET_TYPES.length} ativos · Score ${creativeScore.overall}/100${partialNote}`;
+  const partialNotes = [
+    errors.length > 0 ? `${errors.length} briefing(s) com falha` : null,
+    realErrors.length > 0 ? `${realErrors.length} imagem(ns) com falha` : null,
+  ].filter(Boolean);
+  const partialNote = partialNotes.length > 0 ? ` (${partialNotes.join(" · ")})` : "";
+  const message = `Criativos reais entregues: ${deliveredAssets.length}/${CREATIVE_PACKAGE_ASSET_TYPES.length} imagens · Score ${creativeScore.overall}/100${partialNote}`;
 
   void import("./excellence-integration.service")
     .then(({ scheduleExcellenceReviews }) => {
       scheduleExcellenceReviews(
-        readyAssets.map((asset) => ({
+        deliveredAssets.map((asset) => ({
           assetType: "creative" as const,
-          assetId: asset.id,
-          label: asset.title ?? undefined,
+          assetId: asset.creative_id ?? asset.id,
+          label:
+            ((asset.metadata as Record<string, unknown> | null)?.title as string | undefined) ??
+            undefined,
         })),
         "creative-director"
       );
     })
     .catch(() => undefined);
 
-  void import("./creative-generated-assets.service")
-    .then(({ generateRealAssetsForCreativeBriefs }) =>
-      generateRealAssetsForCreativeBriefs(readyAssets)
-    )
-    .catch(() => undefined);
-
   return {
     package: manifest,
     operation: linkedOp,
     assets: readyAssets,
+    generatedAssets: deliveredAssets,
     message,
     error: linkError,
   };
@@ -540,14 +589,16 @@ export async function downloadCreativePackage(operationId: string): Promise<{
   buffer: ArrayBuffer | null;
   fileName: string;
   mimeType: string;
+  downloadUrls: string[];
   error: string | null;
 }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) {
     return {
       buffer: null,
-      fileName: "pacote-criativo.json",
-      mimeType: "application/json",
+      fileName: "criativo.png",
+      mimeType: "image/png",
+      downloadUrls: [],
       error: "Usuário não autenticado.",
     };
   }
@@ -557,108 +608,50 @@ export async function downloadCreativePackage(operationId: string): Promise<{
   if (!operation) {
     return {
       buffer: null,
-      fileName: "pacote-criativo.json",
-      mimeType: "application/json",
+      fileName: "criativo.png",
+      mimeType: "image/png",
+      downloadUrls: [],
       error: "Operação não encontrada.",
     };
   }
 
-  const metadata = operation.metadata as Record<string, unknown> | null;
-  const director = metadata?.creative_director as Record<string, unknown> | undefined;
-  const storagePath =
-    typeof director?.storage_path === "string" ? director.storage_path : null;
+  const director = readCreativeDirectorMetadata(operation.metadata);
+  const generatedRepo = new (
+    await import("@/lib/supabase/repositories/creative-generated-assets.repository")
+  ).CreativeGeneratedAssetsRepository(ctx.supabase, ctx.userId);
 
-  const repo = new CreativeAssetsRepository(ctx.supabase, ctx.userId);
-  const { data: assets } = await repo.findByOperationId(operationId);
-  const readyAssets = (assets ?? []).filter((a) => a.status === "ready");
+  const generatedIds = director?.generated_asset_ids ?? [];
+  const { data: generatedAssets } =
+    generatedIds.length > 0
+      ? await generatedRepo.findByIds(generatedIds)
+      : await generatedRepo.findByOperationId(operationId);
 
-  if (readyAssets.length === 0 && !storagePath) {
+  const deliveredAssets = (generatedAssets ?? []).filter((asset) => asset.status === "delivered");
+
+  if (deliveredAssets.length === 0) {
     return {
       buffer: null,
-      fileName: "pacote-criativo.json",
-      mimeType: "application/json",
-      error: "Nenhum pacote criativo disponível para download.",
+      fileName: "criativo.png",
+      mimeType: "image/png",
+      downloadUrls: [],
+      error: "Nenhuma imagem real entregue para download.",
     };
   }
 
-  if (readyAssets.length > 0) {
-    const { requireExcellenceDelivery } = await import("./excellence-integration.service");
-    for (const asset of readyAssets) {
-      const gate = await requireExcellenceDelivery("creative", asset.id, {
-        module: "creative-director",
-        label: asset.title ?? undefined,
-      });
-      if (!gate.allowed) {
-        return {
-          buffer: null,
-          fileName: "pacote-criativo.json",
-          mimeType: "application/json",
-          error: gate.error ?? "Pacote bloqueado pelo Aura Excellence Engine.",
-        };
-      }
-    }
-  }
+  const downloadUrls = deliveredAssets.map(
+    (asset) => `/api/creative-director/assets/${asset.id}/download`
+  );
 
-  if (storagePath) {
-    const { data, error } = await ctx.supabase.storage.from(BUCKET).download(storagePath);
-    if (!error && data) {
-      const slug = (operation.titulo ?? "operacao")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .slice(0, 40);
-
-      return {
-        buffer: await data.arrayBuffer(),
-        fileName: `pacote-criativo-${slug}.json`,
-        mimeType: "application/json",
-        error: null,
-      };
-    }
-  }
-
-  if (readyAssets.length === 0) {
-    return {
-      buffer: null,
-      fileName: "pacote-criativo.json",
-      mimeType: "application/json",
-      error: "Nenhum pacote criativo disponível para download.",
-    };
-  }
-
-  const copyHeadline = await loadCopyHeadlineForOperation(operation);
-  const creativeScore = computeHeuristicCreativeScore({ assets: readyAssets, copyHeadline });
-  const assetEntries = await buildPackageAssetEntries(readyAssets);
-
-  const manifest = buildCreativePackageManifest({
-    packageId: randomUUID(),
-    operationId,
-    productId: operation.product_id,
-    creativeScore,
-    assets: assetEntries,
-    integrations: {
-      copylab: Boolean(operation.copylab_id),
-      growth_brain: false,
-      revenue_ai: false,
-      meta_intelligence: false,
-      operation_center: true,
-    },
-  });
-
-  const content = JSON.stringify(manifest, null, 2);
-  const slug = (operation.titulo ?? "operacao")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, 40);
+  const primary = deliveredAssets[0]!;
+  const { downloadRealCreativeAsset } = await import("./creative-generated-assets.service");
+  const { buffer, fileName, mimeType, error } = await downloadRealCreativeAsset(primary.id);
 
   return {
-    buffer: new TextEncoder().encode(content).buffer,
-    fileName: `pacote-criativo-${slug}.json`,
-    mimeType: "application/json",
-    error: null,
+    buffer,
+    fileName,
+    mimeType,
+    downloadUrls,
+    error,
   };
 }
 

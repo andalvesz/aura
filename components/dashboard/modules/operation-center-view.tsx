@@ -31,6 +31,10 @@ import type { CreativeAssetType } from "@/types/database";
 import { cn } from "@/utils/cn";
 import { CREATIVE_SCORE_LABELS, getCreativeScoreColor } from "@/utils/creative-director";
 import {
+  getCreativeGeneratedAssetTypeLabel,
+  getCreativeGeneratedStatusLabel,
+} from "@/utils/creative-generated-assets";
+import {
   getOperationStatusColor,
   getOperationStatusLabel,
   getOperationStepStatusColor,
@@ -60,7 +64,6 @@ export function OperationCenterView() {
     busy,
     syncState,
     generateCopy,
-    generateAssets,
     generateCreative,
     generateCreativePackage,
     downloadCreatives,
@@ -78,16 +81,6 @@ export function OperationCenterView() {
 
   async function handleGenerateCopy() {
     const { message, error: actionError } = await generateCopy();
-    if (actionError && !message) {
-      toast.error(actionError);
-      return;
-    }
-    if (message) toast.success(message);
-    if (actionError) toast.warning(actionError);
-  }
-
-  async function handleGenerateCreatives() {
-    const { message, error: actionError } = await generateAssets("creatives");
     if (actionError && !message) {
       toast.error(actionError);
       return;
@@ -374,10 +367,88 @@ export function OperationCenterView() {
             </div>
             {dashboard.creativeDirector.ready && (
               <p className="mt-2 text-[10px] text-zinc-500">
-                Pacote com {dashboard.creativeDirector.assetCount} ativo(s) · Growth Brain, Revenue AI,
-                CopyLab, Meta Intelligence e Operation Center integrados.
+                {dashboard.creativeDirector.deliveredCount} imagem(ns) real(is) entregue(s) · Growth Brain,
+                Revenue AI, CopyLab, Meta Intelligence e Operation Center integrados.
               </p>
             )}
+          </PanelContent>
+        </Panel>
+      )}
+
+      {(dashboard?.creativeDirector?.generatedAssets?.length ?? 0) > 0 && (
+        <Panel>
+          <PanelHeader>
+            <PanelTitle className="flex items-center gap-2">
+              <Image className="size-4 text-violet-400" />
+              Criativos reais — Creative Director
+            </PanelTitle>
+          </PanelHeader>
+          <PanelContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {dashboard!.creativeDirector!.generatedAssets.map((asset) => (
+                <div
+                  key={asset.id}
+                  className="overflow-hidden rounded-md border border-white/[0.06] bg-white/[0.02]"
+                >
+                  <div className="aspect-square bg-white/[0.03]">
+                    {asset.status === "delivered" && asset.thumbnail_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={asset.thumbnail_url}
+                        alt={asset.title ?? getCreativeGeneratedAssetTypeLabel(asset.asset_type)}
+                        className="size-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-full items-center justify-center">
+                        <Image className="size-8 text-zinc-600" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-1 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[11px] font-medium text-zinc-200">
+                        {asset.title ?? getCreativeGeneratedAssetTypeLabel(asset.asset_type)}
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0 text-[10px] font-medium",
+                          asset.status === "delivered"
+                            ? "text-emerald-400"
+                            : asset.status === "blocked"
+                              ? "text-red-400"
+                              : "text-amber-400"
+                        )}
+                      >
+                        {getCreativeGeneratedStatusLabel(asset.status)}
+                      </span>
+                    </div>
+                    {asset.excellence_score != null ? (
+                      <p className="text-[10px] text-zinc-500">
+                        Excellence {asset.excellence_score}/100
+                      </p>
+                    ) : null}
+                    {asset.status === "delivered" ? (
+                      <div className="flex gap-2 pt-1">
+                        <a
+                          href={asset.preview_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-zinc-400 hover:text-zinc-200"
+                        >
+                          Preview
+                        </a>
+                        <a
+                          href={asset.download_url}
+                          className="text-[10px] text-emerald-400 hover:text-emerald-300"
+                        >
+                          Download
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
           </PanelContent>
         </Panel>
       )}
@@ -468,7 +539,7 @@ export function OperationCenterView() {
                 disabled={busy || !canMutate}
                 className="border-violet-500/30"
               >
-                Gerar Pacote Criativo
+                Gerar Criativos
               </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
@@ -476,14 +547,7 @@ export function OperationCenterView() {
                 disabled={busy || !dashboard?.creativeDirector?.ready}
                 className="border-violet-500/30"
               >
-                Baixar Pacote
-              </ActionButton>
-              <ActionButton
-                icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Image className="size-3.5" />}
-                onClick={() => void handleGenerateCreatives()}
-                disabled={busy || !canMutate}
-              >
-                Gerar Criativos (Studio)
+                Baixar Imagens
               </ActionButton>
               <ActionButton
                 icon={busy ? <Loader2 className="size-3.5 animate-spin" /> : <Image className="size-3.5" />}

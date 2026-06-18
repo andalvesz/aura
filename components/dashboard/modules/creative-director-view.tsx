@@ -43,7 +43,7 @@ function AssetRow({ asset }: { asset: import("@/types/database").CreativeGenerat
   return (
     <div className="flex flex-col gap-3 rounded-md border border-white/[0.06] p-3 sm:flex-row sm:items-start">
       <div className="shrink-0">
-        {asset.status === "ready" && asset.thumbnail_url ? (
+        {asset.status === "delivered" && asset.thumbnail_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={asset.thumbnail_url ?? buildCreativeGeneratedPreviewUrl(asset.id)}
@@ -68,7 +68,7 @@ function AssetRow({ asset }: { asset: import("@/types/database").CreativeGenerat
           <span
             className={cn(
               "text-[10px] font-medium",
-              asset.status === "ready"
+              asset.status === "delivered"
                 ? "text-emerald-400"
                 : asset.status === "blocked"
                   ? "text-red-400"
@@ -93,7 +93,7 @@ function AssetRow({ asset }: { asset: import("@/types/database").CreativeGenerat
         ) : null}
       </div>
 
-      {asset.status === "ready" ? (
+      {asset.status === "delivered" ? (
         <div className="flex shrink-0 gap-2">
           <a
             href={buildCreativeGeneratedPreviewUrl(asset.id)}

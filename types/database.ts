@@ -1000,11 +1000,13 @@ export type CreativeGeneratedAssetType =
 export type CreativeMediaProviderId = "openai" | "flux" | "runway" | "kling" | "veo";
 
 export type CreativeGeneratedAssetStatus =
+  | "briefing"
   | "generating"
-  | "prompt_ready"
-  | "ready"
-  | "failed"
-  | "blocked";
+  | "reviewing"
+  | "approved"
+  | "blocked"
+  | "delivered"
+  | "failed";
 
 export type LandingPageStatus = "draft" | "preview" | "published";
 

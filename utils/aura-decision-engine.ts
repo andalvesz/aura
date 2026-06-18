@@ -345,12 +345,17 @@ export function selectBestCreative(input: DecisionEngineInput): UnifiedDecision 
     const cd = input.operationCenter.creativeDirector;
     const score = cd.creativeScore?.overall ?? input.operationCenter.operationalScore ?? 50;
     const c = candidate(
-      `Criativos Operation Center (${cd.assetCount} assets)`,
+      `Criativos Operation Center (${cd.deliveredCount} imagens)`,
       score,
       "operation_center",
-      "Creative Director pronto na operação ativa",
+      "Creative Director com imagens reais entregues na operação ativa",
       input.operationCenter.operation?.assets_id ?? null,
-      { downloadUrl: cd.downloadUrl }
+      {
+        deliveredCount: cd.deliveredCount,
+        previewUrls: cd.generatedAssets
+          .filter((asset) => asset.status === "delivered")
+          .map((asset) => asset.preview_url),
+      }
     );
     if (c) candidates.push(c);
   }

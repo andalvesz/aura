@@ -4,7 +4,7 @@ import { getCreativeAssetTypeLabel } from "@/utils/creative-factory";
 export const CREATIVE_DIRECTOR_SAFE_MODE = {
   active: true,
   message:
-    "Creative Director gera pacotes completos e vincula à operação — não publica anúncios automaticamente.",
+    "Creative Director gera imagens reais, revisa com Excellence e salva no Storage — não publica anúncios automaticamente.",
 };
 
 /** Ativos incluídos em cada pacote criativo por operação. */
@@ -49,11 +49,13 @@ export const CREATIVE_SCORE_LABELS: Record<CreativeScoreDimension, string> = {
 export type CreativeDirectorMetadata = {
   package_id?: string;
   asset_ids?: string[];
+  generated_asset_ids?: string[];
   generated_at?: string;
   creative_score?: CreativeScore;
   storage_path?: string;
   ready?: boolean;
   asset_count?: number;
+  delivered_count?: number;
 };
 
 export type CreativePackageAssetEntry = {
@@ -123,6 +125,10 @@ export function readCreativeDirectorMetadata(metadata: unknown): CreativeDirecto
     ? director.asset_ids.filter((id): id is string => typeof id === "string")
     : undefined;
 
+  const generatedAssetIds = Array.isArray(director.generated_asset_ids)
+    ? director.generated_asset_ids.filter((id): id is string => typeof id === "string")
+    : undefined;
+
   const packageId =
     typeof director.package_id === "string" ? director.package_id : undefined;
   const generatedAt =
@@ -132,17 +138,25 @@ export function readCreativeDirectorMetadata(metadata: unknown): CreativeDirecto
   const ready = director.ready === true;
   const assetCount =
     typeof director.asset_count === "number" ? director.asset_count : assetIds?.length;
+  const deliveredCount =
+    typeof director.delivered_count === "number"
+      ? director.delivered_count
+      : generatedAssetIds?.length;
 
-  if (!packageId && !assetIds?.length && !creative_score) return null;
+  if (!packageId && !assetIds?.length && !generatedAssetIds?.length && !creative_score) {
+    return null;
+  }
 
   return {
     package_id: packageId,
     asset_ids: assetIds,
+    generated_asset_ids: generatedAssetIds,
     generated_at: generatedAt,
     creative_score,
     storage_path: storagePath,
     ready,
     asset_count: assetCount,
+    delivered_count: deliveredCount,
   };
 }
 
@@ -162,13 +176,19 @@ export function mergeCreativeDirectorMetadata(
       ...existing,
       ...update,
       asset_ids: update.asset_ids ?? existing.asset_ids,
+      generated_asset_ids: update.generated_asset_ids ?? existing.generated_asset_ids,
     },
   };
 }
 
 export function hasCreativeDirectorPackage(metadata: unknown): boolean {
   const director = readCreativeDirectorMetadata(metadata);
-  return Boolean(director?.ready && (director.asset_ids?.length ?? 0) > 0);
+  return Boolean(
+    director?.ready &&
+      ((director.generated_asset_ids?.length ?? 0) > 0 ||
+        (director.delivered_count ?? 0) > 0 ||
+        (director.asset_ids?.length ?? 0) > 0)
+  );
 }
 
 function clampScore(value: unknown): number {

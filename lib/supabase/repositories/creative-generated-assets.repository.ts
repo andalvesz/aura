@@ -47,4 +47,36 @@ export class CreativeGeneratedAssetsRepository extends BaseRepository<"creative_
       error: error?.message ?? null,
     };
   }
+
+  async findByOperationId(operationId: string) {
+    const { data, error } = await this.supabase
+      .from("creative_generated_assets")
+      .select("*")
+      .eq("user_id", this.userId)
+      .filter("metadata->>operation_id", "eq", operationId)
+      .order("created_at", { ascending: false });
+
+    return {
+      data: (data as CreativeGeneratedAsset[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findByIds(ids: string[]) {
+    if (ids.length === 0) {
+      return { data: [] as CreativeGeneratedAsset[], error: null };
+    }
+
+    const { data, error } = await this.supabase
+      .from("creative_generated_assets")
+      .select("*")
+      .eq("user_id", this.userId)
+      .in("id", ids)
+      .order("created_at", { ascending: false });
+
+    return {
+      data: (data as CreativeGeneratedAsset[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
 }

@@ -5,6 +5,7 @@ import {
   readCreativeDirectorMetadata,
   type CreativeScore,
 } from "@/utils/creative-director";
+import type { CreativeGeneratedAssetSummary } from "@/utils/creative-generated-assets";
 
 export const OPERATION_CENTER_SAFE_MODE = true;
 
@@ -103,8 +104,9 @@ export type OperationCenterDashboard = {
   creativeDirector?: {
     ready: boolean;
     assetCount: number;
+    deliveredCount: number;
     creativeScore: CreativeScore | null;
-    downloadUrl: string | null;
+    generatedAssets: CreativeGeneratedAssetSummary[];
   } | null;
 };
 
@@ -626,6 +628,7 @@ export function computeOperationCenterDashboard(params: {
   hasPerformanceReport: boolean;
   hasCreativeFactoryAssets?: boolean;
   landingPage?: OperationCenterDashboard["landingPage"];
+  creativeGeneratedAssets?: CreativeGeneratedAssetSummary[];
 }): OperationCenterDashboard {
   const {
     operation,
@@ -635,6 +638,7 @@ export function computeOperationCenterDashboard(params: {
     hasPerformanceReport,
     hasCreativeFactoryAssets,
     landingPage = null,
+    creativeGeneratedAssets = [],
   } = params;
 
   if (!operation) {
@@ -664,16 +668,29 @@ export function computeOperationCenterDashboard(params: {
   }
 
   const creativeDirectorMeta = readCreativeDirectorMetadata(operation.metadata);
+  const deliveredAssets = creativeGeneratedAssets.filter((asset) => asset.status === "delivered");
   const creativeDirector = creativeDirectorMeta
     ? {
-        ready: Boolean(creativeDirectorMeta.ready),
-        assetCount: creativeDirectorMeta.asset_count ?? creativeDirectorMeta.asset_ids?.length ?? 0,
+        ready: Boolean(creativeDirectorMeta.ready) && deliveredAssets.length > 0,
+        assetCount:
+          creativeDirectorMeta.asset_count ?? creativeDirectorMeta.asset_ids?.length ?? 0,
+        deliveredCount:
+          deliveredAssets.length ||
+          creativeDirectorMeta.delivered_count ||
+          creativeDirectorMeta.generated_asset_ids?.length ||
+          0,
         creativeScore: creativeDirectorMeta.creative_score ?? null,
-        downloadUrl: creativeDirectorMeta.ready
-          ? `/api/creative-director/download/${operation.id}`
-          : null,
+        generatedAssets: creativeGeneratedAssets,
       }
-    : null;
+    : deliveredAssets.length > 0
+      ? {
+          ready: true,
+          assetCount: deliveredAssets.length,
+          deliveredCount: deliveredAssets.length,
+          creativeScore: null,
+          generatedAssets: creativeGeneratedAssets,
+        }
+      : null;
 
   const steps = computeOperationSteps({
     operation,

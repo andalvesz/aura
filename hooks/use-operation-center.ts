@@ -382,10 +382,22 @@ export function useOperationCenter() {
     const operationId = dashboard?.operation?.id;
     if (!operationId) return { message: null, error: "Nenhuma operação ativa." };
 
+    const delivered = dashboard?.creativeDirector?.generatedAssets?.filter(
+      (asset) => asset.status === "delivered"
+    );
+    if (!delivered?.length) {
+      return { message: null, error: "Nenhuma imagem real entregue para download." };
+    }
+
     setBusy(true);
     try {
-      window.open(`/api/creative-director/download/${operationId}`, "_blank");
-      return { message: "Pacote criativo aberto para download.", error: null };
+      for (const asset of delivered) {
+        window.open(asset.download_url, "_blank");
+      }
+      return {
+        message: `${delivered.length} imagem(ns) aberta(s) para download.`,
+        error: null,
+      };
     } catch (err) {
       console.error("[useOperationCenter] downloadCreativePackage failed:", err);
       return { message: null, error: "Erro de conexão." };
@@ -397,6 +409,28 @@ export function useOperationCenter() {
   async function downloadCreatives() {
     const operationId = dashboard?.operation?.id;
     if (!operationId) return { message: null, error: "Nenhuma operação ativa.", count: 0 };
+
+    const delivered = dashboard?.creativeDirector?.generatedAssets?.filter(
+      (asset) => asset.status === "delivered"
+    );
+    if (delivered?.length) {
+      setBusy(true);
+      try {
+        for (const asset of delivered) {
+          window.open(asset.download_url, "_blank");
+        }
+        return {
+          message: `${delivered.length} imagem(ns) aberta(s) para download.`,
+          error: null,
+          count: delivered.length,
+        };
+      } catch (err) {
+        console.error("[useOperationCenter] downloadCreatives failed:", err);
+        return { message: null, error: "Erro de conexão.", count: 0 };
+      } finally {
+        setBusy(false);
+      }
+    }
 
     setBusy(true);
     try {
