@@ -1015,6 +1015,52 @@ export type LandingPage = {
   updated_at: string;
 };
 
+export type FunnelStatus = "draft" | "generating" | "ready" | "active" | "archived";
+
+export type FunnelType = "standard" | "tripwire" | "webinar" | "high_ticket";
+
+export type FunnelStepType =
+  | "front_end"
+  | "order_bump"
+  | "upsell_1"
+  | "upsell_2"
+  | "downsell"
+  | "thank_you";
+
+export type FunnelStepStatus = "suggested" | "ready" | "active" | "skipped";
+
+export type Funnel = {
+  id: string;
+  user_id: string;
+  operation_id: string | null;
+  product_id: string | null;
+  funnel_name: string;
+  niche: string | null;
+  status: FunnelStatus;
+  funnel_type: FunnelType;
+  total_steps: number;
+  expected_aov: number | null;
+  expected_conversion: number | null;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FunnelStep = {
+  id: string;
+  funnel_id: string;
+  step_order: number;
+  step_type: FunnelStepType;
+  product_id: string | null;
+  landing_id: string | null;
+  copy_id: string | null;
+  creative_id: string | null;
+  offer_id: string | null;
+  status: FunnelStepStatus;
+  metadata: Json;
+  created_at: string;
+};
+
 export type CreativeAsset = {
   id: string;
   user_id: string;
@@ -4271,6 +4317,69 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      funnels: TableDef<
+        Funnel,
+        Omit<
+          Funnel,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "operation_id"
+          | "product_id"
+          | "funnel_name"
+          | "niche"
+          | "status"
+          | "funnel_type"
+          | "total_steps"
+          | "expected_aov"
+          | "expected_conversion"
+          | "metadata"
+        > & {
+          id?: string;
+          operation_id?: string | null;
+          product_id?: string | null;
+          funnel_name?: string;
+          niche?: string | null;
+          status?: FunnelStatus;
+          funnel_type?: FunnelType;
+          total_steps?: number;
+          expected_aov?: number | null;
+          expected_conversion?: number | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      funnel_steps: TableDef<
+        FunnelStep,
+        Omit<
+          FunnelStep,
+          | "id"
+          | "created_at"
+          | "step_order"
+          | "step_type"
+          | "product_id"
+          | "landing_id"
+          | "copy_id"
+          | "creative_id"
+          | "offer_id"
+          | "status"
+          | "metadata"
+        > & {
+          id?: string;
+          funnel_id: string;
+          step_order?: number;
+          step_type?: FunnelStepType;
+          product_id?: string | null;
+          landing_id?: string | null;
+          copy_id?: string | null;
+          creative_id?: string | null;
+          offer_id?: string | null;
+          status?: FunnelStepStatus;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       platform_connections: TableDef<
         PlatformConnection,
         Omit<
@@ -5174,6 +5283,7 @@ export type UserScopedTable =
   | "creative_assets"
   | "ad_campaigns"
   | "landing_pages"
+  | "funnels"
   | "platform_connections"
   | "platform_sync_logs"
   | "affiliate_products"

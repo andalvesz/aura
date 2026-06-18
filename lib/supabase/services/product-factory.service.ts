@@ -385,6 +385,22 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
   const bundle = refreshed
     ? await loadBundleForFactory(refreshed as ProductFactory)
     : await loadBundleForFactory(draftFactory);
+
+  const productId = refreshed?.product_id ?? input.product_id ?? factory.product_id;
+  if (productId) {
+    void import("./funnel-engine.service")
+      .then((mod) =>
+        mod.generateFunnel({
+          product_id: productId,
+          copylab_id: input.copylab_id ?? refreshed?.copylab_id ?? null,
+          factory_id: refreshed?.id ?? factory.id,
+          funnel_name: generated.titulo ?? input.titulo,
+          niche: input.publico ?? input.avatar,
+        })
+      )
+      .catch((err) => console.error("[funnel-engine] auto-generate failed", err));
+  }
+
   return { bundle, error: null };
 }
 

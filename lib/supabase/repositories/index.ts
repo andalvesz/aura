@@ -89,3 +89,4 @@ export {
   ProductVersionsRepository,
   ProductComplianceChecksRepository,
 } from "./product-factory.repository";
+export { FunnelsRepository, FunnelStepsRepository } from "./funnel-engine.repository";
