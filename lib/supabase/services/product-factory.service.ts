@@ -22,6 +22,7 @@ import type {
   ProductFile,
   ProductVersionLabel,
   TableInsert,
+  Json,
 } from "@/types/database";
 import {
   computeProductFactoryDashboard,
@@ -33,6 +34,18 @@ import {
   type ProductFactoryDashboardMetrics,
   type ProductFactoryIntake,
 } from "@/utils/product-factory";
+import {
+  buildProActionPrompt,
+  buildProGenerationSystemPrompt,
+  computeProductQualityScore,
+  detectSensitiveNiche,
+  mergeQualityIntoContent,
+  normalizeProGenerated,
+  parseProContent,
+  PRODUCT_NOT_READY_MESSAGE,
+  type ProGeneratedProduct,
+  type ProductFactoryProAction,
+} from "@/utils/product-factory-pro";
 import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
 import { getOptionalDataContext } from "./context";
 
@@ -239,6 +252,64 @@ export async function getProductFactoryDashboard(): Promise<{
   };
 }
 
+export type { ProductFactoryProAction } from "@/utils/product-factory-pro";
+
+async function persistComplianceFromGenerated(
+  complianceRepo: ProductComplianceChecksRepository,
+  factoryId: string,
+  compliance: GeneratedProductFactory["compliance"]
+) {
+  await complianceRepo.create({
+    factory_id: factoryId,
+    risk_score: compliance.risk_score,
+    risk_level: compliance.risk_level,
+    forbidden_claims: compliance.forbidden_claims,
+    misleading_risks: compliance.misleading_risks,
+    ad_checklist: compliance.ad_checklist,
+    recommendations: compliance.recommendations,
+    status: compliance.status,
+    notes: compliance.notes,
+  });
+}
+
+function buildFactoryPayloadFromPro(
+  generated: ProGeneratedProduct,
+  input: ProductFactoryIntake,
+  productType: ProductFactoryType,
+  sensitive: boolean
+) {
+  const { capitulos, conteudo, design } = normalizeProGenerated(generated, sensitive);
+  return {
+    product_id: input.product_id ?? null,
+    copylab_id: input.copylab_id ?? null,
+    research_id: input.research_id ?? null,
+    product_type: productType,
+    titulo: generated.titulo,
+    subtitulo: generated.subtitulo ?? input.subtitulo ?? null,
+    promessa: generated.promessa,
+    avatar: input.avatar || null,
+    publico: generated.publico ?? input.publico ?? null,
+    objetivo: generated.objetivo ?? input.objetivo ?? null,
+    problema: input.problema || null,
+    solucao: input.solucao || null,
+    capitulos,
+    conteudo,
+    exercicios: generated.exercicios ?? [],
+    bonus: generated.bonus,
+    checklist: generated.checklist ?? [],
+    conclusao: generated.conclusao,
+    design,
+    status: "design_ready" as const,
+  };
+}
+
+export function evaluateProductQuality(
+  factory: ProductFactory,
+  compliance?: ProductComplianceCheck | null
+) {
+  return computeProductQualityScore(factory, compliance ?? null);
+}
+
 export async function generateProductFactory(input: ProductFactoryIntake): Promise<{
   bundle: ProductFactoryBundle | null;
   error: string | null;
@@ -252,54 +323,13 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
   }
 
   const integrations = await buildIntegrationContext();
-
   const productType: ProductFactoryType = input.product_type ?? "ebook";
+  const nicheText = `${input.titulo} ${input.promessa} ${input.problema} ${input.publico ?? ""}`;
+  const sensitive = detectSensitiveNiche(nicheText);
 
-  const generated = await callProductFactoryAi<GeneratedProductFactory>(
-    `Você é a Aura Product Factory — cria produtos digitais completos para o mercado brasileiro.
-Tipo de produto: ${productType}
-Responda APENAS JSON:
-{
-  "titulo": string,
-  "subtitulo": string,
-  "promessa": string,
-  "publico": string,
-  "objetivo": string,
-  "capitulos": [{ "titulo": string, "resumo": string, "conteudo": string }],
-  "conteudo": { "introducao": string, "metodologia": string, "proximos_passos": string },
-  "exercicios": [{ "titulo": string, "instrucao": string, "reflexao": string }],
-  "bonus": string,
-  "checklist": [{ "item": string, "descricao": string }],
-  "conclusao": string,
-  "design": {
-    "capa": string,
-    "paleta": string[],
-    "estilo_visual": string,
-    "paginas_internas": string,
-    "mockup_textual": string,
-    "tipografia": string,
-    "moodboard": string
-  },
-  "compliance": {
-    "risk_score": number,
-    "risk_level": "low" | "medium" | "high",
-    "forbidden_claims": string[],
-    "misleading_risks": string[],
-    "ad_checklist": [{ "item": string, "status": "ok" | "atencao" | "bloqueado", "nota": string }],
-    "recommendations": string[],
-    "status": "pass" | "warning" | "fail",
-    "notes": string
-  }
-}
-Regras:
-- Adapte estrutura ao tipo (${productType}): capítulos, dias ou módulos conforme o formato
-- Mínimo 4 seções/capítulos com conteúdo prático
-- Mínimo 3 exercícios quando aplicável
-- Checklist final com 5+ itens acionáveis
-- Design com paleta de 3-5 cores hex e layout textual
-- Compliance rigoroso: nunca prometa resultados garantidos; evite claims médicos/financeiros proibidos
-- Português do Brasil`,
-    JSON.stringify({ intake: input, product_type: productType, integrations })
+  const generated = await callProductFactoryAi<ProGeneratedProduct>(
+    buildProGenerationSystemPrompt(productType, sensitive),
+    JSON.stringify({ intake: input, product_type: productType, integrations, pro_v1: true })
   );
 
   if (!generated?.titulo || !generated.capitulos?.length) {
@@ -310,32 +340,11 @@ Regras:
   const complianceRepo = new ProductComplianceChecksRepository(ctx.supabase, ctx.userId);
   const versionsRepo = new ProductVersionsRepository(ctx.supabase, ctx.userId);
 
-  const conteudo = {
-    ...generated.conteudo,
-    ...(generated.proximos_passos ? { proximos_passos: generated.proximos_passos } : {}),
-  };
+  const payload = buildFactoryPayloadFromPro(generated, input, productType, sensitive);
 
   const { data: factory, error: createError } = await factoryRepo.create({
-    product_id: input.product_id ?? null,
-    copylab_id: input.copylab_id ?? null,
-    research_id: input.research_id ?? null,
-    product_type: productType,
-    titulo: generated.titulo,
-    subtitulo: generated.subtitulo ?? input.subtitulo ?? null,
-    promessa: generated.promessa,
-    avatar: input.avatar || null,
-    publico: generated.publico ?? input.publico ?? null,
-    objetivo: generated.objetivo ?? input.objetivo ?? null,
-    problema: input.problema || null,
-    solucao: input.solucao || null,
-    capitulos: generated.capitulos,
-    conteudo,
-    exercicios: generated.exercicios,
-    bonus: generated.bonus,
-    checklist: generated.checklist,
-    conclusao: generated.conclusao,
-    design: generated.design,
-    status: "design_ready",
+    ...payload,
+    conteudo: payload.conteudo as Json,
     current_version: 1,
   } satisfies Omit<TableInsert<"product_factory">, "user_id">);
 
@@ -343,18 +352,19 @@ Regras:
     return { bundle: null, error: createError ?? "Erro ao salvar produto." };
   }
 
-  const compliance = generated.compliance;
-  await complianceRepo.create({
-    factory_id: factory.id,
-    risk_score: compliance.risk_score,
-    risk_level: compliance.risk_level,
-    forbidden_claims: compliance.forbidden_claims,
-    misleading_risks: compliance.misleading_risks,
-    ad_checklist: compliance.ad_checklist,
-    recommendations: compliance.recommendations,
-    status: compliance.status,
-    notes: compliance.notes,
-  });
+  await persistComplianceFromGenerated(complianceRepo, factory.id, generated.compliance);
+
+  const draftFactory = { ...factory, ...payload, conteudo: payload.conteudo } as ProductFactory;
+  const quality = computeProductQualityScore(draftFactory, {
+    status: generated.compliance.status,
+    risk_score: generated.compliance.risk_score,
+    forbidden_claims: generated.compliance.forbidden_claims,
+  } as ProductComplianceCheck);
+  const enrichedContent = mergeQualityIntoContent(
+    payload.conteudo as Record<string, unknown>,
+    quality
+  );
+  await factoryRepo.update(factory.id, { conteudo: enrichedContent as Json });
 
   await versionsRepo.create({
     factory_id: factory.id,
@@ -363,24 +373,135 @@ Regras:
     snapshot: {
       titulo: generated.titulo,
       promessa: generated.promessa,
-      capitulos: generated.capitulos,
-      design: generated.design,
+      capitulos: payload.capitulos,
+      design: payload.design,
+      quality_score: quality.score,
     },
-    changelog: "v1 — Rascunho gerado pela Aura Product Factory",
+    changelog: "v1 — Rascunho Pro V1 gerado pela Aura Product Factory",
     file_id: null,
   });
 
-  const bundle = await loadBundleForFactory(factory as ProductFactory);
+  const { data: refreshed } = await factoryRepo.findById(factory.id);
+  const bundle = refreshed
+    ? await loadBundleForFactory(refreshed as ProductFactory)
+    : await loadBundleForFactory(draftFactory);
   return { bundle, error: null };
+}
+
+export async function runProductFactoryProAction(
+  factoryId: string,
+  action: ProductFactoryProAction
+): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { bundle: null, error: "Usuário não autenticado." };
+  if (!getOpenAi()) return { bundle: null, error: "IA indisponível (OPENAI_API_KEY)." };
+
+  const factoryRepo = new ProductFactoryRepository(ctx.supabase, ctx.userId);
+  const complianceRepo = new ProductComplianceChecksRepository(ctx.supabase, ctx.userId);
+  const versionsRepo = new ProductVersionsRepository(ctx.supabase, ctx.userId);
+
+  const { data: factory, error: findError } = await factoryRepo.findById(factoryId);
+  if (findError || !factory) {
+    return { bundle: null, error: findError ?? "Produto não encontrado." };
+  }
+
+  const record = factory as ProductFactory;
+  const nicheText = `${record.titulo} ${record.promessa} ${record.problema} ${record.publico ?? ""}`;
+  const sensitive =
+    detectSensitiveNiche(nicheText) || !!parseProContent(record.conteudo).sensitive_niche;
+
+  const generated = await callProductFactoryAi<ProGeneratedProduct>(
+    buildProGenerationSystemPrompt(record.product_type ?? "ebook", sensitive),
+    buildProActionPrompt(action, record)
+  );
+
+  if (!generated?.titulo || !generated.capitulos?.length) {
+    return { bundle: null, error: "Não foi possível aplicar a ação Pro." };
+  }
+
+  const intake: ProductFactoryIntake = {
+    titulo: record.titulo ?? "",
+    subtitulo: record.subtitulo ?? "",
+    promessa: record.promessa ?? "",
+    avatar: record.avatar ?? "",
+    publico: record.publico ?? "",
+    objetivo: record.objetivo ?? "",
+    problema: record.problema ?? "",
+    solucao: record.solucao ?? "",
+    product_type: record.product_type ?? "ebook",
+    product_id: record.product_id,
+    copylab_id: record.copylab_id,
+    research_id: record.research_id,
+  };
+
+  const payload = buildFactoryPayloadFromPro(
+    generated,
+    intake,
+    record.product_type ?? "ebook",
+    sensitive
+  );
+
+  const nextVersion = record.current_version + 1;
+  const previewBundle = await loadBundleForFactory(record);
+  const quality = computeProductQualityScore(
+    { ...record, ...payload, conteudo: payload.conteudo } as ProductFactory,
+    previewBundle.compliance
+  );
+  const enrichedContent = mergeQualityIntoContent(
+    payload.conteudo as Record<string, unknown>,
+    quality
+  );
+
+  const { error: updateError } = await factoryRepo.update(factoryId, {
+    ...payload,
+    conteudo: enrichedContent as Json,
+    current_version: nextVersion,
+    status: quality.readyToSell ? "content_ready" : "design_ready",
+  });
+
+  if (updateError) return { bundle: null, error: updateError };
+
+  if (action === "improve" || action === "premium" || action === "expand_content") {
+    await persistComplianceFromGenerated(complianceRepo, factoryId, generated.compliance);
+  }
+
+  const actionLabels: Record<ProductFactoryProAction, string> = {
+    improve: "Melhorar Produto",
+    regenerate_design: "Regenerar Design",
+    expand_content: "Expandir Conteúdo",
+    premium: "Versão Premium",
+  };
+
+  await versionsRepo.create({
+    factory_id: factoryId,
+    version_number: nextVersion,
+    version_label: nextVersion >= 3 ? "final" : nextVersion === 2 ? "revisado" : "rascunho",
+    snapshot: {
+      titulo: generated.titulo,
+      promessa: generated.promessa,
+      capitulos: payload.capitulos,
+      design: payload.design,
+      quality_score: quality.score,
+      action,
+    },
+    changelog: `v${nextVersion} — ${actionLabels[action]} · score ${quality.score}`,
+    file_id: null,
+  });
+
+  const { data: refreshed } = await factoryRepo.findById(factoryId);
+  if (!refreshed) return { bundle: null, error: "Erro ao recarregar produto." };
+  return { bundle: await loadBundleForFactory(refreshed as ProductFactory), error: null };
 }
 
 export async function publishProductFactoryPdf(input: {
   factory_id: string;
   pdf_base64: string;
+  premium?: boolean;
 }): Promise<{
   file: ProductFile | null;
   bundle: ProductFactoryBundle | null;
   error: string | null;
+  qualityScore?: number;
 }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return { file: null, bundle: null, error: "Usuário não autenticado." };
@@ -410,6 +531,23 @@ export async function publishProductFactoryPdf(input: {
     return { file: null, bundle: null, error: findError ?? "Produto não encontrado." };
   }
 
+  const bundlePreview = await loadBundleForFactory(factory as ProductFactory);
+  const quality = computeProductQualityScore(factory as ProductFactory, bundlePreview.compliance);
+
+  if (!quality.readyToSell) {
+    console.warn("[product-factory] publish blocked by quality score", {
+      factoryId,
+      score: quality.score,
+      issues: quality.issues,
+    });
+    return {
+      file: null,
+      bundle: bundlePreview,
+      error: PRODUCT_NOT_READY_MESSAGE,
+      qualityScore: quality.score,
+    };
+  }
+
   const storageReady = await checkProductFilesBucketReady();
   if (!storageReady) {
     return { file: null, bundle: null, error: STORAGE_BUCKET_WARNING };
@@ -423,8 +561,9 @@ export async function publishProductFactoryPdf(input: {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .slice(0, 40);
-  const storagePath = `${ctx.userId}/${factoryId}/${slug}-v${nextVersion}.pdf`;
-  const fileName = `${slug}-v${nextVersion}.pdf`;
+  const premiumSuffix = input.premium ? "-premium" : "";
+  const storagePath = `${ctx.userId}/${factoryId}/${slug}-v${nextVersion}${premiumSuffix}.pdf`;
+  const fileName = `${slug}-v${nextVersion}${premiumSuffix}.pdf`;
 
   const { error: uploadError } = await ctx.supabase.storage
     .from(PDF_BUCKET)
@@ -519,6 +658,11 @@ export async function publishProductFactoryPdf(input: {
   await factoryRepo.update(factoryId, {
     current_version: nextVersion,
     status: "pdf_ready",
+    conteudo: mergeQualityIntoContent(
+      (factory.conteudo as Record<string, unknown>) ?? {},
+      quality,
+      { ready_to_sell: true }
+    ) as Json,
   });
 
   await versionsRepo.create({
@@ -540,7 +684,7 @@ export async function publishProductFactoryPdf(input: {
     ? await loadBundleForFactory(updatedFactory as ProductFactory)
     : null;
 
-  return { file: persistedFile, bundle, error: null };
+  return { file: persistedFile, bundle, error: null, qualityScore: quality.score };
 }
 
 export async function downloadProductFactoryPdf(fileId: string): Promise<{

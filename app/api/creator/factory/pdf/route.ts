@@ -8,6 +8,7 @@ export async function POST(req: Request) {
     const { data: body, error: bodyError } = await parseRequestJson<{
       factory_id?: string;
       pdf_base64?: string;
+      premium?: boolean;
     }>(req);
 
     if (bodyError || !body) {
@@ -24,16 +25,17 @@ export async function POST(req: Request) {
       return Response.json({ error: "pdf_base64 é obrigatório." }, { status: 400 });
     }
 
-    const { file, bundle, error } = await publishProductFactoryPdf({
+    const { file, bundle, error, qualityScore } = await publishProductFactoryPdf({
       factory_id: factoryId,
       pdf_base64: pdfBase64,
+      premium: body.premium === true,
     });
 
     if (error) {
-      return Response.json({ error }, { status: 400 });
+      return Response.json({ error, qualityScore, bundle }, { status: 400 });
     }
 
-    return Response.json({ file, bundle });
+    return Response.json({ file, bundle, qualityScore });
   } catch {
     return Response.json({ error: "Erro ao publicar PDF." }, { status: 500 });
   }

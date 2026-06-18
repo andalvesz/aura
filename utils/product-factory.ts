@@ -49,6 +49,11 @@ export type ProductFactoryChapter = {
   titulo: string;
   resumo: string;
   conteudo: string;
+  explicacao?: string;
+  exemplo?: string;
+  aplicacao_pratica?: string;
+  exercicio?: string;
+  checklist?: string;
 };
 
 export type ProductFactoryExercise = {
@@ -70,6 +75,7 @@ export type ProductFactoryDesign = {
   mockup_textual: string;
   tipografia: string;
   moodboard: string;
+  template_id?: string;
 };
 
 export type ProductFactoryComplianceItem = {
@@ -179,6 +185,7 @@ export function parseDesign(value: unknown): ProductFactoryDesign {
     mockup_textual: raw.mockup_textual ?? "",
     tipografia: raw.tipografia ?? "",
     moodboard: raw.moodboard ?? "",
+    template_id: raw.template_id,
   };
 }
 

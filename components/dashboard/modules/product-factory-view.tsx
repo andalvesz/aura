@@ -10,6 +10,10 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Wand2,
+  Layers,
+  Maximize2,
+  Crown,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -49,7 +53,61 @@ import {
   productTypeLabel,
   versionLabelText,
 } from "@/utils/product-factory";
+import type { ProductFactoryProAction } from "@/utils/product-factory-pro";
+import {
+  computeProductQualityScore,
+  parseProContent,
+  PRODUCT_NOT_READY_MESSAGE,
+  PRODUCT_QUALITY_MIN_SCORE,
+} from "@/utils/product-factory-pro";
 import { cn } from "@/utils/cn";
+
+function QualityScorePanel({ bundle }: { bundle: ProductFactoryBundle }) {
+  const pro = parseProContent(bundle.factory.conteudo);
+  const quality = computeProductQualityScore(bundle.factory, bundle.compliance);
+  const score = pro.quality_score ?? quality.score;
+  const ready = pro.ready_to_sell ?? quality.readyToSell;
+  const issues = pro.quality_issues ?? quality.issues;
+
+  return (
+    <div
+      className={cn(
+        "rounded-md border p-3",
+        ready
+          ? "border-emerald-500/20 bg-emerald-500/[0.04]"
+          : "border-amber-500/20 bg-amber-500/[0.04]"
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-zinc-200">Product Quality Score</p>
+        <span
+          className={cn(
+            "rounded-md px-2 py-0.5 text-[11px] font-semibold",
+            score >= PRODUCT_QUALITY_MIN_SCORE
+              ? "bg-emerald-500/15 text-emerald-300"
+              : "bg-amber-500/15 text-amber-300"
+          )}
+        >
+          {score}/100
+        </span>
+      </div>
+      <p className="mt-1 text-[10px] text-zinc-500">
+        ~{pro.estimated_pages ?? quality.estimatedPages} páginas estimadas · mínimo{" "}
+        {PRODUCT_QUALITY_MIN_SCORE} para vender
+      </p>
+      {!ready && (
+        <p className="mt-2 text-[11px] text-amber-200">{PRODUCT_NOT_READY_MESSAGE}</p>
+      )}
+      {issues.length > 0 && (
+        <ul className="mt-2 list-inside list-disc text-[10px] text-zinc-500">
+          {issues.slice(0, 4).map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 const EMPTY_INTAKE: ProductFactoryIntake = {
   titulo: "",
@@ -182,13 +240,17 @@ function FactoryDetail({
   bundle,
   onDelete,
   onPublishPdf,
+  onPublishPremiumPdf,
   onRunCompliance,
+  onProAction,
   busy,
 }: {
   bundle: ProductFactoryBundle;
   onDelete: () => void;
   onPublishPdf: () => void;
+  onPublishPremiumPdf: () => void;
   onRunCompliance: () => void;
+  onProAction: (action: ProductFactoryProAction) => void;
   busy: boolean;
 }) {
   const { factory, latestPdf, compliance, versions } = bundle;
@@ -197,9 +259,13 @@ function FactoryDetail({
   const chapters = parseJsonArray<ProductFactoryChapter>(factory.capitulos);
   const exercises = parseJsonArray<ProductFactoryExercise>(factory.exercicios);
   const checklist = parseJsonArray<ProductFactoryChecklistItem>(factory.checklist);
+  const pro = parseProContent(factory.conteudo);
+  const quality = computeProductQualityScore(factory, compliance);
+  const readyToSell = pro.ready_to_sell ?? quality.readyToSell;
 
   return (
     <div className="space-y-3 text-[12px]">
+      <QualityScorePanel bundle={bundle} />
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-md bg-violet-500/15 px-2 py-0.5 text-[10px] text-violet-300">
           {factoryStatusLabel(factory.status)}
@@ -384,15 +450,54 @@ function FactoryDetail({
       )}
 
       <div className="flex flex-wrap gap-2 border-t border-white/[0.06] pt-3">
+        <ActionButton onClick={() => onProAction("improve")} disabled={busy} className="gap-1.5">
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+          Melhorar Produto
+        </ActionButton>
         <ActionButton
-          onClick={onPublishPdf}
+          variant="ghost"
+          onClick={() => onProAction("regenerate_design")}
           disabled={busy}
           className="gap-1.5"
         >
+          <Palette className="h-3 w-3" />
+          Regenerar Design
+        </ActionButton>
+        <ActionButton
+          variant="ghost"
+          onClick={() => onProAction("expand_content")}
+          disabled={busy}
+          className="gap-1.5"
+        >
+          <Maximize2 className="h-3 w-3" />
+          Expandir Conteúdo
+        </ActionButton>
+        <ActionButton
+          variant="ghost"
+          onClick={() => onProAction("premium")}
+          disabled={busy}
+          className="gap-1.5"
+        >
+          <Crown className="h-3 w-3" />
+          Gerar Versão Premium
+        </ActionButton>
+        <ActionButton onClick={onPublishPdf} disabled={busy} className="gap-1.5">
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
           {latestPdf ? "Atualizar PDF" : "Gerar PDF"}
         </ActionButton>
-        {latestPdf?.id && (
+        <ActionButton
+          onClick={onPublishPremiumPdf}
+          disabled={busy || !readyToSell}
+          className="gap-1.5"
+        >
+          {busy ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <Layers className="h-3 w-3" />
+          )}
+          Baixar PDF Premium
+        </ActionButton>
+        {latestPdf?.id && readyToSell && (
           <a
             href={buildProductFactoryDownloadUrl(latestPdf.id)}
             download={latestPdf.file_name ?? "ebook.pdf"}
@@ -436,6 +541,7 @@ export function ProductFactoryView() {
     busy,
     generate,
     publishPdf,
+    runProAction,
     runCompliance,
     removeRecord,
   } = useProductFactory();
@@ -473,28 +579,49 @@ export function ProductFactoryView() {
     }
     if (bundle) {
       setSelectedId(bundle.factory.id);
-      toast.success("E-book gerado com sucesso!");
+      toast.success("Produto Pro V1 gerado com sucesso!");
     }
   }
 
-  async function handlePublishPdf(bundle: ProductFactoryBundle) {
+  async function handlePublishPdf(bundle: ProductFactoryBundle, premium = false) {
     try {
-      const bytes = await generateProductFactoryPdf(bundle.factory);
+      const bytes = await generateProductFactoryPdf(bundle.factory, { premium: true });
       console.info("[ebook] pdf generated", {
         factoryId: bundle.factory.id,
         bytes: bytes.length,
+        premium,
       });
       const base64 = pdfBytesToBase64(bytes);
-      const { file, error: pdfError } = await publishPdf(bundle.factory.id, base64);
+      const { file, error: pdfError } = await publishPdf(bundle.factory.id, base64, premium);
       if (pdfError) {
         toast.error(pdfError);
         return;
       }
       if (file?.id) {
-        toast.success("PDF publicado! Use o botão Baixar PDF.");
+        toast.success(
+          premium ? "PDF Premium publicado! Use Baixar PDF." : "PDF publicado! Use o botão Baixar PDF."
+        );
       }
     } catch {
       toast.error("Erro ao gerar PDF.");
+    }
+  }
+
+  async function handleProAction(factoryId: string, action: ProductFactoryProAction) {
+    const labels: Record<ProductFactoryProAction, string> = {
+      improve: "Produto melhorado",
+      regenerate_design: "Design regenerado",
+      expand_content: "Conteúdo expandido",
+      premium: "Versão Premium gerada",
+    };
+    const { bundle, error: proError } = await runProAction(factoryId, action);
+    if (proError) {
+      toast.error(proError);
+      return;
+    }
+    if (bundle) {
+      setSelectedId(bundle.factory.id);
+      toast.success(labels[action]);
     }
   }
 
@@ -687,7 +814,7 @@ export function ProductFactoryView() {
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              Gerar produto + design + compliance
+              Gerar e-book Pro V1 + design + compliance
             </ActionButton>
             {PRODUCT_FACTORY_IA_ACTIONS.map((action) => (
               <button
@@ -820,7 +947,9 @@ export function ProductFactoryView() {
                 bundle={selected}
                 busy={busy}
                 onDelete={() => void handleDelete(selected.factory.id)}
-                onPublishPdf={() => void handlePublishPdf(selected)}
+                onPublishPdf={() => void handlePublishPdf(selected, false)}
+                onPublishPremiumPdf={() => void handlePublishPdf(selected, true)}
+                onProAction={(action) => void handleProAction(selected.factory.id, action)}
                 onRunCompliance={() => void handleCompliance(selected.factory.id)}
               />
             ) : (

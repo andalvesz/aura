@@ -7,6 +7,7 @@ import type {
   ProductFactoryDashboardMetrics,
   ProductFactoryIntake,
 } from "@/utils/product-factory";
+import type { ProductFactoryProAction } from "@/utils/product-factory-pro";
 import { parseJsonResponse } from "@/utils/safe-json";
 
 export function useProductFactory() {
@@ -79,7 +80,7 @@ export function useProductFactory() {
     }
   }
 
-  async function publishPdf(factoryId: string, pdfBase64: string) {
+  async function publishPdf(factoryId: string, pdfBase64: string, premium = false) {
     setBusy(true);
     try {
       const res = await fetch("/api/creator/factory/pdf", {
@@ -88,22 +89,54 @@ export function useProductFactory() {
         body: JSON.stringify({
           factory_id: factoryId,
           pdf_base64: pdfBase64,
+          premium,
         }),
       });
       const { data, error: parseError } = await parseJsonResponse<{
         file?: ProductFile;
         bundle?: ProductFactoryBundle;
         error?: string;
+        qualityScore?: number;
       }>(res);
 
       if (parseError || !res.ok || !data || data.error || !data.file) {
-        return { file: null, error: data?.error ?? parseError ?? "Erro ao publicar PDF." };
+        return {
+          file: null,
+          error: data?.error ?? parseError ?? "Erro ao publicar PDF.",
+          qualityScore: data?.qualityScore,
+        };
       }
 
       await refresh();
-      return { file: data.file, error: null };
+      return { file: data.file, error: null, qualityScore: data.qualityScore };
     } catch {
       return { file: null, error: "Erro de conexão." };
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runProAction(factoryId: string, action: ProductFactoryProAction) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/creator/factory/pro", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ factory_id: factoryId, action }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        bundle?: ProductFactoryBundle;
+        error?: string;
+      }>(res);
+
+      if (parseError || !res.ok || !data || data.error || !data.bundle) {
+        return { bundle: null, error: data?.error ?? parseError ?? "Erro na ação Pro." };
+      }
+
+      await refresh();
+      return { bundle: data.bundle, error: null };
+    } catch {
+      return { bundle: null, error: "Erro de conexão." };
     } finally {
       setBusy(false);
     }
@@ -168,6 +201,7 @@ export function useProductFactory() {
     refresh,
     generate,
     publishPdf,
+    runProAction,
     runCompliance,
     removeRecord,
   };
