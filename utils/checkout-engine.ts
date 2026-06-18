@@ -1,4 +1,5 @@
 import type { CheckoutPlatform, CheckoutProduct, CheckoutProductStatus, Json } from "@/types/database";
+import { localeFromFields } from "@/utils/creator-locale";
 
 export const CHECKOUT_PLATFORMS: { id: CheckoutPlatform; label: string }[] = [
   { id: "kiwify", label: "Kiwify" },
@@ -15,6 +16,30 @@ export const CHECKOUT_ENGINE_SAFE_MODE = {
 };
 
 export const DEFAULT_CHECKOUT_PRICE_CENTS = 9700;
+
+export type CheckoutLocale = {
+  country: string;
+  language: string;
+  currency: string;
+};
+
+export function resolveCheckoutLocale(params: {
+  country?: string | null;
+  language?: string | null;
+  currency?: string | null;
+}): CheckoutLocale {
+  const locale = localeFromFields({
+    target_country: params.country,
+    target_language: params.language,
+    currency: params.currency,
+  });
+
+  return {
+    country: locale.target_country,
+    language: locale.target_language,
+    currency: params.currency?.trim() || locale.currency,
+  };
+}
 
 export function buildKiwifyCheckoutUrl(checkoutId: string): string {
   const id = checkoutId.trim();

@@ -22,14 +22,19 @@ import {
   buildCreativeDirectorDownloadUrl,
   buildCreativePackageManifest,
   buildCreativePackageStoragePath,
+  computeCreativeQualityScore,
   computeHeuristicCreativeScore,
   computeOverallCreativeScore,
   CREATIVE_DIRECTOR_SAFE_MODE,
+  CREATIVE_EXCELLENCE_MAX_CYCLES,
+  CREATIVE_EXCELLENCE_MIN,
   CREATIVE_PACKAGE_ASSET_TYPES,
+  isCreativeDeliverable,
   mergeCreativeDirectorMetadata,
   readCreativeDirectorMetadata,
   type CreativePackageAssetEntry,
   type CreativePackageManifest,
+  type CreativeQualityScore,
   type CreativeScore,
 } from "@/utils/creative-director";
 import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
@@ -503,6 +508,12 @@ export async function generateCreativePackage(operationId: string): Promise<{
       metaRejectionHints: metaHints,
     });
 
+  const creativeQualityScore = computeCreativeQualityScore({
+    creativeScore,
+    assets: readyAssets,
+    copyHeadline,
+  });
+
   const assetEntries = deliveredAssets.map((asset) => {
     const brief = readyAssets.find((item) => item.id === asset.creative_id);
     const assetType = brief?.asset_type ?? "image";
@@ -538,6 +549,7 @@ export async function generateCreativePackage(operationId: string): Promise<{
     operationId,
     productId: operation.product_id,
     creativeScore,
+    creativeQualityScore,
     assets: assetEntries,
     integrations,
   });
@@ -582,6 +594,69 @@ export async function generateCreativePackage(operationId: string): Promise<{
     generatedAssets: deliveredAssets,
     message,
     error: linkError,
+  };
+}
+
+export async function regenerateCreative(operationId: string): Promise<{
+  package: CreativePackageManifest | null;
+  creative_quality_score: number;
+  cycles: number;
+  deliverable: boolean;
+  error: string | null;
+}> {
+  let lastResult: Awaited<ReturnType<typeof generateCreativePackage>> | null = null;
+  let cycles = 0;
+  let qualityScore = 0;
+
+  for (let cycle = 0; cycle < CREATIVE_EXCELLENCE_MAX_CYCLES; cycle += 1) {
+    cycles = cycle + 1;
+    lastResult = await generateCreativePackage(operationId);
+    if (lastResult.error && !lastResult.package) {
+      return {
+        package: null,
+        creative_quality_score: 0,
+        cycles,
+        deliverable: false,
+        error: lastResult.error,
+      };
+    }
+
+    const score =
+      lastResult.package?.creative_quality_score?.overall ??
+      lastResult.package?.creative_score.overall ??
+      0;
+    qualityScore = score;
+
+    if (isCreativeDeliverable(score)) {
+      return {
+        package: lastResult.package,
+        creative_quality_score: score,
+        cycles,
+        deliverable: true,
+        error: null,
+      };
+    }
+
+    const { improveAsset } = await import("./excellence-auto-improve.service");
+    const primaryAssetId = lastResult.assets[0]?.id;
+    if (primaryAssetId) {
+      await improveAsset({
+        assetType: "creative",
+        assetId: primaryAssetId,
+        module: "creative-director",
+        label: "Creative Excellence Pipeline",
+      });
+    }
+  }
+
+  return {
+    package: lastResult?.package ?? null,
+    creative_quality_score: qualityScore,
+    cycles,
+    deliverable: isCreativeDeliverable(qualityScore),
+    error: isCreativeDeliverable(qualityScore)
+      ? null
+      : `creative_quality_score ${qualityScore} abaixo do mínimo ${CREATIVE_EXCELLENCE_MIN} após ${cycles} ciclos.`,
   };
 }
 

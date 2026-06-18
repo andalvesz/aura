@@ -189,6 +189,7 @@ async function executeStep(flow: MasterFlow): Promise<{
         if (error) return { flow: await failFlow(repo, flow, error), error };
 
         const best = decisions?.bestProduct;
+        const execution = decisions?.execution;
         const name =
           best?.label ??
           meta.opportunity_name ??
@@ -198,8 +199,10 @@ async function executeStep(flow: MasterFlow): Promise<{
           metadata: mergeMasterFlowMetadata(flow.metadata, {
             opportunity_name: name,
             niche: (best?.metadata?.niche as string | undefined) ?? meta.niche ?? intent.niche ?? null,
-            country: intent.country ?? decisions?.bestCountry?.label ?? meta.country ?? null,
-            language: intent.language ?? decisions?.bestLanguage?.label ?? meta.language ?? null,
+            country: execution?.country?.label ?? intent.country ?? decisions?.bestCountry?.label ?? meta.country ?? null,
+            language: execution?.language?.label ?? intent.language ?? decisions?.bestLanguage?.label ?? meta.language ?? null,
+            decision_score: execution?.decision_score ?? decisions?.confidence ?? null,
+            decision_reason: execution?.decision_reason ?? best?.reason ?? null,
           }),
         });
 
@@ -349,6 +352,9 @@ async function executeStep(flow: MasterFlow): Promise<{
 
         const { createCheckout, syncCheckout, applyCheckoutToProduct, getCheckoutUrl } =
           await import("./checkout-engine.service");
+        const { evaluateCheckoutCompletion } = await import("@/utils/revenue-certification");
+        const { validateCheckoutUrl } = await import("@/utils/revenue-certification");
+
         const { checkout, error: createError } = await createCheckout({
           productId: flow.product_id,
           productName: meta.opportunity_name ?? undefined,
@@ -363,19 +369,38 @@ async function executeStep(flow: MasterFlow): Promise<{
           checkoutUrl = synced.checkout?.checkout_url ?? null;
         }
 
-        if (checkoutUrl) {
-          await applyCheckoutToProduct(flow.product_id);
+        let applyResult = { updatedLandings: 0, updatedFunnels: 0, error: null as string | null };
+        if (checkoutUrl && validateCheckoutUrl(checkoutUrl)) {
+          applyResult = await applyCheckoutToProduct(flow.product_id);
         } else {
           const resolved = await getCheckoutUrl(flow.product_id);
           checkoutUrl = resolved.checkoutUrl;
+          if (checkoutUrl) {
+            applyResult = await applyCheckoutToProduct(flow.product_id);
+          }
         }
+
+        const completion = evaluateCheckoutCompletion({
+          checkoutUrl,
+          updatedLandings: applyResult.updatedLandings,
+          updatedFunnels: applyResult.updatedFunnels,
+        });
 
         const { data: updated } = await repo.update(flow.id, {
           metadata: mergeMasterFlowMetadata(flow.metadata, {
             checkout_url: checkoutUrl,
             checkout_id: checkout?.id ?? null,
+            checkout_completion: completion,
           }),
         });
+
+        if (!checkoutUrl || !validateCheckoutUrl(checkoutUrl)) {
+          const gapMsg = completion.gaps.join("; ") || "checkout_url inválida ou ausente";
+          return {
+            flow: await failFlow(repo, updated ?? flow, gapMsg),
+            error: gapMsg,
+          };
+        }
 
         return { flow: await markStepCompleted(repo, updated ?? flow, step), error: null };
       }
@@ -462,6 +487,7 @@ async function executeStep(flow: MasterFlow): Promise<{
         const flowWithScore = await repo.update(flow.id, {
           metadata: mergeMasterFlowMetadata(flow.metadata, {
             excellence_score: score,
+            commercial_excellence_score: score,
           }),
         });
 
@@ -495,6 +521,7 @@ async function executeStep(flow: MasterFlow): Promise<{
             landing_url: certification.requirements.landing_url,
             campaign_id: certification.requirements.campaign_id,
             excellence_score: certification.requirements.excellence_score,
+            commercial_excellence_score: certification.requirements.excellence_score,
             last_error: certification.ready ? null : certification.gaps.join("; "),
           }),
         });

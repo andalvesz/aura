@@ -68,6 +68,21 @@ export type UnifiedDecisionEngineResult = {
   bestCampaign: UnifiedDecision | null;
   sourcesUsed: DecisionSource[];
   confidence: number;
+  execution?: DecisionExecutionRecord;
+};
+
+export type DecisionExecutionRecord = {
+  mode: "executive";
+  product: UnifiedDecision | null;
+  country: UnifiedDecision | null;
+  language: UnifiedDecision | null;
+  offer: UnifiedDecision | null;
+  creative: UnifiedDecision | null;
+  landing: UnifiedDecision | null;
+  campaign: UnifiedDecision | null;
+  decision_score: number;
+  decision_reason: string;
+  executed_at: string;
 };
 
 const SOURCE_WEIGHT: Record<DecisionSource, number> = {
@@ -515,6 +530,67 @@ export function selectBestCampaign(input: DecisionEngineInput): UnifiedDecision 
   return pickBest(candidates);
 }
 
+export function buildDecisionExecution(
+  result: Omit<UnifiedDecisionEngineResult, "execution">
+): DecisionExecutionRecord {
+  const decisions = [
+    result.bestProduct,
+    result.bestCountry,
+    result.bestLanguage,
+    result.bestOffer,
+    result.bestCreative,
+    result.bestLanding,
+    result.bestCampaign,
+  ].filter(Boolean) as UnifiedDecision[];
+
+  const decision_score =
+    decisions.length > 0
+      ? Math.round(decisions.reduce((sum, d) => sum + d.score, 0) / decisions.length)
+      : 0;
+
+  const reasonParts = decisions.map((d) => `${d.label}: ${d.reason} (${d.source})`);
+  const decision_reason =
+    reasonParts.length > 0
+      ? reasonParts.join(" · ")
+      : "Sem dados suficientes — usando defaults do intent do Master Flow.";
+
+  return {
+    mode: "executive",
+    product: result.bestProduct,
+    country: result.bestCountry,
+    language: result.bestLanguage,
+    offer: result.bestOffer,
+    creative: result.bestCreative,
+    landing: result.bestLanding,
+    campaign: result.bestCampaign,
+    decision_score,
+    decision_reason,
+    executed_at: new Date().toISOString(),
+  };
+}
+
+export function executeDecisions(input: DecisionEngineInput): DecisionExecutionRecord {
+  const bestProduct = selectBestProduct(input);
+  const bestCountry = selectBestCountry(input);
+  const bestLanguage = selectBestLanguage(input);
+  const bestOffer = selectBestOffer(input);
+  const bestCreative = selectBestCreative(input);
+  const bestLanding = selectBestLanding(input);
+  const bestCampaign = selectBestCampaign(input);
+
+  return buildDecisionExecution({
+    bestProduct,
+    bestCountry,
+    bestLanguage,
+    bestOffer,
+    bestCreative,
+    bestLanding,
+    bestCampaign,
+    sourcesUsed: [],
+    confidence: 0,
+  });
+}
+
 export function computeUnifiedDecisions(input: DecisionEngineInput): UnifiedDecisionEngineResult {
   const sourcesUsed: DecisionSource[] = [];
   if (input.growthBrain) sourcesUsed.push("growth_brain");
@@ -544,7 +620,7 @@ export function computeUnifiedDecisions(input: DecisionEngineInput): UnifiedDeci
         ) / 100
       : 0;
 
-  return {
+  const core = {
     bestProduct: selectBestProduct(input),
     bestCountry: selectBestCountry(input),
     bestLanguage: selectBestLanguage(input),
@@ -554,6 +630,11 @@ export function computeUnifiedDecisions(input: DecisionEngineInput): UnifiedDeci
     bestCampaign: selectBestCampaign(input),
     sourcesUsed,
     confidence,
+  };
+
+  return {
+    ...core,
+    execution: buildDecisionExecution(core),
   };
 }
 

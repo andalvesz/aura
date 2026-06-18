@@ -7,6 +7,8 @@ export type RevenueTruthInput = {
   hasPlatformConnection?: boolean;
 };
 
+export { computeTruthConfidenceScore, REVENUE_TRUTH_PRIORITY } from "@/utils/revenue-truth-priority";
+
 export function classifyRevenueTruth(input: RevenueTruthInput): RevenueTruthClass {
   if (input.metricType === "real" || input.hasWebhook) return "real";
   if (

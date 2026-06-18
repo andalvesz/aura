@@ -50,6 +50,10 @@ export type MasterFlowMetadata = {
   landing_url?: string | null;
   campaign_id?: string | null;
   excellence_score?: number | null;
+  commercial_excellence_score?: number | null;
+  decision_score?: number | null;
+  decision_reason?: string | null;
+  checkout_completion?: import("@/utils/revenue-certification").CheckoutCompletionResult | null;
   commercial_status?: "ready_to_sell" | "incomplete" | null;
   certification_gaps?: string[] | null;
   last_error?: string | null;

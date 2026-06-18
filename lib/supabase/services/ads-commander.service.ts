@@ -13,7 +13,11 @@ import { getResolvedUserBudget } from "@/lib/supabase/services/campaign-budget.s
 import type { AdCampaign, AdCreative, AdSet, Json, OperationCenter, TableInsert } from "@/types/database";
 import {
   ADS_COMMANDER_SAFE_MODE,
+  CAMPAIGN_EXCELLENCE_MAX_CYCLES,
+  CAMPAIGN_EXCELLENCE_MIN,
   computeAdsCommanderDashboard,
+  computeCampaignQualityScore,
+  isCampaignDeliverable,
   mergeAdsCommanderMetadata,
   readAudienceSuggestions,
   readBudgetSuggestion,
@@ -24,6 +28,7 @@ import {
   type BudgetSuggestion,
   type RiskAnalysis,
 } from "@/utils/ads-commander";
+import { localeFromFields } from "@/utils/creator-locale";
 import { isCreativeGeneratedAssetDelivered } from "@/utils/creative-generated-assets";
 import { readCreativeDirectorMetadata } from "@/utils/creative-director";
 import { computeInvestimentoFromBudget } from "@/utils/campaign-budget";
@@ -366,6 +371,31 @@ export async function prepareCampaign(params: {
 
   const primaryAudience = audienceSuggestions[0] ?? null;
   const campaignName = `${context.productName} — ${platform.toUpperCase()}`;
+  const { bundles } = await loadCreatorBundles();
+  const bundle = context.operation?.product_id
+    ? bundles.find((b) => b.product.id === context.operation?.product_id)
+    : null;
+  const locale = localeFromFields(bundle?.product ?? null);
+  const countryCode =
+    locale.currency === "USD"
+      ? "US"
+      : locale.currency === "GBP"
+        ? "GB"
+        : locale.currency === "EUR"
+          ? "PT"
+          : locale.currency === "CAD"
+            ? "CA"
+            : "BR";
+  const languageCode =
+    locale.target_language === "Inglês"
+      ? "en-US"
+      : locale.target_language === "Espanhol"
+        ? "es-ES"
+        : locale.target_language === "Francês"
+          ? "fr-FR"
+          : locale.target_language === "Alemão"
+            ? "de-DE"
+            : "pt-BR";
 
   const repo = new AdCampaignsRepository(ctx.supabase, ctx.userId);
   const { data: campaign, error } = await repo.create({
@@ -374,8 +404,8 @@ export async function prepareCampaign(params: {
     campaign_name: campaignName,
     objective: platform === "google" ? "conversao" : "conversao",
     budget: budgetSuggestion?.daily_max ?? context.availableBudget / 30,
-    country: "BR",
-    language: "pt-BR",
+    country: countryCode,
+    language: languageCode,
     audience: (primaryAudience ?? {}) as Json,
     creatives_json: context.creativeAssets as unknown as Json,
     copy_json: {
@@ -622,6 +652,27 @@ export async function prepareFullCampaign(params: {
   const { adSets, error: setsError } = await prepareAdSets(campaign.id);
   const { creatives, error: creativesError } = await prepareCreatives(campaign.id);
   const { analysis: riskAnalysis } = await generateRiskAnalysis({ campaignId: campaign.id });
+  const loadedContext = await loadCampaignContext({
+    operationId: params.operationId,
+    platform: params.platform ?? "meta",
+  });
+  const audienceSuggestions = readAudienceSuggestions(campaign.metadata);
+  const creativeDirector = readCreativeDirectorMetadata(
+    loadedContext.context?.operation?.metadata ?? {}
+  );
+
+  const quality = computeCampaignQualityScore({
+    adSetsCount: adSets.length,
+    creativesCount: creatives.length,
+    audienceSuggestions:
+      audienceSuggestions.length > 0
+        ? audienceSuggestions
+        : (await generateAudienceSuggestions({ campaignId: campaign.id })).suggestions,
+    riskAnalysis,
+    creativeScore: creativeDirector?.creative_score?.overall ?? loadedContext.context?.creativeScore ?? null,
+    hasLanding: Boolean(loadedContext.context?.landingUrl),
+    hasCopy: Boolean(loadedContext.context?.headline),
+  });
 
   const ctx = await getOptionalDataContext();
   if (!ctx) {
@@ -634,10 +685,13 @@ export async function prepareFullCampaign(params: {
     approval_required: true,
     metadata: mergeAdsCommanderMetadata(campaign.metadata, {
       risk_analysis: riskAnalysis,
+      campaign_quality_score: quality.campaign_quality_score,
+      campaign_quality_breakdown: quality.breakdown,
+      campaign_quality_issues: quality.issues,
       prepared_at: new Date().toISOString(),
       ad_sets_count: adSets.length,
       creatives_count: creatives.length,
-      flow: ["campaign", "ad_sets", "creatives", "risk", "budget", "approval"],
+      flow: ["campaign", "ad_sets", "creatives", "risk", "budget", "approval", "quality"],
     }),
   });
 
@@ -669,6 +723,70 @@ export async function prepareFullCampaign(params: {
     creatives,
     message,
     error: errors[0] ?? null,
+  };
+}
+
+export async function regenerateCampaign(params: {
+  operationId?: string | null;
+  platform?: AdPlatform;
+}): Promise<{
+  campaign: AdCampaign | null;
+  campaign_quality_score: number;
+  cycles: number;
+  deliverable: boolean;
+  error: string | null;
+}> {
+  let lastCampaign: AdCampaign | null = null;
+  let qualityScore = 0;
+  let cycles = 0;
+
+  for (let cycle = 0; cycle < CAMPAIGN_EXCELLENCE_MAX_CYCLES; cycle += 1) {
+    cycles = cycle + 1;
+    const result = await prepareFullCampaign(params);
+    lastCampaign = result.campaign;
+    if (result.error && !result.campaign) {
+      return {
+        campaign: null,
+        campaign_quality_score: 0,
+        cycles,
+        deliverable: false,
+        error: result.error,
+      };
+    }
+
+    const meta = (result.campaign?.metadata ?? {}) as Record<string, unknown>;
+    qualityScore =
+      typeof meta.campaign_quality_score === "number" ? meta.campaign_quality_score : 0;
+
+    if (isCampaignDeliverable(qualityScore)) {
+      return {
+        campaign: result.campaign,
+        campaign_quality_score: qualityScore,
+        cycles,
+        deliverable: true,
+        error: null,
+      };
+    }
+
+    if (result.campaign) {
+      const { runExcellencePipeline } = await import("./excellence-integration.service");
+      await runExcellencePipeline({
+        assetType: "campaign",
+        assetId: result.campaign.id,
+        label: result.campaign.campaign_name ?? "Campaign Excellence Pipeline",
+        module: "ads-commander",
+      });
+    }
+  }
+
+  return {
+    campaign: lastCampaign,
+    campaign_quality_score: qualityScore,
+    cycles,
+    deliverable: isCampaignDeliverable(qualityScore),
+    error: isCampaignDeliverable(qualityScore)
+      ? null
+      : `campaign_quality_score ${qualityScore} abaixo do mínimo ${CAMPAIGN_EXCELLENCE_MIN} após ${cycles} ciclos.`,
   };
 }
 

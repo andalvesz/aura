@@ -6,6 +6,25 @@ export const ADS_COMMANDER_SAFE_MODE = {
     "Ads Commander prepara campanhas completas — publicação exige aprovação explícita (SAFE_MODE ativo).",
 };
 
+export const CAMPAIGN_EXCELLENCE_MIN = 85;
+export const CAMPAIGN_EXCELLENCE_MAX_CYCLES = 3;
+
+export type CampaignQualityBreakdown = {
+  ctr_previsto: number;
+  cpc_previsto: number;
+  relevancia: number;
+  consistencia: number;
+  audience: number;
+  creative: number;
+};
+
+export type CampaignQualityResult = {
+  campaign_quality_score: number;
+  breakdown: CampaignQualityBreakdown;
+  deliverable: boolean;
+  issues: string[];
+};
+
 export function isAdsPublishEnabled(): boolean {
   return process.env.ADS_PUBLISH_ENABLED === "true";
 }
@@ -281,6 +300,88 @@ export function canApproveCampaign(status: AdCampaignStatus): boolean {
 
 export function canPublishCampaign(status: AdCampaignStatus): boolean {
   return status === "ready_to_publish" || status === "publish_failed";
+}
+
+export function computeCampaignQualityScore(params: {
+  adSetsCount: number;
+  creativesCount: number;
+  audienceSuggestions: AudienceSuggestion[];
+  riskAnalysis: RiskAnalysis | null;
+  creativeScore?: number | null;
+  hasLanding?: boolean;
+  hasCopy?: boolean;
+}): CampaignQualityResult {
+  const issues: string[] = [];
+  const bestAudience = params.audienceSuggestions.reduce(
+    (best, item) => (item.score > best ? item.score : best),
+    0
+  );
+
+  const ctr_previsto = clampNum(
+    45 +
+      (params.creativeScore != null ? params.creativeScore * 0.35 : 15) +
+      (params.creativesCount >= 3 ? 15 : params.creativesCount * 5) +
+      (params.hasCopy ? 10 : 0)
+  );
+  const cpc_previsto = clampNum(
+    100 -
+      (params.riskAnalysis?.budget_risk ?? 30) * 0.4 -
+      (params.riskAnalysis?.overall_risk ?? 35) * 0.2
+  );
+  const relevancia = clampNum(
+    bestAudience * 0.5 +
+      (params.hasLanding ? 25 : 0) +
+      (params.hasCopy ? 15 : 0) +
+      (params.adSetsCount >= 2 ? 10 : 0)
+  );
+  const consistencia = clampNum(
+    (params.adSetsCount >= 2 ? 35 : params.adSetsCount * 15) +
+      (params.creativesCount >= 2 ? 35 : params.creativesCount * 12) +
+      (params.hasLanding && params.hasCopy ? 20 : 0)
+  );
+  const audience = clampNum(bestAudience);
+  const creative = clampNum(
+    params.creativeScore != null
+      ? params.creativeScore
+      : params.creativesCount >= 1
+        ? 60 + params.creativesCount * 5
+        : 35
+  );
+
+  if (params.adSetsCount < 2) issues.push("Menos de 2 ad sets — expandir públicos.");
+  if (params.creativesCount < 2) issues.push("Poucos criativos para teste A/B.");
+  if (!params.hasLanding) issues.push("Landing não vinculada à campanha.");
+  if (!params.hasCopy) issues.push("Copy principal ausente.");
+  if ((params.riskAnalysis?.overall_risk ?? 0) > 60) issues.push("Risco geral elevado.");
+
+  const breakdown: CampaignQualityBreakdown = {
+    ctr_previsto,
+    cpc_previsto,
+    relevancia,
+    consistencia,
+    audience,
+    creative,
+  };
+
+  const campaign_quality_score = clampNum(
+    ctr_previsto * 0.22 +
+      cpc_previsto * 0.15 +
+      relevancia * 0.2 +
+      consistencia * 0.18 +
+      audience * 0.12 +
+      creative * 0.13
+  );
+
+  return {
+    campaign_quality_score,
+    breakdown,
+    deliverable: campaign_quality_score >= CAMPAIGN_EXCELLENCE_MIN,
+    issues,
+  };
+}
+
+export function isCampaignDeliverable(score: number): boolean {
+  return score >= CAMPAIGN_EXCELLENCE_MIN;
 }
 
 export function buildAdsCommanderAuraContext(dashboard: AdsCommanderDashboard): string {

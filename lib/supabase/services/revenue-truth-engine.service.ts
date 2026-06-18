@@ -3,9 +3,11 @@ import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.r
 import type { Json } from "@/types/database";
 import {
   classifyRevenueTruth,
+  computeTruthConfidenceScore,
   resolveRevenueCountry,
   type RevenueTruthClass,
 } from "@/utils/revenue-truth-engine";
+import { shouldOverwriteRevenueTruth } from "@/utils/revenue-truth-priority";
 import { getOptionalDataContext } from "./context";
 import type { RevenueRegisterInput } from "@/utils/revenue-ai";
 
@@ -20,10 +22,13 @@ export async function registerTruthRevenue(
 ): Promise<{
   metric: Awaited<ReturnType<typeof import("./revenue-ai.service").registerRevenue>>["metric"];
   truth: RevenueTruthClass;
+  truth_confidence_score: number;
   error: string | null;
 }> {
   const ctx = await getOptionalDataContext();
-  if (!ctx) return { metric: null, truth: "synthetic", error: "Usuário não autenticado." };
+  if (!ctx) {
+    return { metric: null, truth: "synthetic", truth_confidence_score: 0, error: "Usuário não autenticado." };
+  }
 
   let productCountry: string | null = null;
   if (input.productId) {
@@ -32,16 +37,24 @@ export async function registerTruthRevenue(
     productCountry = product?.target_country ?? null;
   }
 
+  const source =
+    (typeof input.metadata === "object" &&
+    input.metadata &&
+    !Array.isArray(input.metadata) &&
+    typeof (input.metadata as Record<string, unknown>).source === "string"
+      ? String((input.metadata as Record<string, unknown>).source)
+      : null) ?? String(input.platform ?? "revenue_ai");
+
   const truth = classifyRevenueTruth({
-    source:
-      (typeof input.metadata === "object" &&
-      input.metadata &&
-      !Array.isArray(input.metadata) &&
-      typeof (input.metadata as Record<string, unknown>).source === "string"
-        ? String((input.metadata as Record<string, unknown>).source)
-        : null) ??
-      String(input.platform ?? "revenue_ai"),
+    source,
     metricType: input.metricType,
+    hasWebhook: input.hasWebhook,
+    hasPlatformConnection: input.hasPlatformConnection,
+  });
+
+  const truth_confidence_score = computeTruthConfidenceScore({
+    truth,
+    source,
     hasWebhook: input.hasWebhook,
     hasPlatformConnection: input.hasPlatformConnection,
   });
@@ -62,7 +75,14 @@ export async function registerTruthRevenue(
         ? (input.metadata as Record<string, unknown>)
         : {}),
       revenue_truth: truth,
+      truth_confidence_score,
       country_resolved: country,
+      truth_priority_applied: shouldOverwriteRevenueTruth(
+        "estimated",
+        truth,
+        "revenue_ai",
+        source
+      ),
     } as Json,
   });
 
@@ -71,9 +91,9 @@ export async function registerTruthRevenue(
       tipo: "info",
       modulo: "revenue-truth-engine",
       mensagem: `Receita registrada (${truth}) — ${input.platform ?? "geral"}`,
-      detalhes: { truth, country, revenue: metric.revenue, productId: input.productId },
+      detalhes: { truth, truth_confidence_score, country, revenue: metric.revenue, productId: input.productId },
     });
   }
 
-  return { metric, truth, error };
+  return { metric, truth, truth_confidence_score, error };
 }

@@ -27,9 +27,11 @@ import {
   DEFAULT_CHECKOUT_PRICE_CENTS,
   isCheckoutReady,
   mergeCheckoutMetadata,
+  resolveCheckoutLocale,
   scoreProductNameMatch,
   slugifyCheckoutId,
 } from "@/utils/checkout-engine";
+import { localeFromFields } from "@/utils/creator-locale";
 import { buildLandingPageHtml } from "@/utils/landing-factory";
 import { mergeFunnelMetadata } from "@/utils/funnel-engine";
 import { mergeFunnelPageMetadata } from "@/utils/funnel-pages";
@@ -68,16 +70,27 @@ async function loadProductCheckoutContext(
   const frontOffer =
     (offers ?? []).find((offer) => offer.offer_type === "front_end") ?? (offers ?? [])[0];
 
+  const locale = localeFromFields(product);
+
   const priceCents = frontOffer?.price
     ? Math.round(Number(frontOffer.price) * 100)
     : DEFAULT_CHECKOUT_PRICE_CENTS;
+
+  const currency =
+    frontOffer?.currency?.trim() ||
+    product.currency?.trim() ||
+    locale.currency;
 
   return {
     context: {
       productId,
       productName: product.nome?.trim() || "Produto digital Aura",
       priceCents: Number.isFinite(priceCents) && priceCents > 0 ? priceCents : DEFAULT_CHECKOUT_PRICE_CENTS,
-      currency: frontOffer?.currency?.trim() || product.currency?.trim() || "BRL",
+      currency: resolveCheckoutLocale({
+        country: product.target_country,
+        language: product.target_language,
+        currency,
+      }).currency,
     },
     error: null,
   };

@@ -2,6 +2,66 @@ import type { MasterFlowMetadata } from "@/utils/master-flow";
 
 export const READY_TO_SELL_EXCELLENCE_MIN = 85;
 
+export type CheckoutCompletionResult = {
+  checkout_created: boolean;
+  checkout_url_valid: boolean;
+  checkout_url_saved: boolean;
+  checkout_injected: boolean;
+  landing_cta_valid: boolean;
+  ready: boolean;
+  gaps: string[];
+};
+
+export function validateCheckoutUrl(url: string | null | undefined): boolean {
+  if (!url?.trim()) return false;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+export function validateLandingCta(html: string | null | undefined, checkoutUrl: string | null): boolean {
+  if (!html?.trim() || !checkoutUrl?.trim()) return false;
+  return html.includes(checkoutUrl.trim());
+}
+
+export function evaluateCheckoutCompletion(params: {
+  checkoutUrl: string | null;
+  landingHtml?: string | null;
+  updatedLandings?: number;
+  updatedFunnels?: number;
+}): CheckoutCompletionResult {
+  const gaps: string[] = [];
+  const checkout_created = Boolean(params.checkoutUrl);
+  const checkout_url_valid = validateCheckoutUrl(params.checkoutUrl);
+  const checkout_url_saved = checkout_url_valid;
+  const checkout_injected = (params.updatedLandings ?? 0) > 0 || (params.updatedFunnels ?? 0) > 0;
+  const landing_cta_valid = validateLandingCta(params.landingHtml ?? null, params.checkoutUrl);
+
+  if (!checkout_created) gaps.push("checkout não criado");
+  if (!checkout_url_valid) gaps.push("checkout_url inválida");
+  if (!checkout_url_saved) gaps.push("checkout_url não salva");
+  if (!checkout_injected) gaps.push("checkout_url não injetada no funil/landing");
+  if (!landing_cta_valid && params.landingHtml) gaps.push("landing CTA não aponta para checkout");
+
+  const ready =
+    checkout_url_valid &&
+    checkout_url_saved &&
+    (checkout_injected || landing_cta_valid);
+
+  return {
+    checkout_created,
+    checkout_url_valid,
+    checkout_url_saved,
+    checkout_injected,
+    landing_cta_valid,
+    ready,
+    gaps,
+  };
+}
+
 export type ReadyToSellRequirements = {
   checkout_url: string | null;
   funnel_url: string | null;

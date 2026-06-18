@@ -40,6 +40,10 @@ export type ProductQualityBreakdown = {
   exercises: number;
   bonus: number;
   compliance: number;
+  profundidade: number;
+  valor_percebido: number;
+  transformacao: number;
+  completude: number;
 };
 
 export type ProductQualityResult = {
@@ -62,10 +66,11 @@ export const PRODUCT_FACTORY_TEMPLATES: {
   { id: "relationship_soft", label: "Relationship Soft", defaultPalette: ["#FCE7F3", "#FDF2F8", "#BE185D", "#831843"] },
 ];
 
-export const PRODUCT_QUALITY_MIN_SCORE = 75;
-export const PRODUCT_QUALITY_MIN_PAGES = 15;
-export const PRODUCT_QUALITY_IDEAL_PAGES_MIN = 20;
-export const PRODUCT_QUALITY_IDEAL_PAGES_MAX = 35;
+export const PRODUCT_QUALITY_MIN_SCORE = 85;
+export const PRODUCT_QUALITY_MIN_PAGES = 20;
+export const PRODUCT_QUALITY_MIN_WORDS = 5000;
+export const PRODUCT_QUALITY_IDEAL_PAGES_MIN = 30;
+export const PRODUCT_QUALITY_IDEAL_PAGES_MAX = 50;
 
 export const PRODUCT_NOT_READY_MESSAGE = "Produto precisa de melhoria antes de vender.";
 
@@ -168,6 +173,46 @@ function chapterDepthScore(chapters: ProductFactoryChapter[]): number {
   return Math.round(total / chapters.length);
 }
 
+export function estimateProductWords(factory: ProductFactory): number {
+  const chapters = parseJsonArray<ProductFactoryChapter>(factory.capitulos);
+  const exercises = parseJsonArray<ProductFactoryExercise>(factory.exercicios);
+  const checklist = parseJsonArray<ProductFactoryChecklistItem>(factory.checklist);
+  const pro = parseProContent(factory.conteudo);
+
+  let total = wordCount(factory.promessa ?? "") + wordCount(factory.subtitulo ?? "");
+  total += wordCount(pro.introducao ?? factory.problema ?? "");
+  total += wordCount(pro.metodologia ?? "");
+  total += wordCount(pro.proximos_passos ?? "");
+  total += wordCount(pro.promessa_transformacao ?? "");
+  total += wordCount(factory.conclusao ?? "");
+  total += wordCount(factory.bonus ?? "");
+
+  for (const ch of chapters) {
+    total +=
+      wordCount(ch.conteudo) +
+      wordCount(ch.explicacao ?? "") +
+      wordCount(ch.exemplo ?? "") +
+      wordCount(ch.aplicacao_pratica ?? "") +
+      wordCount(ch.exercicio ?? "") +
+      wordCount(ch.checklist ?? "") +
+      wordCount(ch.resumo ?? "");
+  }
+
+  for (const ex of exercises) {
+    total += wordCount(ex.titulo) + wordCount(ex.instrucao) + wordCount(ex.reflexao ?? "");
+  }
+
+  for (const item of checklist) {
+    total += wordCount(item.item) + wordCount(item.descricao ?? "");
+  }
+
+  for (const step of pro.plano_acao ?? []) {
+    total += wordCount(step.item) + wordCount(step.acao) + wordCount(step.prazo);
+  }
+
+  return total;
+}
+
 export function estimateProductPages(factory: ProductFactory): number {
   const chapters = parseJsonArray<ProductFactoryChapter>(factory.capitulos);
   const exercises = parseJsonArray<ProductFactoryExercise>(factory.exercicios);
@@ -211,17 +256,28 @@ export function computeProductQualityScore(
   const design = parseDesignWithTemplate(factory.design);
   const pro = parseProContent(factory.conteudo);
   const estimatedPages = estimateProductPages(factory);
+  const estimatedWords = estimateProductWords(factory);
   const issues: string[] = [];
 
   const pagesScore =
     estimatedPages >= PRODUCT_QUALITY_MIN_PAGES
       ? estimatedPages >= PRODUCT_QUALITY_IDEAL_PAGES_MIN
         ? 100
-        : 70 + Math.round(((estimatedPages - PRODUCT_QUALITY_MIN_PAGES) / 5) * 30)
-      : Math.round((estimatedPages / PRODUCT_QUALITY_MIN_PAGES) * 60);
+        : 75 + Math.round(((estimatedPages - PRODUCT_QUALITY_MIN_PAGES) / 10) * 25)
+      : Math.round((estimatedPages / PRODUCT_QUALITY_MIN_PAGES) * 55);
+
+  const wordsScore =
+    estimatedWords >= PRODUCT_QUALITY_MIN_WORDS
+      ? estimatedWords >= PRODUCT_QUALITY_MIN_WORDS * 1.5
+        ? 100
+        : 80 + Math.round(((estimatedWords - PRODUCT_QUALITY_MIN_WORDS) / 2500) * 20)
+      : Math.round((estimatedWords / PRODUCT_QUALITY_MIN_WORDS) * 60);
 
   if (estimatedPages < PRODUCT_QUALITY_MIN_PAGES) {
     issues.push(`Estimativa de ${estimatedPages} páginas (mínimo ${PRODUCT_QUALITY_MIN_PAGES}).`);
+  }
+  if (estimatedWords < PRODUCT_QUALITY_MIN_WORDS) {
+    issues.push(`Estimativa de ${estimatedWords} palavras (mínimo ${PRODUCT_QUALITY_MIN_WORDS}).`);
   }
   if (chapters.length < 5) {
     issues.push(`Apenas ${chapters.length} capítulos (mínimo 5).`);
@@ -264,7 +320,29 @@ export function computeProductQualityScore(
 
   if (!pro.sumario?.length) issues.push("Sumário ausente.");
   if (!pro.plano_acao?.length) issues.push("Plano de ação ausente.");
+  if (!pro.introducao?.trim()) issues.push("Introdução ausente.");
+  if (!factory.conclusao?.trim()) issues.push("Conclusão ausente.");
   if (checklist.length < 5) issues.push(`Checklist com ${checklist.length} itens (mínimo 5).`);
+
+  const profundidade = Math.round(depthScore * 0.6 + wordsScore * 0.4);
+  const valorPercebido = Math.round(
+    visualScore * 0.35 + bonusScore * 0.35 + exerciseScore * 0.3
+  );
+  const transformacao = Math.round(promiseScore * 0.5 + depthScore * 0.3 + exerciseScore * 0.2);
+  const completudeBlocks = [
+    Boolean(pro.sumario?.length),
+    Boolean(pro.introducao?.trim()),
+    chapters.length >= 5,
+    Boolean(factory.conclusao?.trim()),
+    (pro.plano_acao?.length ?? 0) >= 5,
+    checklist.length >= 5,
+    exercises.length >= 5,
+    Boolean(factory.bonus),
+  ];
+  const completude = Math.round(
+    (completudeBlocks.filter(Boolean).length / completudeBlocks.length) * 100
+  );
+  if (completude < 85) issues.push("Estrutura premium incompleta (capa, sumário, capítulos, CTA final).");
 
   const breakdown: ProductQualityBreakdown = {
     pages: pagesScore,
@@ -274,22 +352,27 @@ export function computeProductQualityScore(
     exercises: exerciseScore,
     bonus: bonusScore,
     compliance: complianceScore,
+    profundidade,
+    valor_percebido: valorPercebido,
+    transformacao,
+    completude,
   };
 
   const score = Math.round(
-    breakdown.pages * 0.2 +
-      breakdown.depth * 0.2 +
-      breakdown.visual * 0.15 +
-      breakdown.promise * 0.1 +
-      breakdown.exercises * 0.15 +
-      breakdown.bonus * 0.1 +
-      breakdown.compliance * 0.1
+    profundidade * 0.22 +
+      valorPercebido * 0.2 +
+      transformacao * 0.18 +
+      completude * 0.2 +
+      pagesScore * 0.1 +
+      complianceScore * 0.1
   );
 
-  const readyToSell = score >= PRODUCT_QUALITY_MIN_SCORE && compliance?.status !== "fail";
+  const product_quality_score = score;
+  const readyToSell =
+    product_quality_score >= PRODUCT_QUALITY_MIN_SCORE && compliance?.status !== "fail";
 
   return {
-    score,
+    score: product_quality_score,
     breakdown,
     readyToSell,
     issues,
@@ -306,6 +389,7 @@ export function mergeQualityIntoContent(
     ...conteudo,
     ...extras,
     quality_score: quality.score,
+    product_quality_score: quality.score,
     quality_breakdown: quality.breakdown,
     quality_issues: quality.issues,
     ready_to_sell: quality.readyToSell,
@@ -372,15 +456,16 @@ Responda APENAS JSON válido com esta estrutura:
   }
 }
 
-REGRAS OBRIGATÓRIAS PRO V1:
-- E-book completo: capa profissional, promessa/transformação, sumário, introdução, 5 a 8 capítulos, exercícios, checklists, plano de ação, bônus, conclusão
-- Conteúdo PROFUNDO: cada capítulo com explicação detalhada (300+ palavras no conteudo), exemplo real, aplicação prática, exercício e mini-checklist
-- Mínimo 5 exercícios práticos + checklist final com 5+ itens
-- Plano de ação com 5+ passos (item, prazo, ação)
-- Bônus tangível e valioso (150+ palavras)
-- Design: escolha template_id coerente com o nicho; paleta 4-5 cores hex; capa e layout descritos com detalhe
-- Volume equivalente a 20-35 páginas de PDF A4 (conteúdo denso, não superficial)
-- Português do Brasil, tom profissional e acionável
+REGRAS OBRIGATÓRIAS ELITE (product_quality_score ≥ 85):
+- E-book PREMIUM completo: capa profissional, sumário, introdução, 6 a 8 capítulos, conclusão, plano de ação, checklist, exercícios, FAQs, bônus, CTA final
+- Conteúdo PROFUNDO: cada capítulo com 400+ palavras no conteudo, exemplo real, aplicação prática, exercício e mini-checklist
+- Mínimo 6 exercícios práticos + checklist final com 8+ itens + FAQs com 5+ perguntas
+- Plano de ação com 6+ passos (item, prazo, ação)
+- Bônus tangível e valioso (200+ palavras)
+- Design premium: template_id coerente; paleta 4-5 cores hex; capa e layout detalhados
+- Volume mínimo: 20 páginas e 5000 palavras (ideal 30-50 páginas)
+- CTA final persuasivo no proximos_passos
+- Português do Brasil (ou idioma do mercado), tom profissional e transformacional
 ${sensitive ? `
 NICHO SENSÍVEL DETECTADO — OBRIGATÓRIO:
 - NÃO prometer cura, resultado garantido ou transformação instantânea

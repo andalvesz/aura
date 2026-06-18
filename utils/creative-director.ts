@@ -7,10 +7,11 @@ export const CREATIVE_DIRECTOR_SAFE_MODE = {
     "Creative Director gera imagens reais, revisa com Excellence e salva no Storage — não publica anúncios automaticamente.",
 };
 
-/** Ativos incluídos em cada pacote criativo por operação. */
+/** Ativos incluídos em cada pacote criativo Elite por operação. */
 export const CREATIVE_PACKAGE_ASSET_TYPES: CreativeAssetType[] = [
   "image",
   "carousel",
+  "banner",
   "thumbnail",
   "ugc_script",
   "reel_script",
@@ -18,6 +19,19 @@ export const CREATIVE_PACKAGE_ASSET_TYPES: CreativeAssetType[] = [
   "headline_variations",
   "cta_variations",
 ];
+
+export const CREATIVE_EXCELLENCE_MIN = 85;
+export const CREATIVE_EXCELLENCE_MAX_CYCLES = 3;
+
+export type CreativeQualityScore = {
+  ctr_previsto: number;
+  clareza: number;
+  emocao: number;
+  contraste: number;
+  legibilidade: number;
+  oferta: number;
+  overall: number;
+};
 
 export type CreativeScoreDimension =
   | "clareza"
@@ -52,6 +66,8 @@ export type CreativeDirectorMetadata = {
   generated_asset_ids?: string[];
   generated_at?: string;
   creative_score?: CreativeScore;
+  creative_quality_score?: CreativeQualityScore;
+  regeneration_cycles?: number;
   storage_path?: string;
   ready?: boolean;
   asset_count?: number;
@@ -76,6 +92,7 @@ export type CreativePackageManifest = {
   safe_mode: boolean;
   auto_publish: false;
   creative_score: CreativeScore;
+  creative_quality_score?: CreativeQualityScore;
   integrations: {
     copylab: boolean;
     growth_brain: boolean;
@@ -197,6 +214,60 @@ function clampScore(value: unknown): number {
   return Math.max(0, Math.min(100, Math.round(num)));
 }
 
+export function computeCreativeQualityScore(params: {
+  creativeScore: CreativeScore;
+  assets: CreativeAsset[];
+  copyHeadline?: string | null;
+}): CreativeQualityScore {
+  const readyAssets = params.assets.filter((a) => a.status === "ready");
+  const typesPresent = new Set(readyAssets.map((a) => a.asset_type));
+  const completeness =
+    CREATIVE_PACKAGE_ASSET_TYPES.filter((t) => typesPresent.has(t)).length /
+    CREATIVE_PACKAGE_ASSET_TYPES.length;
+
+  const copySamples = readyAssets
+    .map((a) => a.copy ?? a.title ?? "")
+    .filter(Boolean)
+    .join(" ");
+
+  const hasHeadline = Boolean(params.copyHeadline?.trim());
+  const hasOffer = /oferta|bônus|bonus|garantia|desconto|grátis|free/i.test(copySamples);
+  const hasEmotion = /transform|sonho|medo|frustra|urgente|agora|você/i.test(copySamples);
+
+  const ctr_previsto = clampScore(
+    params.creativeScore.overall * 0.5 +
+      (hasHeadline ? 15 : 0) +
+      completeness * 25 +
+      (params.creativeScore.curiosidade > 60 ? 10 : 0)
+  );
+  const clareza = params.creativeScore.clareza;
+  const emocao = clampScore(
+    (params.creativeScore.dor + params.creativeScore.promessa) / 2 + (hasEmotion ? 10 : 0)
+  );
+  const contraste = clampScore(55 + completeness * 30 + (typesPresent.has("thumbnail") ? 10 : 0));
+  const legibilidade = clampScore(
+    clareza * 0.6 + (copySamples.split(/\s+/).length > 20 ? 25 : 10) + (typesPresent.has("headline_variations") ? 15 : 0)
+  );
+  const oferta = clampScore(
+    params.creativeScore.cta * 0.5 + params.creativeScore.promessa * 0.3 + (hasOffer ? 20 : 0)
+  );
+
+  const overall = clampScore(
+    ctr_previsto * 0.2 +
+      clareza * 0.15 +
+      emocao * 0.15 +
+      contraste * 0.15 +
+      legibilidade * 0.15 +
+      oferta * 0.2
+  );
+
+  return { ctr_previsto, clareza, emocao, contraste, legibilidade, oferta, overall };
+}
+
+export function isCreativeDeliverable(score: number): boolean {
+  return score >= CREATIVE_EXCELLENCE_MIN;
+}
+
 export function computeOverallCreativeScore(score: Omit<CreativeScore, "overall">): number {
   const positive =
     score.clareza +
@@ -250,6 +321,7 @@ export function buildCreativePackageManifest(params: {
   operationId: string;
   productId: string | null;
   creativeScore: CreativeScore;
+  creativeQualityScore?: CreativeQualityScore;
   assets: CreativePackageAssetEntry[];
   integrations: CreativePackageManifest["integrations"];
 }): CreativePackageManifest {
@@ -261,6 +333,7 @@ export function buildCreativePackageManifest(params: {
     safe_mode: CREATIVE_DIRECTOR_SAFE_MODE.active,
     auto_publish: false,
     creative_score: params.creativeScore,
+    creative_quality_score: params.creativeQualityScore,
     integrations: params.integrations,
     assets: params.assets,
   };
@@ -274,7 +347,7 @@ export function summarizeCreativePackage(assets: CreativeAsset[]): string {
 }
 
 export function getCreativeScoreColor(score: number): string {
-  if (score >= 75) return "text-emerald-400";
-  if (score >= 55) return "text-amber-400";
+  if (score >= CREATIVE_EXCELLENCE_MIN) return "text-emerald-400";
+  if (score >= 70) return "text-amber-400";
   return "text-red-400";
 }
