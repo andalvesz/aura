@@ -63,6 +63,8 @@ export type ExcellenceReviewer = SpecialistSlug;
 export type { ExcellenceReviewStatus, SpecialistReviewPayload };
 export { clampScore };
 
+export { MARKET_LEADER_MODE, computeMarketLeaderFinalScore } from "@/utils/market-leader";
+
 export type ExcellenceReviewResult = {
   assetType: ExcellenceAssetType;
   assetId: string;
@@ -78,6 +80,8 @@ export type ExcellenceAssetCard = {
   assetId: string;
   label: string;
   finalScore: number;
+  excellenceScore: number | null;
+  benchmarkScore: number | null;
   approved: boolean;
   status: ExcellenceReviewStatus;
   regenerationCount: number;
@@ -148,6 +152,8 @@ export function computeExcellenceDashboard(
       assetId: score.asset_id,
       label: labels[key] ?? buildExcellenceAssetLabel(score.asset_type, score.asset_id),
       finalScore: score.final_score,
+      excellenceScore: score.excellence_score,
+      benchmarkScore: score.benchmark_score,
       approved: score.approved,
       status,
       regenerationCount: score.regeneration_count,

@@ -29,8 +29,10 @@ import {
   type SpecialistGateResult,
   type SpecialistReviewDetail,
 } from "@/utils/specialist-engine";
+import { compareAssetToBenchmark } from "./market-leader.service";
 import { loadAssetContent } from "./excellence-asset.loader";
 import { getOptionalDataContext } from "./context";
+import { MARKET_LEADER_MODE } from "@/utils/market-leader";
 
 const SPECIALIST_SYSTEM = `${COPYLAB_AI_CONTEXT}
 
@@ -175,12 +177,20 @@ export async function consultSpecialists(input: {
     catalog
   );
 
+  const benchmarkComparison = MARKET_LEADER_MODE.active
+    ? await compareAssetToBenchmark({
+        content: input.content,
+        assetType: input.assetType,
+      })
+    : null;
+
   const result = buildSpecialistConsultResult({
     assetType: input.assetType,
     assetId: input.assetId,
     label,
     reviews,
     specialists: panel.map((entry) => entry.specialist),
+    benchmarkComparison,
   });
 
   return { result, error: null };
@@ -209,8 +219,17 @@ async function persistSpecialistReviews(
     approved: review.score >= 85,
     metadata: {
       final_score: result.finalScore,
+      excellence_score: result.excellenceScore,
+      benchmark_score: result.benchmarkScore,
       status: result.status,
       criteria_scores: review.criteriaScores,
+      market_leader: result.benchmarkComparison
+        ? {
+            category: result.benchmarkComparison.category,
+            benchmark_name: result.benchmarkComparison.benchmark_name,
+            benchmark_score: result.benchmarkComparison.benchmark_score,
+          }
+        : null,
     } as Json,
   }));
 
@@ -227,8 +246,16 @@ async function persistSpecialistReviews(
     asset_type: result.assetType,
     asset_id: result.assetId,
     final_score: result.finalScore,
+    excellence_score: result.excellenceScore,
+    benchmark_score: result.benchmarkScore,
     approved: result.approved,
     regeneration_count: nextRegeneration,
+    metadata: {
+      market_leader_mode: MARKET_LEADER_MODE.active,
+      excellence_score: result.excellenceScore,
+      benchmark_score: result.benchmarkScore,
+      benchmark_comparison: result.benchmarkComparison,
+    } as Json,
   });
 
   if (scoreError) return { score: null, reviews: savedReviews ?? [], error: scoreError };
@@ -241,6 +268,8 @@ async function persistSpecialistReviews(
       assetType: result.assetType,
       assetId: result.assetId,
       finalScore: result.finalScore,
+      excellenceScore: result.excellenceScore,
+      benchmarkScore: result.benchmarkScore,
       status: result.status,
       specialists: result.reviews.map((review) => ({
         reviewer: review.reviewer,
@@ -306,8 +335,11 @@ export async function reviewWithSpecialists(
         label,
         reviews,
         specialists: panel.map((entry) => entry.specialist),
+        benchmarkComparison: null,
       });
       result.finalScore = existingScore.final_score;
+      result.excellenceScore = existingScore.excellence_score ?? existingScore.final_score;
+      result.benchmarkScore = existingScore.benchmark_score ?? 0;
       result.approved = existingScore.approved;
       result.status =
         existingScore.final_score >= 90

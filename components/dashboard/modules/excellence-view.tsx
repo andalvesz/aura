@@ -18,6 +18,7 @@ import { useAuraExcellence } from "@/hooks/use-aura-excellence";
 import {
   EXCELLENCE_ASSET_LABELS,
   EXCELLENCE_SAFE_MODE,
+  MARKET_LEADER_MODE,
   excellenceStatusColor,
   excellenceStatusLabel,
   formatExcellenceScore,
@@ -36,6 +37,12 @@ function AssetCard({ card }: { card: ExcellenceAssetCard }) {
         </div>
         <div className="text-right">
           <p className="text-[13px] font-semibold text-zinc-100">{formatExcellenceScore(card.finalScore)}</p>
+          {card.excellenceScore != null || card.benchmarkScore != null ? (
+            <p className="text-[9px] text-zinc-500">
+              E {card.excellenceScore != null ? formatExcellenceScore(card.excellenceScore) : "—"} · B{" "}
+              {card.benchmarkScore != null ? formatExcellenceScore(card.benchmarkScore) : "—"}
+            </p>
+          ) : null}
           <p className={`text-[10px] ${excellenceStatusColor(card.status)}`}>
             {excellenceStatusLabel(card.status)}
           </p>
@@ -85,13 +92,19 @@ export function ExcellenceView() {
         </div>
       ) : null}
 
+      {MARKET_LEADER_MODE.active ? (
+        <div className="rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-200/90">
+          {MARKET_LEADER_MODE.message}
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <ActionButton onClick={handleRefresh} disabled={syncing || busy}>
           {syncing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
           Atualizar
         </ActionButton>
         <span className="text-[10px] text-zinc-500">
-          Score ≥ 85 aprovado · 70–84 regenerar · &lt;70 bloqueado
+          Score Final = Excellence + Benchmark · ≥ 85 aprovado · 70–84 regenerar · &lt;70 bloqueado
         </span>
       </div>
 
@@ -171,6 +184,8 @@ export function ExcellenceView() {
                 assetId: score.asset_id,
                 label: `${EXCELLENCE_ASSET_LABELS[score.asset_type]} · ${score.asset_id.slice(0, 8)}`,
                 finalScore: score.final_score,
+                excellenceScore: score.excellence_score,
+                benchmarkScore: score.benchmark_score,
                 approved: score.approved,
                 status:
                   score.final_score >= 85

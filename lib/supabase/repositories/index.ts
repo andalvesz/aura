@@ -92,6 +92,7 @@ export {
 export { FunnelsRepository, FunnelStepsRepository } from "./funnel-engine.repository";
 export { FunnelPagesRepository } from "./funnel-pages.repository";
 export { FunnelPublishLogsRepository } from "./funnel-publish.repository";
+export { MarketBenchmarksRepository } from "./market-leader.repository";
 export { ConversionInsightsRepository } from "./conversion-intelligence.repository";
 export {
   QualityReviewsRepository,

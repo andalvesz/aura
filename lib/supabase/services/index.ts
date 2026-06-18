@@ -50,6 +50,7 @@ export * from "./landing-factory.service";
 export * from "./funnel-engine.service";
 export * from "./funnel-pages.service";
 export * from "./funnel-publish.service";
+export * from "./market-leader.service";
 export * from "./conversion-intelligence.service";
 export * from "./excellence-integration.service";
 export * from "./aura-excellence.service";

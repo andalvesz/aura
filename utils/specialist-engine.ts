@@ -1,4 +1,6 @@
 import type { ExcellenceAssetType, Specialist, SpecialistSlug } from "@/types/database";
+import type { BenchmarkComparisonResult } from "@/utils/market-leader";
+import { computeMarketLeaderFinalScore } from "@/utils/market-leader";
 
 export const SPECIALIST_PREMIUM_THRESHOLD = 90;
 export const SPECIALIST_APPROVE_THRESHOLD = 85;
@@ -72,6 +74,9 @@ export type SpecialistConsultResult = {
   label: string;
   specialists: SpecialistDefinition[];
   reviews: SpecialistReviewDetail[];
+  excellenceScore: number;
+  benchmarkScore: number;
+  benchmarkComparison: BenchmarkComparisonResult | null;
   finalScore: number;
   status: ExcellenceReviewStatus;
   approved: boolean;
@@ -491,9 +496,15 @@ export function buildSpecialistConsultResult(params: {
   label: string;
   reviews: SpecialistReviewDetail[];
   specialists: SpecialistDefinition[];
+  benchmarkComparison?: BenchmarkComparisonResult | null;
 }): SpecialistConsultResult {
   const payloadReviews = params.reviews.map(({ criteriaScores, ...review }) => review);
-  const finalScore = calculateSpecialistFinalScore(payloadReviews, params.assetType);
+  const excellenceScore = calculateSpecialistFinalScore(payloadReviews, params.assetType);
+  const benchmarkScore = params.benchmarkComparison?.benchmark_score ?? 0;
+  const finalScore =
+    params.benchmarkComparison != null
+      ? computeMarketLeaderFinalScore(excellenceScore, benchmarkScore)
+      : excellenceScore;
   const status = resolveSpecialistStatus(finalScore);
 
   return {
@@ -502,6 +513,9 @@ export function buildSpecialistConsultResult(params: {
     label: params.label,
     specialists: params.specialists,
     reviews: params.reviews,
+    excellenceScore,
+    benchmarkScore: params.benchmarkComparison != null ? benchmarkScore : 0,
+    benchmarkComparison: params.benchmarkComparison ?? null,
     finalScore,
     status,
     approved: isSpecialistDeliveryAllowed(status),

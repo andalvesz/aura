@@ -1231,8 +1231,31 @@ export type QualityScore = {
   asset_type: ExcellenceAssetType;
   asset_id: string;
   final_score: number;
+  excellence_score: number | null;
+  benchmark_score: number | null;
   approved: boolean;
   regeneration_count: number;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MarketBenchmarkCategory =
+  | "headline"
+  | "landing"
+  | "offer"
+  | "creative"
+  | "funnel";
+
+export type MarketBenchmark = {
+  id: string;
+  category: MarketBenchmarkCategory;
+  name: string;
+  description: string | null;
+  criteria: Json;
+  reference_metrics: Json;
+  active: boolean;
+  metadata: Json;
   created_at: string;
   updated_at: string;
 };
@@ -4829,10 +4852,41 @@ export type Database = {
           | "updated_at"
           | "approved"
           | "regeneration_count"
+          | "metadata"
         > & {
           id?: string;
           approved?: boolean;
           regeneration_count?: number;
+          excellence_score?: number | null;
+          benchmark_score?: number | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      market_benchmarks: TableDef<
+        MarketBenchmark,
+        Omit<
+          MarketBenchmark,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "category"
+          | "name"
+          | "description"
+          | "criteria"
+          | "reference_metrics"
+          | "active"
+          | "metadata"
+        > & {
+          id?: string;
+          category?: MarketBenchmarkCategory;
+          name?: string;
+          description?: string | null;
+          criteria?: Json;
+          reference_metrics?: Json;
+          active?: boolean;
+          metadata?: Json;
           created_at?: string;
           updated_at?: string;
         }
