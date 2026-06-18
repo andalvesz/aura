@@ -62,6 +62,7 @@ export type ModuleId =
   | "revenue-ai"
   | "ceo"
   | "operation-center"
+  | "master-flow"
   | "execution"
   | "performance"
   | "growth-brain"
@@ -384,6 +385,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Score",
       value: "—",
       hint: "Nenhuma operação ativa",
+    },
+  },
+  {
+    id: "master-flow",
+    href: "/dashboard/master-flow",
+    label: "Aura Master Flow",
+    shortLabel: "Master Flow",
+    description:
+      "Pipeline automatizado de criação de negócio — do mercado à campanha com Excellence.",
+    icon: Layers,
+    accent: "text-cyan-400",
+    overview: {
+      metric: "Progresso",
+      value: "—",
+      hint: "Crie um negócio completo",
     },
   },
   {

@@ -921,6 +921,35 @@ export type OperationCenter = {
   updated_at: string;
 };
 
+export type MasterFlowStatus = "pending" | "running" | "completed" | "failed" | "paused";
+
+export type MasterFlowStep =
+  | "market_hunter"
+  | "decision_engine"
+  | "product_factory"
+  | "copylab"
+  | "offer_engine"
+  | "funnel_engine"
+  | "funnel_pages"
+  | "creative_director"
+  | "ads_commander"
+  | "excellence"
+  | "done";
+
+export type MasterFlow = {
+  id: string;
+  user_id: string;
+  status: MasterFlowStatus;
+  product_id: string | null;
+  funnel_id: string | null;
+  campaign_id: string | null;
+  progress: number;
+  current_step: MasterFlowStep;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreatorCopylab = {
   id: string;
   user_id: string;
@@ -5671,6 +5700,42 @@ export type Database = {
           created_at?: string;
         }
       >;
+      master_flows: TableDef<
+        MasterFlow,
+        Omit<
+          MasterFlow,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "status"
+          | "product_id"
+          | "funnel_id"
+          | "campaign_id"
+          | "progress"
+          | "current_step"
+          | "metadata"
+        > & {
+          id?: string;
+          status?: MasterFlowStatus;
+          product_id?: string | null;
+          funnel_id?: string | null;
+          campaign_id?: string | null;
+          progress?: number;
+          current_step?: MasterFlowStep;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        },
+        Partial<
+          Omit<
+            MasterFlow,
+            | "id"
+            | "user_id"
+            | "created_at"
+            | "updated_at"
+          >
+        >
+      >;
       operation_center: TableDef<
         OperationCenter,
         Omit<
@@ -5858,6 +5923,7 @@ export type UserScopedTable =
   | "integration_sync_logs"
   | "integration_events"
   | "operation_center"
+  | "master_flows"
   | "growth_brain_memories"
   | "growth_patterns"
   | "revenue_metrics"
