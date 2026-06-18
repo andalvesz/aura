@@ -262,4 +262,7 @@ export async function getExcellenceContext(): Promise<{ context: string; error: 
   return { context: buildExcellenceAuraContext(dashboard), error: null };
 }
 
+export { improveAsset } from "./excellence-auto-improve.service";
+export type { AutoImproveResult } from "./excellence-auto-improve.service";
+
 export type { ExcellenceDashboard, ExcellenceReviewResult, ExcellenceIntake };

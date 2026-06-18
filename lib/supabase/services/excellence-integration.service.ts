@@ -58,12 +58,17 @@ async function triggerAutoImprovement(
     return;
   }
 
-  if (assetType === "copy") {
-    void reviewWithSpecialists({
-      asset_type: assetType,
-      asset_id: assetId,
-      force_refresh: true,
-    }).catch(() => undefined);
+  const { isAutoImproveAssetType } = await import("@/utils/excellence-auto-improve");
+  if (isAutoImproveAssetType(assetType)) {
+    void import("./excellence-auto-improve.service")
+      .then((mod) =>
+        mod.improveAsset({
+          assetType,
+          assetId,
+          module: sourceModule,
+        })
+      )
+      .catch(() => undefined);
     return;
   }
 

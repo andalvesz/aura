@@ -1271,6 +1271,32 @@ export type QualityScore = {
   updated_at: string;
 };
 
+export type AutoImproveAssetType = "copy" | "landing" | "creative" | "offer" | "funnel";
+
+export type ImprovementCycleAction = "review" | "improve" | "approve" | "block";
+
+export type ImprovementCycleStatus =
+  | "running"
+  | "approved"
+  | "blocked"
+  | "improved"
+  | "max_cycles";
+
+export type ImprovementCycle = {
+  id: string;
+  user_id: string;
+  asset_type: AutoImproveAssetType;
+  asset_id: string;
+  cycle_number: number;
+  action: ImprovementCycleAction;
+  score_before: number | null;
+  score_after: number | null;
+  status: ImprovementCycleStatus;
+  improvements_applied: Json;
+  metadata: Json;
+  created_at: string;
+};
+
 export type MarketBenchmarkCategory =
   | "headline"
   | "landing"
@@ -4895,6 +4921,27 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      improvement_cycles: TableDef<
+        ImprovementCycle,
+        Omit<
+          ImprovementCycle,
+          | "id"
+          | "created_at"
+          | "status"
+          | "improvements_applied"
+          | "metadata"
+          | "score_before"
+          | "score_after"
+        > & {
+          id?: string;
+          status?: ImprovementCycleStatus;
+          improvements_applied?: Json;
+          metadata?: Json;
+          score_before?: number | null;
+          score_after?: number | null;
+          created_at?: string;
+        }
+      >;
       market_benchmarks: TableDef<
         MarketBenchmark,
         Omit<
@@ -5894,6 +5941,7 @@ export type UserScopedTable =
   | "conversion_insights"
   | "quality_reviews"
   | "quality_scores"
+  | "improvement_cycles"
   | "offers"
   | "platform_connections"
   | "platform_sync_logs"

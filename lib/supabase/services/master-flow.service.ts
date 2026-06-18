@@ -348,21 +348,32 @@ async function executeStep(flow: MasterFlow): Promise<{
       }
 
       case "excellence": {
-        const { runExcellencePipeline } = await import("./excellence-integration.service");
+        const { improveAsset } = await import("./excellence-auto-improve.service");
+        const { isAutoImproveAssetType } = await import("@/utils/excellence-auto-improve");
 
-        const targets: Array<{ assetType: "ebook" | "copy" | "funnel" | "campaign"; assetId: string }> = [];
-        if (meta.factory_id) targets.push({ assetType: "ebook", assetId: meta.factory_id });
+        const targets: Array<{ assetType: "copy" | "funnel" | "campaign" | "ebook"; assetId: string }> = [];
         if (meta.copylab_id) targets.push({ assetType: "copy", assetId: meta.copylab_id });
         if (flow.funnel_id) targets.push({ assetType: "funnel", assetId: flow.funnel_id });
         if (flow.campaign_id) targets.push({ assetType: "campaign", assetId: flow.campaign_id });
+        if (meta.factory_id) targets.push({ assetType: "ebook", assetId: meta.factory_id });
 
         for (const target of targets) {
-          await runExcellencePipeline({
-            assetType: target.assetType,
-            assetId: target.assetId,
-            label: meta.opportunity_name ?? undefined,
-            module: "master-flow",
-          });
+          if (isAutoImproveAssetType(target.assetType)) {
+            await improveAsset({
+              assetType: target.assetType,
+              assetId: target.assetId,
+              label: meta.opportunity_name ?? undefined,
+              module: "master-flow",
+            });
+          } else {
+            const { runExcellencePipeline } = await import("./excellence-integration.service");
+            await runExcellencePipeline({
+              assetType: target.assetType,
+              assetId: target.assetId,
+              label: meta.opportunity_name ?? undefined,
+              module: "master-flow",
+            });
+          }
         }
 
         return { flow: await markStepCompleted(repo, flow, step), error: null };
