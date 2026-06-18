@@ -1443,6 +1443,28 @@ export type MetaUploadedAsset = {
   metadata: Json;
 };
 
+export type CheckoutPlatform = "kiwify" | "hotmart" | "stripe";
+
+export type CheckoutProductStatus =
+  | "pending"
+  | "creating"
+  | "ready_to_sell"
+  | "syncing"
+  | "failed"
+  | "inactive";
+
+export type CheckoutProduct = {
+  id: string;
+  user_id: string;
+  product_id: string;
+  platform: CheckoutPlatform;
+  checkout_id: string;
+  checkout_url: string | null;
+  status: CheckoutProductStatus;
+  metadata: Json;
+  created_at: string;
+};
+
 export type ProductFactory = {
   id: string;
   user_id: string;
@@ -4536,6 +4558,30 @@ export type Database = {
           metadata?: Json;
         }
       >;
+      checkout_products: TableDef<
+        CheckoutProduct,
+        Omit<
+          CheckoutProduct,
+          | "id"
+          | "user_id"
+          | "product_id"
+          | "platform"
+          | "checkout_id"
+          | "checkout_url"
+          | "status"
+          | "metadata"
+          | "created_at"
+        > & {
+          id?: string;
+          product_id?: string;
+          platform?: CheckoutPlatform;
+          checkout_id?: string;
+          checkout_url?: string | null;
+          status?: CheckoutProductStatus;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       ad_campaigns: TableDef<
         AdCampaign,
         Omit<
@@ -5955,6 +6001,7 @@ export type UserScopedTable =
   | "creative_assets"
   | "creative_generated_assets"
   | "meta_uploaded_assets"
+  | "checkout_products"
   | "ad_platform_connections"
   | "ad_campaigns"
   | "landing_pages"

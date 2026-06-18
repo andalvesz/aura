@@ -168,24 +168,28 @@ export function parseLandingOffer(value: unknown): LandingOfferJson {
   };
 }
 
-export function buildLandingPageHtml(page: Pick<
-  LandingPage,
-  | "title"
-  | "headline"
-  | "subheadline"
-  | "hero_copy"
-  | "benefits_json"
-  | "proof_json"
-  | "offer_json"
-  | "faq_json"
-  | "cta_text"
->): string {
+export function buildLandingPageHtml(
+  page: Pick<
+    LandingPage,
+    | "title"
+    | "headline"
+    | "subheadline"
+    | "hero_copy"
+    | "benefits_json"
+    | "proof_json"
+    | "offer_json"
+    | "faq_json"
+    | "cta_text"
+  >,
+  checkoutUrl?: string | null
+): string {
   const benefits = parseLandingBenefits(page.benefits_json);
   const proof = parseLandingProof(page.proof_json);
   const offer = parseLandingOffer(page.offer_json);
   const faq = parseLandingFaq(page.faq_json);
   const title = page.title ?? page.headline ?? "Landing";
   const cta = page.cta_text ?? "Quero começar agora";
+  const ctaHref = checkoutUrl?.trim() || "#cta";
 
   const benefitsHtml = benefits
     .map(
@@ -248,7 +252,7 @@ export function buildLandingPageHtml(page: Pick<
       <h1>${escapeHtml(page.headline ?? title)}</h1>
       ${page.subheadline ? `<p class="sub">${escapeHtml(page.subheadline)}</p>` : ""}
       ${page.hero_copy ? `<p class="copy">${escapeHtml(page.hero_copy)}</p>` : ""}
-      <a href="#cta" class="cta">${escapeHtml(cta)}</a>
+      <a href="${escapeHtml(ctaHref)}" class="cta">${escapeHtml(cta)}</a>
     </header>
     ${benefits.length ? `<section><h2>O que você vai conquistar</h2><ul class="benefits">${benefitsHtml}</ul></section>` : ""}
     ${testimonialsHtml ? `<section><h2>Prova social</h2>${testimonialsHtml}</section>` : ""}
@@ -259,7 +263,7 @@ export function buildLandingPageHtml(page: Pick<
       ${offer.guarantee ? `<p>${escapeHtml(offer.guarantee)}</p>` : ""}
       ${offer.urgency ? `<p style="color:#fbbf24;margin-top:0.5rem">${escapeHtml(offer.urgency)}</p>` : ""}
       ${offerBonuses ? `<ul style="text-align:left;margin:1rem 0;list-style:disc;padding-left:1.25rem">${offerBonuses}</ul>` : ""}
-      <a href="#cta" class="cta" style="margin-top:1rem">${escapeHtml(cta)}</a>
+      <a href="${escapeHtml(ctaHref)}" class="cta" style="margin-top:1rem">${escapeHtml(cta)}</a>
     </section>
     ${faq.length ? `<section><h2>Perguntas frequentes</h2>${faqHtml}</section>` : ""}
     <footer class="page">Gerado pela Aura Landing Factory · Resultados individuais podem variar.</footer>

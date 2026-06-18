@@ -2,6 +2,7 @@ import { syncEduzz, testEduzzConnection } from "./eduzz.client";
 import { syncHotmart, testHotmartConnection } from "./hotmart.client";
 import { syncKiwify, testKiwifyConnection } from "./kiwify.client";
 import { syncMonetizze, testMonetizzeConnection } from "./monetizze.client";
+import { testStripeConnection } from "./stripe.client";
 import type { PlatformClient, PlatformCredentials, PlatformId } from "./types";
 
 const CLIENTS: Record<PlatformId, PlatformClient | null> = {
@@ -28,7 +29,18 @@ const CLIENTS: Record<PlatformId, PlatformClient | null> = {
   meta_business: null,
   google_ads: null,
   tiktok_ads: null,
-  stripe: null,
+  stripe: {
+    id: "stripe",
+    testConnection: testStripeConnection,
+    sync: async () => ({
+      products: [],
+      sales: [],
+      affiliateProducts: [],
+      revenueTotalCents: 0,
+      commissionsTotalCents: 0,
+      accountLabel: "Stripe",
+    }),
+  },
   paypal: null,
 };
 

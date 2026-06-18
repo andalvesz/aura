@@ -405,6 +405,10 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
 
   const productId = refreshed?.product_id ?? input.product_id ?? factory.product_id;
   if (productId) {
+    void import("./checkout-engine.service")
+      .then((mod) => mod.createCheckout({ productId }))
+      .catch((err) => console.error("[checkout-engine] auto-create failed", err));
+
     void import("./funnel-engine.service")
       .then((mod) =>
         mod.generateFunnel({

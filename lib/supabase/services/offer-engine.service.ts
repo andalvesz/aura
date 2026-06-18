@@ -822,6 +822,17 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
     console.error("[offer-engine] integration feed failed", err);
   });
 
+  void import("./checkout-engine.service")
+    .then((mod) =>
+      mod.createCheckout({
+        productId,
+        priceCents: Math.round(context.frontPrice * 100),
+        currency: context.currency,
+        productName: context.productName,
+      })
+    )
+    .catch((err) => console.error("[checkout-engine] offer-engine hook failed", err));
+
   const funnelId = input.funnel_id?.trim();
   if (funnelId) {
     void import("./funnel-pages.service")

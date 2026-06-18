@@ -644,6 +644,12 @@ export async function generateFunnelPages(input: FunnelPagesIntake): Promise<{
     })
     .catch(() => undefined);
 
+  if (funnel.product_id) {
+    void import("./checkout-engine.service")
+      .then((mod) => mod.applyCheckoutToProduct(funnel.product_id!))
+      .catch((err) => console.error("[checkout-engine] funnel-pages hook failed", err));
+  }
+
   return { bundle, error: null };
 }
 
