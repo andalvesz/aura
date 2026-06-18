@@ -39,12 +39,16 @@ import {
   buildProGenerationSystemPrompt,
   computeProductQualityScore,
   detectSensitiveNiche,
+  formatProductFactoryOpenAiError,
   mergeQualityIntoContent,
+  normalizeGeneratedCompliance,
   normalizeProGenerated,
   parseProContent,
+  productFactoryInvalidAiResponseMessage,
   PRODUCT_MANUAL_REVIEW_MESSAGE,
   PRODUCT_NOT_READY_MESSAGE,
   type ProGeneratedProduct,
+  type ProductFactoryAiOperation,
   type ProductFactoryProAction,
 } from "@/utils/product-factory-pro";
 import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
@@ -75,23 +79,103 @@ function parseJsonBlock<T>(text: string): T | null {
   }
 }
 
-async function callProductFactoryAi<T>(system: string, user: string): Promise<T | null> {
-  const openai = getOpenAi();
-  if (!openai) return null;
+const PRODUCT_FACTORY_AI_MODEL = "gpt-4o-mini";
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    response_format: { type: "json_object" },
-    temperature: 0.7,
+type ProductFactoryAiLogContext = {
+  action?: string;
+  factoryId?: string;
+  operation?: ProductFactoryAiOperation;
+};
+
+type ProductFactoryAiResult<T> = {
+  data: T | null;
+  error: string | null;
+};
+
+async function callProductFactoryAi<T>(
+  system: string,
+  user: string,
+  logContext?: ProductFactoryAiLogContext
+): Promise<ProductFactoryAiResult<T>> {
+  const operation = logContext?.operation ?? "generate";
+  const openai = getOpenAi();
+  if (!openai) {
+    console.error("[product-pro] openai unavailable", {
+      action: logContext?.action,
+      factoryId: logContext?.factoryId,
+      operation,
+    });
+    return { data: null, error: "IA indisponível (OPENAI_API_KEY)." };
+  }
+
+  console.info("[product-pro] openai request", {
+    model: PRODUCT_FACTORY_AI_MODEL,
+    action: logContext?.action,
+    factoryId: logContext?.factoryId,
+    operation,
+    systemChars: system.length,
+    userChars: user.length,
   });
 
+  let response;
+  try {
+    response = await openai.chat.completions.create({
+      model: PRODUCT_FACTORY_AI_MODEL,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+    });
+  } catch (error) {
+    console.error("[product-pro] openai call failed", {
+      model: PRODUCT_FACTORY_AI_MODEL,
+      action: logContext?.action,
+      factoryId: logContext?.factoryId,
+      operation,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return {
+      data: null,
+      error: formatProductFactoryOpenAiError(error, operation),
+    };
+  }
+
   const content = response.choices[0]?.message?.content;
-  if (!content) return null;
-  return parseJsonBlock<T>(content);
+  console.info("[product-pro] openai response", {
+    model: PRODUCT_FACTORY_AI_MODEL,
+    action: logContext?.action,
+    factoryId: logContext?.factoryId,
+    operation,
+    finishReason: response.choices[0]?.finish_reason,
+    contentChars: content?.length ?? 0,
+    contentPreview: content?.slice(0, 240) ?? null,
+  });
+
+  if (!content) {
+    console.error("[product-pro] openai empty content", {
+      action: logContext?.action,
+      factoryId: logContext?.factoryId,
+      operation,
+      response: JSON.stringify(response).slice(0, 500),
+    });
+    return { data: null, error: productFactoryInvalidAiResponseMessage(operation) };
+  }
+
+  const parsed = parseJsonBlock<T>(content);
+  if (!parsed) {
+    console.error("[product-pro] openai parse failed", {
+      action: logContext?.action,
+      factoryId: logContext?.factoryId,
+      operation,
+      contentPreview: content.slice(0, 500),
+    });
+    return { data: null, error: productFactoryInvalidAiResponseMessage(operation) };
+  }
+
+  return { data: parsed, error: null };
 }
 
 function decodeBase64Pdf(base64: string): Uint8Array {
@@ -260,8 +344,25 @@ export type { ProductFactoryProAction } from "@/utils/product-factory-pro";
 async function persistComplianceFromGenerated(
   complianceRepo: ProductComplianceChecksRepository,
   factoryId: string,
-  compliance: GeneratedProductFactory["compliance"]
+  complianceInput: GeneratedProductFactory["compliance"] | undefined | null,
+  previousCompliance?: ProductComplianceCheck | null,
+  options?: { sensitiveNiche?: boolean }
 ) {
+  const usedFallback = !complianceInput;
+  const compliance = normalizeGeneratedCompliance(
+    { compliance: complianceInput ?? undefined },
+    previousCompliance,
+    options
+  );
+
+  if (usedFallback) {
+    console.warn("[product-pro] compliance fallback applied", {
+      factoryId,
+      status: compliance.status,
+      riskScore: compliance.risk_score,
+    });
+  }
+
   await complianceRepo.create({
     factory_id: factoryId,
     risk_score: compliance.risk_score,
@@ -335,7 +436,7 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
     niche: input.publico ?? input.promessa,
   });
 
-  const generated = await callProductFactoryAi<ProGeneratedProduct>(
+  const { data: generated, error: aiError } = await callProductFactoryAi<ProGeneratedProduct>(
     applyWinnerPatternToSystemPrompt(
       buildProGenerationSystemPrompt(productType, sensitive),
       promptBlock,
@@ -347,12 +448,23 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
       integrations,
       pro_v1: true,
       winnerContext,
-    })
+    }),
+    { operation: "generate" }
   );
+
+  if (aiError) {
+    return { bundle: null, error: aiError };
+  }
 
   if (!generated?.titulo || !generated.capitulos?.length) {
     return { bundle: null, error: "Não foi possível gerar o e-book." };
   }
+
+  const normalizedCompliance = normalizeGeneratedCompliance(
+    generated,
+    null,
+    { sensitiveNiche: sensitive }
+  );
 
   const factoryRepo = new ProductFactoryRepository(ctx.supabase, ctx.userId);
   const complianceRepo = new ProductComplianceChecksRepository(ctx.supabase, ctx.userId);
@@ -370,13 +482,19 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
     return { bundle: null, error: createError ?? "Erro ao salvar produto." };
   }
 
-  await persistComplianceFromGenerated(complianceRepo, factory.id, generated.compliance);
+  await persistComplianceFromGenerated(
+    complianceRepo,
+    factory.id,
+    normalizedCompliance,
+    null,
+    { sensitiveNiche: sensitive }
+  );
 
   const draftFactory = { ...factory, ...payload, conteudo: payload.conteudo } as ProductFactory;
   const quality = computeProductQualityScore(draftFactory, {
-    status: generated.compliance.status,
-    risk_score: generated.compliance.risk_score,
-    forbidden_claims: generated.compliance.forbidden_claims,
+    status: normalizedCompliance.status,
+    risk_score: normalizedCompliance.risk_score,
+    forbidden_claims: normalizedCompliance.forbidden_claims,
   } as ProductComplianceCheck);
   const enrichedContent = mergeQualityIntoContent(
     payload.conteudo as Record<string, unknown>,
@@ -470,16 +588,35 @@ async function executeProductFactoryProActionInternal(
   action: ProductFactoryProAction,
   overrides?: ProActionOverrides
 ): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
+  console.info("[product-pro] execute start", {
+    action,
+    factoryId,
+    userId: ctx.userId,
+  });
+
   const factoryRepo = new ProductFactoryRepository(ctx.supabase, ctx.userId);
   const complianceRepo = new ProductComplianceChecksRepository(ctx.supabase, ctx.userId);
   const versionsRepo = new ProductVersionsRepository(ctx.supabase, ctx.userId);
 
   const { data: factory, error: findError } = await factoryRepo.findById(factoryId);
   if (findError || !factory) {
+    console.error("[product-pro] factory not found", { factoryId, findError });
     return { bundle: null, error: findError ?? "Produto não encontrado." };
   }
 
   const record = factory as ProductFactory;
+  const previewBundle = await loadBundleForFactory(record);
+  const scoreBefore = computeProductQualityScore(record, previewBundle.compliance).score;
+
+  console.info("[product-pro] factory loaded", {
+    action,
+    factoryId,
+    bundleId: previewBundle.factory.id,
+    scoreBefore,
+    currentVersion: record.current_version,
+    titulo: record.titulo,
+  });
+
   const nicheText = `${record.titulo} ${record.promessa} ${record.problema} ${record.publico ?? ""}`;
   const sensitive =
     detectSensitiveNiche(nicheText) || !!parseProContent(record.conteudo).sensitive_niche;
@@ -489,17 +626,29 @@ async function executeProductFactoryProActionInternal(
     niche: record.publico ?? record.promessa,
   });
 
-  const generated = await callProductFactoryAi<ProGeneratedProduct>(
+  const { data: generated, error: aiError } = await callProductFactoryAi<ProGeneratedProduct>(
     applyWinnerPatternToSystemPrompt(
       buildProGenerationSystemPrompt(record.product_type ?? "ebook", sensitive),
       promptBlock,
       "product-factory"
     ),
-    `${buildProActionPrompt(action, record)}\n${JSON.stringify({ winnerContext })}`
+    `${buildProActionPrompt(action, record)}\n${JSON.stringify({ winnerContext })}`,
+    { action, factoryId, operation: "improve" }
   );
 
+  if (aiError) {
+    return { bundle: null, error: aiError };
+  }
+
   if (!generated?.titulo || !generated.capitulos?.length) {
-    return { bundle: null, error: "Não foi possível aplicar a ação Pro." };
+    console.error("[product-pro] invalid ai payload", {
+      action,
+      factoryId,
+      hasTitulo: !!generated?.titulo,
+      capitulosCount: generated?.capitulos?.length ?? 0,
+      generatedKeys: generated ? Object.keys(generated) : null,
+    });
+    return { bundle: null, error: productFactoryInvalidAiResponseMessage("improve") };
   }
 
   const intake: ProductFactoryIntake = {
@@ -525,7 +674,6 @@ async function executeProductFactoryProActionInternal(
   );
 
   const nextVersion = record.current_version + 1;
-  const previewBundle = await loadBundleForFactory(record);
   const quality = computeProductQualityScore(
     { ...record, ...payload, conteudo: payload.conteudo } as ProductFactory,
     previewBundle.compliance
@@ -546,10 +694,29 @@ async function executeProductFactoryProActionInternal(
     status: quality.readyToSell ? "content_ready" : "design_ready",
   });
 
-  if (updateError) return { bundle: null, error: updateError };
+  if (updateError) {
+    console.error("[product-pro] factory update failed", {
+      action,
+      factoryId,
+      updateError,
+    });
+    return { bundle: null, error: updateError };
+  }
 
   if (action === "improve" || action === "premium" || action === "expand_content") {
-    await persistComplianceFromGenerated(complianceRepo, factoryId, generated.compliance);
+    console.info("[product-pro] persist compliance", {
+      action,
+      factoryId,
+      hasCompliance: !!generated.compliance,
+      complianceStatus: generated.compliance?.status,
+    });
+    await persistComplianceFromGenerated(
+      complianceRepo,
+      factoryId,
+      generated.compliance,
+      previewBundle.compliance,
+      { sensitiveNiche: sensitive }
+    );
   }
 
   const actionLabels: Record<ProductFactoryProAction, string> = {
@@ -578,8 +745,28 @@ async function executeProductFactoryProActionInternal(
   });
 
   const { data: refreshed } = await factoryRepo.findById(factoryId);
-  if (!refreshed) return { bundle: null, error: "Erro ao recarregar produto." };
-  return { bundle: await loadBundleForFactory(refreshed as ProductFactory), error: null };
+  if (!refreshed) {
+    console.error("[product-pro] reload failed", { action, factoryId });
+    return { bundle: null, error: "Erro ao recarregar produto." };
+  }
+
+  const finalBundle = await loadBundleForFactory(refreshed as ProductFactory);
+  const scoreAfter = computeProductQualityScore(
+    finalBundle.factory,
+    finalBundle.compliance
+  ).score;
+
+  console.info("[product-pro] execute complete", {
+    action,
+    factoryId,
+    bundleId: finalBundle.factory.id,
+    scoreBefore,
+    scoreAfter,
+    nextVersion,
+    readyToSell: quality.readyToSell,
+  });
+
+  return { bundle: finalBundle, error: null };
 }
 
 const AUTO_ELITE_CYCLES: Array<{
@@ -645,11 +832,30 @@ export async function runProductFactoryProAction(
   factoryId: string,
   action: ProductFactoryProAction
 ): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
-  const ctx = await getOptionalDataContext();
-  if (!ctx) return { bundle: null, error: "Usuário não autenticado." };
-  if (!getOpenAi()) return { bundle: null, error: "IA indisponível (OPENAI_API_KEY)." };
+  console.info("[product-pro] runProductFactoryProAction", { action, factoryId });
 
-  return executeProductFactoryProActionInternal(ctx, factoryId, action);
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    console.error("[product-pro] no auth context", { action, factoryId });
+    return { bundle: null, error: "Usuário não autenticado." };
+  }
+  if (!getOpenAi()) {
+    console.error("[product-pro] openai key missing", { action, factoryId });
+    return { bundle: null, error: "IA indisponível (OPENAI_API_KEY)." };
+  }
+
+  try {
+    return await executeProductFactoryProActionInternal(ctx, factoryId, action);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[product-pro] unhandled error", {
+      action,
+      factoryId,
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return { bundle: null, error: message };
+  }
 }
 
 export async function publishProductFactoryPdf(input: {
@@ -949,7 +1155,9 @@ export async function runProductFactoryCompliance(factoryId: string): Promise<{
     return { compliance: null, error: findError ?? "Produto não encontrado." };
   }
 
-  const generated = await callProductFactoryAi<GeneratedProductFactory["compliance"]>(
+  const { data: generated, error: aiError } = await callProductFactoryAi<
+    GeneratedProductFactory["compliance"]
+  >(
     `Você é auditor de compliance para anúncios de produtos digitais no Brasil (Meta, Google, CONAR).
 Analise promessa e conteúdo. Responda APENAS JSON com campos compliance:
 {
@@ -967,23 +1175,33 @@ Analise promessa e conteúdo. Responda APENAS JSON com campos compliance:
       promessa: factory.promessa,
       capitulos: factory.capitulos,
       bonus: factory.bonus,
-    })
+    }),
+    { factoryId, operation: "compliance" }
   );
+
+  if (aiError) {
+    return { compliance: null, error: aiError };
+  }
 
   if (!generated) {
     return { compliance: null, error: "Não foi possível analisar compliance." };
   }
 
+  const compliancePayload = normalizeGeneratedCompliance(
+    { compliance: generated },
+    null
+  );
+
   const { data: compliance, error: createError } = await complianceRepo.create({
     factory_id: factoryId,
-    risk_score: generated.risk_score,
-    risk_level: generated.risk_level,
-    forbidden_claims: generated.forbidden_claims,
-    misleading_risks: generated.misleading_risks,
-    ad_checklist: generated.ad_checklist,
-    recommendations: generated.recommendations,
-    status: generated.status,
-    notes: generated.notes,
+    risk_score: compliancePayload.risk_score,
+    risk_level: compliancePayload.risk_level,
+    forbidden_claims: compliancePayload.forbidden_claims,
+    misleading_risks: compliancePayload.misleading_risks,
+    ad_checklist: compliancePayload.ad_checklist,
+    recommendations: compliancePayload.recommendations,
+    status: compliancePayload.status,
+    notes: compliancePayload.notes,
   });
 
   if (createError || !compliance) {
@@ -1000,7 +1218,7 @@ Analise promessa e conteúdo. Responda APENAS JSON com campos compliance:
         titulo: factory.titulo,
         promessa: factory.promessa,
         capitulos: factory.capitulos,
-        compliance: generated,
+        compliance: compliancePayload,
       },
       changelog: "v2 — Revisado · compliance atualizado",
       file_id: null,

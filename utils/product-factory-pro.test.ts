@@ -3,9 +3,14 @@ import { describe, it } from "node:test";
 import type { ProductFactory } from "@/types/database";
 import {
   computeProductQualityScore,
+  DEFAULT_COMPLIANCE_DISCLAIMER,
+  formatProductFactoryOpenAiError,
+  normalizeGeneratedCompliance,
+  PRODUCT_FACTORY_INVALID_IMPROVE_AI_RESPONSE,
   PRODUCT_MANUAL_REVIEW_MESSAGE,
   PRODUCT_QUALITY_MIN_FAQS,
   PRODUCT_QUALITY_MIN_SCORE,
+  productFactoryInvalidAiResponseMessage,
 } from "./product-factory-pro";
 
 function buildEliteMockFactory(overrides?: {
@@ -163,5 +168,58 @@ describe("product-factory-pro — quality score", () => {
 
   it("exporta mensagem de revisão manual", () => {
     assert.equal(PRODUCT_MANUAL_REVIEW_MESSAGE, "Produto precisa de revisão manual.");
+  });
+});
+
+describe("product-factory-pro — pro action resilience", () => {
+  it("generated sem compliance não quebra e usa fallback padrão", () => {
+    const compliance = normalizeGeneratedCompliance({}, null);
+
+    assert.equal(compliance.risk_score, 10);
+    assert.equal(compliance.status, "warning");
+    assert.deepEqual(compliance.forbidden_claims, []);
+    assert.equal(compliance.notes, DEFAULT_COMPLIANCE_DISCLAIMER);
+  });
+
+  it("generated sem compliance reutiliza compliance anterior", () => {
+    const previous = {
+      risk_score: 42,
+      risk_level: "medium",
+      forbidden_claims: ["claim x"],
+      misleading_risks: ["risk y"],
+      ad_checklist: [],
+      recommendations: ["revise headline"],
+      status: "pass",
+      notes: "ok",
+    } as never;
+
+    const compliance = normalizeGeneratedCompliance({}, previous);
+
+    assert.equal(compliance.risk_score, 42);
+    assert.equal(compliance.status, "pass");
+    assert.deepEqual(compliance.forbidden_claims, ["claim x"]);
+    assert.equal(compliance.notes, "ok");
+  });
+
+  it("OpenAI connection error retorna mensagem clara para improve", () => {
+    const message = formatProductFactoryOpenAiError(new Error("Connection error."), "improve");
+
+    assert.match(message, /OpenAI falhou ao gerar melhoria do produto: Connection error\./);
+  });
+
+  it("resposta inválida da IA retorna mensagem clara para improve", () => {
+    assert.equal(
+      productFactoryInvalidAiResponseMessage("improve"),
+      PRODUCT_FACTORY_INVALID_IMPROVE_AI_RESPONSE
+    );
+  });
+
+  it("ação improve com compliance fallback produz payload persistível", () => {
+    const compliance = normalizeGeneratedCompliance({ compliance: undefined }, null);
+
+    assert.equal(typeof compliance.risk_score, "number");
+    assert.ok(["pass", "warning", "fail"].includes(compliance.status));
+    assert.equal(typeof compliance.notes, "string");
+    assert.ok(compliance.notes.length > 0);
   });
 });

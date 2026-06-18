@@ -655,8 +655,12 @@ export function ProductFactoryView() {
       expand_content: "Conteúdo expandido",
       premium: "Versão Premium gerada",
     };
+
+    console.info("[product-pro] UI handleProAction", { factoryId, action });
+
     const { bundle, error: proError } = await runProAction(factoryId, action);
     if (proError) {
+      console.error("[product-pro] UI toast error", { factoryId, action, proError });
       toast.error(proError);
       return;
     }

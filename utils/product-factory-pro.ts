@@ -2,6 +2,7 @@ import type { ProductComplianceCheck, ProductFactory } from "@/types/database";
 import type {
   ProductFactoryChapter,
   ProductFactoryChecklistItem,
+  ProductFactoryComplianceItem,
   ProductFactoryDesign,
   ProductFactoryExercise,
   GeneratedProductFactory,
@@ -678,6 +679,109 @@ export type ProductFactoryProAction =
   | "regenerate_design"
   | "expand_content"
   | "premium";
+
+export type GeneratedProductCompliance = GeneratedProductFactory["compliance"];
+
+export const DEFAULT_COMPLIANCE_DISCLAIMER =
+  "Este material é educativo e não substitui orientação profissional.";
+
+export const PRODUCT_FACTORY_INVALID_IMPROVE_AI_RESPONSE =
+  "Resposta da IA inválida ao melhorar produto.";
+
+export type ProductFactoryAiOperation = "generate" | "improve" | "compliance";
+
+export function formatProductFactoryOpenAiError(
+  cause: unknown,
+  operation: ProductFactoryAiOperation = "generate"
+): string {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  switch (operation) {
+    case "improve":
+      return `OpenAI falhou ao gerar melhoria do produto: ${message}`;
+    case "compliance":
+      return `OpenAI falhou ao analisar compliance: ${message}`;
+    default:
+      return `OpenAI falhou ao gerar o produto: ${message}`;
+  }
+}
+
+export function productFactoryInvalidAiResponseMessage(
+  operation: ProductFactoryAiOperation = "generate"
+): string {
+  switch (operation) {
+    case "improve":
+      return PRODUCT_FACTORY_INVALID_IMPROVE_AI_RESPONSE;
+    case "compliance":
+      return "Resposta da IA inválida ao analisar compliance.";
+    default:
+      return "Resposta da IA inválida ao gerar o produto.";
+  }
+}
+
+function complianceCheckToGenerated(
+  previous: ProductComplianceCheck | null | undefined
+): GeneratedProductCompliance | null {
+  if (!previous) return null;
+
+  return {
+    risk_score: previous.risk_score ?? 10,
+    risk_level: previous.risk_level ?? "low",
+    forbidden_claims: parseJsonArray<string>(previous.forbidden_claims),
+    misleading_risks: parseJsonArray<string>(previous.misleading_risks),
+    ad_checklist: parseJsonArray<ProductFactoryComplianceItem>(previous.ad_checklist),
+    recommendations: parseJsonArray<string>(previous.recommendations),
+    status: previous.status ?? "warning",
+    notes: previous.notes ?? DEFAULT_COMPLIANCE_DISCLAIMER,
+  };
+}
+
+export function normalizeGeneratedCompliance(
+  generated: { compliance?: GeneratedProductCompliance | null },
+  previousCompliance?: ProductComplianceCheck | null,
+  options?: { sensitiveNiche?: boolean }
+): GeneratedProductCompliance {
+  const previous = complianceCheckToGenerated(previousCompliance ?? null);
+  const incoming = generated.compliance;
+  const disclaimer =
+    previous?.notes?.trim() ||
+    (options?.sensitiveNiche ? SENSITIVE_NICHE_DISCLAIMER : DEFAULT_COMPLIANCE_DISCLAIMER);
+
+  if (
+    incoming &&
+    typeof incoming.risk_score === "number" &&
+    incoming.status &&
+    ["pass", "warning", "fail"].includes(incoming.status)
+  ) {
+    return {
+      risk_score: incoming.risk_score,
+      risk_level: incoming.risk_level ?? previous?.risk_level ?? "low",
+      forbidden_claims: incoming.forbidden_claims ?? previous?.forbidden_claims ?? [],
+      misleading_risks: incoming.misleading_risks ?? previous?.misleading_risks ?? [],
+      ad_checklist: incoming.ad_checklist ?? previous?.ad_checklist ?? [],
+      recommendations: incoming.recommendations ?? previous?.recommendations ?? [],
+      status: incoming.status,
+      notes: incoming.notes?.trim() || disclaimer,
+    };
+  }
+
+  if (previous) {
+    return {
+      ...previous,
+      notes: previous.notes?.trim() || disclaimer,
+    };
+  }
+
+  return {
+    risk_score: 10,
+    risk_level: "low",
+    forbidden_claims: [],
+    misleading_risks: [],
+    ad_checklist: [],
+    recommendations: [],
+    status: "warning",
+    notes: disclaimer,
+  };
+}
 
 export function buildProActionPrompt(
   action: ProductFactoryProAction,

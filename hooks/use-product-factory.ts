@@ -117,26 +117,77 @@ export function useProductFactory() {
   }
 
   async function runProAction(factoryId: string, action: ProductFactoryProAction) {
+    const payload = { factory_id: factoryId, action };
+    console.info("[product-pro] client request", payload);
+
     setBusy(true);
     try {
       const res = await fetch("/api/creator/factory/pro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ factory_id: factoryId, action }),
+        body: JSON.stringify(payload),
       });
-      const { data, error: parseError } = await parseJsonResponse<{
+
+      const rawText = await res.text();
+      console.info("[product-pro] client response", {
+        status: res.status,
+        ok: res.ok,
+        bodyPreview: rawText.slice(0, 500),
+      });
+
+      type ProActionResponse = {
         bundle?: ProductFactoryBundle;
         error?: string;
-      }>(res);
+        detail?: string;
+        stack?: string;
+      };
+
+      let data: ProActionResponse | null = null;
+      let parseError: string | null = null;
+
+      try {
+        data = JSON.parse(rawText) as ProActionResponse;
+      } catch {
+        parseError = "Resposta inválida do servidor.";
+      }
 
       if (parseError || !res.ok || !data || data.error || !data.bundle) {
-        return { bundle: null, error: data?.error ?? parseError ?? "Erro na ação Pro." };
+        const serverMessage = data?.detail ?? data?.error ?? parseError;
+        const actionLabels: Record<ProductFactoryProAction, string> = {
+          improve: "melhorar produto",
+          regenerate_design: "regenerar design",
+          expand_content: "expandir conteúdo",
+          premium: "gerar versão premium",
+        };
+        const fallback = `Erro ao ${actionLabels[action]}: ${serverMessage ?? "resposta vazia ou inválida"}`;
+
+        console.error("[product-pro] client error", {
+          factoryId,
+          action,
+          status: res.status,
+          error: data?.error,
+          detail: data?.detail,
+          stack: data?.stack,
+          parseError,
+        });
+
+        return {
+          bundle: null,
+          error: data?.error ?? fallback,
+        };
       }
 
       await refresh();
       return { bundle: data.bundle, error: null };
-    } catch {
-      return { bundle: null, error: "Erro de conexão." };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[product-pro] client exception", {
+        factoryId,
+        action,
+        error: message,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      return { bundle: null, error: `Erro de conexão: ${message}` };
     } finally {
       setBusy(false);
     }
