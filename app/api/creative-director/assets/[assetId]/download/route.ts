@@ -1,0 +1,30 @@
+import { downloadRealCreativeAsset } from "@/lib/supabase/services/creative-generated-assets.service";
+
+type RouteContext = { params: Promise<{ assetId: string }> };
+
+export async function GET(_req: Request, context: RouteContext) {
+  try {
+    const { assetId } = await context.params;
+    if (!assetId?.trim()) {
+      return Response.json({ error: "ID inválido." }, { status: 400 });
+    }
+
+    const { buffer, fileName, mimeType, error } = await downloadRealCreativeAsset(assetId);
+
+    if (error || !buffer) {
+      const status = error === "Usuário não autenticado." ? 401 : 404;
+      return Response.json({ error: error ?? "Arquivo não disponível." }, { status });
+    }
+
+    return new Response(buffer, {
+      status: 200,
+      headers: {
+        "Content-Type": mimeType,
+        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Cache-Control": "private, max-age=3600",
+      },
+    });
+  } catch {
+    return Response.json({ error: "Erro ao baixar asset." }, { status: 500 });
+  }
+}

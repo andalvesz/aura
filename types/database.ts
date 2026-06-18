@@ -989,6 +989,23 @@ export type CreativeAssetType =
 
 export type CreativeAssetStatus = "generating" | "ready" | "failed";
 
+export type CreativeGeneratedAssetType =
+  | "image"
+  | "carousel"
+  | "story"
+  | "thumbnail"
+  | "reel_cover"
+  | "ugc_frame";
+
+export type CreativeMediaProviderId = "openai" | "flux" | "runway" | "kling" | "veo";
+
+export type CreativeGeneratedAssetStatus =
+  | "generating"
+  | "prompt_ready"
+  | "ready"
+  | "failed"
+  | "blocked";
+
 export type LandingPageStatus = "draft" | "preview" | "published";
 
 export type LandingPage = {
@@ -1224,6 +1241,20 @@ export type CreativeAsset = {
   metadata: Json;
   created_at: string;
   updated_at: string;
+};
+
+export type CreativeGeneratedAsset = {
+  id: string;
+  user_id: string;
+  creative_id: string | null;
+  asset_type: CreativeGeneratedAssetType;
+  provider: CreativeMediaProviderId;
+  file_url: string | null;
+  thumbnail_url: string | null;
+  prompt: string | null;
+  status: CreativeGeneratedAssetStatus;
+  metadata: Json;
+  created_at: string;
 };
 
 export type AdPlatform = "meta" | "google" | "tiktok" | "other";
@@ -4332,6 +4363,33 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      creative_generated_assets: TableDef<
+        CreativeGeneratedAsset,
+        Omit<
+          CreativeGeneratedAsset,
+          | "id"
+          | "created_at"
+          | "creative_id"
+          | "asset_type"
+          | "provider"
+          | "file_url"
+          | "thumbnail_url"
+          | "prompt"
+          | "status"
+          | "metadata"
+        > & {
+          id?: string;
+          creative_id?: string | null;
+          asset_type?: CreativeGeneratedAssetType;
+          provider?: CreativeMediaProviderId;
+          file_url?: string | null;
+          thumbnail_url?: string | null;
+          prompt?: string | null;
+          status?: CreativeGeneratedAssetStatus;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       ad_campaigns: TableDef<
         AdCampaign,
         Omit<
@@ -5605,6 +5663,7 @@ export type UserScopedTable =
   | "product_versions"
   | "product_compliance_checks"
   | "creative_assets"
+  | "creative_generated_assets"
   | "ad_campaigns"
   | "landing_pages"
   | "funnels"

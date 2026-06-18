@@ -21,7 +21,7 @@ export const CREATIVE_FACTORY_SAFE_MODE = {
     "Creative Factory gera arquivos e vincula à operação — não publica anúncios nem sobe campanhas automaticamente.",
 };
 
-export type CreativeMediaProvider = "text-only" | "openai" | "runway" | "kling" | "veo";
+export type CreativeMediaProvider = "text-only" | "openai" | "flux" | "runway" | "kling" | "veo";
 
 export type CreativeGeneratorProvider = {
   id: CreativeMediaProvider;
@@ -31,10 +31,11 @@ export type CreativeGeneratorProvider = {
   available: boolean;
 };
 
-/** Providers preparados para integração futura (V1 usa text-only). */
+/** Providers de mídia real — OpenAI Images e Flux operacionais; vídeo preparado. */
 export const CREATIVE_GENERATOR_PROVIDERS: CreativeGeneratorProvider[] = [
   { id: "text-only", label: "Aura Text Factory", supportsImage: false, supportsVideo: false, available: true },
-  { id: "openai", label: "OpenAI Images", supportsImage: true, supportsVideo: false, available: false },
+  { id: "openai", label: "OpenAI Images", supportsImage: true, supportsVideo: false, available: true },
+  { id: "flux", label: "Flux", supportsImage: true, supportsVideo: false, available: true },
   { id: "runway", label: "Runway", supportsImage: false, supportsVideo: true, available: false },
   { id: "kling", label: "Kling", supportsImage: false, supportsVideo: true, available: false },
   { id: "veo", label: "Veo", supportsImage: false, supportsVideo: true, available: false },

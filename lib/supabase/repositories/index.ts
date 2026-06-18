@@ -98,3 +98,4 @@ export {
 } from "./aura-excellence.repository";
 export { SpecialistsRepository } from "./specialist-engine.repository";
 export { OffersRepository } from "./offer-engine.repository";
+export { CreativeGeneratedAssetsRepository } from "./creative-generated-assets.repository";

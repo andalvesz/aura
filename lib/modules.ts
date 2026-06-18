@@ -38,6 +38,7 @@ import {
   CircleDollarSign,
   Gift,
   ShieldCheck,
+  ImageIcon,
 } from "lucide-react";
 
 export type ModuleId =
@@ -70,6 +71,7 @@ export type ModuleId =
   | "conversion-intelligence"
   | "excellence"
   | "ads-commander"
+  | "creative-director"
   | "autopilot"
   | "product-factory"
   | "platforms"
@@ -517,6 +519,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Preparadas",
       value: "0",
       hint: "Monte campanhas e aprove manualmente",
+    },
+  },
+  {
+    id: "creative-director",
+    href: "/dashboard/creative-director",
+    label: "Creative Director",
+    shortLabel: "Creative",
+    description:
+      "Gera assets reais de imagem via OpenAI Images e Flux — prompt otimizado, Excellence review e download.",
+    icon: ImageIcon,
+    accent: "text-fuchsia-400",
+    overview: {
+      metric: "Assets reais",
+      value: "—",
+      hint: "Gere imagens prontas para anúncios",
     },
   },
   {

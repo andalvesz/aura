@@ -501,6 +501,12 @@ export async function generateCreativePackage(operationId: string): Promise<{
     })
     .catch(() => undefined);
 
+  void import("./creative-generated-assets.service")
+    .then(({ generateRealAssetsForCreativeBriefs }) =>
+      generateRealAssetsForCreativeBriefs(readyAssets)
+    )
+    .catch(() => undefined);
+
   return {
     package: manifest,
     operation: linkedOp,
