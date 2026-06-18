@@ -66,6 +66,7 @@ export type ModuleId =
   | "market-hunter"
   | "offer-engine"
   | "funnel-pages"
+  | "conversion-intelligence"
   | "ads-commander"
   | "autopilot"
   | "product-factory"
@@ -469,6 +470,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Páginas",
       value: "0",
       hint: "Gere páginas após criar funil e ofertas",
+    },
+  },
+  {
+    id: "conversion-intelligence",
+    href: "/dashboard/conversion-intelligence",
+    label: "Conversion Intelligence",
+    shortLabel: "Conversion AI",
+    description:
+      "IA que aprende padrões reais de conversão — explica por que converteu ou não e recomenda ações.",
+    icon: LineChart,
+    accent: "text-lime-400",
+    overview: {
+      metric: "Insights",
+      value: "0",
+      hint: "Analise padrões de Growth Brain e Revenue AI",
     },
   },
   {

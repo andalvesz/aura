@@ -1116,6 +1116,31 @@ export type FunnelPage = {
   updated_at: string;
 };
 
+export type ConversionInsight = {
+  id: string;
+  user_id: string;
+  funnel_id: string | null;
+  product_id: string | null;
+  offer_id: string | null;
+  landing_id: string | null;
+  creative_id: string | null;
+  campaign_id: string | null;
+  country: string | null;
+  language: string | null;
+  conversion_rate: number | null;
+  ctr: number | null;
+  cpc: number | null;
+  cpa: number | null;
+  roas: number | null;
+  revenue: number | null;
+  spend: number | null;
+  insight: string | null;
+  recommendation: string | null;
+  confidence_score: number;
+  metadata: Json;
+  created_at: string;
+};
+
 export type CreativeAsset = {
   id: string;
   user_id: string;
@@ -4501,6 +4526,55 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      conversion_insights: TableDef<
+        ConversionInsight,
+        Omit<
+          ConversionInsight,
+          | "id"
+          | "created_at"
+          | "funnel_id"
+          | "product_id"
+          | "offer_id"
+          | "landing_id"
+          | "creative_id"
+          | "campaign_id"
+          | "country"
+          | "language"
+          | "conversion_rate"
+          | "ctr"
+          | "cpc"
+          | "cpa"
+          | "roas"
+          | "revenue"
+          | "spend"
+          | "insight"
+          | "recommendation"
+          | "confidence_score"
+          | "metadata"
+        > & {
+          id?: string;
+          funnel_id?: string | null;
+          product_id?: string | null;
+          offer_id?: string | null;
+          landing_id?: string | null;
+          creative_id?: string | null;
+          campaign_id?: string | null;
+          country?: string | null;
+          language?: string | null;
+          conversion_rate?: number | null;
+          ctr?: number | null;
+          cpc?: number | null;
+          cpa?: number | null;
+          roas?: number | null;
+          revenue?: number | null;
+          spend?: number | null;
+          insight?: string | null;
+          recommendation?: string | null;
+          confidence_score?: number;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       platform_connections: TableDef<
         PlatformConnection,
         Omit<
@@ -5406,6 +5480,7 @@ export type UserScopedTable =
   | "landing_pages"
   | "funnels"
   | "funnel_pages"
+  | "conversion_insights"
   | "offers"
   | "platform_connections"
   | "platform_sync_logs"
