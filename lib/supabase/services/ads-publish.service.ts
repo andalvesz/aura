@@ -17,6 +17,7 @@ import {
 } from "@/lib/supabase/repositories/meta.repository";
 import { LandingPagesRepository } from "@/lib/supabase/repositories/landing-factory.repository";
 import { logIntegrationAction } from "@/lib/supabase/services/integration-logs.service";
+import { resolveMetaCreativeIdForAsset } from "@/lib/supabase/services/meta-upload.service";
 import type { AdCampaign, AdCreative, AdPlatformConnection, AdSet, Database, Json } from "@/types/database";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -25,6 +26,7 @@ import {
   mergeAdsCommanderMetadata,
   requiresExplicitPublishApproval,
 } from "@/utils/ads-commander";
+import { readGeneratedAssetId } from "@/utils/meta-upload";
 import { getOptionalDataContext } from "./context";
 
 function getMetaAccessToken(encrypted: string): string {
@@ -191,15 +193,36 @@ async function publishMetaCampaign(params: {
     });
 
     for (const creative of creatives.slice(0, 3)) {
-      const { externalCreativeId } = await createMetaAdCreative(token, accountId, {
-        name: creative.headline ?? params.campaign.campaign_name,
-        pageId,
-        linkUrl: landingUrl,
-        headline: creative.headline ?? params.campaign.campaign_name,
-        primaryText: creative.primary_text ?? creative.headline ?? params.campaign.campaign_name,
-        description: creative.description,
-        ctaType: creative.cta ?? undefined,
-      });
+      const generatedAssetId = readGeneratedAssetId(creative.metadata);
+      let externalCreativeId: string;
+
+      if (generatedAssetId) {
+        const upload = await resolveMetaCreativeIdForAsset(generatedAssetId, {
+          connection: params.connection,
+          pageId,
+          linkUrl: landingUrl,
+          headline: creative.headline,
+          primaryText: creative.primary_text,
+          description: creative.description,
+          ctaType: creative.cta,
+          explicitApproval: params.explicitApproval,
+        });
+        if (!upload.metaCreativeId) {
+          throw new Error(upload.error ?? "Falha ao enviar criativo real para Meta.");
+        }
+        externalCreativeId = upload.metaCreativeId;
+      } else {
+        const created = await createMetaAdCreative(token, accountId, {
+          name: creative.headline ?? params.campaign.campaign_name,
+          pageId,
+          linkUrl: landingUrl,
+          headline: creative.headline ?? params.campaign.campaign_name,
+          primaryText: creative.primary_text ?? creative.headline ?? params.campaign.campaign_name,
+          description: creative.description,
+          ctaType: creative.cta ?? undefined,
+        });
+        externalCreativeId = created.externalCreativeId;
+      }
 
       const { externalAdId } = await createMetaAd(token, accountId, {
         name: creative.headline ?? `Anúncio ${creative.id.slice(0, 6)}`,
@@ -215,6 +238,7 @@ async function publishMetaCampaign(params: {
           external_ad_id: externalAdId,
           external_ad_set_id: externalAdSetId,
           published_at: new Date().toISOString(),
+          generated_asset_id: generatedAssetId,
         }),
       });
     }

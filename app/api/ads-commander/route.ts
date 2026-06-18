@@ -5,6 +5,7 @@ import {
   publishCampaign,
   syncAdPlatformConnections,
 } from "@/lib/supabase/services/ads-commander.service";
+import { uploadMetaCreative } from "@/lib/supabase/services/meta-upload.service";
 import type { AdPlatform } from "@/utils/ads-commander";
 
 export async function GET() {
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
       operation_id?: string;
       platform?: AdPlatform;
       campaignId?: string;
+      assetId?: string;
       explicitApproval?: boolean;
     };
 
@@ -53,6 +55,19 @@ export async function POST(request: Request) {
           return Response.json({ error }, { status: 422 });
         }
         return Response.json({ campaign, message, error });
+      }
+      case "upload_creative": {
+        if (!body.assetId?.trim()) {
+          return Response.json({ error: "Informe assetId." }, { status: 400 });
+        }
+        const { record, metaCreativeId, message, error } = await uploadMetaCreative({
+          assetId: body.assetId,
+          explicitApproval: body.explicitApproval === true,
+        });
+        if (error && !record) {
+          return Response.json({ error, record, metaCreativeId }, { status: 422 });
+        }
+        return Response.json({ record, metaCreativeId, message, error });
       }
       case "publish": {
         if (!body.campaignId?.trim()) {

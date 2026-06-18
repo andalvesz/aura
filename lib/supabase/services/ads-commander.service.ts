@@ -3,6 +3,7 @@ import { AdCampaignsRepository } from "@/lib/supabase/repositories/ad-campaigns.
 import { AdCreativesRepository } from "@/lib/supabase/repositories/ad-creatives.repository";
 import { AdSetsRepository } from "@/lib/supabase/repositories/ad-sets.repository";
 import { CreativeAssetsRepository } from "@/lib/supabase/repositories/creative-factory.repository";
+import { CreativeGeneratedAssetsRepository } from "@/lib/supabase/repositories/creative-generated-assets.repository";
 import { LandingPagesRepository } from "@/lib/supabase/repositories/landing-factory.repository";
 import { OperationCenterRepository } from "@/lib/supabase/repositories/operation-center.repository";
 import { loadCopylabRecords } from "@/lib/supabase/services/copylab.service";
@@ -23,6 +24,7 @@ import {
   type BudgetSuggestion,
   type RiskAnalysis,
 } from "@/utils/ads-commander";
+import { isCreativeGeneratedAssetDelivered } from "@/utils/creative-generated-assets";
 import { readCreativeDirectorMetadata } from "@/utils/creative-director";
 import { computeInvestimentoFromBudget } from "@/utils/campaign-budget";
 import { getOptionalDataContext } from "./context";
@@ -467,13 +469,40 @@ export async function prepareCreatives(campaignId: string): Promise<{
 
   const creativeRepo = new AdCreativesRepository(ctx.supabase, ctx.userId);
   const assetsRepo = new CreativeAssetsRepository(ctx.supabase, ctx.userId);
+  const generatedRepo = new CreativeGeneratedAssetsRepository(ctx.supabase, ctx.userId);
 
   let assets: { id: string; type: string; title: string | null; copy: string | null }[] = [];
+  let generatedAssets: { id: string; title: string | null; copy: string | null }[] = [];
+
   if (campaign.operation_id) {
-    const { data } = await assetsRepo.findByOperationId(campaign.operation_id);
-    assets = (data ?? [])
+    const [{ data: briefAssets }, { data: generated }] = await Promise.all([
+      assetsRepo.findByOperationId(campaign.operation_id),
+      generatedRepo.findByOperationId(campaign.operation_id),
+    ]);
+
+    assets = (briefAssets ?? [])
       .filter((a) => a.status === "ready")
       .map((a) => ({ id: a.id, type: a.asset_type, title: a.title, copy: a.copy }));
+
+    generatedAssets = (generated ?? [])
+      .filter((a) => isCreativeGeneratedAssetDelivered(a.status))
+      .map((a) => {
+        const meta = a.metadata as Record<string, unknown> | null;
+        return {
+          id: a.id,
+          title: typeof meta?.title === "string" ? meta.title : null,
+          copy: typeof meta?.copy === "string" ? meta.copy : null,
+        };
+      });
+  }
+
+  if (assets.length === 0 && generatedAssets.length > 0) {
+    assets = generatedAssets.map((a) => ({
+      id: a.id,
+      type: "image",
+      title: a.title,
+      copy: a.copy,
+    }));
   }
 
   const creativesJson = campaign.creatives_json;
@@ -510,7 +539,13 @@ export async function prepareCreatives(campaignId: string): Promise<{
   }
 
   const created: AdCreative[] = [];
-  for (const asset of assets.slice(0, 5)) {
+  for (const [index, asset] of assets.slice(0, 5).entries()) {
+    const generated =
+      generatedAssets.find((g) => g.id === asset.id) ??
+      generatedAssets[index] ??
+      generatedAssets[0] ??
+      null;
+
     const { data: adCreative, error } = await creativeRepo.create({
       campaign_id: campaignId,
       creative_asset_id: asset.id || null,
@@ -519,7 +554,12 @@ export async function prepareCreatives(campaignId: string): Promise<{
       description: body.slice(0, 200),
       cta: "Saiba mais",
       status: "ready",
-      metadata: { asset_type: asset.type, safe_mode: true } as Json,
+      metadata: {
+        asset_type: asset.type,
+        safe_mode: true,
+        generated_asset_id: generated?.id ?? null,
+        publish_ready: Boolean(generated?.id),
+      } as Json,
     });
     if (adCreative) created.push(adCreative);
     if (error) return { creatives: created, error };

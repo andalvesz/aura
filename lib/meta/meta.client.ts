@@ -393,6 +393,7 @@ export type MetaPublishCreativeInput = {
   primaryText: string;
   description?: string | null;
   ctaType?: string;
+  imageHash?: string;
 };
 
 export type MetaPublishAdInput = {
@@ -479,20 +480,58 @@ export async function createMetaAdSet(
   return { externalAdSetId: data.id };
 }
 
+export async function uploadMetaAdImage(
+  accessToken: string,
+  adAccountExternalId: string,
+  imageBytes: ArrayBuffer,
+  mimeType = "image/png"
+): Promise<{ imageHash: string }> {
+  const url = new URL(`${META_GRAPH}/${actId(adAccountExternalId)}/adimages`);
+  url.searchParams.set("access_token", accessToken);
+
+  const form = new FormData();
+  const blob = new Blob([imageBytes], { type: mimeType });
+  form.append("filename", blob, "creative.png");
+
+  const res = await fetch(url.toString(), { method: "POST", body: form });
+  const data = (await res.json()) as {
+    images?: Record<string, { hash?: string }>;
+    error?: { message?: string };
+  };
+
+  if (!res.ok || data.error) {
+    throw new Error(data.error?.message ?? `Erro ao enviar imagem para Meta (${res.status}).`);
+  }
+
+  const imageEntry = data.images ? Object.values(data.images)[0] : null;
+  const imageHash = imageEntry?.hash?.trim();
+  if (!imageHash) {
+    throw new Error("Meta não retornou image_hash após upload.");
+  }
+
+  return { imageHash };
+}
+
 export async function createMetaAdCreative(
   accessToken: string,
   adAccountExternalId: string,
   input: MetaPublishCreativeInput
 ) {
+  const linkData: Record<string, unknown> = {
+    link: input.linkUrl,
+    message: input.primaryText,
+    name: input.headline,
+    description: input.description ?? "",
+    call_to_action: { type: mapMetaCtaType(input.ctaType) },
+  };
+
+  if (input.imageHash?.trim()) {
+    linkData.image_hash = input.imageHash.trim();
+  }
+
   const objectStorySpec = JSON.stringify({
     page_id: input.pageId,
-    link_data: {
-      link: input.linkUrl,
-      message: input.primaryText,
-      name: input.headline,
-      description: input.description ?? "",
-      call_to_action: { type: mapMetaCtaType(input.ctaType) },
-    },
+    link_data: linkData,
   });
 
   const data = await metaFetch<{ id: string }>(

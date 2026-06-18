@@ -1434,6 +1434,15 @@ export type AdCreative = {
   created_at: string;
 };
 
+export type MetaUploadedAsset = {
+  id: string;
+  user_id: string;
+  asset_id: string;
+  meta_creative_id: string;
+  uploaded_at: string;
+  metadata: Json;
+};
+
 export type ProductFactory = {
   id: string;
   user_id: string;
@@ -4514,6 +4523,19 @@ export type Database = {
           created_at?: string;
         }
       >;
+      meta_uploaded_assets: TableDef<
+        MetaUploadedAsset,
+        Omit<
+          MetaUploadedAsset,
+          "id" | "user_id" | "asset_id" | "meta_creative_id" | "uploaded_at" | "metadata"
+        > & {
+          id?: string;
+          asset_id?: string;
+          meta_creative_id?: string;
+          uploaded_at?: string;
+          metadata?: Json;
+        }
+      >;
       ad_campaigns: TableDef<
         AdCampaign,
         Omit<
@@ -5932,6 +5954,7 @@ export type UserScopedTable =
   | "product_compliance_checks"
   | "creative_assets"
   | "creative_generated_assets"
+  | "meta_uploaded_assets"
   | "ad_platform_connections"
   | "ad_campaigns"
   | "landing_pages"
