@@ -46,6 +46,12 @@ export async function POST(request: Request) {
       return Response.json({ error: "action inválida." }, { status: 400 });
     }
 
+    console.info("[product-pro-trace] CALLER", {
+      source: "app/api/creator/factory/pro/route.ts/POST",
+      factoryId,
+      action,
+    });
+
     const { bundle, error } = await runProductFactoryProAction(factoryId, action, {
       source: "manual",
     });

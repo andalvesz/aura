@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
 import type { ProductFactory } from "@/types/database";
 import type { ProductFactoryBundle } from "@/utils/product-factory";
+import { shouldTriggerExcellenceAutoImprovement } from "@/lib/supabase/services/excellence-integration.service";
 import {
   MAX_AUTO_ELITE_CYCLES,
   sanitizeProductFactoryBundle,
@@ -9,14 +10,26 @@ import {
 } from "./product-factory-pro";
 import {
   acquireProductProLock,
+  getProductProDepthForFactory,
+  isProductProAutoImproveInCooldown,
+  isProductProDepthLimitError,
   isProductProLocked,
   isProductProStackOverflowError,
+  popProductProDepthForFactory,
+  PRODUCT_PRO_AUTO_IMPROVE_COOLDOWN_MS,
+  PRODUCT_PRO_DEPTH_BLOCKED_MESSAGE,
   PRODUCT_PRO_LOCK_MESSAGE,
   PRODUCT_PRO_LOCK_TTL_MS,
   PRODUCT_PRO_LOOP_DETECTED_MESSAGE,
+  PRODUCT_PRO_MAX_DEPTH,
   productProLocks,
+  ProductProDepthLimitError,
+  pushProductProDepthForFactory,
+  recordManualProductProImprove,
   releaseProductProLock,
   resetProductProLocksForTests,
+  shouldScheduleExcellenceAfterProAction,
+  shouldSkipEbookAutoImprovement,
 } from "./product-pro-locks";
 
 function buildBundle(conteudo: Record<string, unknown>): ProductFactoryBundle {
@@ -55,7 +68,7 @@ describe("product-pro-locks", () => {
     }
 
     assert.equal(skipped, true);
-    assert.equal(PRODUCT_PRO_LOCK_MESSAGE, "Produto já está sendo melhorado. Aguarde a ação atual terminar.");
+    assert.equal(PRODUCT_PRO_LOCK_MESSAGE, "Produto já está sendo melhorado. Aguarde terminar.");
   });
 
   it("lock expira após TTL de 5 minutos", () => {
@@ -81,19 +94,84 @@ describe("product-pro-locks", () => {
     );
     assert.equal(isProductProStackOverflowError(new Error("other")), false);
     assert.equal(PRODUCT_PRO_LOOP_DETECTED_MESSAGE.includes("Loop detectado"), true);
+    assert.equal(
+      PRODUCT_PRO_DEPTH_BLOCKED_MESSAGE.includes("Melhoria automática bloqueada"),
+      true
+    );
   });
 });
 
-describe("product-pro — excellence loop guard", () => {
-  it("source excellence não agenda novo excellence em loop", () => {
-    const shouldSchedule = (source: string, skipExcellenceTrigger?: boolean) =>
-      source === "manual" && !skipExcellenceTrigger;
+describe("product-pro — manual vs auto excellence", () => {
+  it("manual improve não agenda auto-improvement", () => {
+    assert.equal(shouldScheduleExcellenceAfterProAction("manual"), false);
+    assert.equal(shouldScheduleExcellenceAfterProAction("manual", false), false);
+    assert.equal(shouldScheduleExcellenceAfterProAction("excellence", true), false);
+  });
 
-    assert.equal(shouldSchedule("excellence", true), false);
-    assert.equal(shouldSchedule("commercial_excellence", true), false);
-    assert.equal(shouldSchedule("auto_elite", true), false);
-    assert.equal(shouldSchedule("manual", false), true);
-    assert.equal(shouldSchedule("manual", true), false);
+  it("passive review não dispara triggerAutoImprovement", () => {
+    assert.equal(shouldTriggerExcellenceAutoImprovement("passive", false), false);
+    assert.equal(shouldTriggerExcellenceAutoImprovement("product-factory", true), true);
+  });
+
+  it("excellence review de product-factory-pro é passive", () => {
+    assert.equal(shouldSkipEbookAutoImprovement("product-factory-pro"), true);
+    assert.equal(shouldSkipEbookAutoImprovement("manual"), true);
+    assert.equal(shouldSkipEbookAutoImprovement("passive"), true);
+    assert.equal(shouldTriggerExcellenceAutoImprovement("product-factory-pro", true), false);
+  });
+
+  it("auto-improve respeita cooldown após manual improve", () => {
+    const now = Date.now();
+    recordManualProductProImprove("factory-1", now);
+    assert.equal(isProductProAutoImproveInCooldown("factory-1", now + 1), true);
+    assert.equal(
+      isProductProAutoImproveInCooldown(
+        "factory-1",
+        now + PRODUCT_PRO_AUTO_IMPROVE_COOLDOWN_MS + 1
+      ),
+      false
+    );
+  });
+});
+
+describe("product-pro — depth per factory", () => {
+  beforeEach(() => {
+    resetProductProLocksForTests();
+  });
+
+  it("depth é isolado por factoryId", () => {
+    for (let i = 0; i < PRODUCT_PRO_MAX_DEPTH; i += 1) {
+      pushProductProDepthForFactory("factory-a");
+    }
+    assert.throws(
+      () => pushProductProDepthForFactory("factory-a"),
+      ProductProDepthLimitError
+    );
+    assert.equal(getProductProDepthForFactory("factory-a"), PRODUCT_PRO_MAX_DEPTH);
+    assert.equal(getProductProDepthForFactory("factory-b"), 0);
+    assert.equal(pushProductProDepthForFactory("factory-b"), 1);
+  });
+
+  it("duas factories diferentes podem melhorar ao mesmo tempo", () => {
+    assert.ok(acquireProductProLock("factory-a", "improve", "manual"));
+    assert.ok(acquireProductProLock("factory-b", "improve", "manual"));
+    assert.equal(pushProductProDepthForFactory("factory-a"), 1);
+    assert.equal(pushProductProDepthForFactory("factory-b"), 1);
+    popProductProDepthForFactory("factory-a");
+    popProductProDepthForFactory("factory-b");
+    assert.equal(getProductProDepthForFactory("factory-a"), 0);
+    assert.equal(getProductProDepthForFactory("factory-b"), 0);
+  });
+
+  it("ProductProDepthLimitError é identificável", () => {
+    try {
+      for (let i = 0; i <= PRODUCT_PRO_MAX_DEPTH; i += 1) {
+        pushProductProDepthForFactory("factory-depth");
+      }
+      assert.fail("expected depth limit error");
+    } catch (error) {
+      assert.equal(isProductProDepthLimitError(error), true);
+    }
   });
 });
 

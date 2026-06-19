@@ -56,9 +56,16 @@ import {
 } from "@/utils/product-factory-pro";
 import {
   acquireProductProLock,
+  getActiveProductProLock,
+  getProductProDepthForFactory,
+  isProductProDepthLimitError,
   isProductProStackOverflowError,
+  popProductProDepthForFactory,
+  PRODUCT_PRO_DEPTH_BLOCKED_MESSAGE,
   PRODUCT_PRO_LOCK_MESSAGE,
   PRODUCT_PRO_LOOP_DETECTED_MESSAGE,
+  pushProductProDepthForFactory,
+  recordManualProductProImprove,
   releaseProductProLock,
 } from "@/utils/product-pro-locks";
 import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
@@ -70,50 +77,29 @@ const PDF_BUCKET = PRODUCT_FILES_BUCKET;
 
 export const MAX_PRODUCT_PRO_DEPTH = 5;
 
-const productProDepthStack: Array<{
-  factoryId: string;
-  action: string;
-  source: string;
-}> = [];
-
 function pushProductProDepth(
   source: string,
   factoryId: string,
   action: string
 ): number {
-  productProDepthStack.push({ factoryId, action, source });
-  const depth = productProDepthStack.length;
+  const depth = pushProductProDepthForFactory(factoryId);
   console.info("[stack-debug] depth push", {
     depth,
     action,
     factory_id: factoryId,
     source,
-    stack: productProDepthStack.map((entry) => `${entry.source}:${entry.action}`),
   });
-  if (depth > MAX_PRODUCT_PRO_DEPTH) {
-    const trace = productProDepthStack
-      .map((entry) => `${entry.source}(${entry.action}@${entry.factoryId})`)
-      .join(" -> ");
-    productProDepthStack.pop();
-    const error = new Error(`Product Factory recursion detected at depth ${depth}: ${trace}`);
-    console.error("[stack-debug] recursion guard tripped", {
-      depth,
-      trace,
-      stack: error.stack,
-    });
-    throw error;
-  }
   return depth;
 }
 
 function popProductProDepth(source: string, factoryId: string, action: string): void {
   console.info("[stack-debug] depth pop", {
-    depth: productProDepthStack.length,
+    depth: getProductProDepthForFactory(factoryId),
     action,
     factory_id: factoryId,
     source,
   });
-  productProDepthStack.pop();
+  popProductProDepthForFactory(factoryId);
 }
 
 function getOpenAi() {
@@ -887,8 +873,14 @@ async function autoImproveToElite(
   try {
     const cycles = AUTO_ELITE_CYCLES.slice(0, MAX_AUTO_ELITE_CYCLES);
 
-    for (const cycle of cycles) {
+    for (let cycleIndex = 0; cycleIndex < cycles.length; cycleIndex += 1) {
+      const cycle = cycles[cycleIndex];
       const quality = computeProductQualityScore(bundle.factory, bundle.compliance);
+      console.info("[product-pro-trace] AUTO_ELITE", {
+        factoryId,
+        cycle: cycleIndex + 1,
+        action: cycle.action,
+      });
       console.info("[stack-debug] autoImproveToElite cycle", {
         factory_id: factoryId,
         action: cycle.action,
@@ -928,7 +920,22 @@ async function autoImproveToElite(
 
     return { bundle, error: null };
   } catch (error) {
+    if (isProductProDepthLimitError(error)) {
+      console.error("[product-pro-trace] LOOP_BLOCKED", {
+        factoryId,
+        context: "autoImproveToElite",
+        reason: "depth_limit",
+        depth: error.depth,
+      });
+      return { bundle, error: PRODUCT_PRO_DEPTH_BLOCKED_MESSAGE };
+    }
     if (isProductProStackOverflowError(error)) {
+      console.error("[product-pro-trace] LOOP_BLOCKED", {
+        factoryId,
+        context: "autoImproveToElite",
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       return { bundle, error: PRODUCT_PRO_LOOP_DETECTED_MESSAGE };
     }
     throw error;
@@ -943,6 +950,14 @@ export async function runProductFactoryProAction(
   options?: ProductProActionOptions
 ): Promise<{ bundle: ProductFactoryBundle | null; error: string | null }> {
   const source = options?.source ?? "manual";
+
+  console.info("[product-pro-trace] START", {
+    source,
+    action,
+    factoryId,
+    stack: new Error().stack,
+  });
+
   console.info("[stack-debug] enter runProductFactoryProAction", {
     action,
     factory_id: factoryId,
@@ -972,12 +987,18 @@ export async function runProductFactoryProAction(
 
   const lockAcquired = acquireProductProLock(factoryId, action, source);
   if (!lockAcquired) {
+    const activeLock = getActiveProductProLock(factoryId);
+    console.error("[product-pro-trace] LOCK_BLOCKED", {
+      factoryId,
+      action,
+      source,
+      activeLock,
+      stack: new Error().stack,
+    });
     console.info("[product-pro] action blocked by active lock", { factoryId, action, source });
     return { bundle: null, error: PRODUCT_PRO_LOCK_MESSAGE };
   }
 
-  let scheduleExcellence = false;
-  let excellenceLabel: string | undefined;
   let response: { bundle: ProductFactoryBundle | null; error: string | null };
 
   try {
@@ -989,14 +1010,8 @@ export async function runProductFactoryProAction(
       source
     );
 
-    if (
-      !result.error &&
-      result.bundle &&
-      source === "manual" &&
-      !options?.skipExcellenceTrigger
-    ) {
-      scheduleExcellence = true;
-      excellenceLabel = result.bundle.factory.titulo ?? undefined;
+    if (source === "manual" && !result.error && result.bundle) {
+      recordManualProductProImprove(factoryId);
     }
 
     response = {
@@ -1004,7 +1019,23 @@ export async function runProductFactoryProAction(
       error: result.error,
     };
   } catch (error) {
-    if (isProductProStackOverflowError(error)) {
+    if (isProductProDepthLimitError(error)) {
+      console.error("[product-pro-trace] LOOP_BLOCKED", {
+        factoryId,
+        action,
+        source,
+        reason: "depth_limit",
+        depth: error.depth,
+      });
+      response = { bundle: null, error: PRODUCT_PRO_DEPTH_BLOCKED_MESSAGE };
+    } else if (isProductProStackOverflowError(error)) {
+      console.error("[product-pro-trace] LOOP_BLOCKED", {
+        factoryId,
+        action,
+        source,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       console.error("[product-pro] stack overflow blocked", { action, factoryId, source });
       response = { bundle: null, error: PRODUCT_PRO_LOOP_DETECTED_MESSAGE };
     } else {
@@ -1032,14 +1063,6 @@ export async function runProductFactoryProAction(
       factory_id: factoryId,
       source,
     });
-  }
-
-  if (scheduleExcellence) {
-    void import("./excellence-integration.service")
-      .then(({ scheduleExcellenceReview }) => {
-        scheduleExcellenceReview("ebook", factoryId, excellenceLabel, "product-factory-pro");
-      })
-      .catch(() => undefined);
   }
 
   return response;
