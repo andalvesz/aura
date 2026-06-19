@@ -10,7 +10,16 @@ export async function GET(request: Request) {
       return Response.json({ error: "task inválida." }, { status: 400 });
     }
 
-    const { frameworks, playbooks, patterns, error } = await getExpertContextForApi(task);
+    const {
+      frameworks,
+      playbooks,
+      patterns,
+      decisionRules,
+      checklists,
+      failurePatterns,
+      successPatterns,
+      error,
+    } = await getExpertContextForApi(task);
 
     if (error) {
       const status = error === "Usuário não autenticado." ? 401 : 500;
@@ -22,6 +31,10 @@ export async function GET(request: Request) {
       frameworks,
       playbooks,
       patterns,
+      decisionRules,
+      checklists,
+      failurePatterns,
+      successPatterns,
     });
   } catch {
     return Response.json({ error: "Erro ao carregar contexto expert." }, { status: 500 });

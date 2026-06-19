@@ -78,6 +78,10 @@ const expertContext = {
     summary: p.description,
     confidence: p.confidence_score,
   })),
+  decisionRules: [],
+  checklists: [],
+  failurePatterns: [],
+  successPatterns: [],
   appliedFrameworks: frameworks.map((f) => f.name),
   excellenceCriteria: frameworks.flatMap((f) => f.principles).slice(0, 6),
 };

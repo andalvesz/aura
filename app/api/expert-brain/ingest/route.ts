@@ -49,6 +49,10 @@ export async function POST(request: Request) {
       frameworks: result.frameworks,
       playbooks: result.playbooks,
       patterns: result.patterns,
+      decisionRules: result.decisionRules,
+      checklists: result.checklists,
+      failurePatterns: result.failurePatterns,
+      successPatterns: result.successPatterns,
     });
   } catch {
     return Response.json({ error: "Erro ao ingerir conhecimento." }, { status: 500 });

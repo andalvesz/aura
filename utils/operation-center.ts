@@ -6,6 +6,7 @@ import {
   type CreativeScore,
 } from "@/utils/creative-director";
 import type { CreativeGeneratedAssetSummary } from "@/utils/creative-generated-assets";
+import type { ExpertOperationalChecklistResult } from "./expert-brain";
 
 export const OPERATION_CENTER_SAFE_MODE = true;
 
@@ -108,6 +109,11 @@ export type OperationCenterDashboard = {
     creativeScore: CreativeScore | null;
     generatedAssets: CreativeGeneratedAssetSummary[];
   } | null;
+  expertOperationalChecklist?: {
+    checklists: ExpertOperationalChecklistResult[];
+    blockedItems: string[];
+    canApprove: boolean;
+  };
 };
 
 export type OperationExecutiveLogEntry = {

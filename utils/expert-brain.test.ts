@@ -41,6 +41,10 @@ test("buildExpertContextPromptBlock cites applied frameworks", () => {
     ],
     playbooks: [],
     patterns: [],
+    decisionRules: [],
+    checklists: [],
+    failurePatterns: [],
+    successPatterns: [],
     appliedFrameworks: ["AIDA Pro"],
     excellenceCriteria: ["Headline magnética"],
   });

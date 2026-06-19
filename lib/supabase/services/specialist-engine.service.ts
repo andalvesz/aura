@@ -33,7 +33,7 @@ import {
 import { compareAssetToBenchmark } from "./market-leader.service";
 import { loadAssetContent } from "./excellence-asset.loader";
 import { getOptionalDataContext } from "./context";
-import { getExpertFrameworkCriteriaForAsset } from "./expert-brain.service";
+import { getExpertFrameworkCriteriaForAsset, getExpertChecklistCriteriaForAsset } from "./expert-brain.service";
 import { MARKET_LEADER_MODE } from "@/utils/market-leader";
 
 const SPECIALIST_SYSTEM = `${COPYLAB_AI_CONTEXT}
@@ -136,6 +136,7 @@ export async function runSpecialistPanelReview(
               : "scaling";
 
   const expertCriteria = await getExpertFrameworkCriteriaForAsset(assetCategory);
+  const expertChecklistCriteria = await getExpertChecklistCriteriaForAsset(assetCategory);
 
   const prompt = [
     `Audite o ativo "${label}" (${assetType}).`,
@@ -146,13 +147,20 @@ export async function runSpecialistPanelReview(
     expertCriteria.length
       ? ["Critérios adicionais do Expert Brain:", ...expertCriteria.map((c) => `• ${c}`)].join("\n")
       : null,
+    expertChecklistCriteria.length
+      ? [
+          "Checklist expert (validação obrigatória):",
+          ...expertChecklistCriteria.map((c) => `• ${c}`),
+        ].join("\n")
+      : null,
     "",
     "Especialistas obrigatórios:",
     ...panel.map((entry) => {
       const mergedCriteria = [
         ...entry.specialist.criteria,
         ...expertCriteria.slice(0, 4),
-      ].slice(0, 8);
+        ...expertChecklistCriteria.slice(0, 4),
+      ].slice(0, 10);
       return `- ${entry.specialist.slug} (${entry.specialist.name}) — critérios: ${mergedCriteria.join("; ")}`;
     }),
     "",

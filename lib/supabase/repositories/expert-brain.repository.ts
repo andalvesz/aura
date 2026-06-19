@@ -2,11 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Database,
   ExpertBrainCategory,
+  ExpertChecklist,
+  ExpertDecisionRule,
+  ExpertFailurePattern,
   ExpertFramework,
   ExpertKnowledgeSource,
   ExpertPattern,
   ExpertPatternType,
   ExpertPlaybook,
+  ExpertSuccessPattern,
   TableInsert,
 } from "@/types/database";
 import { BaseRepository } from "./base.repository";
@@ -184,6 +188,186 @@ export class ExpertPatternsRepository extends BaseRepository<"expert_patterns"> 
 
     return {
       data: (data as ExpertPattern[]) ?? [],
+      error: error?.message ?? null,
+    };
+  }
+}
+
+export class ExpertDecisionRulesRepository extends BaseRepository<"expert_decision_rules"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_decision_rules", userId);
+  }
+
+  async findByCategory(category: ExpertBrainCategory, limit = 20) {
+    const { data, error } = await this.supabase
+      .from("expert_decision_rules")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("category", category)
+      .order("priority", { ascending: false })
+      .order("confidence_score", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertDecisionRule[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findTop(limit = 30) {
+    const { data, error } = await this.supabase
+      .from("expert_decision_rules")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("priority", { ascending: false })
+      .order("confidence_score", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertDecisionRule[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async createMany(
+    rows: Array<Omit<TableInsert<"expert_decision_rules">, "user_id">>
+  ): Promise<{ data: ExpertDecisionRule[]; error: string | null }> {
+    if (rows.length === 0) return { data: [], error: null };
+
+    const payload = rows.map((row) => ({ ...row, user_id: this.userId }));
+    const { data, error } = await this.supabase
+      .from("expert_decision_rules")
+      .insert(payload)
+      .select("*");
+
+    return {
+      data: (data as ExpertDecisionRule[]) ?? [],
+      error: error?.message ?? null,
+    };
+  }
+}
+
+export class ExpertChecklistsRepository extends BaseRepository<"expert_checklists"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_checklists", userId);
+  }
+
+  async findByType(checklistType: ExpertChecklist["checklist_type"], limit = 20) {
+    const { data, error } = await this.supabase
+      .from("expert_checklists")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("checklist_type", checklistType)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertChecklist[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findRecent(limit = 30) {
+    const { data, error } = await this.supabase
+      .from("expert_checklists")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertChecklist[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async createMany(
+    rows: Array<Omit<TableInsert<"expert_checklists">, "user_id">>
+  ): Promise<{ data: ExpertChecklist[]; error: string | null }> {
+    if (rows.length === 0) return { data: [], error: null };
+
+    const payload = rows.map((row) => ({ ...row, user_id: this.userId }));
+    const { data, error } = await this.supabase
+      .from("expert_checklists")
+      .insert(payload)
+      .select("*");
+
+    return {
+      data: (data as ExpertChecklist[]) ?? [],
+      error: error?.message ?? null,
+    };
+  }
+}
+
+export class ExpertFailurePatternsRepository extends BaseRepository<"expert_failure_patterns"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_failure_patterns", userId);
+  }
+
+  async findRecent(limit = 30) {
+    const { data, error } = await this.supabase
+      .from("expert_failure_patterns")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertFailurePattern[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async createMany(
+    rows: Array<Omit<TableInsert<"expert_failure_patterns">, "user_id">>
+  ): Promise<{ data: ExpertFailurePattern[]; error: string | null }> {
+    if (rows.length === 0) return { data: [], error: null };
+
+    const payload = rows.map((row) => ({ ...row, user_id: this.userId }));
+    const { data, error } = await this.supabase
+      .from("expert_failure_patterns")
+      .insert(payload)
+      .select("*");
+
+    return {
+      data: (data as ExpertFailurePattern[]) ?? [],
+      error: error?.message ?? null,
+    };
+  }
+}
+
+export class ExpertSuccessPatternsRepository extends BaseRepository<"expert_success_patterns"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_success_patterns", userId);
+  }
+
+  async findRecent(limit = 30) {
+    const { data, error } = await this.supabase
+      .from("expert_success_patterns")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertSuccessPattern[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async createMany(
+    rows: Array<Omit<TableInsert<"expert_success_patterns">, "user_id">>
+  ): Promise<{ data: ExpertSuccessPattern[]; error: string | null }> {
+    if (rows.length === 0) return { data: [], error: null };
+
+    const payload = rows.map((row) => ({ ...row, user_id: this.userId }));
+    const { data, error } = await this.supabase
+      .from("expert_success_patterns")
+      .insert(payload)
+      .select("*");
+
+    return {
+      data: (data as ExpertSuccessPattern[]) ?? [],
       error: error?.message ?? null,
     };
   }

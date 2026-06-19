@@ -94,7 +94,7 @@ const SOURCE_WEIGHT: Record<DecisionSource, number> = {
   performance_ai: 1.05,
   kiwify: 1.08,
   meta: 1.06,
-  expert_brain: 1.12,
+  expert_brain: 1.18,
 };
 
 function weightedScore(source: DecisionSource, score: number): number {

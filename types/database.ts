@@ -905,6 +905,67 @@ export type ExpertPattern = {
   created_at: string;
 };
 
+export type ExpertChecklistType =
+  | "operational"
+  | "quality"
+  | "launch"
+  | "validation"
+  | "scaling"
+  | "other";
+
+export type ExpertDecisionRule = {
+  id: string;
+  user_id: string;
+  source_id: string | null;
+  framework_id: string | null;
+  title: string;
+  category: ExpertBrainCategory;
+  rule: string;
+  when_to_apply: string | null;
+  when_not_to_apply: string | null;
+  confidence_score: number;
+  priority: number;
+  metadata: Json;
+  created_at: string;
+};
+
+export type ExpertChecklist = {
+  id: string;
+  user_id: string;
+  source_id: string | null;
+  title: string;
+  checklist_type: ExpertChecklistType;
+  items: Json;
+  pass_criteria: string | null;
+  metadata: Json;
+  created_at: string;
+};
+
+export type ExpertFailurePattern = {
+  id: string;
+  user_id: string;
+  source_id: string | null;
+  title: string;
+  description: string | null;
+  warning_signs: Json;
+  consequences: Json;
+  prevention_actions: Json;
+  metadata: Json;
+  created_at: string;
+};
+
+export type ExpertSuccessPattern = {
+  id: string;
+  user_id: string;
+  source_id: string | null;
+  title: string;
+  description: string | null;
+  success_signals: Json;
+  scaling_actions: Json;
+  metadata: Json;
+  created_at: string;
+};
+
 export type RevenueForecastType = "revenue" | "profit" | "growth" | "scale";
 
 export type RevenueForecastPeriod = "weekly" | "monthly" | "quarterly";
@@ -5870,6 +5931,94 @@ export type Database = {
           created_at?: string;
         }
       >;
+      expert_decision_rules: TableDef<
+        ExpertDecisionRule,
+        Omit<
+          ExpertDecisionRule,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "source_id"
+          | "framework_id"
+          | "when_to_apply"
+          | "when_not_to_apply"
+          | "confidence_score"
+          | "priority"
+        > & {
+          id?: string;
+          source_id?: string | null;
+          framework_id?: string | null;
+          when_to_apply?: string | null;
+          when_not_to_apply?: string | null;
+          confidence_score?: number;
+          priority?: number;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      expert_checklists: TableDef<
+        ExpertChecklist,
+        Omit<
+          ExpertChecklist,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "source_id"
+          | "items"
+          | "pass_criteria"
+        > & {
+          id?: string;
+          source_id?: string | null;
+          items?: Json;
+          pass_criteria?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      expert_failure_patterns: TableDef<
+        ExpertFailurePattern,
+        Omit<
+          ExpertFailurePattern,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "source_id"
+          | "description"
+          | "warning_signs"
+          | "consequences"
+          | "prevention_actions"
+        > & {
+          id?: string;
+          source_id?: string | null;
+          description?: string | null;
+          warning_signs?: Json;
+          consequences?: Json;
+          prevention_actions?: Json;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      expert_success_patterns: TableDef<
+        ExpertSuccessPattern,
+        Omit<
+          ExpertSuccessPattern,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "source_id"
+          | "description"
+          | "success_signals"
+          | "scaling_actions"
+        > & {
+          id?: string;
+          source_id?: string | null;
+          description?: string | null;
+          success_signals?: Json;
+          scaling_actions?: Json;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       revenue_metrics: TableDef<
         RevenueMetric,
         Omit<
@@ -6227,6 +6376,10 @@ export type UserScopedTable =
   | "expert_frameworks"
   | "expert_playbooks"
   | "expert_patterns"
+  | "expert_decision_rules"
+  | "expert_checklists"
+  | "expert_failure_patterns"
+  | "expert_success_patterns"
   | "revenue_metrics"
   | "revenue_forecasts"
   | "market_opportunities"

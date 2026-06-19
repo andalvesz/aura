@@ -692,7 +692,7 @@ async function buildOperationCenterDashboardFromOperation(
   const hasCreativeFactoryAssets = await loadCreativeFactoryAssetsFlag(operation.id);
   const landingPage = await loadLandingPageSummary(operation.landing_id);
   const creativeGeneratedAssets = await loadCreativeGeneratedAssetsForOperation(operation);
-  return computeOperationCenterDashboard({
+  const dashboard = computeOperationCenterDashboard({
     operation,
     bundle,
     ...integrations,
@@ -700,6 +700,26 @@ async function buildOperationCenterDashboardFromOperation(
     landingPage,
     creativeGeneratedAssets,
   });
+
+  const steps = computeOperationSteps({
+    operation,
+    bundle,
+    ...integrations,
+    hasCreativeFactoryAssets,
+  });
+
+  const { validateExpertOperationalChecklists } = await import("./expert-brain.service");
+  const expertCheck = await validateExpertOperationalChecklists(steps);
+
+  return {
+    ...dashboard,
+    expertOperationalChecklist: {
+      checklists: expertCheck.results,
+      blockedItems: expertCheck.blockedItems,
+      canApprove: expertCheck.canApprove,
+    },
+    canApprove: dashboard.canApprove && expertCheck.canApprove,
+  };
 }
 
 export async function getOperationCenterState(): Promise<{
@@ -1616,6 +1636,17 @@ export async function approveOperation(
       message: "",
       error: "Operação ainda não está pronta para aprovação.",
       missing,
+    };
+  }
+
+  const { validateExpertOperationalChecklists } = await import("./expert-brain.service");
+  const expertCheck = await validateExpertOperationalChecklists(steps);
+  if (!expertCheck.canApprove) {
+    return {
+      operation: null,
+      message: "",
+      error: "Checklist crítico do Expert Brain não aprovado.",
+      missing: expertCheck.blockedItems,
     };
   }
 

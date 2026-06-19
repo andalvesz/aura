@@ -1,18 +1,26 @@
 import OpenAI from "openai";
 import type {
   ExpertBrainCategory,
+  ExpertChecklist,
+  ExpertDecisionRule,
+  ExpertFailurePattern,
   ExpertFramework,
   ExpertKnowledgeSource,
   ExpertPattern,
   ExpertPlaybook,
+  ExpertSuccessPattern,
   Json,
   TableInsert,
 } from "@/types/database";
 import {
+  ExpertChecklistsRepository,
+  ExpertDecisionRulesRepository,
+  ExpertFailurePatternsRepository,
   ExpertFrameworksRepository,
   ExpertKnowledgeSourcesRepository,
   ExpertPatternsRepository,
   ExpertPlaybooksRepository,
+  ExpertSuccessPatternsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
 import type { UnifiedDecision, UnifiedDecisionEngineResult, DecisionSource } from "@/utils/aura-decision-engine";
 import { buildDecisionEngineAuraContext } from "@/utils/aura-decision-engine";
@@ -20,13 +28,24 @@ import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
 import {
   applyExpertContextToPrompt,
   buildExpertContextPromptBlock,
+  buildExpertMentorPromptBlock,
+  buildExpertRiskAssessmentFromPatterns,
   buildExcellenceCriteriaPromptBlock,
+  checklistToContextItem,
+  collectExpertChecklistCriteria,
   collectExcellenceCriteria,
+  decisionRuleToContextItem,
   emptyExpertContext,
+  evaluateExpertOperationalChecklist,
+  failurePatternToContextItem,
   frameworkToContextItem,
+  heuristicExtractChecklists,
+  heuristicExtractDecisionRules,
+  heuristicExtractFailurePatterns,
   heuristicExtractFrameworks,
   heuristicExtractPatterns,
   heuristicExtractPlaybooks,
+  heuristicExtractSuccessPatterns,
   logExpertContextInjected,
   patternAppliesToTask,
   patternToContextItem,
@@ -34,12 +53,21 @@ import {
   rankFrameworksForTask,
   readStringArray,
   resolveExpertTask,
+  successPatternToContextItem,
   type ExpertContext,
   type ExpertContextFilters,
   type ExpertContextItem,
+  type ExpertMentorContext,
+  type ExpertOperationalChecklistResult,
+  type ExpertRiskAssessment,
+  type ExpertRiskAssessmentInput,
+  type ExtractedChecklistDraft,
+  type ExtractedDecisionRuleDraft,
+  type ExtractedFailurePatternDraft,
   type ExtractedFrameworkDraft,
   type ExtractedPatternDraft,
   type ExtractedPlaybookDraft,
+  type ExtractedSuccessPatternDraft,
 } from "@/utils/expert-brain";
 import { getOptionalDataContext } from "./context";
 import { getUnifiedDecisionsReadOnly } from "./aura-decision-engine.service";
@@ -60,6 +88,10 @@ export type IngestKnowledgeSourceResult = {
   frameworks: ExpertFramework[];
   playbooks: ExpertPlaybook[];
   patterns: ExpertPattern[];
+  decisionRules: ExpertDecisionRule[];
+  checklists: ExpertChecklist[];
+  failurePatterns: ExpertFailurePattern[];
+  successPatterns: ExpertSuccessPattern[];
   error: string | null;
 };
 
@@ -245,44 +277,198 @@ Responda APENAS JSON:
   };
 }
 
+function normalizeDecisionRuleDrafts(
+  drafts: ExtractedDecisionRuleDraft[],
+  fallbackNiche?: string | null
+): ExtractedDecisionRuleDraft[] {
+  return drafts
+    .filter((draft) => draft.title?.trim() && draft.rule?.trim())
+    .map((draft) => ({
+      ...draft,
+      title: draft.title.trim().slice(0, 160),
+      rule: draft.rule.trim().slice(0, 500),
+      category: draft.category ?? inferCategoryFallback(fallbackNiche),
+      when_to_apply: draft.when_to_apply?.trim() || "Quando o contexto exigir esta regra.",
+      when_not_to_apply: draft.when_not_to_apply?.trim() || "Quando conflitar com dados de performance.",
+      confidence_score: Math.min(100, Math.max(0, Number(draft.confidence_score ?? 70))),
+      priority: Math.min(10, Math.max(0, Number(draft.priority ?? 3))),
+    }))
+    .slice(0, 12);
+}
+
+export async function extractDecisionRules(params: {
+  frameworks: ExtractedFrameworkDraft[];
+  sourceId?: string;
+  rawText?: string;
+}): Promise<{ rules: ExtractedDecisionRuleDraft[]; error: string | null }> {
+  if (params.frameworks.length === 0) {
+    return { rules: [], error: null };
+  }
+
+  const ai = await callExpertBrainAi<{ decision_rules: ExtractedDecisionRuleDraft[] }>(
+    `Você é o Aura Expert Brain — extrai regras de decisão executáveis.
+Responda APENAS JSON:
+{
+  "decision_rules": [{
+    "framework_name": "string",
+    "title": "string",
+    "category": "product_creation|copywriting|funnel_strategy|offer_creation|creative_strategy|paid_traffic|landing_page|sales_psychology|launch_strategy|retention|scaling",
+    "rule": "string",
+    "when_to_apply": "string",
+    "when_not_to_apply": "string",
+    "confidence_score": 0-100,
+    "priority": 0-10
+  }]
+}`,
+    JSON.stringify({
+      frameworks: params.frameworks,
+      source_id: params.sourceId ?? null,
+      raw_text: params.rawText?.slice(0, 6000) ?? null,
+    })
+  );
+
+  if (ai?.decision_rules?.length) {
+    return { rules: normalizeDecisionRuleDrafts(ai.decision_rules), error: null };
+  }
+
+  return { rules: normalizeDecisionRuleDrafts(heuristicExtractDecisionRules(params.frameworks)), error: null };
+}
+
+export async function extractChecklists(params: {
+  frameworks: ExtractedFrameworkDraft[];
+  rawText?: string;
+}): Promise<{ checklists: ExtractedChecklistDraft[]; error: string | null }> {
+  if (params.frameworks.length === 0) {
+    return { checklists: [], error: null };
+  }
+
+  const ai = await callExpertBrainAi<{ checklists: ExtractedChecklistDraft[] }>(
+    `Você é o Aura Expert Brain — extrai checklists operacionais.
+Responda APENAS JSON:
+{
+  "checklists": [{
+    "title": "string",
+    "checklist_type": "operational|quality|launch|validation|scaling|other",
+    "items": ["string"],
+    "pass_criteria": "string"
+  }]
+}`,
+    JSON.stringify({
+      frameworks: params.frameworks,
+      raw_text: params.rawText?.slice(0, 6000) ?? null,
+    })
+  );
+
+  if (ai?.checklists?.length) {
+    return { checklists: ai.checklists.slice(0, 8), error: null };
+  }
+
+  return { checklists: heuristicExtractChecklists(params.frameworks), error: null };
+}
+
+export async function extractFailurePatterns(params: {
+  frameworks: ExtractedFrameworkDraft[];
+  rawText?: string;
+}): Promise<{ patterns: ExtractedFailurePatternDraft[]; error: string | null }> {
+  if (params.frameworks.length === 0) {
+    return { patterns: [], error: null };
+  }
+
+  const ai = await callExpertBrainAi<{ failure_patterns: ExtractedFailurePatternDraft[] }>(
+    `Você é o Aura Expert Brain — extrai padrões de falha e erros comuns.
+Responda APENAS JSON:
+{
+  "failure_patterns": [{
+    "title": "string",
+    "description": "string",
+    "warning_signs": ["string"],
+    "consequences": ["string"],
+    "prevention_actions": ["string"]
+  }]
+}`,
+    JSON.stringify({
+      frameworks: params.frameworks,
+      raw_text: params.rawText?.slice(0, 6000) ?? null,
+    })
+  );
+
+  if (ai?.failure_patterns?.length) {
+    return { patterns: ai.failure_patterns.slice(0, 8), error: null };
+  }
+
+  return { patterns: heuristicExtractFailurePatterns(params.frameworks), error: null };
+}
+
+export async function extractSuccessPatterns(params: {
+  frameworks: ExtractedFrameworkDraft[];
+  rawText?: string;
+}): Promise<{ patterns: ExtractedSuccessPatternDraft[]; error: string | null }> {
+  if (params.frameworks.length === 0) {
+    return { patterns: [], error: null };
+  }
+
+  const ai = await callExpertBrainAi<{ success_patterns: ExtractedSuccessPatternDraft[] }>(
+    `Você é o Aura Expert Brain — extrai padrões de sucesso replicáveis.
+Responda APENAS JSON:
+{
+  "success_patterns": [{
+    "title": "string",
+    "description": "string",
+    "success_signals": ["string"],
+    "scaling_actions": ["string"]
+  }]
+}`,
+    JSON.stringify({
+      frameworks: params.frameworks,
+      raw_text: params.rawText?.slice(0, 6000) ?? null,
+    })
+  );
+
+  if (ai?.success_patterns?.length) {
+    return { patterns: ai.success_patterns.slice(0, 8), error: null };
+  }
+
+  return { patterns: heuristicExtractSuccessPatterns(params.frameworks), error: null };
+}
+
+function emptyIngestResult(error: string): IngestKnowledgeSourceResult {
+  return {
+    source: null,
+    frameworks: [],
+    playbooks: [],
+    patterns: [],
+    decisionRules: [],
+    checklists: [],
+    failurePatterns: [],
+    successPatterns: [],
+    error,
+  };
+}
+
 export async function ingestKnowledgeSource(
   input: IngestKnowledgeSourceInput
 ): Promise<IngestKnowledgeSourceResult> {
   const ctx = await getOptionalDataContext();
   if (!ctx) {
-    return {
-      source: null,
-      frameworks: [],
-      playbooks: [],
-      patterns: [],
-      error: "Usuário não autenticado.",
-    };
+    return emptyIngestResult("Usuário não autenticado.");
   }
 
   if (!input.title?.trim()) {
-    return {
-      source: null,
-      frameworks: [],
-      playbooks: [],
-      patterns: [],
-      error: "Informe o título.",
-    };
+    return emptyIngestResult("Informe o título.");
   }
 
   if (!input.raw_text?.trim()) {
-    return {
-      source: null,
-      frameworks: [],
-      playbooks: [],
-      patterns: [],
-      error: "Informe o raw_text.",
-    };
+    return emptyIngestResult("Informe o raw_text.");
   }
 
   const sourcesRepo = new ExpertKnowledgeSourcesRepository(ctx.supabase, ctx.userId);
   const frameworksRepo = new ExpertFrameworksRepository(ctx.supabase, ctx.userId);
   const playbooksRepo = new ExpertPlaybooksRepository(ctx.supabase, ctx.userId);
   const patternsRepo = new ExpertPatternsRepository(ctx.supabase, ctx.userId);
+  const decisionRulesRepo = new ExpertDecisionRulesRepository(ctx.supabase, ctx.userId);
+  const checklistsRepo = new ExpertChecklistsRepository(ctx.supabase, ctx.userId);
+  const failurePatternsRepo = new ExpertFailurePatternsRepository(ctx.supabase, ctx.userId);
+  const successPatternsRepo = new ExpertSuccessPatternsRepository(ctx.supabase, ctx.userId);
 
   const { data: source, error: createError } = await sourcesRepo.create({
     title: input.title.trim(),
@@ -298,13 +484,7 @@ export async function ingestKnowledgeSource(
   } satisfies Omit<TableInsert<"expert_knowledge_sources">, "user_id">);
 
   if (createError || !source) {
-    return {
-      source: null,
-      frameworks: [],
-      playbooks: [],
-      patterns: [],
-      error: createError ?? "Erro ao salvar fonte.",
-    };
+    return emptyIngestResult(createError ?? "Erro ao salvar fonte.");
   }
 
   const { frameworks: frameworkDrafts } = await extractFrameworks({
@@ -331,7 +511,7 @@ export async function ingestKnowledgeSource(
   const { data: frameworks, error: frameworksError } = await frameworksRepo.createMany(frameworkRows);
   if (frameworksError) {
     await sourcesRepo.update(source.id, { status: "failed" });
-    return { source, frameworks: [], playbooks: [], patterns: [], error: frameworksError };
+    return { ...emptyIngestResult(frameworksError), source };
   }
 
   const { playbooks: playbookDrafts } = await extractPlaybooks({
@@ -357,7 +537,7 @@ export async function ingestKnowledgeSource(
   const { data: playbooks, error: playbooksError } = await playbooksRepo.createMany(playbookRows);
   if (playbooksError) {
     await sourcesRepo.update(source.id, { status: "failed" });
-    return { source, frameworks, playbooks: [], patterns: [], error: playbooksError };
+    return { ...emptyIngestResult(playbooksError), source, frameworks };
   }
 
   const { patterns: patternDrafts } = await extractExpertPatterns({
@@ -382,7 +562,134 @@ export async function ingestKnowledgeSource(
   const { data: patterns, error: patternsError } = await patternsRepo.createMany(patternRows);
   if (patternsError) {
     await sourcesRepo.update(source.id, { status: "failed" });
-    return { source, frameworks, playbooks, patterns: [], error: patternsError };
+    return { ...emptyIngestResult(patternsError), source, frameworks, playbooks };
+  }
+
+  const { rules: decisionRuleDrafts } = await extractDecisionRules({
+    frameworks: frameworkDrafts,
+    sourceId: source.id,
+    rawText: input.raw_text,
+  });
+
+  const decisionRuleRows = decisionRuleDrafts.map((draft) => {
+    const frameworkId =
+      frameworkByName.get(draft.framework_name.toLowerCase()) ?? frameworks[0]?.id ?? null;
+    return {
+      source_id: source.id,
+      framework_id: frameworkId,
+      title: draft.title,
+      category: draft.category,
+      rule: draft.rule,
+      when_to_apply: draft.when_to_apply,
+      when_not_to_apply: draft.when_not_to_apply,
+      confidence_score: draft.confidence_score,
+      priority: draft.priority,
+      metadata: {} as Json,
+    } satisfies Omit<TableInsert<"expert_decision_rules">, "user_id">;
+  });
+
+  const { data: decisionRules, error: decisionRulesError } =
+    await decisionRulesRepo.createMany(decisionRuleRows);
+  if (decisionRulesError) {
+    await sourcesRepo.update(source.id, { status: "failed" });
+    return { ...emptyIngestResult(decisionRulesError), source, frameworks, playbooks, patterns };
+  }
+
+  const { checklists: checklistDrafts } = await extractChecklists({
+    frameworks: frameworkDrafts,
+    rawText: input.raw_text,
+  });
+
+  const checklistRows = checklistDrafts.map(
+    (draft) =>
+      ({
+        source_id: source.id,
+        title: draft.title,
+        checklist_type: draft.checklist_type,
+        items: draft.items as unknown as Json,
+        pass_criteria: draft.pass_criteria,
+        metadata: {} as Json,
+      }) satisfies Omit<TableInsert<"expert_checklists">, "user_id">
+  );
+
+  const { data: checklists, error: checklistsError } =
+    await checklistsRepo.createMany(checklistRows);
+  if (checklistsError) {
+    await sourcesRepo.update(source.id, { status: "failed" });
+    return {
+      ...emptyIngestResult(checklistsError),
+      source,
+      frameworks,
+      playbooks,
+      patterns,
+      decisionRules,
+    };
+  }
+
+  const { patterns: failureDrafts } = await extractFailurePatterns({
+    frameworks: frameworkDrafts,
+    rawText: input.raw_text,
+  });
+
+  const failurePatternRows = failureDrafts.map(
+    (draft) =>
+      ({
+        source_id: source.id,
+        title: draft.title,
+        description: draft.description,
+        warning_signs: draft.warning_signs as unknown as Json,
+        consequences: draft.consequences as unknown as Json,
+        prevention_actions: draft.prevention_actions as unknown as Json,
+        metadata: {} as Json,
+      }) satisfies Omit<TableInsert<"expert_failure_patterns">, "user_id">
+  );
+
+  const { data: failurePatterns, error: failurePatternsError } =
+    await failurePatternsRepo.createMany(failurePatternRows);
+  if (failurePatternsError) {
+    await sourcesRepo.update(source.id, { status: "failed" });
+    return {
+      ...emptyIngestResult(failurePatternsError),
+      source,
+      frameworks,
+      playbooks,
+      patterns,
+      decisionRules,
+      checklists,
+    };
+  }
+
+  const { patterns: successDrafts } = await extractSuccessPatterns({
+    frameworks: frameworkDrafts,
+    rawText: input.raw_text,
+  });
+
+  const successPatternRows = successDrafts.map(
+    (draft) =>
+      ({
+        source_id: source.id,
+        title: draft.title,
+        description: draft.description,
+        success_signals: draft.success_signals as unknown as Json,
+        scaling_actions: draft.scaling_actions as unknown as Json,
+        metadata: {} as Json,
+      }) satisfies Omit<TableInsert<"expert_success_patterns">, "user_id">
+  );
+
+  const { data: successPatterns, error: successPatternsError } =
+    await successPatternsRepo.createMany(successPatternRows);
+  if (successPatternsError) {
+    await sourcesRepo.update(source.id, { status: "failed" });
+    return {
+      ...emptyIngestResult(successPatternsError),
+      source,
+      frameworks,
+      playbooks,
+      patterns,
+      decisionRules,
+      checklists,
+      failurePatterns,
+    };
   }
 
   const { data: updatedSource } = await sourcesRepo.update(source.id, {
@@ -392,6 +699,10 @@ export async function ingestKnowledgeSource(
       frameworks_count: frameworks.length,
       playbooks_count: playbooks.length,
       patterns_count: patterns.length,
+      decision_rules_count: decisionRules.length,
+      checklists_count: checklists.length,
+      failure_patterns_count: failurePatterns.length,
+      success_patterns_count: successPatterns.length,
       processed_at: new Date().toISOString(),
     } as Json,
   });
@@ -401,6 +712,10 @@ export async function ingestKnowledgeSource(
     frameworks: frameworks.length,
     playbooks: playbooks.length,
     patterns: patterns.length,
+    decisionRules: decisionRules.length,
+    checklists: checklists.length,
+    failurePatterns: failurePatterns.length,
+    successPatterns: successPatterns.length,
   });
 
   return {
@@ -408,6 +723,10 @@ export async function ingestKnowledgeSource(
     frameworks,
     playbooks,
     patterns,
+    decisionRules,
+    checklists,
+    failurePatterns,
+    successPatterns,
     error: null,
   };
 }
@@ -419,6 +738,10 @@ async function loadExpertDataForTask(task: ExpertBrainCategory, niche?: string |
       frameworks: [] as ExpertFramework[],
       playbooks: [] as ExpertPlaybook[],
       patterns: [] as ExpertPattern[],
+      decisionRules: [] as ExpertDecisionRule[],
+      checklists: [] as ExpertChecklist[],
+      failurePatterns: [] as ExpertFailurePattern[],
+      successPatterns: [] as ExpertSuccessPattern[],
       error: "Usuário não autenticado.",
     };
   }
@@ -426,6 +749,10 @@ async function loadExpertDataForTask(task: ExpertBrainCategory, niche?: string |
   const frameworksRepo = new ExpertFrameworksRepository(ctx.supabase, ctx.userId);
   const playbooksRepo = new ExpertPlaybooksRepository(ctx.supabase, ctx.userId);
   const patternsRepo = new ExpertPatternsRepository(ctx.supabase, ctx.userId);
+  const decisionRulesRepo = new ExpertDecisionRulesRepository(ctx.supabase, ctx.userId);
+  const checklistsRepo = new ExpertChecklistsRepository(ctx.supabase, ctx.userId);
+  const failurePatternsRepo = new ExpertFailurePatternsRepository(ctx.supabase, ctx.userId);
+  const successPatternsRepo = new ExpertSuccessPatternsRepository(ctx.supabase, ctx.userId);
 
   const [{ data: categoryFrameworks }, { data: allFrameworks }, { data: allPatterns }] =
     await Promise.all([
@@ -441,18 +768,97 @@ async function loadExpertDataForTask(task: ExpertBrainCategory, niche?: string |
   ).slice(0, MAX_CONTEXT_ITEMS);
 
   const frameworkIds = ranked.map((f) => f.id);
-  const { data: playbooks } = await playbooksRepo.findByFrameworkIds(frameworkIds);
+  const [
+    { data: playbooksData },
+    { data: decisionRulesData },
+    { data: checklistsData },
+    { data: failurePatternsData },
+    { data: successPatternsData },
+  ] = await Promise.all([
+    playbooksRepo.findByFrameworkIds(frameworkIds),
+    decisionRulesRepo.findByCategory(task, MAX_CONTEXT_ITEMS),
+    checklistsRepo.findRecent(MAX_CONTEXT_ITEMS * 2),
+    failurePatternsRepo.findRecent(MAX_CONTEXT_ITEMS),
+    successPatternsRepo.findRecent(MAX_CONTEXT_ITEMS),
+  ]);
 
-  const patterns = (allPatterns ?? [])
+  const patternsFiltered = (allPatterns ?? [])
     .filter((pattern) => patternAppliesToTask(pattern, task))
     .slice(0, MAX_CONTEXT_ITEMS);
 
+  const checklistsFiltered = (checklistsData ?? []).filter((checklist) => {
+    const meta =
+      typeof checklist.metadata === "object" && checklist.metadata ? checklist.metadata : {};
+    const categories = readStringArray((meta as { categories?: unknown }).categories);
+    if (categories.length === 0) return true;
+    return categories.includes(task);
+  });
+
   return {
     frameworks: ranked,
-    playbooks: (playbooks ?? []).slice(0, MAX_CONTEXT_ITEMS),
-    patterns,
+    playbooks: (playbooksData ?? []).slice(0, MAX_CONTEXT_ITEMS),
+    patterns: patternsFiltered,
+    decisionRules: (decisionRulesData ?? []).slice(0, MAX_CONTEXT_ITEMS),
+    checklists: checklistsFiltered.slice(0, MAX_CONTEXT_ITEMS),
+    failurePatterns: (failurePatternsData ?? []).slice(0, MAX_CONTEXT_ITEMS),
+    successPatterns: (successPatternsData ?? []).slice(0, MAX_CONTEXT_ITEMS),
     error: null,
   };
+}
+
+export async function getDecisionRulesForTask(task: ExpertBrainCategory): Promise<{
+  rules: ExpertDecisionRule[];
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { rules: [], error: "Usuário não autenticado." };
+
+  const repo = new ExpertDecisionRulesRepository(ctx.supabase, ctx.userId);
+  const { data, error } = await repo.findByCategory(task, MAX_CONTEXT_ITEMS);
+  return { rules: data ?? [], error };
+}
+
+export async function getChecklistsForTask(task: ExpertBrainCategory): Promise<{
+  checklists: ExpertChecklist[];
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { checklists: [], error: "Usuário não autenticado." };
+
+  const repo = new ExpertChecklistsRepository(ctx.supabase, ctx.userId);
+  const { data, error } = await repo.findRecent(MAX_CONTEXT_ITEMS * 2);
+  const checklists = (data ?? []).filter((checklist) => {
+    const meta =
+      typeof checklist.metadata === "object" && checklist.metadata ? checklist.metadata : {};
+    const categories = readStringArray((meta as { categories?: unknown }).categories);
+    if (categories.length === 0) return true;
+    return categories.includes(task);
+  });
+  return { checklists: checklists.slice(0, MAX_CONTEXT_ITEMS), error };
+}
+
+export async function getFailurePatternsForTask(_task: ExpertBrainCategory): Promise<{
+  patterns: ExpertFailurePattern[];
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { patterns: [], error: "Usuário não autenticado." };
+
+  const repo = new ExpertFailurePatternsRepository(ctx.supabase, ctx.userId);
+  const { data, error } = await repo.findRecent(MAX_CONTEXT_ITEMS);
+  return { patterns: data ?? [], error };
+}
+
+export async function getSuccessPatternsForTask(_task: ExpertBrainCategory): Promise<{
+  patterns: ExpertSuccessPattern[];
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { patterns: [], error: "Usuário não autenticado." };
+
+  const repo = new ExpertSuccessPatternsRepository(ctx.supabase, ctx.userId);
+  const { data, error } = await repo.findRecent(MAX_CONTEXT_ITEMS);
+  return { patterns: data ?? [], error };
 }
 
 export async function getExpertContext(
@@ -466,10 +872,16 @@ export async function getExpertContext(
     typeof taskOrFilters === "string" ? { task: taskOrFilters } : (taskOrFilters ?? {});
 
   const task = resolveExpertTask(filters.task, filters.module);
-  const { frameworks, playbooks, patterns, error } = await loadExpertDataForTask(
-    task,
-    filters.niche
-  );
+  const {
+    frameworks,
+    playbooks,
+    patterns,
+    decisionRules,
+    checklists,
+    failurePatterns,
+    successPatterns,
+    error,
+  } = await loadExpertDataForTask(task, filters.niche);
 
   if (error) {
     return { context: emptyExpertContext(task), promptBlock: "", error };
@@ -484,6 +896,10 @@ export async function getExpertContext(
     frameworks: frameworkItems,
     playbooks: playbooks.map(playbookToContextItem),
     patterns: patterns.map(patternToContextItem),
+    decisionRules: decisionRules.map(decisionRuleToContextItem),
+    checklists: checklists.map(checklistToContextItem),
+    failurePatterns: failurePatterns.map(failurePatternToContextItem),
+    successPatterns: successPatterns.map(successPatternToContextItem),
     appliedFrameworks,
     excellenceCriteria,
   };
@@ -507,6 +923,42 @@ export async function getExpertDecisionPatterns(): Promise<ExpertPattern[]> {
   ]);
 
   return [...(decisionRules ?? []), ...(heuristics ?? [])].slice(0, 12);
+}
+
+export function expertDecisionRulesToDecisions(rules: ExpertDecisionRule[]): UnifiedDecision[] {
+  const results: UnifiedDecision[] = [];
+
+  for (const rule of rules) {
+    const label = rule.title?.trim();
+    if (!label) continue;
+    const boostedScore = Math.min(
+      100,
+      Number(rule.confidence_score ?? 0) + Number(rule.priority ?? 0) * 2 + 8
+    );
+    results.push({
+      label,
+      score: boostedScore,
+      source: "expert_brain",
+      reason: rule.rule?.trim() || "Regra expert aplicável",
+      entityId: rule.id,
+      metadata: {
+        rule_type: "expert_decision_rule",
+        category: rule.category,
+        when_to_apply: rule.when_to_apply,
+      },
+    });
+  }
+
+  return results;
+}
+
+export async function getExpertSuccessPatternsForWinnerContext(): Promise<ExpertSuccessPattern[]> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return [];
+
+  const repo = new ExpertSuccessPatternsRepository(ctx.supabase, ctx.userId);
+  const { data } = await repo.findRecent(12);
+  return data ?? [];
 }
 
 export async function getExpertPatternsForWinnerContext(): Promise<ExpertPattern[]> {
@@ -548,10 +1000,24 @@ export function expertPatternsToDecisions(patterns: ExpertPattern[]): UnifiedDec
 export async function enrichDecisionsWithExpertPatterns(
   decisions: UnifiedDecisionEngineResult
 ): Promise<UnifiedDecisionEngineResult> {
-  const patterns = await getExpertDecisionPatterns();
-  if (patterns.length === 0) return decisions;
+  const [patterns, topRules] = await Promise.all([
+    getExpertDecisionPatterns(),
+    (async () => {
+      const ctx = await getOptionalDataContext();
+      if (!ctx) return [];
+      const repo = new ExpertDecisionRulesRepository(ctx.supabase, ctx.userId);
+      const { data } = await repo.findTop(12);
+      return data ?? [];
+    })(),
+  ]);
 
-  const expertDecisions = expertPatternsToDecisions(patterns);
+  const expertDecisions = [
+    ...expertDecisionRulesToDecisions(topRules),
+    ...expertPatternsToDecisions(patterns),
+  ];
+
+  if (expertDecisions.length === 0) return decisions;
+
   const sourcesUsed: DecisionSource[] = decisions.sourcesUsed.includes("expert_brain")
     ? decisions.sourcesUsed
     : [...decisions.sourcesUsed, "expert_brain"];
@@ -560,7 +1026,9 @@ export async function enrichDecisionsWithExpertPatterns(
     current: UnifiedDecision | null,
     expert: UnifiedDecision
   ): UnifiedDecision => {
-    if (!current || expert.score > current.score) return expert;
+    if (!current) return expert;
+    if (expert.source === "expert_brain" && expert.score >= current.score) return expert;
+    if (expert.score > current.score) return expert;
     return current;
   };
 
@@ -570,9 +1038,13 @@ export async function enrichDecisionsWithExpertPatterns(
   let bestProduct = decisions.bestProduct;
 
   for (const expert of expertDecisions) {
-    const applies = readStringArray(
+    const appliesFromPattern = readStringArray(
       (expert.metadata.applies_to as unknown) ?? []
     );
+    const category =
+      typeof expert.metadata.category === "string" ? expert.metadata.category : null;
+    const applies = category ? [category, ...appliesFromPattern] : appliesFromPattern;
+
     if (applies.includes("offer_creation")) {
       bestOffer = pickStronger(bestOffer, expert);
     }
@@ -587,6 +1059,10 @@ export async function enrichDecisionsWithExpertPatterns(
     }
   }
 
+  const expertAlignedCount = [bestOffer, bestCreative, bestLanding, bestProduct].filter(
+    (decision) => decision?.source === "expert_brain"
+  ).length;
+
   return {
     ...decisions,
     bestOffer,
@@ -594,7 +1070,10 @@ export async function enrichDecisionsWithExpertPatterns(
     bestLanding,
     bestProduct,
     sourcesUsed,
-    confidence: Math.min(100, decisions.confidence + (expertDecisions.length > 0 ? 3 : 0)),
+    confidence: Math.min(
+      100,
+      decisions.confidence + (expertDecisions.length > 0 ? 3 : 0) + expertAlignedCount * 2
+    ),
   };
 }
 
@@ -602,7 +1081,75 @@ export async function getExpertFrameworkCriteriaForAsset(
   assetCategory: ExpertBrainCategory
 ): Promise<string[]> {
   const { context } = await getExpertContext(assetCategory);
-  return context.excellenceCriteria;
+  const { checklists } = await getChecklistsForTask(assetCategory);
+  return [
+    ...context.excellenceCriteria,
+    ...collectExpertChecklistCriteria(checklists),
+  ].slice(0, 16);
+}
+
+export async function getExpertChecklistCriteriaForAsset(
+  assetCategory: ExpertBrainCategory
+): Promise<string[]> {
+  const { checklists } = await getChecklistsForTask(assetCategory);
+  return collectExpertChecklistCriteria(
+    checklists.filter((checklist) => checklist.checklist_type === "quality" || checklist.checklist_type === "validation")
+  );
+}
+
+export async function buildExpertRiskAssessment(
+  input: ExpertRiskAssessmentInput
+): Promise<ExpertRiskAssessment> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { risks: [], failurePatterns: [], preventionActions: [], riskScore: 0 };
+  }
+
+  const repo = new ExpertFailurePatternsRepository(ctx.supabase, ctx.userId);
+  const { data } = await repo.findRecent(20);
+  return buildExpertRiskAssessmentFromPatterns(input, data ?? []);
+}
+
+export async function getExpertMentorContext(
+  task: ExpertBrainCategory = "scaling"
+): Promise<ExpertMentorContext> {
+  const { context } = await getExpertContext(task);
+  const mentorContext: ExpertMentorContext = {
+    frameworks: context.frameworks.slice(0, 3),
+    decisionRules: context.decisionRules.slice(0, 3),
+    checklists: context.checklists.slice(0, 2),
+    promptBlock: "",
+  };
+  mentorContext.promptBlock = buildExpertMentorPromptBlock(mentorContext);
+  return mentorContext;
+}
+
+export async function validateExpertOperationalChecklists(
+  steps: Record<string, "pending" | "in_progress" | "done">
+): Promise<{
+  results: ExpertOperationalChecklistResult[];
+  blockedItems: string[];
+  canApprove: boolean;
+}> {
+  const { checklists } = await getChecklistsForTask("scaling");
+  const operational = checklists.filter(
+    (checklist) =>
+      checklist.checklist_type === "operational" ||
+      (typeof checklist.metadata === "object" &&
+        checklist.metadata &&
+        (checklist.metadata as { critical?: boolean }).critical === true)
+  );
+
+  const results = operational.map((checklist) => evaluateExpertOperationalChecklist(checklist, steps));
+  const blockedItems = results
+    .filter((result) => result.critical && !result.passed)
+    .flatMap((result) => result.failedItems.map((item) => `${result.checklist.name}: ${item}`));
+
+  return {
+    results,
+    blockedItems,
+    canApprove: blockedItems.length === 0,
+  };
 }
 
 export type TransversalGenerationContext = {
@@ -674,6 +1221,10 @@ export async function getExpertContextForApi(task: string): Promise<{
   frameworks: ExpertContextItem[];
   playbooks: ExpertContextItem[];
   patterns: ExpertContextItem[];
+  decisionRules: ExpertContextItem[];
+  checklists: ExpertContextItem[];
+  failurePatterns: ExpertContextItem[];
+  successPatterns: ExpertContextItem[];
   error: string | null;
 }> {
   const { context, error } = await getExpertContext(resolveExpertTask(task));
@@ -681,6 +1232,10 @@ export async function getExpertContextForApi(task: string): Promise<{
     frameworks: context.frameworks,
     playbooks: context.playbooks,
     patterns: context.patterns,
+    decisionRules: context.decisionRules,
+    checklists: context.checklists,
+    failurePatterns: context.failurePatterns,
+    successPatterns: context.successPatterns,
     error,
   };
 }

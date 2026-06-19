@@ -3,6 +3,7 @@ import type { UnifiedDecision } from "@/utils/aura-decision-engine";
 import type { GrowthBestCard } from "@/utils/growth-brain";
 import type { GrowthPattern, KnowledgeEntry, KnowledgePattern } from "@/types/database";
 import { nicheMatchesSignal } from "@/utils/offer-engine";
+import { readStringArray } from "@/utils/expert-brain";
 import {
   buildWinnerPatternPromptBlock,
   dedupeWinnerEntries,
@@ -17,7 +18,7 @@ import { getConversionIntelligenceDashboard } from "./conversion-intelligence.se
 import { getGrowthBrainDashboard } from "./growth-brain.service";
 import { getUnifiedDecisionsReadOnly } from "./aura-decision-engine.service";
 import { getKnowledgeDashboard } from "./knowledge.service";
-import { getExpertPatternsForWinnerContext } from "./expert-brain.service";
+import { getExpertPatternsForWinnerContext, getExpertSuccessPatternsForWinnerContext } from "./expert-brain.service";
 
 const MAX_ENTRIES = 5;
 
@@ -132,12 +133,14 @@ export async function getWinnerContext(filters?: WinnerContextFilters): Promise<
     return { context: empty, promptBlock: "", error: "Usuário não autenticado." };
   }
 
-  const [conversion, growth, decisions, knowledge, expertPatterns] = await Promise.all([
+  const [conversion, growth, decisions, knowledge, expertPatterns, expertSuccessPatterns] =
+    await Promise.all([
     getConversionIntelligenceDashboard(),
     getGrowthBrainDashboard(),
     getUnifiedDecisionsReadOnly(),
     getKnowledgeDashboard(),
     getExpertPatternsForWinnerContext(),
+    getExpertSuccessPatternsForWinnerContext(),
   ]);
 
   const headlines: WinnerPatternEntry[] = [];
@@ -306,6 +309,23 @@ export async function getWinnerContext(filters?: WinnerContextFilters): Promise<
       headlines.push(entry);
       offers.push(entry);
     }
+  }
+
+  for (const pattern of expertSuccessPatterns) {
+    const label = pattern.title?.trim();
+    if (!label) continue;
+
+    const entry: WinnerPatternEntry = {
+      label,
+      score: 78,
+      insight: pattern.description,
+      recommendation: readStringArray(pattern.scaling_actions).slice(0, 2).join("; ") || null,
+      source: "expert_success_pattern",
+    };
+
+    headlines.push(entry);
+    offers.push(entry);
+    creatives.push(entry);
   }
 
   const context: WinnerContext = {

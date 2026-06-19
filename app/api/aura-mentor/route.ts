@@ -30,6 +30,8 @@ import {
   isNexusDashboardQuery,
 } from "@/utils/nexus";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
+import { getExpertMentorContext } from "@/lib/supabase/services/expert-brain.service";
+import { isStrategicExpertQuery, resolveExpertTask } from "@/utils/expert-brain";
 import { parseRequestJson } from "@/utils/safe-json";
 
 const openai = new OpenAI({
@@ -324,6 +326,11 @@ export async function POST(req: Request) {
       }
 
       systemPrompt = `${SYSTEM_PROMPT}\n\n${context}`;
+    } else if (isStrategicExpertQuery(message)) {
+      const expertMentor = await getExpertMentorContext(resolveExpertTask(null, "copylab"));
+      if (expertMentor.promptBlock.trim()) {
+        systemPrompt = `${SYSTEM_PROMPT}\n\n${expertMentor.promptBlock}`;
+      }
     }
 
     const mergedHistory = await resolveMergedHistory("mentor", history);
