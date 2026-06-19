@@ -95,7 +95,9 @@ export async function getUnifiedDecisionsReadOnly(intentInput?: MasterFlowIntent
 }> {
   const { input, error } = await loadDecisionEngineInput(intentInput);
   if (error || !input) return { decisions: null, error: error ?? "Erro ao carregar decisões." };
-  return { decisions: computeUnifiedDecisions(input), error: null };
+  const { enrichDecisionsWithExpertPatterns } = await import("./expert-brain.service");
+  const base = computeUnifiedDecisions(input);
+  return { decisions: await enrichDecisionsWithExpertPatterns(base), error: null };
 }
 
 export async function getUnifiedDecisions(intentInput?: MasterFlowIntentInput | null): Promise<{

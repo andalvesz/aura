@@ -26,6 +26,11 @@ import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
 import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
 import type { WinnerContext } from "@/utils/winner-pattern";
 import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+  type TransversalGenerationContext,
+} from "./expert-brain.service";
 import { getOptionalDataContext } from "./context";
 
 const BUCKET = CREATIVE_FILES_BUCKET;
@@ -311,7 +316,8 @@ function buildUserPrompt(
   intake: CreativeFactoryIntake,
   bundle: CreatorProductBundle | null,
   copyHeadline: string | null,
-  winnerContext: WinnerContext
+  winnerContext: WinnerContext,
+  transversal?: TransversalGenerationContext
 ): string {
   return JSON.stringify({
     asset_type: intake.asset_type,
@@ -323,6 +329,9 @@ function buildUserPrompt(
     headline: copyHeadline ?? "",
     provider: intake.provider ?? "text-only",
     winnerContext,
+    expertContext: transversal?.expertContext ?? null,
+    decisionContext: transversal?.decisionContext ?? null,
+    excellenceCriteria: transversal?.excellenceCriteria ?? [],
   });
 }
 
@@ -486,10 +495,21 @@ export async function generateCreativeAsset(input: CreativeFactoryIntake): Promi
     niche: bundle?.product.nicho ?? bundle?.product.publico_alvo,
     country: bundle?.product.target_country,
   });
+  const transversal = await buildTransversalGenerationContext({
+    task: "creative_strategy",
+    module: "creative-director",
+    niche: bundle?.product.nicho ?? bundle?.product.publico_alvo,
+    winnerPromptBlock: promptBlock,
+  });
   const promptConfig = GENERATION_PROMPTS[assetType];
   const generated = await callCreativeFactoryAi<Record<string, unknown>>(
-    applyWinnerPatternToSystemPrompt(promptConfig.system, promptBlock, "creative-director"),
-    buildUserPrompt(input, bundle, copyHeadline, winnerContext)
+    augmentGeneratorSystemPrompt(
+      promptConfig.system,
+      "creative-director",
+      transversal,
+      promptBlock
+    ),
+    buildUserPrompt(input, bundle, copyHeadline, winnerContext, transversal)
   );
 
   if (!generated) {

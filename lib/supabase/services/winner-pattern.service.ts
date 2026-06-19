@@ -17,6 +17,7 @@ import { getConversionIntelligenceDashboard } from "./conversion-intelligence.se
 import { getGrowthBrainDashboard } from "./growth-brain.service";
 import { getUnifiedDecisionsReadOnly } from "./aura-decision-engine.service";
 import { getKnowledgeDashboard } from "./knowledge.service";
+import { getExpertPatternsForWinnerContext } from "./expert-brain.service";
 
 const MAX_ENTRIES = 5;
 
@@ -131,11 +132,12 @@ export async function getWinnerContext(filters?: WinnerContextFilters): Promise<
     return { context: empty, promptBlock: "", error: "Usuário não autenticado." };
   }
 
-  const [conversion, growth, decisions, knowledge] = await Promise.all([
+  const [conversion, growth, decisions, knowledge, expertPatterns] = await Promise.all([
     getConversionIntelligenceDashboard(),
     getGrowthBrainDashboard(),
     getUnifiedDecisionsReadOnly(),
     getKnowledgeDashboard(),
+    getExpertPatternsForWinnerContext(),
   ]);
 
   const headlines: WinnerPatternEntry[] = [];
@@ -262,6 +264,47 @@ export async function getWinnerContext(filters?: WinnerContextFilters): Promise<
     if (pattern.pattern_type === "best_market") {
       const niche = knowledgePatternToEntry(pattern);
       if (niche) niches.push(niche);
+    }
+  }
+
+  for (const pattern of expertPatterns) {
+    const label = pattern.title?.trim();
+    if (!label) continue;
+
+    const entry: WinnerPatternEntry = {
+      label,
+      score: pattern.confidence_score,
+      insight: pattern.description,
+      source: "expert_brain",
+    };
+
+    const applies = Array.isArray(pattern.applies_to)
+      ? pattern.applies_to.filter((item): item is string => typeof item === "string")
+      : [];
+
+    if (
+      applies.some((cat) =>
+        ["copywriting", "sales_psychology", "launch_strategy"].includes(cat)
+      )
+    ) {
+      headlines.push(entry);
+    }
+    if (applies.some((cat) => ["offer_creation", "funnel_strategy"].includes(cat))) {
+      offers.push(entry);
+    }
+    if (
+      applies.some((cat) =>
+        ["creative_strategy", "paid_traffic", "landing_page"].includes(cat)
+      )
+    ) {
+      creatives.push(entry);
+    }
+    if (applies.includes("product_creation")) {
+      niches.push(entry);
+    }
+    if (pattern.pattern_type === "winner_signal") {
+      headlines.push(entry);
+      offers.push(entry);
     }
   }
 

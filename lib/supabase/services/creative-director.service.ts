@@ -40,6 +40,10 @@ import {
 } from "@/utils/creative-director";
 import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
 import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+} from "./expert-brain.service";
 import { getOptionalDataContext } from "./context";
 
 const BUCKET = "product-files";
@@ -81,6 +85,13 @@ async function evaluateCreativeScoreWithAi(params: {
     country: params.country,
   });
 
+  const transversal = await buildTransversalGenerationContext({
+    task: "creative_strategy",
+    module: "creative-director",
+    niche: params.niche,
+    winnerPromptBlock: promptBlock,
+  });
+
   const summary = params.assets
     .filter((a) => a.status === "ready")
     .map((a) => ({
@@ -94,7 +105,7 @@ async function evaluateCreativeScoreWithAi(params: {
     messages: [
       {
         role: "system",
-        content: applyWinnerPatternToSystemPrompt(
+        content: augmentGeneratorSystemPrompt(
           `Você é o Creative Director da Aura — avalia pacotes criativos para campanhas Meta.
 Responda APENAS JSON:
 {
@@ -106,8 +117,9 @@ Responda APENAS JSON:
   "risco_reprovacao": number
 }
 Cada score de 0 a 100. risco_reprovacao: quanto maior, pior (mais chance de reprovação Meta).`,
-          promptBlock,
-          "creative-director"
+          "creative-director",
+          transversal,
+          promptBlock
         ),
       },
       {
@@ -117,6 +129,9 @@ Cada score de 0 a 100. risco_reprovacao: quanto maior, pior (mais chance de repr
           meta_rejection_hints: params.metaHints,
           assets: summary,
           winnerContext,
+          expertContext: transversal.expertContext,
+          decisionContext: transversal.decisionContext,
+          excellenceCriteria: transversal.excellenceCriteria,
         }),
       },
     ],

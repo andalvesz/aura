@@ -21,6 +21,10 @@ import {
 import { CreatorProductsRepository } from "@/lib/supabase/repositories/creator.repository";
 import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
 import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+} from "./expert-brain.service";
 import { getOptionalDataContext } from "./context";
 
 async function getFinanceContext(): Promise<string> {
@@ -182,8 +186,15 @@ export async function generateCopylab(input: CopylabIntake): Promise<{
     country: locale.target_country,
   });
 
+  const transversal = await buildTransversalGenerationContext({
+    task: "copywriting",
+    module: "copylab",
+    niche: input.avatar ?? input.problema,
+    winnerPromptBlock: promptBlock,
+  });
+
   const generated = await callCopylabAi<GeneratedCopylab>(
-    applyWinnerPatternToSystemPrompt(
+    augmentGeneratorSystemPrompt(
       `${buildCopylabAiContext(locale)}
 Gere toda a comunicação de vendas com base nos dados do produto.
 Responda APENAS JSON:
@@ -214,8 +225,9 @@ Regras:
 - email_lancamento, whatsapp_venda: textos prontos para enviar
 - instagram_post, facebook_ad, google_ad: criativos com headline + corpo + CTA
 ${buildLocaleAiRules(locale)}`,
-      promptBlock,
-      "copylab"
+      "copylab",
+      transversal,
+      promptBlock
     ),
     JSON.stringify({
       intake: input,
@@ -228,6 +240,9 @@ ${buildLocaleAiRules(locale)}`,
         diferencial: r.diferencial_sugerido,
       })),
       winnerContext,
+      expertContext: transversal.expertContext,
+      decisionContext: transversal.decisionContext,
+      excellenceCriteria: transversal.excellenceCriteria,
     })
   );
 

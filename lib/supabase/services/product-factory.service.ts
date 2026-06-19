@@ -71,6 +71,10 @@ import {
 import { probeStorageBucketWrite } from "@/lib/supabase/storage/bucket-probe";
 import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
 import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+} from "./expert-brain.service";
 import { getOptionalDataContext } from "./context";
 
 const PDF_BUCKET = PRODUCT_FILES_BUCKET;
@@ -480,11 +484,19 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
     niche: input.publico ?? input.promessa,
   });
 
+  const transversal = await buildTransversalGenerationContext({
+    task: "product_creation",
+    module: "product-factory",
+    niche: input.publico ?? input.promessa,
+    winnerPromptBlock: promptBlock,
+  });
+
   const { data: generated, error: aiError } = await callProductFactoryAi<ProGeneratedProduct>(
-    applyWinnerPatternToSystemPrompt(
+    augmentGeneratorSystemPrompt(
       buildProGenerationSystemPrompt(productType, sensitive),
-      promptBlock,
-      "product-factory"
+      "product-factory",
+      transversal,
+      promptBlock
     ),
     JSON.stringify({
       intake: input,
@@ -492,6 +504,9 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
       integrations,
       pro_v1: true,
       winnerContext,
+      expertContext: transversal.expertContext,
+      decisionContext: transversal.decisionContext,
+      excellenceCriteria: transversal.excellenceCriteria,
     }),
     { operation: "generate" }
   );
@@ -681,13 +696,26 @@ async function executeProductFactoryProActionInternal(
     niche: record.publico ?? record.promessa,
   });
 
+  const transversal = await buildTransversalGenerationContext({
+    task: "product_creation",
+    module: "product-factory",
+    niche: record.publico ?? record.promessa,
+    winnerPromptBlock: promptBlock,
+  });
+
   const { data: generated, error: aiError } = await callProductFactoryAi<ProGeneratedProduct>(
-    applyWinnerPatternToSystemPrompt(
+    augmentGeneratorSystemPrompt(
       buildProGenerationSystemPrompt(record.product_type ?? "ebook", sensitive),
-      promptBlock,
-      "product-factory"
+      "product-factory",
+      transversal,
+      promptBlock
     ),
-    `${buildProActionPrompt(action, record)}\n${JSON.stringify({ winnerContext })}`,
+    `${buildProActionPrompt(action, record)}\n${JSON.stringify({
+      winnerContext,
+      expertContext: transversal.expertContext,
+      decisionContext: transversal.decisionContext,
+      excellenceCriteria: transversal.excellenceCriteria,
+    })}`,
     { action, factoryId, operation: "improve" }
   );
 

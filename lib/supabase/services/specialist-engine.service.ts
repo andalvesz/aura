@@ -9,6 +9,7 @@ import {
   mapSpecialistRows,
 } from "@/lib/supabase/repositories/specialist-engine.repository";
 import type { ExcellenceAssetType, Json, QualityReview, QualityScore, SpecialistSlug } from "@/types/database";
+import type { ExpertBrainCategory } from "@/types/database";
 import { COPYLAB_AI_CONTEXT } from "@/utils/copylab";
 import {
   buildExcellenceAssetLabel,
@@ -32,6 +33,7 @@ import {
 import { compareAssetToBenchmark } from "./market-leader.service";
 import { loadAssetContent } from "./excellence-asset.loader";
 import { getOptionalDataContext } from "./context";
+import { getExpertFrameworkCriteriaForAsset } from "./expert-brain.service";
 import { MARKET_LEADER_MODE } from "@/utils/market-leader";
 
 const SPECIALIST_SYSTEM = `${COPYLAB_AI_CONTEXT}
@@ -120,17 +122,39 @@ export async function runSpecialistPanelReview(
   const panel = getSpecialistsForAssetType(assetType, specialists);
   const slugs = panel.map((entry) => entry.specialist.slug);
 
+  const assetCategory: ExpertBrainCategory =
+    assetType === "copy"
+      ? "copywriting"
+      : assetType === "landing" || assetType === "funnel"
+        ? "landing_page"
+        : assetType === "offer"
+          ? "offer_creation"
+          : assetType === "creative" || assetType === "campaign"
+            ? "creative_strategy"
+            : assetType === "product" || assetType === "ebook"
+              ? "product_creation"
+              : "scaling";
+
+  const expertCriteria = await getExpertFrameworkCriteriaForAsset(assetCategory);
+
   const prompt = [
     `Audite o ativo "${label}" (${assetType}).`,
     "",
     "Conteúdo:",
     content.slice(0, 6000),
     "",
+    expertCriteria.length
+      ? ["Critérios adicionais do Expert Brain:", ...expertCriteria.map((c) => `• ${c}`)].join("\n")
+      : null,
+    "",
     "Especialistas obrigatórios:",
-    ...panel.map(
-      (entry) =>
-        `- ${entry.specialist.slug} (${entry.specialist.name}) — critérios: ${entry.specialist.criteria.join("; ")}`
-    ),
+    ...panel.map((entry) => {
+      const mergedCriteria = [
+        ...entry.specialist.criteria,
+        ...expertCriteria.slice(0, 4),
+      ].slice(0, 8);
+      return `- ${entry.specialist.slug} (${entry.specialist.name}) — critérios: ${mergedCriteria.join("; ")}`;
+    }),
     "",
     "Retorne JSON:",
     `{ "reviews": [{ "reviewer": "copy_chief", "score": 82, "strengths": ["..."], "weaknesses": ["..."], "recommendations": ["..."], "criteria_scores": [{ "criterion": "...", "score": 80, "note": "..." }] }] }`,

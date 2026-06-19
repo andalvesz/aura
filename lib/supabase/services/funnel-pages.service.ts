@@ -33,6 +33,11 @@ import {
   type FunnelPagesIntake,
 } from "@/utils/funnel-pages";
 import { getOptionalDataContext } from "./context";
+import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+} from "./expert-brain.service";
 
 const FUNNEL_PAGES_SYSTEM = `${COPYLAB_AI_CONTEXT}
 
@@ -91,14 +96,17 @@ function parseJsonBlock<T>(text: string): T | null {
   }
 }
 
-async function callFunnelPagesAi<T>(user: string): Promise<T | null> {
+async function callFunnelPagesAi<T>(
+  user: string,
+  systemPrompt?: string
+): Promise<T | null> {
   const openai = getOpenAi();
   if (!openai) return null;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: FUNNEL_PAGES_SYSTEM },
+      { role: "system", content: systemPrompt ?? FUNNEL_PAGES_SYSTEM },
       { role: "user", content: user },
     ],
     response_format: { type: "json_object" },
@@ -221,6 +229,23 @@ async function generatePageSpec(
     cta: "Quero garantir minha vaga",
   };
 
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "funnel-pages",
+    niche: context.niche,
+  });
+  const transversal = await buildTransversalGenerationContext({
+    task: "landing_page",
+    module: "funnel-pages",
+    niche: context.niche,
+    winnerPromptBlock: promptBlock,
+  });
+  const system = augmentGeneratorSystemPrompt(
+    FUNNEL_PAGES_SYSTEM,
+    "funnel-pages",
+    transversal,
+    promptBlock
+  );
+
   const generated = await callFunnelPagesAi<GeneratedPageSpec>(
     JSON.stringify({
       task: `generate_${pageType}_page`,
@@ -244,6 +269,10 @@ async function generatePageSpec(
         : null,
       copy: context.copyContext,
       creative: context.creativeContext,
+      winnerContext,
+      expertContext: transversal.expertContext,
+      decisionContext: transversal.decisionContext,
+      excellenceCriteria: transversal.excellenceCriteria,
       extra,
       response: {
         title: "string",
@@ -253,7 +282,8 @@ async function generatePageSpec(
         promessa: "string",
         cta: "string",
       },
-    })
+    }),
+    system
   );
 
   if (!generated?.title) return fallback;

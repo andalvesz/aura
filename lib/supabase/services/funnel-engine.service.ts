@@ -23,6 +23,11 @@ import {
   type FunnelEngineIntake,
   type GeneratedFunnelOffer,
 } from "@/utils/funnel-engine";
+import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+} from "./expert-brain.service";
 import { getOptionalDataContext } from "./context";
 
 const FUNNEL_ENGINE_SYSTEM = `${COPYLAB_AI_CONTEXT}
@@ -74,14 +79,37 @@ function parseJsonBlock<T>(text: string): T | null {
   }
 }
 
-async function callFunnelEngineAi<T>(user: string): Promise<T | null> {
+async function resolveFunnelEngineIntelligence(context: FunnelIntegrationContext) {
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "funnel-engine",
+    niche: context.niche,
+  });
+  const transversal = await buildTransversalGenerationContext({
+    task: "funnel_strategy",
+    module: "funnel-engine",
+    niche: context.niche,
+    winnerPromptBlock: promptBlock,
+  });
+  return {
+    system: augmentGeneratorSystemPrompt(
+      FUNNEL_ENGINE_SYSTEM,
+      "funnel-engine",
+      transversal,
+      promptBlock
+    ),
+    winnerContext,
+    transversal,
+  };
+}
+
+async function callFunnelEngineAi<T>(user: string, systemPrompt?: string): Promise<T | null> {
   const openai = getOpenAi();
   if (!openai) return null;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: FUNNEL_ENGINE_SYSTEM },
+      { role: "system", content: systemPrompt ?? FUNNEL_ENGINE_SYSTEM },
       { role: "user", content: user },
     ],
     response_format: { type: "json_object" },
@@ -288,10 +316,15 @@ export async function generateOrderBump(
   context: FunnelIntegrationContext,
   productId: string
 ): Promise<{ step: StepDraft | null; error: string | null }> {
+  const intelligence = await resolveFunnelEngineIntelligence(context);
   const generated = await callFunnelEngineAi<{ offer: GeneratedFunnelOffer }>(
     JSON.stringify({
       task: "generate_order_bump",
       product: context,
+      winnerContext: intelligence.winnerContext,
+      expertContext: intelligence.transversal.expertContext,
+      decisionContext: intelligence.transversal.decisionContext,
+      excellenceCriteria: intelligence.transversal.excellenceCriteria,
       instruction:
         "Sugira um order bump complementar ao front-end, preço entre 15% e 40% do ticket principal.",
       response: {
@@ -308,7 +341,8 @@ export async function generateOrderBump(
           rationale: "string",
         },
       },
-    })
+    }),
+    intelligence.system
   );
 
   const offer = generated?.offer;
@@ -336,10 +370,15 @@ export async function generateUpsell(
   context: FunnelIntegrationContext,
   productId: string
 ): Promise<{ steps: StepDraft[]; error: string | null }> {
+  const intelligence = await resolveFunnelEngineIntelligence(context);
   const generated = await callFunnelEngineAi<{ upsells: GeneratedFunnelOffer[] }>(
     JSON.stringify({
       task: "generate_upsells",
       product: context,
+      winnerContext: intelligence.winnerContext,
+      expertContext: intelligence.transversal.expertContext,
+      decisionContext: intelligence.transversal.decisionContext,
+      excellenceCriteria: intelligence.transversal.excellenceCriteria,
       instruction:
         "Sugira upsell_1 (complemento principal) e upsell_2 (acelerador ou mentoria leve). Preços progressivos acima do front-end.",
       response: {
@@ -357,7 +396,8 @@ export async function generateUpsell(
           },
         ],
       },
-    })
+    }),
+    intelligence.system
   );
 
   const upsells = generated?.upsells ?? [];
@@ -401,10 +441,15 @@ export async function generateDownsell(
   context: FunnelIntegrationContext,
   productId: string
 ): Promise<{ step: StepDraft | null; error: string | null }> {
+  const intelligence = await resolveFunnelEngineIntelligence(context);
   const generated = await callFunnelEngineAi<{ offer: GeneratedFunnelOffer }>(
     JSON.stringify({
       task: "generate_downsell",
       product: context,
+      winnerContext: intelligence.winnerContext,
+      expertContext: intelligence.transversal.expertContext,
+      decisionContext: intelligence.transversal.decisionContext,
+      excellenceCriteria: intelligence.transversal.excellenceCriteria,
       instruction:
         "Sugira um downsell para quem recusou o upsell — versão mais acessível ou parcelada do complemento.",
       response: {
@@ -420,7 +465,8 @@ export async function generateDownsell(
           rationale: "string",
         },
       },
-    })
+    }),
+    intelligence.system
   );
 
   const offer = generated?.offer;

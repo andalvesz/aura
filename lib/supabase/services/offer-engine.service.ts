@@ -33,7 +33,13 @@ import {
 } from "@/utils/offer-engine";
 import { logWinnerPatternApplied } from "@/utils/winner-pattern";
 import type { WinnerContext } from "@/utils/winner-pattern";
+import type { ExpertContext } from "@/utils/expert-brain";
+import type { UnifiedDecisionEngineResult } from "@/utils/aura-decision-engine";
 import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+} from "./expert-brain.service";
 import { getOptionalDataContext } from "./context";
 
 const OFFER_ENGINE_SYSTEM = `${COPYLAB_AI_CONTEXT}
@@ -96,19 +102,15 @@ function parseJsonBlock<T>(text: string): T | null {
 
 async function callOfferEngineAi<T>(
   user: string,
-  winnerPromptBlock?: string
+  systemPrompt?: string
 ): Promise<T | null> {
   const openai = getOpenAi();
   if (!openai) return null;
 
-  const systemPrompt = winnerPromptBlock
-    ? `${OFFER_ENGINE_SYSTEM}\n\n${winnerPromptBlock}`
-    : OFFER_ENGINE_SYSTEM;
-
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: systemPrompt ?? OFFER_ENGINE_SYSTEM },
       { role: "user", content: user },
     ],
     response_format: { type: "json_object" },
@@ -291,7 +293,12 @@ function buildOfferPrompt(
   task: string,
   offerType: OfferType,
   extra?: Record<string, unknown>,
-  winnerContext?: WinnerContext
+  promptContext?: {
+    winnerContext?: WinnerContext;
+    expertContext?: ExpertContext;
+    decisionContext?: UnifiedDecisionEngineResult | null;
+    excellenceCriteria?: string[];
+  }
 ): string {
   return JSON.stringify({
     task,
@@ -313,7 +320,10 @@ function buildOfferPrompt(
     factoryContext: context.factoryContext,
     decisionHints: context.decisionHints,
     growthHistory: context.growthHistorySummary,
-    winnerContext: winnerContext ?? null,
+    winnerContext: promptContext?.winnerContext ?? null,
+    expertContext: promptContext?.expertContext ?? null,
+    decisionContext: promptContext?.decisionContext ?? null,
+    excellenceCriteria: promptContext?.excellenceCriteria ?? [],
     marketScore: context.marketScore,
     revenueSignals: {
       conversionRate: context.revenueConversionRate,
@@ -538,6 +548,10 @@ export async function getOfferEngineDashboard(): Promise<{
 type WinnerPatternInjection = {
   winnerContext: WinnerContext;
   winnerPromptBlock: string;
+  offerSystem: string;
+  expertContext?: ExpertContext;
+  decisionContext?: UnifiedDecisionEngineResult | null;
+  excellenceCriteria?: string[];
 };
 
 export async function generateOrderBumpOffer(
@@ -555,9 +569,16 @@ export async function generateOrderBumpOffer(
         instruction: `Order bump entre 15% e 40% do ticket principal (${formatOfferPrice(context.frontPrice, context.currency)}).`,
         price_ceiling: Math.round(context.frontPrice * 0.4 * 100) / 100,
       },
-      winnerPattern?.winnerContext
+      winnerPattern
+        ? {
+            winnerContext: winnerPattern.winnerContext,
+            expertContext: winnerPattern.expertContext,
+            decisionContext: winnerPattern.decisionContext,
+            excellenceCriteria: winnerPattern.excellenceCriteria,
+          }
+        : undefined
     ),
-    winnerPattern?.winnerPromptBlock
+    winnerPattern?.offerSystem
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar order bump." };
@@ -590,9 +611,16 @@ export async function generateUpsellOffer(
               ? `Upsell premium enxuto para ticket alto em ${context.country ?? "mercado"}.`
               : `Upsell complementar equilibrado para nicho ${context.niche}.`,
       },
-      winnerPattern?.winnerContext
+      winnerPattern
+        ? {
+            winnerContext: winnerPattern.winnerContext,
+            expertContext: winnerPattern.expertContext,
+            decisionContext: winnerPattern.decisionContext,
+            excellenceCriteria: winnerPattern.excellenceCriteria,
+          }
+        : undefined
     ),
-    winnerPattern?.winnerPromptBlock
+    winnerPattern?.offerSystem
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar upsell." };
@@ -619,9 +647,16 @@ export async function generateDownsellOffer(
         instruction: `Downsell acessível (${context.currency}) para quem recusou upsell — ideal entre 30% e 60% do front-end.`,
         price_ceiling: Math.round(context.frontPrice * 0.6 * 100) / 100,
       },
-      winnerPattern?.winnerContext
+      winnerPattern
+        ? {
+            winnerContext: winnerPattern.winnerContext,
+            expertContext: winnerPattern.expertContext,
+            decisionContext: winnerPattern.decisionContext,
+            excellenceCriteria: winnerPattern.excellenceCriteria,
+          }
+        : undefined
     ),
-    winnerPattern?.winnerPromptBlock
+    winnerPattern?.offerSystem
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar downsell." };
@@ -646,9 +681,16 @@ export async function generateVipOffer(
       {
         instruction: "Oferta VIP exclusiva com acesso premium ou mentoria leve.",
       },
-      winnerPattern?.winnerContext
+      winnerPattern
+        ? {
+            winnerContext: winnerPattern.winnerContext,
+            expertContext: winnerPattern.expertContext,
+            decisionContext: winnerPattern.decisionContext,
+            excellenceCriteria: winnerPattern.excellenceCriteria,
+          }
+        : undefined
     ),
-    winnerPattern?.winnerPromptBlock
+    winnerPattern?.offerSystem
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar oferta VIP." };
@@ -673,9 +715,16 @@ async function generateContinuityOffer(
       {
         instruction: "Plano de continuidade recorrente complementar à assinatura.",
       },
-      winnerPattern?.winnerContext
+      winnerPattern
+        ? {
+            winnerContext: winnerPattern.winnerContext,
+            expertContext: winnerPattern.expertContext,
+            decisionContext: winnerPattern.decisionContext,
+            excellenceCriteria: winnerPattern.excellenceCriteria,
+          }
+        : undefined
     ),
-    winnerPattern?.winnerPromptBlock
+    winnerPattern?.offerSystem
   );
   if (!generated?.offer?.title) {
     return { offer: null, error: "Não foi possível gerar continuidade." };
@@ -707,7 +756,26 @@ export async function generateOfferStack(input: OfferEngineIntake): Promise<{
     niche: context.niche,
     country: context.country,
   });
-  const winnerPattern: WinnerPatternInjection = { winnerContext, winnerPromptBlock: promptBlock };
+  const transversal = await buildTransversalGenerationContext({
+    task: "offer_creation",
+    module: "offer-engine",
+    niche: context.niche,
+    winnerPromptBlock: promptBlock,
+  });
+  const offerSystem = augmentGeneratorSystemPrompt(
+    OFFER_ENGINE_SYSTEM,
+    "offer-engine",
+    transversal,
+    promptBlock
+  );
+  const winnerPattern: WinnerPatternInjection = {
+    winnerContext,
+    winnerPromptBlock: promptBlock,
+    offerSystem,
+    expertContext: transversal.expertContext,
+    decisionContext: transversal.decisionContext,
+    excellenceCriteria: transversal.excellenceCriteria,
+  };
   if (promptBlock) logWinnerPatternApplied("offer-engine");
 
   const offersRepo = new OffersRepository(ctx.supabase, ctx.userId);

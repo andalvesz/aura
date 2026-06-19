@@ -19,6 +19,11 @@ import {
 import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
 import type { WinnerContext } from "@/utils/winner-pattern";
 import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+  type TransversalGenerationContext,
+} from "./expert-brain.service";
 import { getOptionalDataContext } from "./context";
 
 const LANDING_FACTORY_SYSTEM = `${COPYLAB_AI_CONTEXT}
@@ -149,7 +154,8 @@ function buildUserPrompt(
   input: LandingFactoryIntake,
   bundle: CreatorProductBundle | null,
   copyContext: string,
-  winnerContext: WinnerContext
+  winnerContext: WinnerContext,
+  transversal?: TransversalGenerationContext
 ): string {
   const product = bundle?.product;
   return JSON.stringify({
@@ -169,6 +175,9 @@ function buildUserPrompt(
     copylabContext: copyContext,
     headlineHint: input.headline ?? null,
     winnerContext,
+    expertContext: transversal?.expertContext ?? null,
+    decisionContext: transversal?.decisionContext ?? null,
+    excellenceCriteria: transversal?.excellenceCriteria ?? [],
     instruction:
       "Gere landing de alta conversão para produto digital. Status inicial será rascunho — não inclua URLs externas de checkout.",
   });
@@ -282,12 +291,24 @@ export async function generateLandingPage(input: LandingFactoryIntake): Promise<
     country: bundle?.product.target_country,
   });
 
+  const transversal = await buildTransversalGenerationContext({
+    task: "landing_page",
+    module: "landing-factory",
+    niche: bundle?.product.nicho ?? bundle?.product.publico_alvo,
+    winnerPromptBlock: promptBlock,
+  });
+
   const repo = new LandingPagesRepository(ctx.supabase, ctx.userId);
   const slug = await resolveUniqueSlug(repo, titleBase);
 
   const generated = await callLandingFactoryAi<GeneratedLandingPage>(
-    applyWinnerPatternToSystemPrompt(LANDING_FACTORY_SYSTEM, promptBlock, "landing-factory"),
-    buildUserPrompt(input, bundle, copyContext, winnerContext)
+    augmentGeneratorSystemPrompt(
+      LANDING_FACTORY_SYSTEM,
+      "landing-factory",
+      transversal,
+      promptBlock
+    ),
+    buildUserPrompt(input, bundle, copyContext, winnerContext, transversal)
   );
 
   if (!generated?.headline) {

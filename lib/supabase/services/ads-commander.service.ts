@@ -33,6 +33,11 @@ import { isCreativeGeneratedAssetDelivered } from "@/utils/creative-generated-as
 import { readCreativeDirectorMetadata } from "@/utils/creative-director";
 import { computeInvestimentoFromBudget } from "@/utils/campaign-budget";
 import { getOptionalDataContext } from "./context";
+import { getWinnerContext } from "./winner-pattern.service";
+import {
+  augmentGeneratorSystemPrompt,
+  buildTransversalGenerationContext,
+} from "./expert-brain.service";
 
 function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
@@ -189,16 +194,37 @@ export async function generateAudienceSuggestions(params: {
     return { suggestions: [], error: "Contexto da campanha indisponível." };
   }
 
-  const ai = await callAdsCommanderAi<{ audiences: AudienceSuggestion[] }>(
+  const { context: winnerContext, promptBlock } = await getWinnerContext({
+    module: "ads-commander",
+    niche: context.avatar ?? context.productName,
+  });
+  const transversal = await buildTransversalGenerationContext({
+    task: "paid_traffic",
+    module: "ads-commander",
+    niche: context.avatar ?? context.productName,
+    winnerPromptBlock: promptBlock,
+  });
+  const adsSystem = augmentGeneratorSystemPrompt(
     `Você é o Ads Commander da Aura — sugere públicos para ${context.platform}.
 Responda APENAS JSON: { "audiences": [{ "name": string, "type": "interest"|"lookalike"|"remarketing"|"broad", "targeting": string, "rationale": string, "score": number }] }
 3 a 5 públicos, score 0-100. Português do Brasil.`,
+    "ads-commander",
+    transversal,
+    promptBlock
+  );
+
+  const ai = await callAdsCommanderAi<{ audiences: AudienceSuggestion[] }>(
+    adsSystem,
     JSON.stringify({
       product: context.productName,
       avatar: context.avatar,
       problema: context.problema,
       platform: context.platform,
       country: "BR",
+      winnerContext,
+      expertContext: transversal.expertContext,
+      decisionContext: transversal.decisionContext,
+      excellenceCriteria: transversal.excellenceCriteria,
     })
   );
 

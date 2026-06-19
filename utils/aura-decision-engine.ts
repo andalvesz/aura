@@ -21,7 +21,8 @@ export type DecisionSource =
   | "operation_center"
   | "performance_ai"
   | "kiwify"
-  | "meta";
+  | "meta"
+  | "expert_brain";
 
 export type UnifiedDecision = {
   label: string;
@@ -93,6 +94,7 @@ const SOURCE_WEIGHT: Record<DecisionSource, number> = {
   performance_ai: 1.05,
   kiwify: 1.08,
   meta: 1.06,
+  expert_brain: 1.12,
 };
 
 function weightedScore(source: DecisionSource, score: number): number {

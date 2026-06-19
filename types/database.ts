@@ -815,6 +815,96 @@ export type GrowthPattern = {
   created_at: string;
 };
 
+export type ExpertKnowledgeSourceType =
+  | "course"
+  | "video"
+  | "pdf"
+  | "transcript"
+  | "marketing_material"
+  | "other";
+
+export type ExpertKnowledgeSourceStatus = "pending" | "processing" | "ready" | "failed";
+
+export type ExpertBrainCategory =
+  | "product_creation"
+  | "copywriting"
+  | "funnel_strategy"
+  | "offer_creation"
+  | "creative_strategy"
+  | "paid_traffic"
+  | "landing_page"
+  | "sales_psychology"
+  | "launch_strategy"
+  | "retention"
+  | "scaling";
+
+export type ExpertPlaybookType =
+  | "checklist"
+  | "workflow"
+  | "decision_tree"
+  | "template"
+  | "rules";
+
+export type ExpertPatternType =
+  | "decision_rule"
+  | "quality_criterion"
+  | "checklist_item"
+  | "heuristic"
+  | "winner_signal";
+
+export type ExpertKnowledgeSource = {
+  id: string;
+  user_id: string;
+  title: string;
+  source_type: ExpertKnowledgeSourceType;
+  origin: string | null;
+  author: string | null;
+  niche: string | null;
+  status: ExpertKnowledgeSourceStatus;
+  metadata: Json;
+  created_at: string;
+};
+
+export type ExpertFramework = {
+  id: string;
+  user_id: string;
+  source_id: string | null;
+  name: string;
+  category: ExpertBrainCategory;
+  description: string | null;
+  principles: Json;
+  when_to_use: string | null;
+  examples: Json;
+  metadata: Json;
+  created_at: string;
+};
+
+export type ExpertPlaybook = {
+  id: string;
+  user_id: string;
+  framework_id: string | null;
+  playbook_type: ExpertPlaybookType;
+  title: string;
+  steps: Json;
+  rules: Json;
+  examples: Json;
+  metadata: Json;
+  created_at: string;
+};
+
+export type ExpertPattern = {
+  id: string;
+  user_id: string;
+  pattern_type: ExpertPatternType;
+  title: string;
+  description: string | null;
+  applies_to: Json;
+  confidence_score: number;
+  source_ids: Json;
+  metadata: Json;
+  created_at: string;
+};
+
 export type RevenueForecastType = "revenue" | "profit" | "growth" | "scale";
 
 export type RevenueForecastPeriod = "weekly" | "monthly" | "quarterly";
@@ -5694,6 +5784,92 @@ export type Database = {
           created_at?: string;
         }
       >;
+      expert_knowledge_sources: TableDef<
+        ExpertKnowledgeSource,
+        Omit<
+          ExpertKnowledgeSource,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "origin"
+          | "author"
+          | "niche"
+          | "status"
+        > & {
+          id?: string;
+          origin?: string | null;
+          author?: string | null;
+          niche?: string | null;
+          status?: ExpertKnowledgeSourceStatus;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      expert_frameworks: TableDef<
+        ExpertFramework,
+        Omit<
+          ExpertFramework,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "source_id"
+          | "description"
+          | "principles"
+          | "when_to_use"
+          | "examples"
+        > & {
+          id?: string;
+          source_id?: string | null;
+          description?: string | null;
+          principles?: Json;
+          when_to_use?: string | null;
+          examples?: Json;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      expert_playbooks: TableDef<
+        ExpertPlaybook,
+        Omit<
+          ExpertPlaybook,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "framework_id"
+          | "steps"
+          | "rules"
+          | "examples"
+        > & {
+          id?: string;
+          framework_id?: string | null;
+          steps?: Json;
+          rules?: Json;
+          examples?: Json;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      expert_patterns: TableDef<
+        ExpertPattern,
+        Omit<
+          ExpertPattern,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "description"
+          | "applies_to"
+          | "confidence_score"
+          | "source_ids"
+        > & {
+          id?: string;
+          description?: string | null;
+          applies_to?: Json;
+          confidence_score?: number;
+          source_ids?: Json;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       revenue_metrics: TableDef<
         RevenueMetric,
         Omit<
@@ -6047,6 +6223,10 @@ export type UserScopedTable =
   | "master_flows"
   | "growth_brain_memories"
   | "growth_patterns"
+  | "expert_knowledge_sources"
+  | "expert_frameworks"
+  | "expert_playbooks"
+  | "expert_patterns"
   | "revenue_metrics"
   | "revenue_forecasts"
   | "market_opportunities"
