@@ -81,6 +81,10 @@ export type IngestKnowledgeSourceInput = {
   author?: string | null;
   niche?: string | null;
   origin?: string | null;
+  course_id?: string | null;
+  module_id?: string | null;
+  lesson_id?: string | null;
+  existing_source_id?: string | null;
 };
 
 export type IngestKnowledgeSourceResult = {
@@ -470,21 +474,60 @@ export async function ingestKnowledgeSource(
   const failurePatternsRepo = new ExpertFailurePatternsRepository(ctx.supabase, ctx.userId);
   const successPatternsRepo = new ExpertSuccessPatternsRepository(ctx.supabase, ctx.userId);
 
-  const { data: source, error: createError } = await sourcesRepo.create({
-    title: input.title.trim(),
-    source_type: input.source_type,
-    origin: input.origin?.trim() || null,
-    author: input.author?.trim() || null,
-    niche: input.niche?.trim() || null,
-    status: "processing",
-    metadata: {
-      raw_text_length: input.raw_text.length,
-      ingested_at: new Date().toISOString(),
-    } as Json,
-  } satisfies Omit<TableInsert<"expert_knowledge_sources">, "user_id">);
+  let source: ExpertKnowledgeSource | null = null;
 
-  if (createError || !source) {
-    return emptyIngestResult(createError ?? "Erro ao salvar fonte.");
+  if (input.existing_source_id) {
+    const { data: existingSource, error: loadError } = await sourcesRepo.findById(
+      input.existing_source_id
+    );
+    if (loadError || !existingSource) {
+      return emptyIngestResult(loadError ?? "Fonte não encontrada.");
+    }
+    const { error: clearError } = await clearSourceArtifacts(existingSource.id);
+    if (clearError) return emptyIngestResult(clearError);
+
+    const { data: updatedExisting } = await sourcesRepo.update(existingSource.id, {
+      status: "processing",
+      raw_text: input.raw_text,
+      title: input.title.trim(),
+      source_type: input.source_type,
+      author: input.author?.trim() || existingSource.author,
+      niche: input.niche?.trim() || existingSource.niche,
+      metadata: {
+        ...(typeof existingSource.metadata === "object" && existingSource.metadata
+          ? existingSource.metadata
+          : {}),
+        raw_text_length: input.raw_text.length,
+        reprocessed_at: new Date().toISOString(),
+      } as Json,
+    });
+    source = updatedExisting ?? existingSource;
+  } else {
+    const { data: createdSource, error: createError } = await sourcesRepo.create({
+      title: input.title.trim(),
+      source_type: input.source_type,
+      origin: input.origin?.trim() || null,
+      author: input.author?.trim() || null,
+      niche: input.niche?.trim() || null,
+      raw_text: input.raw_text,
+      course_id: input.course_id ?? null,
+      module_id: input.module_id ?? null,
+      lesson_id: input.lesson_id ?? null,
+      status: "processing",
+      metadata: {
+        raw_text_length: input.raw_text.length,
+        ingested_at: new Date().toISOString(),
+      } as Json,
+    } satisfies Omit<TableInsert<"expert_knowledge_sources">, "user_id">);
+
+    if (createError || !createdSource) {
+      return emptyIngestResult(createError ?? "Erro ao salvar fonte.");
+    }
+    source = createdSource;
+  }
+
+  if (!source) {
+    return emptyIngestResult("Erro ao preparar fonte.");
   }
 
   const { frameworks: frameworkDrafts } = await extractFrameworks({
@@ -729,6 +772,68 @@ export async function ingestKnowledgeSource(
     successPatterns,
     error: null,
   };
+}
+
+export async function clearSourceArtifacts(sourceId: string): Promise<{ error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { error: "Usuário não autenticado." };
+
+  const frameworksRepo = new ExpertFrameworksRepository(ctx.supabase, ctx.userId);
+  const playbooksRepo = new ExpertPlaybooksRepository(ctx.supabase, ctx.userId);
+  const patternsRepo = new ExpertPatternsRepository(ctx.supabase, ctx.userId);
+  const decisionRulesRepo = new ExpertDecisionRulesRepository(ctx.supabase, ctx.userId);
+  const checklistsRepo = new ExpertChecklistsRepository(ctx.supabase, ctx.userId);
+  const failurePatternsRepo = new ExpertFailurePatternsRepository(ctx.supabase, ctx.userId);
+  const successPatternsRepo = new ExpertSuccessPatternsRepository(ctx.supabase, ctx.userId);
+
+  const { data: frameworks } = await frameworksRepo.findBySourceId(sourceId);
+  const frameworkIds = (frameworks ?? []).map((f) => f.id);
+
+  const steps = [
+    () => playbooksRepo.deleteByFrameworkIds(frameworkIds),
+    () => frameworksRepo.deleteBySourceId(sourceId),
+    () => patternsRepo.deleteBySourceId(sourceId),
+    () => decisionRulesRepo.deleteBySourceId(sourceId),
+    () => checklistsRepo.deleteBySourceId(sourceId),
+    () => failurePatternsRepo.deleteBySourceId(sourceId),
+    () => successPatternsRepo.deleteBySourceId(sourceId),
+  ];
+
+  for (const step of steps) {
+    const { error } = await step();
+    if (error) return { error };
+  }
+
+  return { error: null };
+}
+
+export async function reprocessKnowledgeSource(
+  sourceId: string
+): Promise<IngestKnowledgeSourceResult> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return emptyIngestResult("Usuário não autenticado.");
+
+  const sourcesRepo = new ExpertKnowledgeSourcesRepository(ctx.supabase, ctx.userId);
+  const { data: source, error: loadError } = await sourcesRepo.findById(sourceId);
+  if (loadError || !source) return emptyIngestResult(loadError ?? "Fonte não encontrada.");
+
+  const rawText = source.raw_text?.trim();
+  if (!rawText) {
+    return emptyIngestResult("Texto original não disponível para reprocessamento.");
+  }
+
+  return ingestKnowledgeSource({
+    title: source.title,
+    source_type: source.source_type,
+    raw_text: rawText,
+    author: source.author,
+    niche: source.niche,
+    origin: source.origin,
+    course_id: source.course_id,
+    module_id: source.module_id,
+    lesson_id: source.lesson_id,
+    existing_source_id: source.id,
+  });
 }
 
 async function loadExpertDataForTask(task: ExpertBrainCategory, niche?: string | null) {

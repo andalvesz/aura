@@ -102,6 +102,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   execution: "/dashboard/execution",
   performance: "/dashboard/performance",
   "growth-brain": "/dashboard/growth-brain",
+  "expert-brain": "/dashboard/expert-brain",
   "market-hunter": "/dashboard/market-hunter",
   "offer-engine": "/dashboard/offer-engine",
   "funnel-pages": "/dashboard/funnel-pages",

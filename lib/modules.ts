@@ -66,6 +66,7 @@ export type ModuleId =
   | "execution"
   | "performance"
   | "growth-brain"
+  | "expert-brain"
   | "market-hunter"
   | "offer-engine"
   | "funnel-pages"
@@ -445,6 +446,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Memórias",
       value: "0",
       hint: "Registre resultados para aprender padrões",
+    },
+  },
+  {
+    id: "expert-brain",
+    href: "/dashboard/expert-brain",
+    label: "Expert Brain",
+    shortLabel: "Expert Brain",
+    description:
+      "Ingestão de cursos e materiais — extrai frameworks, decision rules e padrões de sucesso/falha.",
+    icon: Sparkles,
+    accent: "text-amber-400",
+    overview: {
+      metric: "Frameworks",
+      value: "0",
+      hint: "Faça upload de cursos para alimentar o Aura",
     },
   },
   {

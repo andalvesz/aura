@@ -852,6 +852,16 @@ export type ExpertPatternType =
   | "heuristic"
   | "winner_signal";
 
+export type ExpertCourseStatus = "pending" | "processing" | "ready" | "failed" | "partial";
+
+export type ExpertLessonStatus = "pending" | "processing" | "ready" | "failed";
+
+export type ExpertQueueEntityType = "lesson" | "module" | "course" | "source";
+
+export type ExpertQueueAction = "process" | "reprocess";
+
+export type ExpertQueueStatus = "pending" | "processing" | "done" | "failed";
+
 export type ExpertKnowledgeSource = {
   id: string;
   user_id: string;
@@ -861,8 +871,68 @@ export type ExpertKnowledgeSource = {
   author: string | null;
   niche: string | null;
   status: ExpertKnowledgeSourceStatus;
+  raw_text: string | null;
+  course_id: string | null;
+  module_id: string | null;
+  lesson_id: string | null;
   metadata: Json;
   created_at: string;
+};
+
+export type ExpertCourse = {
+  id: string;
+  user_id: string;
+  title: string;
+  author: string | null;
+  niche: string | null;
+  status: ExpertCourseStatus;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExpertCourseModule = {
+  id: string;
+  user_id: string;
+  course_id: string;
+  title: string;
+  sort_order: number;
+  status: ExpertCourseStatus;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExpertCourseLesson = {
+  id: string;
+  user_id: string;
+  module_id: string;
+  source_id: string | null;
+  title: string;
+  source_type: ExpertKnowledgeSourceType;
+  sort_order: number;
+  status: ExpertLessonStatus;
+  raw_text: string | null;
+  file_name: string | null;
+  file_path: string | null;
+  metadata: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExpertProcessingQueueItem = {
+  id: string;
+  user_id: string;
+  entity_type: ExpertQueueEntityType;
+  entity_id: string;
+  action: ExpertQueueAction;
+  priority: number;
+  status: ExpertQueueStatus;
+  attempts: number;
+  error: string | null;
+  metadata: Json;
+  created_at: string;
+  processed_at: string | null;
 };
 
 export type ExpertFramework = {
@@ -5856,12 +5926,20 @@ export type Database = {
           | "author"
           | "niche"
           | "status"
+          | "raw_text"
+          | "course_id"
+          | "module_id"
+          | "lesson_id"
         > & {
           id?: string;
           origin?: string | null;
           author?: string | null;
           niche?: string | null;
           status?: ExpertKnowledgeSourceStatus;
+          raw_text?: string | null;
+          course_id?: string | null;
+          module_id?: string | null;
+          lesson_id?: string | null;
           metadata?: Json;
           created_at?: string;
         }
@@ -6017,6 +6095,98 @@ export type Database = {
           scaling_actions?: Json;
           metadata?: Json;
           created_at?: string;
+        }
+      >;
+      expert_courses: TableDef<
+        ExpertCourse,
+        Omit<
+          ExpertCourse,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "metadata"
+          | "author"
+          | "niche"
+          | "status"
+        > & {
+          id?: string;
+          author?: string | null;
+          niche?: string | null;
+          status?: ExpertCourseStatus;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      expert_course_modules: TableDef<
+        ExpertCourseModule,
+        Omit<
+          ExpertCourseModule,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "metadata"
+          | "sort_order"
+          | "status"
+        > & {
+          id?: string;
+          sort_order?: number;
+          status?: ExpertCourseStatus;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      expert_course_lessons: TableDef<
+        ExpertCourseLesson,
+        Omit<
+          ExpertCourseLesson,
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "metadata"
+          | "source_id"
+          | "sort_order"
+          | "status"
+          | "raw_text"
+          | "file_name"
+          | "file_path"
+        > & {
+          id?: string;
+          source_id?: string | null;
+          sort_order?: number;
+          status?: ExpertLessonStatus;
+          raw_text?: string | null;
+          file_name?: string | null;
+          file_path?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      expert_processing_queue: TableDef<
+        ExpertProcessingQueueItem,
+        Omit<
+          ExpertProcessingQueueItem,
+          | "id"
+          | "created_at"
+          | "processed_at"
+          | "metadata"
+          | "action"
+          | "priority"
+          | "status"
+          | "attempts"
+          | "error"
+        > & {
+          id?: string;
+          action?: ExpertQueueAction;
+          priority?: number;
+          status?: ExpertQueueStatus;
+          attempts?: number;
+          error?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          processed_at?: string | null;
         }
       >;
       revenue_metrics: TableDef<
@@ -6380,6 +6550,10 @@ export type UserScopedTable =
   | "expert_checklists"
   | "expert_failure_patterns"
   | "expert_success_patterns"
+  | "expert_courses"
+  | "expert_course_modules"
+  | "expert_course_lessons"
+  | "expert_processing_queue"
   | "revenue_metrics"
   | "revenue_forecasts"
   | "market_opportunities"

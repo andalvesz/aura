@@ -3,6 +3,10 @@ import type {
   Database,
   ExpertBrainCategory,
   ExpertChecklist,
+  ExpertCourse,
+  ExpertCourseLesson,
+  ExpertCourseModule,
+  ExpertCourseStatus,
   ExpertDecisionRule,
   ExpertFailurePattern,
   ExpertFramework,
@@ -10,6 +14,8 @@ import type {
   ExpertPattern,
   ExpertPatternType,
   ExpertPlaybook,
+  ExpertProcessingQueueItem,
+  ExpertQueueStatus,
   ExpertSuccessPattern,
   TableInsert,
 } from "@/types/database";
@@ -48,6 +54,249 @@ export class ExpertKnowledgeSourcesRepository extends BaseRepository<"expert_kno
       error: error?.message ?? null,
     };
   }
+
+  async findById(id: string) {
+    const { data, error } = await this.supabase
+      .from("expert_knowledge_sources")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertKnowledgeSource | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+}
+
+export class ExpertCoursesRepository extends BaseRepository<"expert_courses"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_courses", userId);
+  }
+
+  async findRecent(limit = 50) {
+    const { data, error } = await this.supabase
+      .from("expert_courses")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertCourse[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findById(id: string) {
+    const { data, error } = await this.supabase
+      .from("expert_courses")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertCourse | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async updateStatus(id: string, status: ExpertCourseStatus) {
+    return this.update(id, { status, updated_at: new Date().toISOString() });
+  }
+}
+
+export class ExpertCourseModulesRepository extends BaseRepository<"expert_course_modules"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_course_modules", userId);
+  }
+
+  async findByCourseId(courseId: string) {
+    const { data, error } = await this.supabase
+      .from("expert_course_modules")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("course_id", courseId)
+      .order("sort_order", { ascending: true });
+
+    return {
+      data: (data as ExpertCourseModule[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findById(id: string) {
+    const { data, error } = await this.supabase
+      .from("expert_course_modules")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertCourseModule | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findAllRecent(limit = 500) {
+    const { data, error } = await this.supabase
+      .from("expert_course_modules")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertCourseModule[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async updateStatus(id: string, status: ExpertCourseStatus) {
+    return this.update(id, { status, updated_at: new Date().toISOString() });
+  }
+}
+
+export class ExpertCourseLessonsRepository extends BaseRepository<"expert_course_lessons"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_course_lessons", userId);
+  }
+
+  async findByModuleId(moduleId: string) {
+    const { data, error } = await this.supabase
+      .from("expert_course_lessons")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("module_id", moduleId)
+      .order("sort_order", { ascending: true });
+
+    return {
+      data: (data as ExpertCourseLesson[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findById(id: string) {
+    const { data, error } = await this.supabase
+      .from("expert_course_lessons")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertCourseLesson | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findAllRecent(limit = 2000) {
+    const { data, error } = await this.supabase
+      .from("expert_course_lessons")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertCourseLesson[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findByCourseId(courseId: string) {
+    const { data: modules, error: modError } = await this.supabase
+      .from("expert_course_modules")
+      .select("id")
+      .eq("user_id", this.userId)
+      .eq("course_id", courseId);
+
+    if (modError) return { data: null, error: modError.message };
+    const moduleIds = (modules ?? []).map((m) => m.id);
+    if (moduleIds.length === 0) return { data: [] as ExpertCourseLesson[], error: null };
+
+    const { data, error } = await this.supabase
+      .from("expert_course_lessons")
+      .select("*")
+      .eq("user_id", this.userId)
+      .in("module_id", moduleIds)
+      .order("sort_order", { ascending: true });
+
+    return {
+      data: (data as ExpertCourseLesson[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+}
+
+export class ExpertProcessingQueueRepository extends BaseRepository<"expert_processing_queue"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_processing_queue", userId);
+  }
+
+  async findPending(limit = 50) {
+    const { data, error } = await this.supabase
+      .from("expert_processing_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("status", "pending")
+      .order("priority", { ascending: false })
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertProcessingQueueItem[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findRecent(limit = 30) {
+    const { data, error } = await this.supabase
+      .from("expert_processing_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertProcessingQueueItem[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async countByStatus(status: ExpertQueueStatus) {
+    const { count, error } = await this.supabase
+      .from("expert_processing_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", this.userId)
+      .eq("status", status);
+
+    return { count: count ?? 0, error: error?.message ?? null };
+  }
+
+  async markProcessing(id: string) {
+    return this.update(id, { status: "processing" });
+  }
+
+  async markDone(id: string) {
+    return this.update(id, {
+      status: "done",
+      processed_at: new Date().toISOString(),
+      error: null,
+    });
+  }
+
+  async markFailed(id: string, errorMessage: string, attempts: number) {
+    return this.update(id, {
+      status: "failed",
+      error: errorMessage,
+      attempts,
+      processed_at: new Date().toISOString(),
+    });
+  }
 }
 
 export class ExpertFrameworksRepository extends BaseRepository<"expert_frameworks"> {
@@ -82,6 +331,30 @@ export class ExpertFrameworksRepository extends BaseRepository<"expert_framework
       data: (data as ExpertFramework[]) ?? null,
       error: error?.message ?? null,
     };
+  }
+
+  async findRecent(limit = 30) {
+    const { data, error } = await this.supabase
+      .from("expert_frameworks")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertFramework[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async deleteBySourceId(sourceId: string) {
+    const { error } = await this.supabase
+      .from("expert_frameworks")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("source_id", sourceId);
+
+    return { error: error?.message ?? null };
   }
 
   async createMany(
@@ -121,6 +394,18 @@ export class ExpertPlaybooksRepository extends BaseRepository<"expert_playbooks"
       data: (data as ExpertPlaybook[]) ?? [],
       error: error?.message ?? null,
     };
+  }
+
+  async deleteByFrameworkIds(frameworkIds: string[]) {
+    if (frameworkIds.length === 0) return { error: null };
+
+    const { error } = await this.supabase
+      .from("expert_playbooks")
+      .delete()
+      .eq("user_id", this.userId)
+      .in("framework_id", frameworkIds);
+
+    return { error: error?.message ?? null };
   }
 
   async createMany(
@@ -173,6 +458,32 @@ export class ExpertPatternsRepository extends BaseRepository<"expert_patterns"> 
       data: (data as ExpertPattern[]) ?? null,
       error: error?.message ?? null,
     };
+  }
+
+  async deleteBySourceId(sourceId: string) {
+    const { data, error: fetchError } = await this.supabase
+      .from("expert_patterns")
+      .select("id, source_ids")
+      .eq("user_id", this.userId);
+
+    if (fetchError) return { error: fetchError.message };
+
+    const idsToDelete = (data ?? [])
+      .filter((row) => {
+        const sourceIds = row.source_ids;
+        return Array.isArray(sourceIds) && sourceIds.includes(sourceId);
+      })
+      .map((row) => row.id);
+
+    if (idsToDelete.length === 0) return { error: null };
+
+    const { error } = await this.supabase
+      .from("expert_patterns")
+      .delete()
+      .eq("user_id", this.userId)
+      .in("id", idsToDelete);
+
+    return { error: error?.message ?? null };
   }
 
   async createMany(
@@ -229,6 +540,16 @@ export class ExpertDecisionRulesRepository extends BaseRepository<"expert_decisi
     };
   }
 
+  async deleteBySourceId(sourceId: string) {
+    const { error } = await this.supabase
+      .from("expert_decision_rules")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("source_id", sourceId);
+
+    return { error: error?.message ?? null };
+  }
+
   async createMany(
     rows: Array<Omit<TableInsert<"expert_decision_rules">, "user_id">>
   ): Promise<{ data: ExpertDecisionRule[]; error: string | null }> {
@@ -281,6 +602,16 @@ export class ExpertChecklistsRepository extends BaseRepository<"expert_checklist
     };
   }
 
+  async deleteBySourceId(sourceId: string) {
+    const { error } = await this.supabase
+      .from("expert_checklists")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("source_id", sourceId);
+
+    return { error: error?.message ?? null };
+  }
+
   async createMany(
     rows: Array<Omit<TableInsert<"expert_checklists">, "user_id">>
   ): Promise<{ data: ExpertChecklist[]; error: string | null }> {
@@ -318,6 +649,16 @@ export class ExpertFailurePatternsRepository extends BaseRepository<"expert_fail
     };
   }
 
+  async deleteBySourceId(sourceId: string) {
+    const { error } = await this.supabase
+      .from("expert_failure_patterns")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("source_id", sourceId);
+
+    return { error: error?.message ?? null };
+  }
+
   async createMany(
     rows: Array<Omit<TableInsert<"expert_failure_patterns">, "user_id">>
   ): Promise<{ data: ExpertFailurePattern[]; error: string | null }> {
@@ -353,6 +694,16 @@ export class ExpertSuccessPatternsRepository extends BaseRepository<"expert_succ
       data: (data as ExpertSuccessPattern[]) ?? null,
       error: error?.message ?? null,
     };
+  }
+
+  async deleteBySourceId(sourceId: string) {
+    const { error } = await this.supabase
+      .from("expert_success_patterns")
+      .delete()
+      .eq("user_id", this.userId)
+      .eq("source_id", sourceId);
+
+    return { error: error?.message ?? null };
   }
 
   async createMany(
