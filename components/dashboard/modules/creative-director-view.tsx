@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
+import { AppliedKnowledgePanel } from "@/components/dashboard/applied-knowledge-panel";
 import { useCreativeDirector } from "@/hooks/use-creative-director";
 import type { CreativeGeneratedAssetType, CreativeMediaProviderId } from "@/types/database";
 import {
@@ -152,6 +153,8 @@ export function CreativeDirectorView() {
           Bucket product-files não configurado — configure o Storage antes de gerar assets reais.
         </div>
       ) : null}
+
+      <AppliedKnowledgePanel module="creative-director" />
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Assets reais" value={String(dashboard?.total ?? 0)} hint="Total gerado" />

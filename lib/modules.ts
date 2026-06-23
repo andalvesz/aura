@@ -19,6 +19,7 @@ import {
   Home,
   Link2,
   PlugZap,
+  HardDrive,
   Mail,
   Languages,
   Megaphone,
@@ -79,7 +80,8 @@ export type ModuleId =
   | "platforms"
   | "integrations"
   | "global"
-  | "knowledge";
+  | "knowledge"
+  | "knowledge-sources";
 
 export type ModuleConfig = {
   id: ModuleId;
@@ -641,6 +643,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Global Score",
       value: "—",
       hint: "Analise mercados internacionais",
+    },
+  },
+  {
+    id: "knowledge-sources",
+    href: "/dashboard/knowledge-sources",
+    label: "Knowledge Sources",
+    shortLabel: "Fontes",
+    description:
+      "Aprenda de cursos no Google Drive e uploads TXT/PDF — extrai conhecimento sem armazenar vídeos.",
+    icon: HardDrive,
+    accent: "text-cyan-400",
+    overview: {
+      metric: "Fontes",
+      value: "0",
+      hint: "Conecte o Drive ou faça upload de materiais",
     },
   },
   {

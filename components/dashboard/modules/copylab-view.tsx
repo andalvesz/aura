@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
+import { AppliedKnowledgePanel } from "@/components/dashboard/applied-knowledge-panel";
 import { useCopylab } from "@/hooks/use-copylab";
 import { useCreator } from "@/hooks/use-creator";
 import type { CreatorCopylab } from "@/types/database";
@@ -376,6 +377,8 @@ export function CopylabView() {
           hint="Produtos do Creator"
         />
       </div>
+
+      <AppliedKnowledgePanel module="copylab" />
 
       <div className="flex flex-wrap gap-2">
         <ActionButton

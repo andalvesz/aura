@@ -127,6 +127,17 @@ export async function getUnifiedDecisions(intentInput?: MasterFlowIntentInput | 
     },
   });
 
+  void import("./expert-brain.service")
+    .then(({ getExpertContext }) => getExpertContext({ module: "decision-engine" }))
+    .then(async ({ context, promptBlock }) => {
+      const { recordExpertInfluence } = await import("./expert-influence.service");
+      await recordExpertInfluence({
+        moduleName: "decision-engine",
+        context,
+        promptApplied: Boolean(promptBlock.trim()),
+      });
+    });
+
   return { decisions, error: null };
 }
 

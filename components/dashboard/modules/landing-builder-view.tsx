@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
+import { AppliedKnowledgePanel } from "@/components/dashboard/applied-knowledge-panel";
 import { useCreator } from "@/hooks/use-creator";
 import { useLandingBuilder } from "@/hooks/use-landing-builder";
 import type { CreatorLanding, LandingModelo } from "@/types/database";
@@ -388,6 +389,8 @@ export function LandingBuilderView() {
           hint="Tipos de página"
         />
       </div>
+
+      <AppliedKnowledgePanel module="landing-factory" />
 
       <div className="flex flex-wrap gap-2">
         <ActionButton

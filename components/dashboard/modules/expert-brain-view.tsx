@@ -15,6 +15,7 @@ import {
   Upload,
   Video,
 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -468,6 +469,14 @@ export function ExpertBrainView() {
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Link
+          href="/dashboard/expert-brain/influence"
+          className="rounded-md border border-violet-500/20 bg-violet-500/[0.06] px-3 py-1.5 text-[11px] text-violet-200 hover:bg-violet-500/10"
+        >
+          Influence Audit →
+        </Link>
+      </div>
       {preview ? (
         <PreviewModal
           title={preview.title}

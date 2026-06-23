@@ -47,6 +47,7 @@ export const MODULE_TO_EXPERT_TASK: Record<string, ExpertBrainCategory> = {
   "creative-director": "creative_strategy",
   "creative-factory": "creative_strategy",
   "ads-commander": "paid_traffic",
+  "decision-engine": "scaling",
 };
 
 export type ExpertContextFilters = {

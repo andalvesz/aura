@@ -862,6 +862,81 @@ export type ExpertQueueAction = "process" | "reprocess";
 
 export type ExpertQueueStatus = "pending" | "processing" | "done" | "failed";
 
+export type KnowledgeSourceType = "drive_video" | "txt" | "pdf" | "transcript";
+
+export type KnowledgeSourceProvider = "google_drive" | "upload";
+
+export type KnowledgeSourceStatus = "pending" | "queued" | "processing" | "ready" | "failed";
+
+export type KnowledgeJobStatus = "queued" | "running" | "completed" | "failed";
+
+export type KnowledgeJobStage =
+  | "queued"
+  | "downloading"
+  | "transcribing"
+  | "extracting"
+  | "saving"
+  | "completed"
+  | "failed";
+
+export type KnowledgeSource = {
+  id: string;
+  user_id: string;
+  source_type: KnowledgeSourceType;
+  provider: KnowledgeSourceProvider;
+  course_name: string | null;
+  module_name: string | null;
+  lesson_name: string | null;
+  status: KnowledgeSourceStatus;
+  progress: number;
+  drive_file_id: string | null;
+  drive_mime_type: string | null;
+  expert_source_id: string | null;
+  metadata: Json;
+  created_at: string;
+};
+
+export type KnowledgeJob = {
+  id: string;
+  user_id: string;
+  source_id: string;
+  status: KnowledgeJobStatus;
+  stage: KnowledgeJobStage;
+  started_at: string | null;
+  completed_at: string | null;
+  error: string | null;
+  metadata: Json;
+  created_at: string;
+};
+
+export type KnowledgeInfluenceLog = {
+  id: string;
+  user_id: string;
+  module: string;
+  generation_id: string | null;
+  frameworks: Json;
+  decision_rules: Json;
+  patterns: Json;
+  success_patterns: Json;
+  failure_patterns: Json;
+  metadata: Json;
+  created_at: string;
+};
+
+export type ExpertInfluenceLog = {
+  id: string;
+  user_id: string;
+  module_name: string;
+  generation_id: string | null;
+  framework_ids: string[];
+  decision_rule_ids: string[];
+  success_pattern_ids: string[];
+  failure_pattern_ids: string[];
+  influence_score: number;
+  metadata: Json;
+  created_at: string;
+};
+
 export type ExpertKnowledgeSource = {
   id: string;
   user_id: string;
@@ -6292,6 +6367,108 @@ export type Database = {
           processed_at?: string | null;
         }
       >;
+      knowledge_sources: TableDef<
+        KnowledgeSource,
+        Omit<
+          KnowledgeSource,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "status"
+          | "progress"
+          | "course_name"
+          | "module_name"
+          | "lesson_name"
+          | "drive_file_id"
+          | "drive_mime_type"
+          | "expert_source_id"
+        > & {
+          id?: string;
+          status?: KnowledgeSourceStatus;
+          progress?: number;
+          course_name?: string | null;
+          module_name?: string | null;
+          lesson_name?: string | null;
+          drive_file_id?: string | null;
+          drive_mime_type?: string | null;
+          expert_source_id?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      knowledge_jobs: TableDef<
+        KnowledgeJob,
+        Omit<
+          KnowledgeJob,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "status"
+          | "stage"
+          | "started_at"
+          | "completed_at"
+          | "error"
+        > & {
+          id?: string;
+          status?: KnowledgeJobStatus;
+          stage?: KnowledgeJobStage;
+          started_at?: string | null;
+          completed_at?: string | null;
+          error?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      knowledge_influence_logs: TableDef<
+        KnowledgeInfluenceLog,
+        Omit<
+          KnowledgeInfluenceLog,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "generation_id"
+          | "frameworks"
+          | "decision_rules"
+          | "patterns"
+          | "success_patterns"
+          | "failure_patterns"
+        > & {
+          id?: string;
+          generation_id?: string | null;
+          frameworks?: Json;
+          decision_rules?: Json;
+          patterns?: Json;
+          success_patterns?: Json;
+          failure_patterns?: Json;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
+      expert_influence_logs: TableDef<
+        ExpertInfluenceLog,
+        Omit<
+          ExpertInfluenceLog,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "generation_id"
+          | "framework_ids"
+          | "decision_rule_ids"
+          | "success_pattern_ids"
+          | "failure_pattern_ids"
+          | "influence_score"
+        > & {
+          id?: string;
+          generation_id?: string | null;
+          framework_ids?: string[];
+          decision_rule_ids?: string[];
+          success_pattern_ids?: string[];
+          failure_pattern_ids?: string[];
+          influence_score?: number;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       revenue_metrics: TableDef<
         RevenueMetric,
         Omit<
@@ -6659,6 +6836,10 @@ export type UserScopedTable =
   | "expert_ingestion_queue"
   | "expert_transcripts"
   | "expert_processing_queue"
+  | "knowledge_sources"
+  | "knowledge_jobs"
+  | "knowledge_influence_logs"
+  | "expert_influence_logs"
   | "revenue_metrics"
   | "revenue_forecasts"
   | "market_opportunities"

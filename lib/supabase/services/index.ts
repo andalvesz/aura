@@ -67,3 +67,6 @@ export * from "./aura-brain.service";
 export * from "./aura-decision-engine.service";
 export * from "./winner-pattern.service";
 export * from "./expert-brain.service";
+export * from "./knowledge-sources.service";
+export * from "./knowledge-sources-pipeline.service";
+export * from "./expert-influence.service";

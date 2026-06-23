@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
+import { AppliedKnowledgePanel } from "@/components/dashboard/applied-knowledge-panel";
 import { useCreator } from "@/hooks/use-creator";
 import { useProductFactory } from "@/hooks/use-product-factory";
 import type { ProductComplianceCheck, ProductFactoryType } from "@/types/database";
@@ -786,6 +787,8 @@ export function ProductFactoryView() {
           <MetricCard label="Último" value={dashboard.ultimoTitulo} />
         </div>
       )}
+
+      <AppliedKnowledgePanel module="product-factory" />
 
       <Panel>
         <PanelHeader>

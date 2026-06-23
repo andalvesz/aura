@@ -24,6 +24,8 @@ import {
 } from "@/lib/supabase/repositories/expert-brain.repository";
 import type { UnifiedDecision, UnifiedDecisionEngineResult, DecisionSource } from "@/utils/aura-decision-engine";
 import { buildDecisionEngineAuraContext } from "@/utils/aura-decision-engine";
+import type { AppliedKnowledge } from "@/utils/knowledge-sources";
+import type { ExpertInfluenceAudit } from "@/utils/expert-influence";
 import { applyWinnerPatternToSystemPrompt } from "@/utils/winner-pattern";
 import {
   applyExpertContextToPrompt,
@@ -1265,6 +1267,8 @@ export type TransversalGenerationContext = {
   excellenceCriteria: string[];
   excellencePromptBlock: string;
   combinedAugmentation: string;
+  appliedKnowledge: AppliedKnowledge;
+  influenceAudit: ExpertInfluenceAudit;
 };
 
 export async function buildTransversalGenerationContext(params: {
@@ -1295,6 +1299,16 @@ export async function buildTransversalGenerationContext(params: {
     .filter(Boolean)
     .join("\n\n");
 
+  const promptApplied = Boolean(combinedAugmentation.trim());
+  const recorded = await import("./expert-influence.service").then(({ recordExpertInfluence }) =>
+    recordExpertInfluence({
+      moduleName: params.module,
+      context: expertContext,
+      promptApplied,
+    })
+  );
+  const { appliedKnowledge, ...influenceAudit } = recorded;
+
   return {
     expertContext,
     expertPromptBlock,
@@ -1303,6 +1317,8 @@ export async function buildTransversalGenerationContext(params: {
     excellenceCriteria,
     excellencePromptBlock,
     combinedAugmentation,
+    appliedKnowledge,
+    influenceAudit,
   };
 }
 

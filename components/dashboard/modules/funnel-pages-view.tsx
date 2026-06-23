@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
+import { AppliedKnowledgePanel } from "@/components/dashboard/applied-knowledge-panel";
 import { useFunnelPages } from "@/hooks/use-funnel-pages";
 import {
   formatConversionRate,
@@ -148,6 +149,8 @@ export function FunnelPagesView() {
           {FUNNEL_PAGES_SAFE_MODE.message}
         </div>
       ) : null}
+
+      <AppliedKnowledgePanel module="funnel-engine" />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-zinc-500">

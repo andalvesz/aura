@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
+import { AppliedKnowledgePanel } from "@/components/dashboard/applied-knowledge-panel";
 import { useAdsCommander } from "@/hooks/use-ads-commander";
 import { cn } from "@/utils/cn";
 import {
@@ -109,6 +110,8 @@ export function AdsCommanderView() {
           <p className="text-[11px] text-zinc-400">{dashboard.safeMode.message}</p>
         </PanelContent>
       </Panel>
+
+      <AppliedKnowledgePanel module="ads-commander" />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-zinc-500">

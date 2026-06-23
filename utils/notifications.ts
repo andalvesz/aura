@@ -116,6 +116,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   integrations: "/dashboard/integrations",
   global: "/dashboard/global",
   knowledge: "/dashboard/knowledge",
+  "knowledge-sources": "/dashboard/knowledge-sources",
 };
 
 export function isNotificationRead(notification: Pick<Notification, "status">): boolean {

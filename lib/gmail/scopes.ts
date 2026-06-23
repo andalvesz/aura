@@ -24,6 +24,10 @@ export function hasGmailSendScope(granted: string[]): boolean {
   return sendScope ? hasScope(granted, sendScope) : false;
 }
 
+export function hasDriveScope(granted: string[]): boolean {
+  return hasScope(granted, "https://www.googleapis.com/auth/drive.readonly");
+}
+
 export function mergeGrantedScopes(
   existing: string | null | undefined,
   incoming: string | null | undefined
@@ -46,6 +50,7 @@ export function resolveGoogleCapabilities(grantedScopes: string | null | undefin
     gmailRead,
     gmailSend,
     gmailEnabled: gmailRead && gmailSend,
+    drive: hasDriveScope(scopes),
     missingGmailScopes: GMAIL_ALL_SCOPES.filter((s) => !scopes.includes(s)),
   };
 }

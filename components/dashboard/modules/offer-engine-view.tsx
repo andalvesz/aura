@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
+import { AppliedKnowledgePanel } from "@/components/dashboard/applied-knowledge-panel";
 import { useCreator } from "@/hooks/use-creator";
 import { useOfferEngine } from "@/hooks/use-offer-engine";
 import type { OfferBestCard, OfferStackBundle } from "@/utils/offer-engine";
@@ -165,6 +166,7 @@ export function OfferEngineView() {
           {OFFER_ENGINE_SAFE_MODE.message}
         </div>
       ) : null}
+      <AppliedKnowledgePanel module="offer-engine" />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-zinc-500">
           Monetização automática — bumps, upsells, downsells, VIP e continuidade por produto.
