@@ -25,7 +25,7 @@ export function hasGmailSendScope(granted: string[]): boolean {
 }
 
 export function hasDriveScope(granted: string[]): boolean {
-  return hasScope(granted, "https://www.googleapis.com/auth/drive.readonly");
+  return hasScope(granted, DRIVE_READONLY_SCOPE);
 }
 
 export function mergeGrantedScopes(
@@ -37,6 +37,12 @@ export function mergeGrantedScopes(
     ...parseGrantedScopes(incoming),
   ]);
   return merged.size > 0 ? Array.from(merged).join(" ") : null;
+}
+
+const DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+
+export function removeDriveScope(granted: string[]): string[] {
+  return granted.filter((scope) => scope !== DRIVE_READONLY_SCOPE);
 }
 
 export function resolveGoogleCapabilities(grantedScopes: string | null | undefined) {

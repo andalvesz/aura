@@ -7,7 +7,7 @@ import {
   GOOGLE_DRIVE_OAUTH_STATE_COOKIE,
 } from "@/lib/google-drive";
 import { getGoogleAccountConnection } from "@/lib/google/token.service";
-import { fetchGoogleUserEmail } from "@/lib/google-calendar/oauth";
+import { fetchGoogleUserEmail, fetchGoogleUserProfile } from "@/lib/google-calendar/oauth";
 import { saveGoogleDriveConnection } from "@/lib/supabase/services/knowledge-sources.service";
 
 export async function GET(request: Request) {
@@ -58,13 +58,14 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${redirectBase}?drive_error=no_refresh`);
     }
 
-    const email = await fetchGoogleUserEmail(tokens.access_token);
+    const profile = await fetchGoogleUserProfile(tokens.access_token);
 
     const { error } = await saveGoogleDriveConnection({
       accessToken: tokens.access_token,
       refreshToken,
       expiresIn: tokens.expires_in,
-      email,
+      email: profile.email,
+      displayName: profile.name,
       grantedScopes: tokens.scope ?? null,
     });
 

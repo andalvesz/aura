@@ -1,10 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { DriveItem } from "@/lib/google-drive/client";
 import type { KnowledgeJob, KnowledgeSource } from "@/types/database";
 import type { AppliedKnowledge, KnowledgeSourcesDashboard } from "@/utils/knowledge-sources";
 import { parseJsonResponse } from "@/utils/safe-json";
+
+export type SelectedDriveFolder = {
+  id: string;
+  name: string;
+};
 
 export function useKnowledgeSources() {
   const [dashboard, setDashboard] = useState<KnowledgeSourcesDashboard | null>(null);
@@ -13,7 +18,10 @@ export function useKnowledgeSources() {
   const [error, setError] = useState<string | null>(null);
   const [driveFolders, setDriveFolders] = useState<DriveItem[]>([]);
   const [driveFiles, setDriveFiles] = useState<DriveItem[]>([]);
-  const [drivePath, setDrivePath] = useState<Array<{ id: string; name: string }>>([]);
+  const [drivePath, setDrivePath] = useState<Array<{ id: string; name: string }>>([
+    { id: "root", name: "Meu Drive" },
+  ]);
+  const [selectedFolder, setSelectedFolder] = useState<SelectedDriveFolder | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<DriveItem | null>(null);
   const [selectedModule, setSelectedModule] = useState<DriveItem | null>(null);
   const [selectedLessons, setSelectedLessons] = useState<Set<string>>(new Set());
@@ -51,7 +59,10 @@ export function useKnowledgeSources() {
   const browseDrive = useCallback(async (parentId?: string | null) => {
     setBusy(true);
     try {
-      const qs = parentId ? `?parentId=${encodeURIComponent(parentId)}` : "";
+      const qs =
+        parentId && parentId !== "root"
+          ? `?parentId=${encodeURIComponent(parentId)}`
+          : "";
       const res = await fetch(`/api/knowledge-sources/google/browse${qs}`);
       const { data, error: parseError } = await parseJsonResponse<{
         folders?: DriveItem[];
@@ -71,8 +82,40 @@ export function useKnowledgeSources() {
     }
   }, []);
 
+  const refreshDrive = useCallback(async () => {
+    const current = drivePath[drivePath.length - 1];
+    const parentId = current?.id === "root" ? undefined : current?.id;
+    await browseDrive(parentId);
+  }, [browseDrive, drivePath]);
+
   async function connectDrive() {
     window.location.href = "/api/knowledge-sources/google/connect";
+  }
+
+  async function disconnectDrive() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/knowledge-sources/google/disconnect", { method: "POST" });
+      const { data, error: parseError } = await parseJsonResponse<{ error?: string }>(res);
+
+      if (parseError || !res.ok || data?.error) {
+        setError(data?.error ?? parseError ?? "Erro ao desconectar.");
+        return false;
+      }
+
+      setDriveFolders([]);
+      setDriveFiles([]);
+      setDrivePath([{ id: "root", name: "Meu Drive" }]);
+      setSelectedFolder(null);
+      setSelectedCourse(null);
+      setSelectedModule(null);
+      setSelectedLessons(new Set());
+      await refresh();
+      return true;
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function uploadFile(file: File, meta?: { courseName?: string; moduleName?: string }) {
@@ -110,6 +153,7 @@ export function useKnowledgeSources() {
 
     const lessons = driveFiles
       .filter((f) => selectedLessons.has(f.id))
+      .filter((f) => !f.mimeType.startsWith("video/"))
       .map((f) => ({
         driveFileId: f.id,
         fileName: f.name,
@@ -118,6 +162,11 @@ export function useKnowledgeSources() {
         moduleName: selectedModule?.name ?? null,
         lessonName: f.name.replace(/\.[^.]+$/, ""),
       }));
+
+    if (!lessons.length) {
+      setError("Nenhum arquivo elegível selecionado. Vídeos ainda não são processados.");
+      return false;
+    }
 
     setBusy(true);
     try {
@@ -159,6 +208,9 @@ export function useKnowledgeSources() {
   }
 
   function toggleLesson(id: string) {
+    const file = driveFiles.find((f) => f.id === id);
+    if (file?.mimeType.startsWith("video/")) return;
+
     setSelectedLessons((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -171,6 +223,27 @@ export function useKnowledgeSources() {
     setSelectedLessons(new Set());
   }
 
+  function navigateToPath(index: number) {
+    const nextPath = drivePath.slice(0, index + 1);
+    setDrivePath(nextPath);
+    setSelectedCourse(null);
+    setSelectedModule(null);
+    clearSelectedLessons();
+    const folder = nextPath[nextPath.length - 1];
+    const parentId = folder.id === "root" ? undefined : folder.id;
+    void browseDrive(parentId);
+  }
+
+  function selectCurrentFolder() {
+    const current = drivePath[drivePath.length - 1];
+    if (!current || current.id === "root") return;
+    setSelectedFolder({ id: current.id, name: current.name });
+  }
+
+  function selectFolder(folder: { id: string; name: string }) {
+    setSelectedFolder(folder);
+  }
+
   return {
     dashboard,
     loading,
@@ -178,12 +251,19 @@ export function useKnowledgeSources() {
     error,
     refresh,
     connectDrive,
+    disconnectDrive,
     uploadFile,
     browseDrive,
+    refreshDrive,
     driveFolders,
     driveFiles,
     drivePath,
     setDrivePath,
+    selectedFolder,
+    setSelectedFolder,
+    selectCurrentFolder,
+    selectFolder,
+    navigateToPath,
     selectedCourse,
     setSelectedCourse,
     selectedModule,

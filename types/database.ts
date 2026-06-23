@@ -110,6 +110,7 @@ export type GoogleCalendarConnection = {
   id: string;
   user_id: string;
   google_email: string | null;
+  google_display_name: string | null;
   access_token: string | null;
   refresh_token: string | null;
   expires_at: string | null;
@@ -3232,6 +3233,7 @@ export type Database = {
         Omit<GoogleCalendarConnection, "id" | "created_at" | "updated_at"> & {
           id?: string;
           google_email?: string | null;
+          google_display_name?: string | null;
           access_token?: string | null;
           refresh_token?: string | null;
           expires_at?: string | null;

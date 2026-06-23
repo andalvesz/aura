@@ -10,6 +10,12 @@ type TokenResponse = {
 
 type GoogleUserInfo = {
   email?: string;
+  name?: string;
+};
+
+export type GoogleUserProfile = {
+  email: string | null;
+  name: string | null;
 };
 
 export function buildGoogleAuthUrl(state: string, redirectUri: string, clientId: string) {
@@ -81,15 +87,23 @@ export async function refreshGoogleAccessToken(
   return res.json() as Promise<TokenResponse>;
 }
 
-export async function fetchGoogleUserEmail(accessToken: string): Promise<string | null> {
+export async function fetchGoogleUserProfile(accessToken: string): Promise<GoogleUserProfile> {
   const res = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
-  if (!res.ok) return null;
+  if (!res.ok) return { email: null, name: null };
 
   const data = (await res.json()) as GoogleUserInfo;
-  return data.email?.trim() || null;
+  return {
+    email: data.email?.trim() || null,
+    name: data.name?.trim() || null,
+  };
+}
+
+export async function fetchGoogleUserEmail(accessToken: string): Promise<string | null> {
+  const profile = await fetchGoogleUserProfile(accessToken);
+  return profile.email;
 }
 
 export function tokenExpiresAt(expiresInSeconds: number): string {

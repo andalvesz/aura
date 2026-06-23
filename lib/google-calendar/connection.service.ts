@@ -66,6 +66,7 @@ export async function saveGoogleCalendarConnection(params: {
   refreshToken: string;
   expiresIn: number;
   email?: string | null;
+  displayName?: string | null;
   grantedScopes?: string | null;
 }) {
   const ctx = await getOptionalDataContext();
@@ -93,6 +94,7 @@ export async function saveGoogleCalendarConnection(params: {
     refresh_token: params.refreshToken,
     expires_at: tokenExpiresAt(params.expiresIn),
     google_email: email,
+    google_display_name: params.displayName ?? existing?.google_display_name ?? null,
     granted_scopes,
     sync_token: existing?.sync_token ?? null,
   };

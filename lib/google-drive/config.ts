@@ -1,6 +1,7 @@
 export const GOOGLE_DRIVE_SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/userinfo.profile",
 ];
 
 export const GOOGLE_DRIVE_OAUTH_STATE_COOKIE = "google_drive_oauth_state";

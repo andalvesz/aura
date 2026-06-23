@@ -4,16 +4,13 @@ import type {
   TableInsert,
 } from "@/types/database";
 import {
-  isDrivePdf,
-  isDriveText,
-  isDriveVideo,
   listDriveFolderContents,
   listDriveFolders,
   type DriveItem,
 } from "@/lib/google-drive/client";
 import { getGoogleDriveOAuthConfig } from "@/lib/google-drive";
-import { mergeGrantedScopes, resolveGoogleCapabilities } from "@/lib/gmail/scopes";
-import { saveGoogleCalendarConnection } from "@/lib/google-calendar/connection.service";
+import { mergeGrantedScopes, removeDriveScope, resolveGoogleCapabilities } from "@/lib/gmail/scopes";
+import { saveGoogleCalendarConnection, getGoogleCalendarConnection } from "@/lib/google-calendar/connection.service";
 import { getValidGoogleAccessToken } from "@/lib/google/token.service";
 import {
   ExpertDecisionRulesRepository,
@@ -132,6 +129,7 @@ export async function getKnowledgeSourcesDashboard(): Promise<{
       jobs: jobs ?? [],
       driveConnected: capabilities.drive && Boolean(accessToken) && !tokenError,
       driveEmail: connection?.google_email ?? null,
+      driveAccountName: connection?.google_display_name ?? null,
       inspector,
       stats: {
         total: list.length,
@@ -204,7 +202,7 @@ export async function getDriveBrowse(parentId?: string | null): Promise<{
     const contents = await listDriveFolderContents(accessToken, parentId);
     return {
       folders: contents.filter((i) => i.isFolder),
-      files: contents.filter((i) => !i.isFolder && (isDriveVideo(i) || isDrivePdf(i) || isDriveText(i))),
+      files: contents.filter((i) => !i.isFolder),
       error: null,
     };
   } catch (err) {
@@ -265,9 +263,43 @@ export async function saveGoogleDriveConnection(params: {
   refreshToken: string;
   expiresIn: number;
   email?: string | null;
+  displayName?: string | null;
   grantedScopes?: string | null;
 }) {
   return saveGoogleCalendarConnection(params);
+}
+
+export async function disconnectGoogleDrive(): Promise<{ error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { error: "Usuário não autenticado." };
+
+  const { connection, error: connError } = await getGoogleCalendarConnection();
+  if (connError) return { error: connError };
+  if (!connection) return { error: null };
+
+  const capabilities = resolveGoogleCapabilities(connection.granted_scopes);
+  if (!capabilities.drive) return { error: null };
+
+  const remainingScopes = removeDriveScope(capabilities.scopes);
+  const hasOtherScopes =
+    capabilities.calendar || capabilities.gmailRead || capabilities.gmailSend;
+
+  if (!hasOtherScopes || remainingScopes.length === 0) {
+    const { error } = await ctx.supabase
+      .from("google_calendar_connections")
+      .delete()
+      .eq("user_id", ctx.userId);
+    return { error: error?.message ?? null };
+  }
+
+  const { error } = await ctx.supabase
+    .from("google_calendar_connections")
+    .update({
+      granted_scopes: remainingScopes.join(" "),
+    })
+    .eq("user_id", ctx.userId);
+
+  return { error: error?.message ?? null };
 }
 
 export async function getDriveConnectionStatus(): Promise<{

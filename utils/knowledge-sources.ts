@@ -81,6 +81,7 @@ export type KnowledgeSourcesDashboard = {
   jobs: import("@/types/database").KnowledgeJob[];
   driveConnected: boolean;
   driveEmail: string | null;
+  driveAccountName: string | null;
   inspector: KnowledgeInspectorData;
   stats: {
     total: number;
