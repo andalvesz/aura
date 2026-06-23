@@ -83,7 +83,9 @@ export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: Expert
       toast.error(importError);
       return;
     }
-    toast.success(`${queued} arquivo(s) enfileirado(s) do Drive.`);
+    toast.success(
+      `${queued} arquivo(s) enfileirado(s). O processamento (download, transcrição e extração) continua em segundo plano.`
+    );
     onImported?.();
   }
 
@@ -124,8 +126,8 @@ export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: Expert
         {!connected ? (
           <div className="space-y-3">
             <p className="text-[12px] text-zinc-400">
-              Conecte sua conta Google para navegar nas pastas do Drive e importar cursos para o
-              Expert Brain. Vídeos serão habilitados em uma próxima versão.
+              Conecte sua conta Google para navegar nas pastas do Drive e importar cursos (PDF, TXT,
+              MD e vídeos MP4) para o Expert Brain.
             </p>
             <ActionButton onClick={connect}>Conectar Google Drive</ActionButton>
           </div>
@@ -228,18 +230,12 @@ export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: Expert
                   files.map((file) => (
                     <div
                       key={file.id}
-                      className={cn(
-                        "flex items-center gap-2 rounded-md px-2 py-1.5",
-                        file.mimeType.startsWith("video/") && "opacity-60"
-                      )}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5"
                     >
                       <DriveFileIcon mimeType={file.mimeType} />
                       <span className="min-w-0 flex-1 truncate text-[12px] text-zinc-200">
                         {file.name}
                       </span>
-                      {file.mimeType.startsWith("video/") && (
-                        <span className="shrink-0 text-[10px] text-zinc-600">em breve</span>
-                      )}
                     </div>
                   ))
                 )}

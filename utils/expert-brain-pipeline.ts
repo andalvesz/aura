@@ -10,7 +10,7 @@ export const PIPELINE_PROGRESS: Record<string, number> = {
   completed: 100,
   failed: 0,
   pending: 0,
-  pending_drive: 0,
+  pending_drive: 10,
   processing: 25,
   done: 100,
 };
@@ -30,6 +30,7 @@ export function pipelineStageIndex(status: ExpertIngestionStatus | string): numb
   switch (status) {
     case "uploaded":
     case "pending":
+    case "pending_drive":
       return 0;
     case "waiting_for_openai":
     case "transcribing":
@@ -54,7 +55,7 @@ export function ingestionStatusLabel(status: ExpertIngestionStatus | string): st
     waiting_for_openai: "Aguardando OpenAI",
     failed: "Falhou",
     pending: "Upload",
-    pending_drive: "Aguardando Drive",
+    pending_drive: "Downloadando",
     processing: "Processando",
     done: "Concluído",
   };

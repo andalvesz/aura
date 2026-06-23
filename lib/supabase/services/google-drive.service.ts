@@ -1,8 +1,6 @@
 import type { Json } from "@/types/database";
 import {
-  isDrivePdf,
-  isDriveText,
-  isDriveVideo,
+  isDriveProcessable,
   listDriveFolderContents,
   listDriveFolders,
   type DriveItem,
@@ -185,8 +183,8 @@ export async function listGoogleDriveFiles(folderId: string): Promise<{
 }
 
 function isImportableDriveFile(item: DriveItem): boolean {
-  if (item.isFolder || isDriveVideo(item)) return false;
-  return isDrivePdf(item) || isDriveText(item);
+  if (item.isFolder) return false;
+  return isDriveProcessable(item);
 }
 
 export async function importGoogleDriveFolder(input: {
@@ -219,7 +217,7 @@ export async function importGoogleDriveFolder(input: {
   if (!importable.length) {
     return {
       queued: 0,
-      error: "Nenhum arquivo importável nesta pasta (PDF, TXT ou MD). Vídeos ainda não são processados.",
+      error: "Nenhum arquivo importável nesta pasta (PDF, TXT, MD ou vídeo MP4).",
     };
   }
 

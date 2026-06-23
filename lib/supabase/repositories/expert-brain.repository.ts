@@ -261,6 +261,7 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
 
   async findWorkable(limit = 10) {
     const statuses: ExpertIngestionStatus[] = [
+      "pending_drive",
       "uploaded",
       "waiting_for_openai",
       "transcribing",
@@ -285,6 +286,7 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
 
   async countActive() {
     const statuses: ExpertIngestionStatus[] = [
+      "pending_drive",
       "uploaded",
       "transcribing",
       "extracting",

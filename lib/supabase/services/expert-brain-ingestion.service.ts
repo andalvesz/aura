@@ -1,4 +1,5 @@
 import type { Json } from "@/types/database";
+import { downloadDriveFile } from "@/lib/google-drive/client";
 import {
   extractTextFromFile,
   parseZipCourse,
@@ -17,13 +18,18 @@ import {
   hasOpenAiKey,
   transcribeIngestionVideo,
 } from "@/lib/supabase/services/expert-brain-transcription.service";
+import { getValidGoogleDriveExpertAccessToken } from "@/lib/supabase/services/google-drive.service";
 import {
   EXPERT_BRAIN_FILES_BUCKET,
   assertExpertBrainStoragePathOwned,
+  buildExpertBrainStoragePath,
   detectExpertBrainSourceType,
+  formatExpertBrainStorageUploadError,
+  guessExpertBrainContentType,
   isExpertBrainVideoFile,
   isExpertBrainZipFile,
   titleFromExpertBrainFileName,
+  validateExpertBrainFileSize,
 } from "@/utils/expert-brain-storage";
 import { logExpertBrain } from "@/utils/expert-brain-pipeline";
 import { getOptionalDataContext } from "./context";
@@ -46,7 +52,20 @@ type IngestionMeta = {
   lesson_id?: string | null;
   course_id?: string | null;
   module_id?: string | null;
+  drive_file_id?: string | null;
+  drive_mime_type?: string | null;
+  source?: string | null;
 };
+
+function isGoogleDriveIngestionPath(filePath: string): boolean {
+  return filePath.startsWith("google-drive://");
+}
+
+function driveFileIdFromPath(filePath: string): string | null {
+  if (!isGoogleDriveIngestionPath(filePath)) return null;
+  const id = filePath.slice("google-drive://".length).trim();
+  return id || null;
+}
 
 async function downloadExpertBrainFile(filePath: string): Promise<Buffer | null> {
   const ctx = await getOptionalDataContext();
@@ -72,6 +91,9 @@ function readIngestionMeta(item: import("@/types/database").ExpertIngestionQueue
     lesson_id: typeof meta.lesson_id === "string" ? meta.lesson_id : null,
     course_id: typeof meta.course_id === "string" ? meta.course_id : null,
     module_id: typeof meta.module_id === "string" ? meta.module_id : null,
+    drive_file_id: typeof meta.drive_file_id === "string" ? meta.drive_file_id : null,
+    drive_mime_type: typeof meta.drive_mime_type === "string" ? meta.drive_mime_type : null,
+    source: typeof meta.source === "string" ? meta.source : null,
   };
 }
 
@@ -435,6 +457,118 @@ export async function requeueExpertBrainIngestionFromLesson(
   return result;
 }
 
+async function uploadExpertBrainBuffer(
+  userId: string,
+  fileName: string,
+  buffer: Buffer
+): Promise<{ path: string | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { path: null, error: "Usuário não autenticado." };
+
+  const storagePath = buildExpertBrainStoragePath(userId, fileName);
+  const { error } = await ctx.supabase.storage.from(EXPERT_BRAIN_FILES_BUCKET).upload(storagePath, buffer, {
+    contentType: guessExpertBrainContentType(fileName),
+  });
+
+  if (error) {
+    return {
+      path: null,
+      error: formatExpertBrainStorageUploadError(error.message, buffer.length),
+    };
+  }
+
+  return { path: storagePath, error: null };
+}
+
+async function processPendingDriveStage(
+  item: import("@/types/database").ExpertIngestionQueueItem
+): Promise<{ error: string | null }> {
+  const ingestionRepo = (await getIngestionRepo())!;
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { error: "Usuário não autenticado." };
+
+  const meta = readIngestionMeta(item);
+  const fileName = item.file_name ?? item.file_path.split("/").pop() ?? "arquivo";
+  const driveFileId = meta.drive_file_id ?? driveFileIdFromPath(item.file_path);
+
+  if (!driveFileId) {
+    await ingestionRepo.markFailed(item.id, "ID do arquivo no Google Drive ausente.");
+    return { error: "ID do arquivo no Google Drive ausente." };
+  }
+
+  await ingestionRepo.updateProgress(item.id, 10);
+
+  const { accessToken, error: tokenError } = await getValidGoogleDriveExpertAccessToken();
+  if (!accessToken) {
+    await ingestionRepo.markFailed(item.id, tokenError ?? "Google Drive não conectado.");
+    return { error: tokenError ?? "Google Drive não conectado." };
+  }
+
+  logExpertBrain("upload", {
+    ingestionId: item.id,
+    stage: "drive_download",
+    driveFileId,
+    fileName,
+  });
+
+  let buffer: Buffer;
+  try {
+    buffer = await downloadDriveFile(accessToken, driveFileId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Download do Google Drive falhou.";
+    await ingestionRepo.markFailed(item.id, message);
+    return { error: message };
+  }
+
+  const sizeError = validateExpertBrainFileSize(buffer.length);
+  if (sizeError) {
+    await ingestionRepo.markFailed(item.id, sizeError);
+    return { error: sizeError };
+  }
+
+  await ingestionRepo.updateProgress(item.id, 20);
+
+  const { path: storagePath, error: uploadError } = await uploadExpertBrainBuffer(
+    ctx.userId,
+    fileName,
+    buffer
+  );
+
+  if (uploadError || !storagePath) {
+    await ingestionRepo.markFailed(item.id, uploadError ?? "Upload para o Storage falhou.");
+    return { error: uploadError ?? "Upload para o Storage falhou." };
+  }
+
+  const mergedMetadata =
+    typeof item.metadata === "object" && item.metadata && !Array.isArray(item.metadata)
+      ? { ...(item.metadata as Record<string, unknown>), storage_path: storagePath, drive_downloaded: true }
+      : { storage_path: storagePath, drive_downloaded: true };
+
+  await ingestionRepo.update(item.id, {
+    file_path: storagePath,
+    metadata: mergedMetadata as Json,
+  });
+
+  logExpertBrain("upload", {
+    ingestionId: item.id,
+    stage: "drive_storage",
+    storagePath,
+    fileName,
+  });
+
+  if (isExpertBrainVideoFile(fileName)) {
+    if (!hasOpenAiKey()) {
+      await ingestionRepo.markWaitingForOpenai(item.id);
+      return { error: null };
+    }
+    await ingestionRepo.markTranscribing(item.id);
+    return { error: null };
+  }
+
+  await ingestionRepo.markUploaded(item.id);
+  return { error: null };
+}
+
 async function processUploadedStage(
   item: import("@/types/database").ExpertIngestionQueueItem
 ): Promise<{ error: string | null }> {
@@ -680,7 +814,7 @@ async function processExtractingStage(
     sourceType,
     author: meta.author,
     niche: meta.niche,
-    origin: fileName,
+    origin: meta.source === "google_drive" ? "google_drive" : fileName,
     transcriptId: transcript?.id ?? null,
   });
 
@@ -718,11 +852,13 @@ async function processIngestionItem(item: import("@/types/database").ExpertInges
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
   let current = item;
 
-  for (let step = 0; step < 4; step++) {
+  for (let step = 0; step < 6; step++) {
     const status = current.status;
     let result: { error: string | null };
 
-    if (status === "uploaded" || status === "pending") {
+    if (status === "pending_drive") {
+      result = await processPendingDriveStage(current);
+    } else if (status === "uploaded" || status === "pending") {
       result = await processUploadedStage(current);
     } else if (status === "waiting_for_openai") {
       if (!hasOpenAiKey()) return { error: null };
