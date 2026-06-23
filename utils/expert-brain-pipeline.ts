@@ -10,6 +10,7 @@ export const PIPELINE_PROGRESS: Record<string, number> = {
   completed: 100,
   failed: 0,
   pending: 0,
+  pending_drive: 0,
   processing: 25,
   done: 100,
 };
@@ -53,6 +54,7 @@ export function ingestionStatusLabel(status: ExpertIngestionStatus | string): st
     waiting_for_openai: "Aguardando OpenAI",
     failed: "Falhou",
     pending: "Upload",
+    pending_drive: "Aguardando Drive",
     processing: "Processando",
     done: "Concluído",
   };
@@ -68,6 +70,7 @@ export function ingestionStatusColor(status: ExpertIngestionStatus | string): st
     waiting_for_openai: "text-orange-400 bg-orange-500/10",
     failed: "text-red-400 bg-red-500/10",
     pending: "text-sky-400 bg-sky-500/10",
+    pending_drive: "text-cyan-400 bg-cyan-500/10",
     processing: "text-amber-400 bg-amber-500/10",
     done: "text-emerald-400 bg-emerald-500/10",
   };

@@ -120,6 +120,17 @@ export type GoogleCalendarConnection = {
   updated_at: string;
 };
 
+export type GoogleDriveConnection = {
+  id: string;
+  user_id: string;
+  google_email: string | null;
+  google_display_name: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  expires_at: string | null;
+  created_at: string;
+};
+
 export type CommunicationChannel = "email" | "whatsapp" | "instagram";
 export type CommunicationDirection = "outbound" | "inbound";
 export type CommunicationStatus = "pending" | "sent" | "opened" | "failed";
@@ -1005,7 +1016,8 @@ export type ExpertIngestionStatus =
   | "failed"
   | "pending"
   | "processing"
-  | "done";
+  | "done"
+  | "pending_drive";
 
 export type ExpertTranscriptStatus = "transcribing" | "ready" | "failed" | "waiting_for_openai";
 
@@ -3241,6 +3253,18 @@ export type Database = {
           granted_scopes?: string | null;
           created_at?: string;
           updated_at?: string;
+        }
+      >;
+      google_drive_connections: TableDef<
+        GoogleDriveConnection,
+        Omit<GoogleDriveConnection, "id" | "created_at"> & {
+          id?: string;
+          google_email?: string | null;
+          google_display_name?: string | null;
+          access_token?: string | null;
+          refresh_token?: string | null;
+          expires_at?: string | null;
+          created_at?: string;
         }
       >;
       communication_logs: TableDef<
@@ -6839,6 +6863,7 @@ export type UserScopedTable =
   | "expert_transcripts"
   | "expert_processing_queue"
   | "knowledge_sources"
+  | "google_drive_connections"
   | "knowledge_jobs"
   | "knowledge_influence_logs"
   | "expert_influence_logs"

@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { ListSkeleton, MetricsSkeleton } from "@/components/dashboard/loading-skeleton";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
+import { ExpertBrainDrivePanel } from "@/components/dashboard/modules/expert-brain-drive-panel";
 import { useExpertBrain, type ExpertUploadMode } from "@/hooks/use-expert-brain";
 import { cn } from "@/utils/cn";
 import { EXPERT_BRAIN_UPLOAD_LIMIT_LABEL } from "@/utils/expert-brain-storage";
@@ -499,6 +500,8 @@ export function ExpertBrainView() {
           </ActionButton>
         </div>
       </div>
+
+      <ExpertBrainDrivePanel busy={busy} onImported={() => void refresh()} />
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Cursos" value={String(metrics?.courses ?? 0)} />
