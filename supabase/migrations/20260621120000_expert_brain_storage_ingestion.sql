@@ -1,4 +1,6 @@
 -- Expert Brain — Storage bucket + fila de ingestão assíncrona
+-- file_size_limit = 2 * 1024 * 1024 * 1024 (EXPERT_BRAIN_MAX_FILE_SIZE no app)
+-- O limite global do projeto (Dashboard → Storage → Settings) também deve ser ≥ 2 GB.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

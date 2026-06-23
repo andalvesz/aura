@@ -5,15 +5,19 @@ import { createClient } from "@/lib/supabase/client";
 import type { ExpertBrainDashboard } from "@/utils/expert-brain-dashboard";
 import {
   EXPERT_BRAIN_FILES_BUCKET,
+  EXPERT_BRAIN_MAX_FILE_SIZE,
   buildExpertBrainStoragePath,
+  formatExpertBrainStorageUploadError,
   guessExpertBrainContentType,
   titleFromExpertBrainFileName,
   validateExpertBrainFileSize,
+  validateExpertBrainFileType,
+  type ExpertBrainUploadMode,
 } from "@/utils/expert-brain-storage";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { useMountFetch } from "./use-mount-fetch";
 
-export type ExpertUploadMode = "zip" | "videos" | "pdfs" | "transcripts";
+export type ExpertUploadMode = ExpertBrainUploadMode;
 
 export type ExpertUploadProgress = {
   fileName: string;
@@ -86,9 +90,15 @@ export function useExpertBrain() {
 
   useEffect(() => {
     const ingestion = dashboard?.ingestionQueue ?? [];
-    const hasActive = ingestion.some(
-      (item) => item.status === "pending" || item.status === "processing"
-    );
+    const activeStatuses = new Set([
+      "uploaded",
+      "transcribing",
+      "extracting",
+      "waiting_for_openai",
+      "pending",
+      "processing",
+    ]);
+    const hasActive = ingestion.some((item) => activeStatuses.has(item.status));
     const hasProcessingLessons =
       (dashboard?.metrics.queuePending ?? 0) > 0 ||
       (dashboard?.metrics.queueProcessing ?? 0) > 0;
@@ -98,9 +108,18 @@ export function useExpertBrain() {
   }, [dashboard, startPolling, stopPolling]);
 
   const uploadToStorage = useCallback(
-    async (file: File, userId: string) => {
+    async (file: File, userId: string, mode: ExpertUploadMode) => {
+      const typeError = validateExpertBrainFileType(file.name, mode);
+      if (typeError) throw new Error(typeError);
+
       const sizeError = validateExpertBrainFileSize(file.size);
       if (sizeError) throw new Error(sizeError);
+
+      console.info("[expert-brain-upload]", {
+        fileName: file.name,
+        fileSize: file.size,
+        maxAllowedSize: EXPERT_BRAIN_MAX_FILE_SIZE,
+      });
 
       const supabase = createClient();
       const storagePath = buildExpertBrainStoragePath(userId, file.name);
@@ -113,7 +132,9 @@ export function useExpertBrain() {
           contentType,
         });
 
-      if (uploadError) throw new Error(uploadError.message);
+      if (uploadError) {
+        throw new Error(formatExpertBrainStorageUploadError(uploadError.message, file.size));
+      }
       return storagePath;
     },
     []
@@ -185,7 +206,7 @@ export function useExpertBrain() {
             )
           );
 
-          const file_path = await uploadToStorage(file, user.id);
+          const file_path = await uploadToStorage(file, user.id, params.mode);
 
           setUploadProgress((prev) =>
             prev.map((item, i) =>
@@ -216,7 +237,15 @@ export function useExpertBrain() {
         }
 
         await refresh(true);
-        return { error: null, message: `${fileList.length} arquivo(s) enviado(s) ao Storage.` };
+        void fetch("/api/expert-brain/queue", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 3 }),
+        }).catch(() => undefined);
+        return {
+          error: null,
+          message: `${fileList.length} arquivo(s) enfileirado(s). Processamento assíncrono iniciado.`,
+        };
       } catch (err) {
         const message = err instanceof Error ? err.message : "Erro no upload.";
         setUploadProgress((prev) =>
@@ -233,6 +262,34 @@ export function useExpertBrain() {
     },
     [refresh, registerUploadedFile, startPolling, uploadToStorage]
   );
+
+  const fetchTranscript = useCallback(async (params: { lessonId?: string; transcriptId?: string }) => {
+    const query = params.lessonId
+      ? `lessonId=${encodeURIComponent(params.lessonId)}`
+      : `transcriptId=${encodeURIComponent(params.transcriptId ?? "")}`;
+    const res = await fetch(`/api/expert-brain/transcript?${query}`);
+    const { data, error: parseError } = await parseJsonResponse<{
+      error?: string;
+      transcript?: unknown;
+      text?: string | null;
+    }>(res);
+    if (parseError || !res.ok || data?.error) {
+      return { error: data?.error ?? parseError ?? "Erro ao carregar transcrição.", text: null };
+    }
+    return { error: null, text: data?.text ?? null };
+  }, []);
+
+  const fetchKnowledge = useCallback(async (sourceId: string) => {
+    const res = await fetch(`/api/expert-brain/knowledge?sourceId=${encodeURIComponent(sourceId)}`);
+    const { data, error: parseError } = await parseJsonResponse<{
+      error?: string;
+      knowledge?: unknown;
+    }>(res);
+    if (parseError || !res.ok || data?.error) {
+      return { error: data?.error ?? parseError ?? "Erro ao carregar conhecimento.", knowledge: null };
+    }
+    return { error: null, knowledge: data?.knowledge ?? null };
+  }, []);
 
   const processQueue = useCallback(async (limit = 5) => {
     setBusy(true);
@@ -300,5 +357,7 @@ export function useExpertBrain() {
     uploadFiles,
     processQueue,
     reprocess,
+    fetchTranscript,
+    fetchKnowledge,
   };
 }

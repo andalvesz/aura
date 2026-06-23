@@ -920,7 +920,34 @@ export type ExpertCourseLesson = {
   updated_at: string;
 };
 
-export type ExpertIngestionStatus = "pending" | "processing" | "done" | "failed";
+export type ExpertIngestionStatus =
+  | "uploaded"
+  | "transcribing"
+  | "extracting"
+  | "completed"
+  | "waiting_for_openai"
+  | "failed"
+  | "pending"
+  | "processing"
+  | "done";
+
+export type ExpertTranscriptStatus = "transcribing" | "ready" | "failed" | "waiting_for_openai";
+
+export type ExpertTranscript = {
+  id: string;
+  user_id: string;
+  ingestion_id: string | null;
+  lesson_id: string | null;
+  source_id: string | null;
+  file_path: string;
+  transcript_path: string | null;
+  word_count: number;
+  duration_seconds: number | null;
+  status: ExpertTranscriptStatus;
+  error: string | null;
+  metadata: Json;
+  created_at: string;
+};
 
 export type ExpertIngestionQueueItem = {
   id: string;
@@ -6211,6 +6238,35 @@ export type Database = {
           processed_at?: string | null;
         }
       >;
+      expert_transcripts: TableDef<
+        ExpertTranscript,
+        Omit<
+          ExpertTranscript,
+          | "id"
+          | "created_at"
+          | "metadata"
+          | "ingestion_id"
+          | "lesson_id"
+          | "source_id"
+          | "transcript_path"
+          | "word_count"
+          | "duration_seconds"
+          | "status"
+          | "error"
+        > & {
+          id?: string;
+          ingestion_id?: string | null;
+          lesson_id?: string | null;
+          source_id?: string | null;
+          transcript_path?: string | null;
+          word_count?: number;
+          duration_seconds?: number | null;
+          status?: ExpertTranscriptStatus;
+          error?: string | null;
+          metadata?: Json;
+          created_at?: string;
+        }
+      >;
       expert_processing_queue: TableDef<
         ExpertProcessingQueueItem,
         Omit<
@@ -6601,6 +6657,7 @@ export type UserScopedTable =
   | "expert_course_modules"
   | "expert_course_lessons"
   | "expert_ingestion_queue"
+  | "expert_transcripts"
   | "expert_processing_queue"
   | "revenue_metrics"
   | "revenue_forecasts"

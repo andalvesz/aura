@@ -1,9 +1,7 @@
 import type { Json } from "@/types/database";
 import {
   extractTextFromFile,
-  parseUploadedFiles,
   parseZipCourse,
-  transcribeVideoBuffer,
   type ParsedCourseStructure,
 } from "@/lib/expert-brain/parsers";
 import {
@@ -12,13 +10,22 @@ import {
   ExpertCoursesRepository,
   ExpertIngestionQueueRepository,
   ExpertProcessingQueueRepository,
+  ExpertTranscriptsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
+import { ingestKnowledgeSource } from "@/lib/supabase/services/expert-brain.service";
+import {
+  hasOpenAiKey,
+  transcribeIngestionVideo,
+} from "@/lib/supabase/services/expert-brain-transcription.service";
 import {
   EXPERT_BRAIN_FILES_BUCKET,
   assertExpertBrainStoragePathOwned,
+  detectExpertBrainSourceType,
+  isExpertBrainVideoFile,
   isExpertBrainZipFile,
   titleFromExpertBrainFileName,
 } from "@/utils/expert-brain-storage";
+import { logExpertBrain } from "@/utils/expert-brain-pipeline";
 import { getOptionalDataContext } from "./context";
 
 export type RegisterExpertBrainIngestionInput = {
@@ -30,6 +37,15 @@ export type RegisterExpertBrainIngestionInput = {
   author?: string | null;
   niche?: string | null;
   reprocess?: boolean;
+};
+
+type IngestionMeta = {
+  author?: string | null;
+  niche?: string | null;
+  reprocess?: boolean;
+  lesson_id?: string | null;
+  course_id?: string | null;
+  module_id?: string | null;
 };
 
 async function downloadExpertBrainFile(filePath: string): Promise<Buffer | null> {
@@ -44,12 +60,29 @@ async function downloadExpertBrainFile(filePath: string): Promise<Buffer | null>
   return Buffer.from(await data.arrayBuffer());
 }
 
+function readIngestionMeta(item: import("@/types/database").ExpertIngestionQueueItem): IngestionMeta {
+  if (typeof item.metadata !== "object" || !item.metadata || Array.isArray(item.metadata)) {
+    return {};
+  }
+  const meta = item.metadata as Record<string, unknown>;
+  return {
+    author: typeof meta.author === "string" ? meta.author : null,
+    niche: typeof meta.niche === "string" ? meta.niche : null,
+    reprocess: meta.reprocess === true,
+    lesson_id: typeof meta.lesson_id === "string" ? meta.lesson_id : null,
+    course_id: typeof meta.course_id === "string" ? meta.course_id : null,
+    module_id: typeof meta.module_id === "string" ? meta.module_id : null,
+  };
+}
+
 async function createLessonsFromStructure(
   structure: ParsedCourseStructure,
   meta: {
     author?: string | null;
     niche?: string | null;
     storagePathPrefix?: string | null;
+    ingestionId?: string;
+    deferVideoTranscription?: boolean;
   }
 ): Promise<{ courseId: string | null; lessonIds: string[]; error: string | null }> {
   const ctx = await getOptionalDataContext();
@@ -65,7 +98,7 @@ async function createLessonsFromStructure(
     author: meta.author ?? null,
     niche: meta.niche ?? null,
     status: "pending",
-    metadata: { upload_source: "storage" } as Json,
+    metadata: { upload_source: "storage", ingestion_id: meta.ingestionId ?? null } as Json,
   });
 
   if (courseError || !course) {
@@ -90,11 +123,11 @@ async function createLessonsFromStructure(
 
     for (let lessonIndex = 0; lessonIndex < mod.lessons.length; lessonIndex++) {
       const lessonFile = mod.lessons[lessonIndex];
-      let rawText = lessonFile.text;
-
-      if (!rawText && lessonFile.buffer && lessonFile.sourceType === "video") {
-        rawText = await transcribeVideoBuffer(lessonFile.buffer, lessonFile.fileName);
-      }
+      const rawText = lessonFile.text?.trim() || null;
+      const needsTranscript =
+        meta.deferVideoTranscription &&
+        lessonFile.sourceType === "video" &&
+        !rawText;
 
       const storagePath = meta.storagePathPrefix
         ? `${meta.storagePathPrefix}/${lessonFile.path}`
@@ -105,13 +138,14 @@ async function createLessonsFromStructure(
         title: lessonFile.title,
         source_type: lessonFile.sourceType,
         sort_order: lessonIndex,
-        status: rawText?.trim() ? "pending" : "failed",
-        raw_text: rawText?.trim() || null,
+        status: needsTranscript ? "pending" : rawText ? "pending" : "failed",
+        raw_text: rawText,
         file_name: lessonFile.fileName,
         file_path: storagePath,
         metadata: {
-          has_text: Boolean(rawText?.trim()),
-          needs_transcript: !rawText?.trim() && lessonFile.sourceType === "video",
+          has_text: Boolean(rawText),
+          needs_transcript: needsTranscript,
+          ingestion_id: meta.ingestionId ?? null,
         } as Json,
       });
 
@@ -119,7 +153,7 @@ async function createLessonsFromStructure(
 
       lessonIds.push(lessonRow.id);
 
-      if (rawText?.trim()) {
+      if (rawText && !needsTranscript) {
         await processingRepo.create({
           entity_type: "lesson",
           entity_id: lessonRow.id,
@@ -135,23 +169,56 @@ async function createLessonsFromStructure(
   return { courseId: course.id, lessonIds, error: null };
 }
 
-async function createSingleFileLesson(params: {
+async function ensureSingleLesson(params: {
+  ingestionId: string;
   filePath: string;
   fileName: string;
-  buffer: Buffer;
   courseName: string;
   moduleName: string;
   lessonName: string;
   author?: string | null;
   niche?: string | null;
-}): Promise<{ courseId: string | null; lessonIds: string[]; error: string | null }> {
-  const { text, sourceType } = await extractTextFromFile(params.fileName, params.buffer);
-  let rawText = text;
-
-  if (!rawText && sourceType === "video") {
-    rawText = await transcribeVideoBuffer(params.buffer, params.fileName);
+  rawText?: string | null;
+  needsTranscript?: boolean;
+}): Promise<{
+  lessonId: string | null;
+  courseId: string | null;
+  moduleId: string | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { lessonId: null, courseId: null, moduleId: null, error: "Usuário não autenticado." };
   }
 
+  const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
+  const item = await ingestionRepo.findById(params.ingestionId);
+  const meta = item.data ? readIngestionMeta(item.data) : {};
+
+  if (meta.lesson_id) {
+    const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
+    const { data: lesson } = await lessonsRepo.findById(meta.lesson_id);
+    if (lesson) {
+      if (params.rawText?.trim()) {
+        await lessonsRepo.update(lesson.id, {
+          raw_text: params.rawText.trim(),
+          status: "pending",
+          metadata: {
+            ...(typeof lesson.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
+            needs_transcript: false,
+          } as Json,
+        });
+      }
+      return {
+        lessonId: lesson.id,
+        courseId: meta.course_id ?? null,
+        moduleId: lesson.module_id,
+        error: null,
+      };
+    }
+  }
+
+  const sourceType = detectExpertBrainSourceType(params.fileName);
   const structure: ParsedCourseStructure = {
     courseTitle: params.courseName,
     modules: [
@@ -163,8 +230,8 @@ async function createSingleFileLesson(params: {
             fileName: params.fileName,
             title: params.lessonName,
             sourceType,
-            text: rawText,
-            buffer: sourceType === "video" ? params.buffer : null,
+            text: params.rawText ?? null,
+            buffer: null,
             mimeType: null,
           },
         ],
@@ -172,10 +239,109 @@ async function createSingleFileLesson(params: {
     ],
   };
 
-  return createLessonsFromStructure(structure, {
+  const result = await createLessonsFromStructure(structure, {
     author: params.author,
     niche: params.niche,
+    ingestionId: params.ingestionId,
+    deferVideoTranscription: params.needsTranscript,
   });
+
+  if (result.error || !result.lessonIds.length) {
+    return { lessonId: null, courseId: result.courseId, moduleId: null, error: result.error };
+  }
+
+  const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
+  const lessonId = result.lessonIds[0];
+  const { data: lesson } = await lessonsRepo.findById(lessonId);
+  const moduleId = lesson?.module_id ?? null;
+
+  await ingestionRepo.update(params.ingestionId, {
+    metadata: {
+      author: params.author ?? null,
+      niche: params.niche ?? null,
+      lesson_id: lessonId,
+      course_id: result.courseId,
+      module_id: moduleId,
+    } as Json,
+  });
+
+  return { lessonId, courseId: result.courseId, moduleId, error: null };
+}
+
+async function runExtractionForLesson(params: {
+  lessonId: string;
+  courseId: string | null;
+  moduleId: string | null;
+  rawText: string;
+  title: string;
+  sourceType: import("@/types/database").ExpertKnowledgeSourceType;
+  author?: string | null;
+  niche?: string | null;
+  origin?: string | null;
+  transcriptId?: string | null;
+}): Promise<{ sourceId: string | null; error: string | null }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { sourceId: null, error: "Usuário não autenticado." };
+
+  const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
+  const transcriptsRepo = new ExpertTranscriptsRepository(ctx.supabase, ctx.userId);
+
+  logExpertBrain("extract", {
+    lessonId: params.lessonId,
+    title: params.title,
+    words: params.rawText.split(/\s+/).length,
+  });
+
+  await lessonsRepo.update(params.lessonId, { status: "processing" });
+
+  const { data: lesson } = await lessonsRepo.findById(params.lessonId);
+  const existingSourceId = lesson?.source_id ?? null;
+
+  const result = await ingestKnowledgeSource({
+    title: params.title,
+    source_type: params.sourceType,
+    raw_text: params.rawText,
+    author: params.author ?? null,
+    niche: params.niche ?? null,
+    origin: params.origin ?? null,
+    course_id: params.courseId,
+    module_id: params.moduleId,
+    lesson_id: params.lessonId,
+    existing_source_id: existingSourceId,
+  });
+
+  if (result.error || !result.source) {
+    await lessonsRepo.update(params.lessonId, {
+      status: "failed",
+      metadata: {
+        ...(typeof lesson?.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
+        error: result.error ?? "Falha na extração.",
+      } as Json,
+    });
+    return { sourceId: null, error: result.error ?? "Falha na extração." };
+  }
+
+  await lessonsRepo.update(params.lessonId, {
+    status: "ready",
+    source_id: result.source.id,
+    raw_text: params.rawText,
+    metadata: {
+      ...(typeof lesson?.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
+      frameworks_count: result.frameworks.length,
+      decision_rules_count: result.decisionRules.length,
+      success_patterns_count: result.successPatterns.length,
+      failure_patterns_count: result.failurePatterns.length,
+      playbooks_count: result.playbooks.length,
+      checklists_count: result.checklists.length,
+      processed_at: new Date().toISOString(),
+    } as Json,
+  });
+
+  if (params.transcriptId) {
+    await transcriptsRepo.update(params.transcriptId, { source_id: result.source.id });
+  }
+
+  return { sourceId: result.source.id, error: null };
 }
 
 export async function registerExpertBrainIngestion(
@@ -197,7 +363,7 @@ export async function registerExpertBrainIngestion(
     module_name: input.module_name?.trim() || null,
     lesson_name: input.lesson_name?.trim() || null,
     file_name: input.file_name?.trim() || null,
-    status: "pending",
+    status: "uploaded",
     progress: 0,
     metadata: {
       author: input.author ?? null,
@@ -209,6 +375,12 @@ export async function registerExpertBrainIngestion(
   if (error || !data) {
     return { ingestionId: null, error: error ?? "Erro ao enfileirar ingestão." };
   }
+
+  logExpertBrain("upload", {
+    ingestionId: data.id,
+    filePath,
+    fileName: input.file_name ?? null,
+  });
 
   return { ingestionId: data.id, error: null };
 }
@@ -235,7 +407,7 @@ export async function requeueExpertBrainIngestionFromLesson(
   const { data: module } = await modulesRepo.findById(lesson.module_id);
   const { data: course } = module ? await coursesRepo.findById(module.course_id) : { data: null };
 
-  return registerExpertBrainIngestion({
+  const result = await registerExpertBrainIngestion({
     file_path: lesson.file_path,
     course_name: course?.title ?? null,
     module_name: module?.title ?? null,
@@ -245,20 +417,80 @@ export async function requeueExpertBrainIngestionFromLesson(
     niche: course?.niche ?? null,
     reprocess: true,
   });
+
+  if (result.ingestionId) {
+    const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
+    await ingestionRepo.update(result.ingestionId, {
+      metadata: {
+        author: course?.author ?? null,
+        niche: course?.niche ?? null,
+        reprocess: true,
+        lesson_id: lessonId,
+        course_id: course?.id ?? null,
+        module_id: module?.id ?? null,
+      } as Json,
+    });
+  }
+
+  return result;
 }
 
-async function processIngestionItem(item: import("@/types/database").ExpertIngestionQueueItem) {
-  const ctx = await getOptionalDataContext();
-  if (!ctx) return { error: "Usuário não autenticado." };
+async function processUploadedStage(
+  item: import("@/types/database").ExpertIngestionQueueItem
+): Promise<{ error: string | null }> {
+  const ingestionRepo = (await getIngestionRepo())!;
+  const fileName = item.file_name ?? item.file_path.split("/").pop() ?? "arquivo";
+  const meta = readIngestionMeta(item);
 
-  const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
-  const meta =
-    typeof item.metadata === "object" && item.metadata && !Array.isArray(item.metadata)
-      ? (item.metadata as Record<string, unknown>)
-      : {};
+  if (isExpertBrainZipFile(fileName)) {
+    const buffer = await downloadExpertBrainFile(item.file_path);
+    if (!buffer) {
+      await ingestionRepo.markFailed(item.id, "Não foi possível baixar o ZIP do Storage.");
+      return { error: "Download falhou." };
+    }
 
-  await ingestionRepo.markProcessing(item.id);
-  await ingestionRepo.updateProgress(item.id, 15);
+    try {
+      const structure = await parseZipCourse(buffer, item.course_name ?? undefined);
+      const result = await createLessonsFromStructure(structure, {
+        author: meta.author,
+        niche: meta.niche,
+        storagePathPrefix: item.file_path.replace(/\/[^/]+$/, ""),
+        ingestionId: item.id,
+        deferVideoTranscription: true,
+      });
+
+      if (result.error) {
+        await ingestionRepo.markFailed(item.id, result.error);
+        return { error: result.error };
+      }
+
+      const hasVideos = structure.modules.some((mod) =>
+        mod.lessons.some((lesson) => lesson.sourceType === "video" && !lesson.text?.trim())
+      );
+
+      if (hasVideos && !hasOpenAiKey()) {
+        await ingestionRepo.markWaitingForOpenai(item.id);
+        return { error: null };
+      }
+
+      if (hasVideos) {
+        await ingestionRepo.markTranscribing(item.id);
+        return { error: null };
+      }
+
+      await ingestionRepo.markExtracting(item.id);
+      return { error: null };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro ao processar ZIP.";
+      await ingestionRepo.markFailed(item.id, message);
+      return { error: message };
+    }
+  }
+
+  if (isExpertBrainVideoFile(fileName)) {
+    await ingestionRepo.markTranscribing(item.id);
+    return { error: null };
+  }
 
   const buffer = await downloadExpertBrainFile(item.file_path);
   if (!buffer) {
@@ -266,60 +498,264 @@ async function processIngestionItem(item: import("@/types/database").ExpertInges
     return { error: "Download falhou." };
   }
 
-  await ingestionRepo.updateProgress(item.id, 35);
+  const { text, sourceType } = await extractTextFromFile(fileName, buffer);
+  const courseName =
+    item.course_name?.trim() || titleFromExpertBrainFileName(fileName) || "Curso importado";
+  const moduleName = item.module_name?.trim() || "Módulo 1";
+  const lessonName = item.lesson_name?.trim() || titleFromExpertBrainFileName(fileName) || "Aula 1";
 
+  const lessonResult = await ensureSingleLesson({
+    ingestionId: item.id,
+    filePath: item.file_path,
+    fileName,
+    courseName,
+    moduleName,
+    lessonName,
+    author: meta.author,
+    niche: meta.niche,
+    rawText: text,
+  });
+
+  if (lessonResult.error || !lessonResult.lessonId) {
+    await ingestionRepo.markFailed(item.id, lessonResult.error ?? "Erro ao criar aula.");
+    return { error: lessonResult.error };
+  }
+
+  if (!text?.trim()) {
+    await ingestionRepo.markFailed(item.id, "Arquivo sem texto extraível.");
+    return { error: "Sem texto." };
+  }
+
+  await ingestionRepo.markExtracting(item.id);
+  return { error: null };
+}
+
+async function processTranscribingStage(
+  item: import("@/types/database").ExpertIngestionQueueItem
+): Promise<{ error: string | null }> {
+  const ingestionRepo = (await getIngestionRepo())!;
   const fileName = item.file_name ?? item.file_path.split("/").pop() ?? "arquivo";
-  const author = typeof meta.author === "string" ? meta.author : null;
-  const niche = typeof meta.niche === "string" ? meta.niche : null;
+  const meta = readIngestionMeta(item);
 
-  try {
-    if (isExpertBrainZipFile(fileName)) {
-      const structure = await parseZipCourse(buffer, item.course_name ?? undefined);
-      await ingestionRepo.updateProgress(item.id, 55);
-      const result = await createLessonsFromStructure(structure, {
-        author,
-        niche,
-        storagePathPrefix: item.file_path.replace(/\/[^/]+$/, ""),
-      });
-      if (result.error) {
-        await ingestionRepo.markFailed(item.id, result.error);
-        return { error: result.error };
-      }
-    } else {
-      const courseName =
-        item.course_name?.trim() ||
-        titleFromExpertBrainFileName(fileName) ||
-        "Curso importado";
-      const moduleName = item.module_name?.trim() || "Módulo 1";
-      const lessonName =
-        item.lesson_name?.trim() || titleFromExpertBrainFileName(fileName) || "Aula 1";
+  if (!isExpertBrainVideoFile(fileName) && !isExpertBrainZipFile(fileName)) {
+    await ingestionRepo.markExtracting(item.id);
+    return { error: null };
+  }
 
-      await ingestionRepo.updateProgress(item.id, 55);
-      const result = await createSingleFileLesson({
-        filePath: item.file_path,
-        fileName,
-        buffer,
-        courseName,
-        moduleName,
-        lessonName,
-        author,
-        niche,
-      });
+  if (!hasOpenAiKey()) {
+    await ingestionRepo.markWaitingForOpenai(item.id);
+    return { error: null };
+  }
 
-      if (result.error) {
-        await ingestionRepo.markFailed(item.id, result.error);
-        return { error: result.error };
-      }
+  const courseName =
+    item.course_name?.trim() || titleFromExpertBrainFileName(fileName) || "Curso importado";
+  const moduleName = item.module_name?.trim() || "Módulo 1";
+  const lessonName = item.lesson_name?.trim() || titleFromExpertBrainFileName(fileName) || "Aula 1";
+
+  const transcription = await transcribeIngestionVideo({
+    ingestionId: item.id,
+    filePath: item.file_path,
+    fileName,
+    lessonId: meta.lesson_id,
+  });
+
+  if (transcription.waitingForOpenai) {
+    await ingestionRepo.markWaitingForOpenai(item.id);
+    return { error: null };
+  }
+
+  if (transcription.error || !transcription.rawText?.trim()) {
+    await ingestionRepo.markFailed(item.id, transcription.error ?? "Transcrição falhou.");
+    return { error: transcription.error };
+  }
+
+  const lessonResult = await ensureSingleLesson({
+    ingestionId: item.id,
+    filePath: item.file_path,
+    fileName,
+    courseName,
+    moduleName,
+    lessonName,
+    author: meta.author,
+    niche: meta.niche,
+    rawText: transcription.rawText,
+    needsTranscript: false,
+  });
+
+  if (lessonResult.error || !lessonResult.lessonId) {
+    await ingestionRepo.markFailed(item.id, lessonResult.error ?? "Erro ao vincular aula.");
+    return { error: lessonResult.error };
+  }
+
+  if (transcription.transcriptId) {
+    const transcriptsRepo = (await getTranscriptsRepo())!;
+    await transcriptsRepo.update(transcription.transcriptId, {
+      lesson_id: lessonResult.lessonId,
+    });
+  }
+
+  await ingestionRepo.markExtracting(item.id);
+  return { error: null };
+}
+
+async function processExtractingStage(
+  item: import("@/types/database").ExpertIngestionQueueItem
+): Promise<{ error: string | null }> {
+  const ingestionRepo = (await getIngestionRepo())!;
+  const meta = readIngestionMeta(item);
+  const fileName = item.file_name ?? item.file_path.split("/").pop() ?? "arquivo";
+
+  let lessonId = meta.lesson_id;
+  let courseId = meta.course_id ?? null;
+  let moduleId = meta.module_id ?? null;
+  let rawText: string | null = null;
+  let title = item.lesson_name?.trim() || titleFromExpertBrainFileName(fileName);
+  let sourceType = detectExpertBrainSourceType(fileName);
+
+  if (!lessonId) {
+    const buffer = await downloadExpertBrainFile(item.file_path);
+    if (!buffer) {
+      await ingestionRepo.markFailed(item.id, "Download falhou na extração.");
+      return { error: "Download falhou." };
     }
 
-    await ingestionRepo.updateProgress(item.id, 90);
-    await ingestionRepo.markDone(item.id);
-    return { error: null };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao processar arquivo.";
-    await ingestionRepo.markFailed(item.id, message);
-    return { error: message };
+    if (isExpertBrainZipFile(fileName)) {
+      await ingestionRepo.markCompleted(item.id);
+      logExpertBrain("complete", { ingestionId: item.id, mode: "zip-deferred" });
+      return { error: null };
+    }
+
+    const { text } = await extractTextFromFile(fileName, buffer);
+    rawText = text;
+  } else {
+    const ctx = await getOptionalDataContext();
+    if (!ctx) {
+      await ingestionRepo.markFailed(item.id, "Usuário não autenticado.");
+      return { error: "Usuário não autenticado." };
+    }
+    const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
+    const { data: lesson } = await lessonsRepo.findById(lessonId);
+    rawText = lesson?.raw_text?.trim() ?? null;
+    title = lesson?.title ?? title;
+    sourceType = lesson?.source_type ?? sourceType;
+    moduleId = lesson?.module_id ?? moduleId;
   }
+
+  if (!rawText?.trim()) {
+    await ingestionRepo.markFailed(item.id, "Sem texto para extração.");
+    return { error: "Sem texto." };
+  }
+
+  if (!lessonId) {
+    const lessonResult = await ensureSingleLesson({
+      ingestionId: item.id,
+      filePath: item.file_path,
+      fileName,
+      courseName: item.course_name?.trim() || titleFromExpertBrainFileName(fileName) || "Curso",
+      moduleName: item.module_name?.trim() || "Módulo 1",
+      lessonName: title,
+      author: meta.author,
+      niche: meta.niche,
+      rawText,
+    });
+    lessonId = lessonResult.lessonId;
+    courseId = lessonResult.courseId;
+    moduleId = lessonResult.moduleId;
+  }
+
+  if (!lessonId) {
+    await ingestionRepo.markFailed(item.id, "Aula não encontrada para extração.");
+    return { error: "Aula não encontrada." };
+  }
+
+  const transcriptsRepo = (await getTranscriptsRepo())!;
+  const { data: transcript } = await transcriptsRepo.findByIngestionId(item.id);
+
+  const extraction = await runExtractionForLesson({
+    lessonId,
+    courseId,
+    moduleId,
+    rawText,
+    title,
+    sourceType,
+    author: meta.author,
+    niche: meta.niche,
+    origin: fileName,
+    transcriptId: transcript?.id ?? null,
+  });
+
+  if (extraction.error) {
+    await ingestionRepo.markFailed(item.id, extraction.error);
+    return { error: extraction.error };
+  }
+
+  await ingestionRepo.markCompleted(item.id);
+  logExpertBrain("complete", {
+    ingestionId: item.id,
+    lessonId,
+    sourceId: extraction.sourceId,
+  });
+
+  return { error: null };
+}
+
+async function getIngestionRepo() {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return null;
+  return new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
+}
+
+async function getTranscriptsRepo() {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return null;
+  return new ExpertTranscriptsRepository(ctx.supabase, ctx.userId);
+}
+
+async function processIngestionItem(item: import("@/types/database").ExpertIngestionQueueItem) {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { error: "Usuário não autenticado." };
+
+  const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
+  let current = item;
+
+  for (let step = 0; step < 4; step++) {
+    const status = current.status;
+    let result: { error: string | null };
+
+    if (status === "uploaded" || status === "pending") {
+      result = await processUploadedStage(current);
+    } else if (status === "waiting_for_openai") {
+      if (!hasOpenAiKey()) return { error: null };
+      await ingestionRepo.markTranscribing(current.id);
+      const refreshed = await ingestionRepo.findById(current.id);
+      current = refreshed.data ?? { ...current, status: "transcribing" };
+      result = await processTranscribingStage(current);
+    } else if (status === "transcribing" || status === "processing") {
+      result = await processTranscribingStage(current);
+    } else if (status === "extracting") {
+      result = await processExtractingStage(current);
+    } else {
+      return { error: null };
+    }
+
+    if (result.error) return result;
+
+    const refreshed = await ingestionRepo.findById(current.id);
+    if (!refreshed.data) return { error: null };
+
+    if (
+      refreshed.data.status === current.status ||
+      refreshed.data.status === "completed" ||
+      refreshed.data.status === "failed" ||
+      refreshed.data.status === "waiting_for_openai"
+    ) {
+      return { error: null };
+    }
+
+    current = refreshed.data;
+  }
+
+  return { error: null };
 }
 
 export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
@@ -331,7 +767,7 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
   if (!ctx) return { processed: 0, failed: 0, error: "Usuário não autenticado." };
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
-  const { data: pending, error: pendingError } = await ingestionRepo.findPending(limit);
+  const { data: pending, error: pendingError } = await ingestionRepo.findWorkable(limit);
 
   if (pendingError) return { processed: 0, failed: 0, error: pendingError };
   if (!pending?.length) return { processed: 0, failed: 0, error: null };
@@ -358,19 +794,18 @@ export async function getExpertBrainIngestionStatus(): Promise<{
   if (!ctx) return { items: [], pending: 0, processing: 0, error: "Usuário não autenticado." };
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
-  const [recentRes, pendingRes, processingRes] = await Promise.all([
+  const [recentRes, activeRes] = await Promise.all([
     ingestionRepo.findRecent(20),
-    ingestionRepo.countByStatus("pending"),
-    ingestionRepo.countByStatus("processing"),
+    ingestionRepo.countActive(),
   ]);
 
-  const error = recentRes.error ?? pendingRes.error ?? processingRes.error;
+  const error = recentRes.error ?? activeRes.error;
   if (error) return { items: [], pending: 0, processing: 0, error };
 
   return {
     items: recentRes.data ?? [],
-    pending: pendingRes.count,
-    processing: processingRes.count,
+    pending: activeRes.count,
+    processing: activeRes.count,
     error: null,
   };
 }

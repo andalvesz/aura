@@ -1,8 +1,4 @@
-import {
-  processExpertBrainIngestionQueue,
-  registerExpertBrainIngestion,
-} from "@/lib/supabase/services/expert-brain-ingestion.service";
-import { processExpertBrainQueue } from "@/lib/supabase/services/expert-brain-dashboard.service";
+import { processExpertBrainIngestionQueue, registerExpertBrainIngestion } from "@/lib/supabase/services/expert-brain-ingestion.service";
 
 export async function POST(request: Request) {
   try {
@@ -34,15 +30,12 @@ export async function POST(request: Request) {
       return Response.json({ error }, { status });
     }
 
-    const ingestResult = await processExpertBrainIngestionQueue(1);
-    const processResult =
-      ingestResult.processed > 0 ? await processExpertBrainQueue(5) : { processed: 0, failed: 0 };
+    void processExpertBrainIngestionQueue(1).catch(() => undefined);
 
     return Response.json({
       ingestionId,
-      ingested: ingestResult.processed,
-      extracted: processResult.processed,
-      message: "Arquivo registrado na fila de ingestão.",
+      status: "uploaded",
+      message: "Arquivo registrado na fila de processamento.",
     });
   } catch {
     return Response.json({ error: "Erro ao registrar upload." }, { status: 500 });

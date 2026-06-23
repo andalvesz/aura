@@ -10,6 +10,7 @@ import {
   ExpertKnowledgeSourcesRepository,
   ExpertProcessingQueueRepository,
   ExpertSuccessPatternsRepository,
+  ExpertTranscriptsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
 import {
   requeueExpertBrainIngestionFromLesson,
@@ -92,6 +93,7 @@ export async function getExpertBrainDashboard(): Promise<{
   const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
   const queueRepo = new ExpertProcessingQueueRepository(ctx.supabase, ctx.userId);
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
+  const transcriptsRepo = new ExpertTranscriptsRepository(ctx.supabase, ctx.userId);
   const sourcesRepo = new ExpertKnowledgeSourcesRepository(ctx.supabase, ctx.userId);
   const frameworksRepo = new ExpertFrameworksRepository(ctx.supabase, ctx.userId);
   const decisionRulesRepo = new ExpertDecisionRulesRepository(ctx.supabase, ctx.userId);
@@ -104,8 +106,8 @@ export async function getExpertBrainDashboard(): Promise<{
     lessonsRes,
     queueRes,
     ingestionRes,
-    ingestionPendingRes,
-    ingestionProcessingRes,
+    ingestionActiveRes,
+    transcriptsRes,
     readySourcesRes,
     pendingQueueRes,
     processingQueueRes,
@@ -118,9 +120,9 @@ export async function getExpertBrainDashboard(): Promise<{
     modulesRepo.findAllRecent(),
     lessonsRepo.findAllRecent(),
     queueRepo.findRecent(20),
-    ingestionRepo.findRecent(20),
-    ingestionRepo.countByStatus("pending"),
-    ingestionRepo.countByStatus("processing"),
+    ingestionRepo.findRecent(30),
+    ingestionRepo.countActive(),
+    transcriptsRepo.findRecent(30),
     sourcesRepo.findByStatus("ready", 1000),
     queueRepo.countByStatus("pending"),
     queueRepo.countByStatus("processing"),
@@ -136,8 +138,8 @@ export async function getExpertBrainDashboard(): Promise<{
     lessonsRes.error ??
     queueRes.error ??
     ingestionRes.error ??
-    ingestionPendingRes.error ??
-    ingestionProcessingRes.error ??
+    ingestionActiveRes.error ??
+    transcriptsRes.error ??
     readySourcesRes.error ??
     pendingQueueRes.error ??
     processingQueueRes.error ??
@@ -159,17 +161,18 @@ export async function getExpertBrainDashboard(): Promise<{
         modules: modules.length,
         lessons: lessons.length,
         sourcesReady: (readySourcesRes.data ?? []).length,
-        queuePending: pendingQueueRes.count + ingestionPendingRes.count,
-        queueProcessing: processingQueueRes.count + ingestionProcessingRes.count,
+        queuePending: pendingQueueRes.count + ingestionActiveRes.count,
+        queueProcessing: processingQueueRes.count + ingestionActiveRes.count,
         frameworks: (frameworksRes.data ?? []).length,
         decisionRules: (rulesRes.data ?? []).length,
         successPatterns: (successRes.data ?? []).length,
         failurePatterns: (failureRes.data ?? []).length,
       },
       statusCounts: countByStatus(lessons),
-      courses: buildCourseTree(courses, modules, lessons),
+      courses: buildCourseTree(courses, modules, lessons, transcriptsRes.data ?? []),
       queue: queueRes.data ?? [],
       ingestionQueue: ingestionRes.data ?? [],
+      transcripts: transcriptsRes.data ?? [],
       frameworks: (frameworksRes.data ?? []).map(mapFrameworkArtifact),
       decisionRules: (rulesRes.data ?? []).map(mapDecisionRuleArtifact),
       successPatterns: (successRes.data ?? []).map(mapSuccessPatternArtifact),
@@ -381,6 +384,62 @@ export async function reprocessExpertEntity(params: {
   return {
     processed: ingestResult.processed + processResult.processed,
     failed: ingestResult.failed + processResult.failed,
+    error: null,
+  };
+}
+
+export async function getExpertKnowledgeBySourceId(sourceId: string): Promise<{
+  knowledge: {
+    source: import("@/types/database").ExpertKnowledgeSource;
+    frameworks: import("@/types/database").ExpertFramework[];
+    playbooks: import("@/types/database").ExpertPlaybook[];
+    decisionRules: import("@/types/database").ExpertDecisionRule[];
+    checklists: import("@/types/database").ExpertChecklist[];
+    successPatterns: import("@/types/database").ExpertSuccessPattern[];
+    failurePatterns: import("@/types/database").ExpertFailurePattern[];
+  } | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { knowledge: null, error: "Usuário não autenticado." };
+
+  const sourcesRepo = new ExpertKnowledgeSourcesRepository(ctx.supabase, ctx.userId);
+  const { data: source, error: sourceError } = await sourcesRepo.findById(sourceId);
+  if (sourceError || !source) {
+    return { knowledge: null, error: sourceError ?? "Fonte não encontrada." };
+  }
+
+  const [frameworksRes, decisionRulesRes, checklistsRes, successRes, failureRes] = await Promise.all([
+    ctx.supabase.from("expert_frameworks").select("*").eq("user_id", ctx.userId).eq("source_id", sourceId),
+    ctx.supabase.from("expert_decision_rules").select("*").eq("user_id", ctx.userId).eq("source_id", sourceId),
+    ctx.supabase.from("expert_checklists").select("*").eq("user_id", ctx.userId).eq("source_id", sourceId),
+    ctx.supabase.from("expert_success_patterns").select("*").eq("user_id", ctx.userId).eq("source_id", sourceId),
+    ctx.supabase.from("expert_failure_patterns").select("*").eq("user_id", ctx.userId).eq("source_id", sourceId),
+  ]);
+
+  const frameworks = (frameworksRes.data ?? []) as import("@/types/database").ExpertFramework[];
+  const frameworkIds = frameworks.map((f) => f.id);
+  let playbooks: import("@/types/database").ExpertPlaybook[] = [];
+
+  if (frameworkIds.length > 0) {
+    const { data: playbookData } = await ctx.supabase
+      .from("expert_playbooks")
+      .select("*")
+      .eq("user_id", ctx.userId)
+      .in("framework_id", frameworkIds);
+    playbooks = (playbookData ?? []) as import("@/types/database").ExpertPlaybook[];
+  }
+
+  return {
+    knowledge: {
+      source,
+      frameworks,
+      playbooks,
+      decisionRules: (decisionRulesRes.data ?? []) as import("@/types/database").ExpertDecisionRule[],
+      checklists: (checklistsRes.data ?? []) as import("@/types/database").ExpertChecklist[],
+      successPatterns: (successRes.data ?? []) as import("@/types/database").ExpertSuccessPattern[],
+      failurePatterns: (failureRes.data ?? []) as import("@/types/database").ExpertFailurePattern[],
+    },
     error: null,
   };
 }

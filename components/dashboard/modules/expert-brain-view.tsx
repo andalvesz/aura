@@ -5,6 +5,7 @@ import {
   BookOpen,
   ChevronDown,
   ChevronRight,
+  Eye,
   FileText,
   FolderArchive,
   Loader2,
@@ -22,6 +23,15 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
 import { useExpertBrain, type ExpertUploadMode } from "@/hooks/use-expert-brain";
 import { cn } from "@/utils/cn";
+import { EXPERT_BRAIN_UPLOAD_LIMIT_LABEL } from "@/utils/expert-brain-storage";
+import {
+  ingestionStatusColor,
+  ingestionStatusLabel,
+  PIPELINE_STAGE_LABELS,
+  pipelineProgressForStatus,
+  pipelineStageIndex,
+} from "@/utils/expert-brain-pipeline";
+import type { ExpertIngestionQueueItem } from "@/types/database";
 import {
   expertStatusColor,
   expertStatusLabel,
@@ -70,6 +80,98 @@ const UPLOAD_TABS: Array<{
     hint: "Upload direto ao Storage — transcrições prontas em texto ou markdown",
   },
 ];
+
+function IngestionStatusBadge({ status }: { status: string }) {
+  return (
+    <span
+      className={cn(
+        "rounded px-1.5 py-0.5 text-[10px] font-medium",
+        ingestionStatusColor(status)
+      )}
+    >
+      {ingestionStatusLabel(status)}
+    </span>
+  );
+}
+
+function PipelineProgressBar({ status, progress }: { status: string; progress: number }) {
+  const currentIndex = pipelineStageIndex(status);
+  const percent = progress || pipelineProgressForStatus(status);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-[10px] text-zinc-500">
+        {PIPELINE_STAGE_LABELS.map((stage, index) => (
+          <span
+            key={stage.key}
+            className={cn(index <= currentIndex ? "text-violet-300" : "text-zinc-600")}
+          >
+            {stage.label}
+          </span>
+        ))}
+      </div>
+      <div className="h-1.5 overflow-hidden rounded bg-white/[0.06]">
+        <div className="h-full bg-violet-500 transition-all" style={{ width: `${percent}%` }} />
+      </div>
+      <p className="text-[10px] text-zinc-600">{percent}%</p>
+    </div>
+  );
+}
+
+function ProcessingPanel({ items }: { items: ExpertIngestionQueueItem[] }) {
+  if (!items.length) {
+    return <p className="text-[11px] text-zinc-500">Nenhum processamento em andamento.</p>;
+  }
+
+  return (
+    <div className="max-h-72 space-y-3 overflow-y-auto">
+      {items.map((item) => (
+        <div key={item.id} className="rounded border border-white/[0.06] p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="truncate text-[12px] font-medium text-zinc-100">
+              {item.file_name ?? item.file_path.split("/").pop()}
+            </p>
+            <IngestionStatusBadge status={item.status} />
+          </div>
+          <PipelineProgressBar status={item.status} progress={item.progress} />
+          <p className="mt-2 text-[10px] text-zinc-600">
+            {item.course_name ?? "Sem curso"}
+            {item.module_name ? ` · ${item.module_name}` : ""}
+            {item.lesson_name ? ` · ${item.lesson_name}` : ""}
+          </p>
+          {item.error ? <p className="mt-1 text-[10px] text-red-400">{item.error}</p> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PreviewModal({
+  title,
+  content,
+  onClose,
+}: {
+  title: string;
+  content: string;
+  onClose: () => void;
+}) {
+  if (!content) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-lg border border-white/10 bg-zinc-950">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <h3 className="text-sm font-medium text-zinc-100">{title}</h3>
+          <ActionButton variant="ghost" className="h-7 min-h-7 px-2" onClick={onClose}>
+            Fechar
+          </ActionButton>
+        </div>
+        <pre className="overflow-auto whitespace-pre-wrap p-4 text-[11px] leading-relaxed text-zinc-300">
+          {content}
+        </pre>
+      </div>
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -122,10 +224,14 @@ function ArtifactList({
 function CourseTree({
   course,
   onReprocess,
+  onViewTranscript,
+  onViewKnowledge,
   busy,
 }: {
   course: ExpertBrainCourseSummary;
   onReprocess: (type: "lesson" | "module" | "course", id: string) => void;
+  onViewTranscript: (lessonId: string) => void;
+  onViewKnowledge: (sourceId: string) => void;
   busy: boolean;
 }) {
   const [open, setOpen] = useState(true);
@@ -209,16 +315,39 @@ function CourseTree({
                           <p className="truncate text-[11px] text-zinc-300">{lesson.title}</p>
                           <p className="text-[10px] text-zinc-600">{lesson.sourceType}</p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <StatusBadge status={lesson.status} />
                           <ActionButton
                             variant="ghost"
                             disabled={busy}
                             className="h-7 min-h-7 px-2"
+                            title="Reprocessar Aula"
                             onClick={() => onReprocess("lesson", lesson.id)}
                           >
                             <RotateCcw className="size-3" />
                           </ActionButton>
+                          {lesson.transcriptId || lesson.sourceType === "video" ? (
+                            <ActionButton
+                              variant="ghost"
+                              disabled={busy}
+                              className="h-7 min-h-7 px-2"
+                              title="Ver Transcrição"
+                              onClick={() => onViewTranscript(lesson.id)}
+                            >
+                              <FileText className="size-3" />
+                            </ActionButton>
+                          ) : null}
+                          {lesson.sourceId ? (
+                            <ActionButton
+                              variant="ghost"
+                              disabled={busy}
+                              className="h-7 min-h-7 px-2"
+                              title="Ver Conhecimento Extraído"
+                              onClick={() => onViewKnowledge(lesson.sourceId!)}
+                            >
+                              <Eye className="size-3" />
+                            </ActionButton>
+                          ) : null}
                         </div>
                       </div>
                     ))}
@@ -234,12 +363,24 @@ function CourseTree({
 }
 
 export function ExpertBrainView() {
-  const { dashboard, loading, error, busy, uploadProgress, refresh, uploadFiles, processQueue, reprocess } =
-    useExpertBrain();
+  const {
+    dashboard,
+    loading,
+    error,
+    busy,
+    uploadProgress,
+    refresh,
+    uploadFiles,
+    processQueue,
+    reprocess,
+    fetchTranscript,
+    fetchKnowledge,
+  } = useExpertBrain();
   const [uploadMode, setUploadMode] = useState<ExpertUploadMode>("zip");
   const [courseTitle, setCourseTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [niche, setNiche] = useState("");
+  const [preview, setPreview] = useState<{ title: string; content: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const activeTab = UPLOAD_TABS.find((t) => t.mode === uploadMode) ?? UPLOAD_TABS[0];
@@ -282,6 +423,34 @@ export function ExpertBrainView() {
     toast.success(message ?? "Reprocessado.");
   }
 
+  async function handleViewTranscript(lessonId: string) {
+    const { error: transcriptError, text } = await fetchTranscript({ lessonId });
+    if (transcriptError || !text) {
+      toast.error(transcriptError ?? "Transcrição indisponível.");
+      return;
+    }
+    setPreview({ title: "Transcrição da aula", content: text });
+  }
+
+  async function handleViewKnowledge(sourceId: string) {
+    const { error: knowledgeError, knowledge } = await fetchKnowledge(sourceId);
+    if (knowledgeError || !knowledge) {
+      toast.error(knowledgeError ?? "Conhecimento indisponível.");
+      return;
+    }
+    setPreview({
+      title: "Conhecimento extraído",
+      content: JSON.stringify(knowledge, null, 2),
+    });
+  }
+
+  const pipelineItems =
+    dashboard?.ingestionQueue.filter((item) =>
+      ["uploaded", "transcribing", "extracting", "waiting_for_openai", "pending", "processing"].includes(
+        item.status
+      )
+    ) ?? [];
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -299,6 +468,13 @@ export function ExpertBrainView() {
 
   return (
     <div className="space-y-3">
+      {preview ? (
+        <PreviewModal
+          title={preview.title}
+          content={preview.content}
+          onClose={() => setPreview(null)}
+        />
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[11px] text-zinc-500">
           Inteligência de especialistas — cursos viram frameworks, regras e padrões para o Aura
@@ -353,7 +529,7 @@ export function ExpertBrainView() {
           </div>
 
           <p className="text-[10px] text-zinc-500">
-            {activeTab.hint} · Limite: 2 GB por arquivo · Nunca passa pelo servidor Next.js
+            {activeTab.hint} · {EXPERT_BRAIN_UPLOAD_LIMIT_LABEL} · Upload direto ao Supabase Storage
           </p>
 
           <div className="grid gap-2 sm:grid-cols-3">
@@ -419,6 +595,15 @@ export function ExpertBrainView() {
         </PanelContent>
       </Panel>
 
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Processamento</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          <ProcessingPanel items={pipelineItems.length ? pipelineItems : dashboard?.ingestionQueue ?? []} />
+        </PanelContent>
+      </Panel>
+
       <div className="grid gap-3 lg:grid-cols-2">
         <Panel>
           <PanelHeader>
@@ -438,17 +623,11 @@ export function ExpertBrainView() {
                       <p className="truncate text-[11px] text-zinc-200">
                         {item.file_name ?? item.file_path.split("/").pop()}
                       </p>
-                      <StatusBadge status={item.status} />
+                      <IngestionStatusBadge status={item.status} />
                     </div>
-                    <div className="mt-1 h-1 overflow-hidden rounded bg-white/[0.06]">
-                      <div
-                        className="h-full bg-amber-500 transition-all"
-                        style={{ width: `${item.progress}%` }}
-                      />
+                    <div className="mt-2">
+                      <PipelineProgressBar status={item.status} progress={item.progress} />
                     </div>
-                    <p className="mt-1 text-[10px] text-zinc-600">
-                      {item.progress}% · {item.course_name ?? "Sem curso"}
-                    </p>
                     {item.error ? (
                       <p className="mt-1 text-[10px] text-red-400">{item.error}</p>
                     ) : null}
@@ -524,6 +703,8 @@ export function ExpertBrainView() {
                 course={course}
                 busy={busy}
                 onReprocess={handleReprocess}
+                onViewTranscript={handleViewTranscript}
+                onViewKnowledge={handleViewKnowledge}
               />
             ))
           )}

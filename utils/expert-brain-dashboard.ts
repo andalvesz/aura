@@ -11,6 +11,7 @@ import type {
   ExpertLessonStatus,
   ExpertProcessingQueueItem,
   ExpertSuccessPattern,
+  ExpertTranscript,
 } from "@/types/database";
 import { EXPERT_BRAIN_CATEGORY_LABELS } from "@/utils/expert-brain";
 
@@ -29,6 +30,7 @@ export type ExpertBrainLessonSummary = {
   sourceType: string;
   sourceId: string | null;
   fileName: string | null;
+  transcriptId: string | null;
 };
 
 export type ExpertBrainModuleSummary = {
@@ -77,6 +79,7 @@ export type ExpertBrainDashboard = {
   courses: ExpertBrainCourseSummary[];
   queue: ExpertProcessingQueueItem[];
   ingestionQueue: ExpertIngestionQueueItem[];
+  transcripts: ExpertTranscript[];
   frameworks: ExpertBrainArtifactSummary[];
   decisionRules: ExpertBrainArtifactSummary[];
   successPatterns: ExpertBrainArtifactSummary[];
@@ -162,8 +165,13 @@ export function mapFailurePatternArtifact(pattern: ExpertFailurePattern): Expert
 export function buildCourseTree(
   courses: ExpertCourse[],
   modules: ExpertCourseModule[],
-  lessons: ExpertCourseLesson[]
+  lessons: ExpertCourseLesson[],
+  transcripts: ExpertTranscript[] = []
 ): ExpertBrainCourseSummary[] {
+  const transcriptByLesson = new Map<string, string>();
+  for (const transcript of transcripts) {
+    if (transcript.lesson_id) transcriptByLesson.set(transcript.lesson_id, transcript.id);
+  }
   const modulesByCourse = new Map<string, ExpertCourseModule[]>();
   for (const mod of modules) {
     const list = modulesByCourse.get(mod.course_id) ?? [];
@@ -195,6 +203,7 @@ export function buildCourseTree(
         sourceType: lesson.source_type,
         sourceId: lesson.source_id,
         fileName: lesson.file_name,
+        transcriptId: transcriptByLesson.get(lesson.id) ?? null,
       }));
 
       return {

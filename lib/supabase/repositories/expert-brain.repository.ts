@@ -19,6 +19,8 @@ import type {
   ExpertProcessingQueueItem,
   ExpertQueueStatus,
   ExpertSuccessPattern,
+  ExpertTranscript,
+  ExpertTranscriptStatus,
   TableInsert,
 } from "@/types/database";
 import { BaseRepository } from "./base.repository";
@@ -254,11 +256,24 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
   }
 
   async findPending(limit = 10) {
+    return this.findWorkable(limit);
+  }
+
+  async findWorkable(limit = 10) {
+    const statuses: ExpertIngestionStatus[] = [
+      "uploaded",
+      "waiting_for_openai",
+      "transcribing",
+      "extracting",
+      "pending",
+      "processing",
+    ];
+
     const { data, error } = await this.supabase
       .from("expert_ingestion_queue")
       .select("*")
       .eq("user_id", this.userId)
-      .eq("status", "pending")
+      .in("status", statuses)
       .order("created_at", { ascending: true })
       .limit(limit);
 
@@ -266,6 +281,25 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
       data: (data as ExpertIngestionQueueItem[]) ?? null,
       error: error?.message ?? null,
     };
+  }
+
+  async countActive() {
+    const statuses: ExpertIngestionStatus[] = [
+      "uploaded",
+      "transcribing",
+      "extracting",
+      "waiting_for_openai",
+      "pending",
+      "processing",
+    ];
+
+    const { count, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", this.userId)
+      .in("status", statuses);
+
+    return { count: count ?? 0, error: error?.message ?? null };
   }
 
   async findById(id: string) {
@@ -300,16 +334,36 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
   }
 
   async markProcessing(id: string) {
-    return this.update(id, { status: "processing", progress: 5, error: null });
+    return this.update(id, { status: "processing", progress: 50, error: null });
   }
 
-  async markDone(id: string) {
+  async markUploaded(id: string) {
+    return this.update(id, { status: "uploaded", progress: 0, error: null });
+  }
+
+  async markTranscribing(id: string) {
+    return this.update(id, { status: "transcribing", progress: 25, error: null });
+  }
+
+  async markWaitingForOpenai(id: string) {
+    return this.update(id, { status: "waiting_for_openai", progress: 25, error: null });
+  }
+
+  async markExtracting(id: string) {
+    return this.update(id, { status: "extracting", progress: 50, error: null });
+  }
+
+  async markCompleted(id: string) {
     return this.update(id, {
-      status: "done",
+      status: "completed",
       progress: 100,
       processed_at: new Date().toISOString(),
       error: null,
     });
+  }
+
+  async markDone(id: string) {
+    return this.markCompleted(id);
   }
 
   async markFailed(id: string, errorMessage: string) {
@@ -317,6 +371,79 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
       status: "failed",
       error: errorMessage,
       processed_at: new Date().toISOString(),
+    });
+  }
+}
+
+export class ExpertTranscriptsRepository extends BaseRepository<"expert_transcripts"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_transcripts", userId);
+  }
+
+  async findRecent(limit = 30) {
+    const { data, error } = await this.supabase
+      .from("expert_transcripts")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertTranscript[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findById(id: string) {
+    const { data, error } = await this.supabase
+      .from("expert_transcripts")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertTranscript | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findByLessonId(lessonId: string) {
+    const { data, error } = await this.supabase
+      .from("expert_transcripts")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("lesson_id", lessonId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertTranscript | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findByIngestionId(ingestionId: string) {
+    const { data, error } = await this.supabase
+      .from("expert_transcripts")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("ingestion_id", ingestionId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertTranscript | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async updateStatus(id: string, status: ExpertTranscriptStatus, error?: string | null) {
+    return this.update(id, {
+      status,
+      error: error ?? null,
     });
   }
 }
