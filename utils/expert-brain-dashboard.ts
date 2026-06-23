@@ -7,6 +7,7 @@ import type {
   ExpertDecisionRule,
   ExpertFailurePattern,
   ExpertFramework,
+  ExpertIngestionQueueItem,
   ExpertLessonStatus,
   ExpertProcessingQueueItem,
   ExpertSuccessPattern,
@@ -75,6 +76,7 @@ export type ExpertBrainDashboard = {
   statusCounts: ExpertBrainStatusCounts;
   courses: ExpertBrainCourseSummary[];
   queue: ExpertProcessingQueueItem[];
+  ingestionQueue: ExpertIngestionQueueItem[];
   frameworks: ExpertBrainArtifactSummary[];
   decisionRules: ExpertBrainArtifactSummary[];
   successPatterns: ExpertBrainArtifactSummary[];

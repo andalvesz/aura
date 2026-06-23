@@ -43,7 +43,7 @@ const UPLOAD_TABS: Array<{
     icon: FolderArchive,
     accept: ".zip",
     multiple: false,
-    hint: "Estrutura: curso/módulo/aula (.pdf, .txt, .md, .mp4)",
+    hint: "Upload direto ao Storage — estrutura curso/módulo/aula (.pdf, .txt, .md, .mp4)",
   },
   {
     mode: "videos",
@@ -51,7 +51,7 @@ const UPLOAD_TABS: Array<{
     icon: Video,
     accept: "video/*",
     multiple: true,
-    hint: "Transcreve via Whisper quando OPENAI_API_KEY estiver configurada",
+    hint: "Upload direto ao Storage — transcreve via Whisper quando OPENAI_API_KEY estiver configurada",
   },
   {
     mode: "pdfs",
@@ -59,7 +59,7 @@ const UPLOAD_TABS: Array<{
     icon: FileText,
     accept: ".pdf",
     multiple: true,
-    hint: "Extrai texto automaticamente de cada PDF",
+    hint: "Upload direto ao Storage — extrai texto automaticamente de cada PDF",
   },
   {
     mode: "transcripts",
@@ -67,7 +67,7 @@ const UPLOAD_TABS: Array<{
     icon: BookOpen,
     accept: ".txt,.md,.markdown",
     multiple: true,
-    hint: "Transcrições prontas em texto ou markdown",
+    hint: "Upload direto ao Storage — transcrições prontas em texto ou markdown",
   },
 ];
 
@@ -234,7 +234,7 @@ function CourseTree({
 }
 
 export function ExpertBrainView() {
-  const { dashboard, loading, error, busy, refresh, uploadFiles, processQueue, reprocess } =
+  const { dashboard, loading, error, busy, uploadProgress, refresh, uploadFiles, processQueue, reprocess } =
     useExpertBrain();
   const [uploadMode, setUploadMode] = useState<ExpertUploadMode>("zip");
   const [courseTitle, setCourseTitle] = useState("");
@@ -352,7 +352,9 @@ export function ExpertBrainView() {
             ))}
           </div>
 
-          <p className="text-[10px] text-zinc-500">{activeTab.hint}</p>
+          <p className="text-[10px] text-zinc-500">
+            {activeTab.hint} · Limite: 2 GB por arquivo · Nunca passa pelo servidor Next.js
+          </p>
 
           <div className="grid gap-2 sm:grid-cols-3">
             <input
@@ -389,17 +391,81 @@ export function ExpertBrainView() {
               onChange={(e) => handleUpload(e.target.files)}
             />
           </label>
+
+          {uploadProgress.length > 0 ? (
+            <div className="space-y-2 rounded border border-white/[0.06] p-2">
+              {uploadProgress.map((item) => (
+                <div key={item.fileName} className="space-y-1">
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className="truncate text-zinc-300">{item.fileName}</span>
+                    <span className="text-zinc-500">{item.percent}%</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded bg-white/[0.06]">
+                    <div
+                      className={cn(
+                        "h-full transition-all",
+                        item.status === "failed" ? "bg-red-500" : "bg-violet-500"
+                      )}
+                      style={{ width: `${item.percent}%` }}
+                    />
+                  </div>
+                  {item.error ? (
+                    <p className="text-[10px] text-red-400">{item.error}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : null}
         </PanelContent>
       </Panel>
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Panel>
           <PanelHeader>
-            <PanelTitle>Fila de processamento</PanelTitle>
+            <PanelTitle>Fila de ingestão (Storage)</PanelTitle>
+          </PanelHeader>
+          <PanelContent>
+            {!dashboard?.ingestionQueue.length ? (
+              <p className="text-[11px] text-zinc-500">Nenhum arquivo na fila de ingestão.</p>
+            ) : (
+              <div className="max-h-56 space-y-2 overflow-y-auto">
+                {dashboard.ingestionQueue.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded border border-white/[0.06] p-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-[11px] text-zinc-200">
+                        {item.file_name ?? item.file_path.split("/").pop()}
+                      </p>
+                      <StatusBadge status={item.status} />
+                    </div>
+                    <div className="mt-1 h-1 overflow-hidden rounded bg-white/[0.06]">
+                      <div
+                        className="h-full bg-amber-500 transition-all"
+                        style={{ width: `${item.progress}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[10px] text-zinc-600">
+                      {item.progress}% · {item.course_name ?? "Sem curso"}
+                    </p>
+                    {item.error ? (
+                      <p className="mt-1 text-[10px] text-red-400">{item.error}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </PanelContent>
+        </Panel>
+
+        <Panel>
+          <PanelHeader>
+            <PanelTitle>Fila de extração (IA)</PanelTitle>
           </PanelHeader>
           <PanelContent>
             {!dashboard?.queue.length ? (
-              <p className="text-[11px] text-zinc-500">Nenhum item na fila.</p>
+              <p className="text-[11px] text-zinc-500">Nenhum item na fila de extração.</p>
             ) : (
               <div className="max-h-56 space-y-2 overflow-y-auto">
                 {dashboard.queue.map((item) => (

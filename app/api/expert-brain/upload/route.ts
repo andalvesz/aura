@@ -1,37 +1,32 @@
 import {
-  processExpertBrainQueue,
-  uploadExpertBrainContent,
-  type ExpertUploadMode,
-} from "@/lib/supabase/services/expert-brain-dashboard.service";
-
-const VALID_MODES: ExpertUploadMode[] = ["zip", "videos", "pdfs", "transcripts"];
+  processExpertBrainIngestionQueue,
+  registerExpertBrainIngestion,
+} from "@/lib/supabase/services/expert-brain-ingestion.service";
+import { processExpertBrainQueue } from "@/lib/supabase/services/expert-brain-dashboard.service";
 
 export async function POST(request: Request) {
   try {
-    const formData = await request.formData();
-    const mode = formData.get("mode");
-    const courseTitle = formData.get("courseTitle");
-    const author = formData.get("author");
-    const niche = formData.get("niche");
+    const body = await request.json();
+    const file_path = typeof body.file_path === "string" ? body.file_path.trim() : "";
+    const course_name = typeof body.course_name === "string" ? body.course_name : null;
+    const module_name = typeof body.module_name === "string" ? body.module_name : null;
+    const lesson_name = typeof body.lesson_name === "string" ? body.lesson_name : null;
+    const file_name = typeof body.file_name === "string" ? body.file_name : null;
+    const author = typeof body.author === "string" ? body.author : null;
+    const niche = typeof body.niche === "string" ? body.niche : null;
 
-    if (typeof mode !== "string" || !VALID_MODES.includes(mode as ExpertUploadMode)) {
-      return Response.json({ error: "mode inválido." }, { status: 400 });
+    if (!file_path) {
+      return Response.json({ error: "Informe file_path." }, { status: 400 });
     }
 
-    const files: Array<{ name: string; buffer: Buffer }> = [];
-    const fileEntries = [...formData.getAll("files"), ...formData.getAll("file")];
-    for (const value of fileEntries) {
-      if (!(value instanceof File) || value.size === 0) continue;
-      const buffer = Buffer.from(await value.arrayBuffer());
-      files.push({ name: value.name, buffer });
-    }
-
-    const { courseId, queued, error } = await uploadExpertBrainContent({
-      mode: mode as ExpertUploadMode,
-      files,
-      courseTitle: typeof courseTitle === "string" ? courseTitle : null,
-      author: typeof author === "string" ? author : null,
-      niche: typeof niche === "string" ? niche : null,
+    const { ingestionId, error } = await registerExpertBrainIngestion({
+      file_path,
+      course_name,
+      module_name,
+      lesson_name,
+      file_name,
+      author,
+      niche,
     });
 
     if (error) {
@@ -39,15 +34,17 @@ export async function POST(request: Request) {
       return Response.json({ error }, { status });
     }
 
-    const queueResult = queued > 0 ? await processExpertBrainQueue(Math.min(queued, 3)) : null;
+    const ingestResult = await processExpertBrainIngestionQueue(1);
+    const processResult =
+      ingestResult.processed > 0 ? await processExpertBrainQueue(5) : { processed: 0, failed: 0 };
 
     return Response.json({
-      courseId,
-      queued,
-      processed: queueResult?.processed ?? 0,
-      message: `${queued} aula(s) enfileirada(s).`,
+      ingestionId,
+      ingested: ingestResult.processed,
+      extracted: processResult.processed,
+      message: "Arquivo registrado na fila de ingestão.",
     });
   } catch {
-    return Response.json({ error: "Erro ao enviar arquivos." }, { status: 500 });
+    return Response.json({ error: "Erro ao registrar upload." }, { status: 500 });
   }
 }

@@ -10,6 +10,8 @@ import type {
   ExpertDecisionRule,
   ExpertFailurePattern,
   ExpertFramework,
+  ExpertIngestionQueueItem,
+  ExpertIngestionStatus,
   ExpertKnowledgeSource,
   ExpertPattern,
   ExpertPatternType,
@@ -229,6 +231,93 @@ export class ExpertCourseLessonsRepository extends BaseRepository<"expert_course
       data: (data as ExpertCourseLesson[]) ?? null,
       error: error?.message ?? null,
     };
+  }
+}
+
+export class ExpertIngestionQueueRepository extends BaseRepository<"expert_ingestion_queue"> {
+  constructor(supabase: SupabaseClient<Database>, userId: string) {
+    super(supabase, "expert_ingestion_queue", userId);
+  }
+
+  async findRecent(limit = 30) {
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertIngestionQueueItem[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findPending(limit = 10) {
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    return {
+      data: (data as ExpertIngestionQueueItem[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async findById(id: string) {
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertIngestionQueueItem | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async countByStatus(status: ExpertIngestionStatus) {
+    const { count, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", this.userId)
+      .eq("status", status);
+
+    return { count: count ?? 0, error: error?.message ?? null };
+  }
+
+  async updateProgress(id: string, progress: number, status?: ExpertIngestionStatus) {
+    return this.update(id, {
+      progress,
+      ...(status ? { status } : {}),
+    });
+  }
+
+  async markProcessing(id: string) {
+    return this.update(id, { status: "processing", progress: 5, error: null });
+  }
+
+  async markDone(id: string) {
+    return this.update(id, {
+      status: "done",
+      progress: 100,
+      processed_at: new Date().toISOString(),
+      error: null,
+    });
+  }
+
+  async markFailed(id: string, errorMessage: string) {
+    return this.update(id, {
+      status: "failed",
+      error: errorMessage,
+      processed_at: new Date().toISOString(),
+    });
   }
 }
 

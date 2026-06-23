@@ -1,21 +1,19 @@
 import type { Json } from "@/types/database";
 import {
-  parseUploadedFiles,
-  parseZipCourse,
-  transcribeVideoBuffer,
-  type ParsedCourseStructure,
-} from "@/lib/expert-brain/parsers";
-import {
   ExpertCourseLessonsRepository,
   ExpertCourseModulesRepository,
   ExpertCoursesRepository,
   ExpertDecisionRulesRepository,
   ExpertFailurePatternsRepository,
   ExpertFrameworksRepository,
+  ExpertIngestionQueueRepository,
   ExpertKnowledgeSourcesRepository,
   ExpertProcessingQueueRepository,
   ExpertSuccessPatternsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
+import {
+  requeueExpertBrainIngestionFromLesson,
+} from "@/lib/supabase/services/expert-brain-ingestion.service";
 import {
   ingestKnowledgeSource,
   reprocessKnowledgeSource,
@@ -30,8 +28,6 @@ import {
   mapSuccessPatternArtifact,
   type ExpertBrainDashboard,
 } from "@/utils/expert-brain-dashboard";
-
-export type ExpertUploadMode = "zip" | "videos" | "pdfs" | "transcripts";
 
 function deriveAggregateStatus(
   statuses: string[]
@@ -95,6 +91,7 @@ export async function getExpertBrainDashboard(): Promise<{
   const modulesRepo = new ExpertCourseModulesRepository(ctx.supabase, ctx.userId);
   const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
   const queueRepo = new ExpertProcessingQueueRepository(ctx.supabase, ctx.userId);
+  const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
   const sourcesRepo = new ExpertKnowledgeSourcesRepository(ctx.supabase, ctx.userId);
   const frameworksRepo = new ExpertFrameworksRepository(ctx.supabase, ctx.userId);
   const decisionRulesRepo = new ExpertDecisionRulesRepository(ctx.supabase, ctx.userId);
@@ -106,6 +103,9 @@ export async function getExpertBrainDashboard(): Promise<{
     modulesRes,
     lessonsRes,
     queueRes,
+    ingestionRes,
+    ingestionPendingRes,
+    ingestionProcessingRes,
     readySourcesRes,
     pendingQueueRes,
     processingQueueRes,
@@ -118,6 +118,9 @@ export async function getExpertBrainDashboard(): Promise<{
     modulesRepo.findAllRecent(),
     lessonsRepo.findAllRecent(),
     queueRepo.findRecent(20),
+    ingestionRepo.findRecent(20),
+    ingestionRepo.countByStatus("pending"),
+    ingestionRepo.countByStatus("processing"),
     sourcesRepo.findByStatus("ready", 1000),
     queueRepo.countByStatus("pending"),
     queueRepo.countByStatus("processing"),
@@ -132,6 +135,9 @@ export async function getExpertBrainDashboard(): Promise<{
     modulesRes.error ??
     lessonsRes.error ??
     queueRes.error ??
+    ingestionRes.error ??
+    ingestionPendingRes.error ??
+    ingestionProcessingRes.error ??
     readySourcesRes.error ??
     pendingQueueRes.error ??
     processingQueueRes.error ??
@@ -153,8 +159,8 @@ export async function getExpertBrainDashboard(): Promise<{
         modules: modules.length,
         lessons: lessons.length,
         sourcesReady: (readySourcesRes.data ?? []).length,
-        queuePending: pendingQueueRes.count,
-        queueProcessing: processingQueueRes.count,
+        queuePending: pendingQueueRes.count + ingestionPendingRes.count,
+        queueProcessing: processingQueueRes.count + ingestionProcessingRes.count,
         frameworks: (frameworksRes.data ?? []).length,
         decisionRules: (rulesRes.data ?? []).length,
         successPatterns: (successRes.data ?? []).length,
@@ -163,6 +169,7 @@ export async function getExpertBrainDashboard(): Promise<{
       statusCounts: countByStatus(lessons),
       courses: buildCourseTree(courses, modules, lessons),
       queue: queueRes.data ?? [],
+      ingestionQueue: ingestionRes.data ?? [],
       frameworks: (frameworksRes.data ?? []).map(mapFrameworkArtifact),
       decisionRules: (rulesRes.data ?? []).map(mapDecisionRuleArtifact),
       successPatterns: (successRes.data ?? []).map(mapSuccessPatternArtifact),
@@ -170,129 +177,6 @@ export async function getExpertBrainDashboard(): Promise<{
     },
     error: null,
   };
-}
-
-async function createCourseStructure(
-  structure: ParsedCourseStructure,
-  meta: { author?: string | null; niche?: string | null }
-) {
-  const ctx = await getOptionalDataContext();
-  if (!ctx) return { courseId: null, lessonIds: [] as string[], error: "Usuário não autenticado." };
-
-  const coursesRepo = new ExpertCoursesRepository(ctx.supabase, ctx.userId);
-  const modulesRepo = new ExpertCourseModulesRepository(ctx.supabase, ctx.userId);
-  const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
-  const queueRepo = new ExpertProcessingQueueRepository(ctx.supabase, ctx.userId);
-
-  const { data: course, error: courseError } = await coursesRepo.create({
-    title: structure.courseTitle,
-    author: meta.author ?? null,
-    niche: meta.niche ?? null,
-    status: "pending",
-    metadata: { upload_source: "dashboard" } as Json,
-  });
-
-  if (courseError || !course) {
-    return { courseId: null, lessonIds: [], error: courseError ?? "Erro ao criar curso." };
-  }
-
-  const lessonIds: string[] = [];
-
-  for (let modIndex = 0; modIndex < structure.modules.length; modIndex++) {
-    const mod = structure.modules[modIndex];
-    const { data: moduleRow, error: moduleError } = await modulesRepo.create({
-      course_id: course.id,
-      title: mod.title,
-      sort_order: modIndex,
-      status: "pending",
-      metadata: {} as Json,
-    });
-
-    if (moduleError || !moduleRow) {
-      return { courseId: course.id, lessonIds, error: moduleError ?? "Erro ao criar módulo." };
-    }
-
-    for (let lessonIndex = 0; lessonIndex < mod.lessons.length; lessonIndex++) {
-      const lessonFile = mod.lessons[lessonIndex];
-      let rawText = lessonFile.text;
-
-      if (!rawText && lessonFile.buffer && lessonFile.sourceType === "video") {
-        rawText = await transcribeVideoBuffer(lessonFile.buffer, lessonFile.fileName);
-      }
-
-      const { data: lessonRow, error: lessonError } = await lessonsRepo.create({
-        module_id: moduleRow.id,
-        title: lessonFile.title,
-        source_type: lessonFile.sourceType,
-        sort_order: lessonIndex,
-        status: rawText?.trim() ? "pending" : "failed",
-        raw_text: rawText?.trim() || null,
-        file_name: lessonFile.fileName,
-        file_path: lessonFile.path,
-        metadata: {
-          has_text: Boolean(rawText?.trim()),
-          needs_transcript: !rawText?.trim() && lessonFile.sourceType === "video",
-        } as Json,
-      });
-
-      if (lessonError || !lessonRow) continue;
-
-      lessonIds.push(lessonRow.id);
-
-      if (rawText?.trim()) {
-        await queueRepo.create({
-          entity_type: "lesson",
-          entity_id: lessonRow.id,
-          action: "process",
-          priority: 0,
-          status: "pending",
-          metadata: { course_id: course.id, module_id: moduleRow.id } as Json,
-        });
-      }
-    }
-  }
-
-  return { courseId: course.id, lessonIds, error: null };
-}
-
-export async function uploadExpertBrainContent(params: {
-  mode: ExpertUploadMode;
-  files: Array<{ name: string; buffer: Buffer }>;
-  courseTitle?: string | null;
-  author?: string | null;
-  niche?: string | null;
-}): Promise<{ courseId: string | null; queued: number; error: string | null }> {
-  const ctx = await getOptionalDataContext();
-  if (!ctx) return { courseId: null, queued: 0, error: "Usuário não autenticado." };
-  if (params.files.length === 0) {
-    return { courseId: null, queued: 0, error: "Nenhum arquivo enviado." };
-  }
-
-  try {
-    let structure: ParsedCourseStructure;
-
-    if (params.mode === "zip") {
-      const zipFile = params.files[0];
-      structure = await parseZipCourse(zipFile.buffer, params.courseTitle ?? undefined);
-    } else {
-      structure = await parseUploadedFiles(params.files, params.mode);
-      if (params.courseTitle?.trim()) {
-        structure.courseTitle = params.courseTitle.trim();
-      }
-    }
-
-    const { courseId, lessonIds, error } = await createCourseStructure(structure, {
-      author: params.author,
-      niche: params.niche,
-    });
-
-    if (error) return { courseId, queued: 0, error };
-
-    return { courseId, queued: lessonIds.length, error: null };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Erro ao processar upload.";
-    return { courseId: null, queued: 0, error: message };
-  }
 }
 
 export async function enqueueExpertReprocess(params: {
@@ -321,7 +205,18 @@ export async function enqueueExpertReprocess(params: {
     return { queued: 0, error: "Nenhuma aula encontrada para reprocessar." };
   }
 
+  let queued = 0;
+
   for (const lessonId of lessonIds) {
+    const { data: lesson } = await lessonsRepo.findById(lessonId);
+    if (lesson?.file_path?.trim()) {
+      const { error: ingestError } = await requeueExpertBrainIngestionFromLesson(lessonId);
+      if (!ingestError) {
+        queued += 1;
+        continue;
+      }
+    }
+
     await queueRepo.create({
       entity_type: "lesson",
       entity_id: lessonId,
@@ -330,9 +225,10 @@ export async function enqueueExpertReprocess(params: {
       status: "pending",
       metadata: { requested_entity: params.entityType } as Json,
     });
+    queued += 1;
   }
 
-  return { queued: lessonIds.length, error: null };
+  return { queued, error: null };
 }
 
 async function processLessonQueueItem(lessonId: string, action: "process" | "reprocess") {
@@ -475,5 +371,16 @@ export async function reprocessExpertEntity(params: {
   if (enqueueResult.error) {
     return { processed: 0, failed: 0, error: enqueueResult.error };
   }
-  return processExpertBrainQueue(enqueueResult.queued);
+
+  const { processExpertBrainIngestionQueue } = await import(
+    "@/lib/supabase/services/expert-brain-ingestion.service"
+  );
+  const ingestResult = await processExpertBrainIngestionQueue(enqueueResult.queued);
+  const processResult = await processExpertBrainQueue(enqueueResult.queued);
+
+  return {
+    processed: ingestResult.processed + processResult.processed,
+    failed: ingestResult.failed + processResult.failed,
+    error: null,
+  };
 }

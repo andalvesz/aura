@@ -920,6 +920,24 @@ export type ExpertCourseLesson = {
   updated_at: string;
 };
 
+export type ExpertIngestionStatus = "pending" | "processing" | "done" | "failed";
+
+export type ExpertIngestionQueueItem = {
+  id: string;
+  user_id: string;
+  file_path: string;
+  course_name: string | null;
+  module_name: string | null;
+  lesson_name: string | null;
+  file_name: string | null;
+  status: ExpertIngestionStatus;
+  progress: number;
+  error: string | null;
+  metadata: Json;
+  created_at: string;
+  processed_at: string | null;
+};
+
 export type ExpertProcessingQueueItem = {
   id: string;
   user_id: string;
@@ -6164,6 +6182,35 @@ export type Database = {
           updated_at?: string;
         }
       >;
+      expert_ingestion_queue: TableDef<
+        ExpertIngestionQueueItem,
+        Omit<
+          ExpertIngestionQueueItem,
+          | "id"
+          | "created_at"
+          | "processed_at"
+          | "metadata"
+          | "course_name"
+          | "module_name"
+          | "lesson_name"
+          | "file_name"
+          | "status"
+          | "progress"
+          | "error"
+        > & {
+          id?: string;
+          course_name?: string | null;
+          module_name?: string | null;
+          lesson_name?: string | null;
+          file_name?: string | null;
+          status?: ExpertIngestionStatus;
+          progress?: number;
+          error?: string | null;
+          metadata?: Json;
+          created_at?: string;
+          processed_at?: string | null;
+        }
+      >;
       expert_processing_queue: TableDef<
         ExpertProcessingQueueItem,
         Omit<
@@ -6553,6 +6600,7 @@ export type UserScopedTable =
   | "expert_courses"
   | "expert_course_modules"
   | "expert_course_lessons"
+  | "expert_ingestion_queue"
   | "expert_processing_queue"
   | "revenue_metrics"
   | "revenue_forecasts"
