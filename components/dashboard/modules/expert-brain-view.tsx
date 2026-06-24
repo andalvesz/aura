@@ -408,7 +408,7 @@ export function ExpertBrainView() {
   }
 
   async function handleProcessQueue() {
-    const { error: queueError, message } = await processQueue(5);
+    const { error: queueError, message } = await processQueue(10);
     if (queueError) {
       toast.error(queueError);
       return;
@@ -448,9 +448,15 @@ export function ExpertBrainView() {
 
   const pipelineItems =
     dashboard?.ingestionQueue.filter((item) =>
-      ["uploaded", "transcribing", "extracting", "waiting_for_openai", "pending", "processing"].includes(
-        item.status
-      )
+      [
+        "pending_drive",
+        "uploaded",
+        "transcribing",
+        "extracting",
+        "waiting_for_openai",
+        "pending",
+        "processing",
+      ].includes(item.status)
     ) ?? [];
 
   if (loading) {

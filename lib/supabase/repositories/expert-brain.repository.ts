@@ -260,8 +260,25 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
   }
 
   async findWorkable(limit = 10) {
-    const statuses: ExpertIngestionStatus[] = [
-      "pending_drive",
+    const { data: driveItems, error: driveError } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("status", "pending_drive")
+      .order("created_at", { ascending: true })
+      .limit(limit);
+
+    if (driveError) {
+      return { data: null, error: driveError.message };
+    }
+
+    const driveRows = (driveItems as ExpertIngestionQueueItem[]) ?? [];
+    const remaining = limit - driveRows.length;
+    if (remaining <= 0) {
+      return { data: driveRows, error: null };
+    }
+
+    const otherStatuses: ExpertIngestionStatus[] = [
       "uploaded",
       "waiting_for_openai",
       "transcribing",
@@ -270,17 +287,21 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
       "processing",
     ];
 
-    const { data, error } = await this.supabase
+    const { data: otherItems, error: otherError } = await this.supabase
       .from("expert_ingestion_queue")
       .select("*")
       .eq("user_id", this.userId)
-      .in("status", statuses)
+      .in("status", otherStatuses)
       .order("created_at", { ascending: true })
-      .limit(limit);
+      .limit(remaining);
+
+    if (otherError) {
+      return { data: null, error: otherError.message };
+    }
 
     return {
-      data: (data as ExpertIngestionQueueItem[]) ?? null,
-      error: error?.message ?? null,
+      data: [...driveRows, ...((otherItems as ExpertIngestionQueueItem[]) ?? [])],
+      error: null,
     };
   }
 
@@ -310,6 +331,21 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
       .select("*")
       .eq("user_id", this.userId)
       .eq("id", id)
+      .maybeSingle();
+
+    return {
+      data: (data as ExpertIngestionQueueItem | null) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async update(id: string, payload: import("@/types/database").TableUpdate<"expert_ingestion_queue">) {
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .update(payload)
+      .eq("user_id", this.userId)
+      .eq("id", id)
+      .select()
       .maybeSingle();
 
     return {

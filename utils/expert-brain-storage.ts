@@ -2,6 +2,7 @@ import type { ExpertKnowledgeSourceType } from "@/types/database";
 
 export const EXPERT_BRAIN_FILES_BUCKET = "expert-brain-files";
 export const EXPERT_BRAIN_TRANSCRIPTS_BUCKET = "expert-brain-transcripts";
+export const GOOGLE_DRIVE_INGESTION_PREFIX = "google-drive://";
 
 /** 2 GB — única fonte de verdade para limites de upload no app */
 export const EXPERT_BRAIN_MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
@@ -40,8 +41,19 @@ export function buildExpertBrainStoragePath(userId: string, fileName: string): s
 }
 
 export function assertExpertBrainStoragePathOwned(userId: string, filePath: string): boolean {
+  if (isGoogleDriveIngestionPath(filePath)) return true;
   const normalized = filePath.replace(/\\/g, "/").replace(/^\/+/, "");
   return normalized.startsWith(`${userId}/`);
+}
+
+export function isGoogleDriveIngestionPath(filePath: string): boolean {
+  return filePath.startsWith(GOOGLE_DRIVE_INGESTION_PREFIX);
+}
+
+export function driveFileIdFromIngestionPath(filePath: string): string | null {
+  if (!isGoogleDriveIngestionPath(filePath)) return null;
+  const id = filePath.slice(GOOGLE_DRIVE_INGESTION_PREFIX.length).trim();
+  return id || null;
 }
 
 export function detectExpertBrainSourceType(fileName: string): ExpertKnowledgeSourceType {

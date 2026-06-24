@@ -196,6 +196,7 @@ export async function importGoogleDriveFolder(input: {
 
   const folderId = input.folderId?.trim();
   const folderName = input.folderName?.trim();
+  console.info("[drive-import] folder", { folderId, folderName, userId: ctx.userId });
   if (!folderId || !folderName) {
     return { queued: 0, error: "Informe pasta do curso." };
   }
@@ -210,10 +211,23 @@ export async function importGoogleDriveFolder(input: {
     contents = await listDriveFolderContents(accessToken, folderId);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao ler pasta.";
+    console.error("[drive-import] folder", {
+      stage: "listDriveFolderContents",
+      message,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return { queued: 0, error: message };
   }
 
   const importable = contents.filter(isImportableDriveFile);
+  console.info("[drive-import] files", {
+    total: contents.length,
+    importable: importable.length,
+    files: importable.map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType })),
+    skipped: contents
+      .filter((f) => !isImportableDriveFile(f))
+      .map((f) => ({ id: f.id, name: f.name, mimeType: f.mimeType, isFolder: f.isFolder })),
+  });
   if (!importable.length) {
     return {
       queued: 0,
@@ -223,6 +237,7 @@ export async function importGoogleDriveFolder(input: {
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
   let queued = 0;
+  const queueErrors: string[] = [];
 
   for (const file of importable) {
     const { error } = await ingestionRepo.create({
@@ -242,8 +257,13 @@ export async function importGoogleDriveFolder(input: {
       } as Json,
     });
 
-    if (!error) queued += 1;
+    if (!error) {
+      queued += 1;
+    } else {
+      queueErrors.push(`${file.name}: ${error}`);
+    }
   }
 
+  console.info("[drive-import] queue", { queued, failed: queueErrors.length, queueErrors });
   return { queued, error: queued === 0 ? "Nenhum arquivo foi enfileirado." : null };
 }

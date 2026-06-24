@@ -291,7 +291,7 @@ export function useExpertBrain() {
     return { error: null, knowledge: data?.knowledge ?? null };
   }, []);
 
-  const processQueue = useCallback(async (limit = 5) => {
+  const processQueue = useCallback(async (limit = 10) => {
     setBusy(true);
     startPolling();
     try {

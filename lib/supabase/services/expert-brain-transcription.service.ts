@@ -1,10 +1,14 @@
 import type { Json } from "@/types/database";
+import { downloadDriveFile } from "@/lib/google-drive/client";
 import { transcribeVideoBuffer } from "@/lib/expert-brain/parsers";
 import { ExpertTranscriptsRepository } from "@/lib/supabase/repositories/expert-brain.repository";
+import { getValidGoogleDriveExpertAccessToken } from "@/lib/supabase/services/google-drive.service";
 import {
   EXPERT_BRAIN_FILES_BUCKET,
   EXPERT_BRAIN_TRANSCRIPTS_BUCKET,
   buildExpertBrainTranscriptPath,
+  driveFileIdFromIngestionPath,
+  GOOGLE_DRIVE_INGESTION_PREFIX,
 } from "@/utils/expert-brain-storage";
 import { countWords, logExpertBrain } from "@/utils/expert-brain-pipeline";
 import { getOptionalDataContext } from "./context";
@@ -66,6 +70,206 @@ export type TranscribeIngestionVideoInput = {
   lessonId?: string | null;
 };
 
+export type TranscribeDriveIngestionVideoInput = {
+  ingestionId: string;
+  fileName: string;
+  driveFileId: string;
+  buffer?: Buffer;
+  lessonId?: string | null;
+};
+
+async function persistIngestionTranscript(params: {
+  ingestionId: string;
+  fileName: string;
+  sourceFilePath: string;
+  rawText: string;
+  lessonId?: string | null;
+}): Promise<{
+  transcriptId: string | null;
+  transcriptPath: string | null;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return { transcriptId: null, transcriptPath: null, error: "Usuário não autenticado." };
+  }
+
+  const transcriptsRepo = new ExpertTranscriptsRepository(ctx.supabase, ctx.userId);
+  const { path: transcriptPath, error: uploadError } = await uploadTranscriptText(
+    ctx.userId,
+    params.fileName,
+    params.rawText
+  );
+
+  if (uploadError || !transcriptPath) {
+    return {
+      transcriptId: null,
+      transcriptPath: null,
+      error: uploadError ?? "Upload da transcrição falhou.",
+    };
+  }
+
+  const wordCount = countWords(params.rawText);
+  const { data: existing } = await transcriptsRepo.findByIngestionId(params.ingestionId);
+
+  if (existing) {
+    await transcriptsRepo.update(existing.id, {
+      transcript_path: transcriptPath,
+      word_count: wordCount,
+      status: "ready",
+      error: null,
+      lesson_id: params.lessonId ?? existing.lesson_id,
+      file_path: params.sourceFilePath,
+    });
+    return { transcriptId: existing.id, transcriptPath, error: null };
+  }
+
+  const { data: row, error } = await transcriptsRepo.create({
+    ingestion_id: params.ingestionId,
+    lesson_id: params.lessonId ?? null,
+    file_path: params.sourceFilePath,
+    transcript_path: transcriptPath,
+    word_count: wordCount,
+    status: "ready",
+    metadata: { model: "whisper-1", source: "google_drive" } as Json,
+  });
+
+  return { transcriptId: row?.id ?? null, transcriptPath, error: error ?? null };
+}
+
+export async function transcribeDriveIngestionVideo(
+  input: TranscribeDriveIngestionVideoInput
+): Promise<{
+  transcriptId: string | null;
+  rawText: string | null;
+  transcriptPath: string | null;
+  waitingForOpenai: boolean;
+  error: string | null;
+}> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) {
+    return {
+      transcriptId: null,
+      rawText: null,
+      transcriptPath: null,
+      waitingForOpenai: false,
+      error: "Usuário não autenticado.",
+    };
+  }
+
+  const transcriptsRepo = new ExpertTranscriptsRepository(ctx.supabase, ctx.userId);
+  const sourceFilePath = `${GOOGLE_DRIVE_INGESTION_PREFIX}${input.driveFileId}`;
+
+  if (!hasOpenAiKey()) {
+    const { data: existing } = await transcriptsRepo.findByIngestionId(input.ingestionId);
+    if (existing) {
+      await transcriptsRepo.updateStatus(existing.id, "waiting_for_openai");
+      return {
+        transcriptId: existing.id,
+        rawText: null,
+        transcriptPath: existing.transcript_path,
+        waitingForOpenai: true,
+        error: null,
+      };
+    }
+
+    const { data: row, error } = await transcriptsRepo.create({
+      ingestion_id: input.ingestionId,
+      lesson_id: input.lessonId ?? null,
+      file_path: sourceFilePath,
+      status: "waiting_for_openai",
+      word_count: 0,
+      metadata: { model: "whisper-1", source: "google_drive" } as Json,
+    });
+
+    logExpertBrain("transcribe", {
+      ingestionId: input.ingestionId,
+      status: "waiting_for_openai",
+      reason: "OPENAI_API_KEY missing",
+      source: "google_drive",
+    });
+
+    return {
+      transcriptId: row?.id ?? null,
+      rawText: null,
+      transcriptPath: null,
+      waitingForOpenai: true,
+      error: error ?? null,
+    };
+  }
+
+  logExpertBrain("transcribe", {
+    ingestionId: input.ingestionId,
+    fileName: input.fileName,
+    model: "whisper-1",
+    source: "google_drive",
+  });
+
+  let buffer = input.buffer;
+  if (!buffer) {
+    const { accessToken, error: tokenError } = await getValidGoogleDriveExpertAccessToken();
+    if (!accessToken) {
+      return {
+        transcriptId: null,
+        rawText: null,
+        transcriptPath: null,
+        waitingForOpenai: false,
+        error: tokenError ?? "Google Drive não conectado.",
+      };
+    }
+
+    try {
+      buffer = await downloadDriveFile(accessToken, input.driveFileId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Download do Google Drive falhou.";
+      return {
+        transcriptId: null,
+        rawText: null,
+        transcriptPath: null,
+        waitingForOpenai: false,
+        error: message,
+      };
+    }
+  }
+
+  const rawText = await transcribeVideoBuffer(buffer, input.fileName);
+  if (!rawText?.trim()) {
+    return {
+      transcriptId: null,
+      rawText: null,
+      transcriptPath: null,
+      waitingForOpenai: false,
+      error: "Whisper não retornou texto para o vídeo.",
+    };
+  }
+
+  const persisted = await persistIngestionTranscript({
+    ingestionId: input.ingestionId,
+    fileName: input.fileName,
+    sourceFilePath,
+    rawText,
+    lessonId: input.lessonId,
+  });
+
+  if (persisted.error || !persisted.transcriptPath) {
+    return {
+      transcriptId: null,
+      rawText: null,
+      transcriptPath: null,
+      waitingForOpenai: false,
+      error: persisted.error ?? "Falha ao salvar transcrição.",
+    };
+  }
+
+  return {
+    transcriptId: persisted.transcriptId,
+    rawText,
+    transcriptPath: persisted.transcriptPath,
+    waitingForOpenai: false,
+    error: null,
+  };
+}
+
 export async function transcribeIngestionVideo(
   input: TranscribeIngestionVideoInput
 ): Promise<{
@@ -74,6 +278,22 @@ export async function transcribeIngestionVideo(
   waitingForOpenai: boolean;
   error: string | null;
 }> {
+  const driveFileId = driveFileIdFromIngestionPath(input.filePath);
+  if (driveFileId) {
+    const driveResult = await transcribeDriveIngestionVideo({
+      ingestionId: input.ingestionId,
+      fileName: input.fileName,
+      driveFileId,
+      lessonId: input.lessonId,
+    });
+    return {
+      transcriptId: driveResult.transcriptId,
+      rawText: driveResult.rawText,
+      waitingForOpenai: driveResult.waitingForOpenai,
+      error: driveResult.error,
+    };
+  }
+
   const ctx = await getOptionalDataContext();
   if (!ctx) {
     return { transcriptId: null, rawText: null, waitingForOpenai: false, error: "Usuário não autenticado." };
@@ -132,41 +352,29 @@ export async function transcribeIngestionVideo(
     };
   }
 
-  const { path: transcriptPath, error: uploadError } = await uploadTranscriptText(
-    ctx.userId,
-    input.fileName,
-    rawText
-  );
-
-  if (uploadError || !transcriptPath) {
-    return { transcriptId: null, rawText: null, waitingForOpenai: false, error: uploadError ?? "Upload da transcrição falhou." };
-  }
-
-  const wordCount = countWords(rawText);
-  const { data: existing } = await transcriptsRepo.findByIngestionId(input.ingestionId);
-
-  if (existing) {
-    await transcriptsRepo.update(existing.id, {
-      transcript_path: transcriptPath,
-      word_count: wordCount,
-      status: "ready",
-      error: null,
-      lesson_id: input.lessonId ?? existing.lesson_id,
-    });
-    return { transcriptId: existing.id, rawText, waitingForOpenai: false, error: null };
-  }
-
-  const { data: row, error } = await transcriptsRepo.create({
-    ingestion_id: input.ingestionId,
-    lesson_id: input.lessonId ?? null,
-    file_path: input.filePath,
-    transcript_path: transcriptPath,
-    word_count: wordCount,
-    status: "ready",
-    metadata: { model: "whisper-1" } as Json,
+  const persisted = await persistIngestionTranscript({
+    ingestionId: input.ingestionId,
+    fileName: input.fileName,
+    sourceFilePath: input.filePath,
+    rawText,
+    lessonId: input.lessonId,
   });
 
-  return { transcriptId: row?.id ?? null, rawText, waitingForOpenai: false, error: error ?? null };
+  if (persisted.error || !persisted.transcriptPath) {
+    return {
+      transcriptId: null,
+      rawText: null,
+      waitingForOpenai: false,
+      error: persisted.error ?? "Upload da transcrição falhou.",
+    };
+  }
+
+  return {
+    transcriptId: persisted.transcriptId,
+    rawText,
+    waitingForOpenai: false,
+    error: null,
+  };
 }
 
 export async function getExpertTranscriptForLesson(lessonId: string): Promise<{

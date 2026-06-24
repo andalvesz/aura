@@ -6,7 +6,8 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const limit = typeof body.limit === "number" ? Math.min(body.limit, 20) : 5;
 
-    const ingestResult = await processExpertBrainIngestionQueue(3);
+    const ingestLimit = Math.min(Math.max(limit, 3), 20);
+    const ingestResult = await processExpertBrainIngestionQueue(ingestLimit);
     const { processed, failed, error } = await processExpertBrainQueue(limit);
 
     if (error) {

@@ -8,12 +8,19 @@ export async function POST(request: Request) {
       folderName?: string;
     };
 
+    console.info("[drive-import] request", {
+      folderId: body.folderId ?? null,
+      folderName: body.folderName ?? null,
+      bodyKeys: Object.keys(body),
+    });
+
     const { queued, error } = await importGoogleDriveFolder({
       folderId: body.folderId ?? "",
       folderName: body.folderName ?? "",
     });
 
     if (error && queued === 0) {
+      console.info("[drive-import] complete", { status: 400, queued, error });
       return Response.json({ error }, { status: 400 });
     }
 
@@ -25,8 +32,14 @@ export async function POST(request: Request) {
       failed = ingestResult.failed;
     }
 
+    console.info("[drive-import] complete", { status: 200, queued, processed, failed, error });
     return Response.json({ queued, processed, failed, error });
-  } catch {
+  } catch (err) {
+    console.error("[drive-import] error", {
+      message: err instanceof Error ? err.message : String(err),
+      name: err instanceof Error ? err.name : typeof err,
+      stack: err instanceof Error ? err.stack : undefined,
+    });
     return Response.json({ error: "Erro na requisição." }, { status: 500 });
   }
 }
