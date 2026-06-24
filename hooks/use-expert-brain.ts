@@ -50,6 +50,7 @@ export function useExpertBrain() {
       const res = await fetch("/api/expert-brain");
       const { data, error: parseError } = await parseJsonResponse<{
         dashboard?: ExpertBrainDashboard;
+        warnings?: Array<{ table: string; message: string }>;
         error?: string;
       }>(res);
 
@@ -59,6 +60,10 @@ export function useExpertBrain() {
           setDashboard(null);
         }
         return;
+      }
+
+      if (data.warnings?.length) {
+        console.warn("[expert-brain-dashboard] partial load warnings", data.warnings);
       }
 
       setDashboard(data.dashboard ?? null);

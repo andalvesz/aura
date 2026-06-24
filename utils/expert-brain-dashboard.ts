@@ -86,6 +86,39 @@ export type ExpertBrainDashboard = {
   failurePatterns: ExpertBrainArtifactSummary[];
 };
 
+export type ExpertBrainDashboardQueryWarning = {
+  table: string;
+  error: string;
+  code?: string;
+  message: string;
+};
+
+export function emptyExpertBrainDashboard(): ExpertBrainDashboard {
+  return {
+    metrics: {
+      courses: 0,
+      modules: 0,
+      lessons: 0,
+      sourcesReady: 0,
+      queuePending: 0,
+      queueProcessing: 0,
+      frameworks: 0,
+      decisionRules: 0,
+      successPatterns: 0,
+      failurePatterns: 0,
+    },
+    statusCounts: emptyExpertStatusCounts(),
+    courses: [],
+    queue: [],
+    ingestionQueue: [],
+    transcripts: [],
+    frameworks: [],
+    decisionRules: [],
+    successPatterns: [],
+    failurePatterns: [],
+  };
+}
+
 export function emptyExpertStatusCounts(): ExpertBrainStatusCounts {
   return { pending: 0, processing: 0, ready: 0, failed: 0, partial: 0 };
 }
