@@ -521,6 +521,8 @@ async function completeDriveVideoIngestion(
     transcriptId: string | null;
   }
 ): Promise<{ error: string | null }> {
+  console.log("[queue] completeDriveVideoIngestion", item.id, item.status, params.fileName);
+
   const { fileName, meta, driveFileId, rawText, transcriptPath, transcriptId } = params;
   const courseName =
     item.course_name?.trim() || titleFromExpertBrainFileName(fileName) || "Curso importado";
@@ -634,6 +636,8 @@ async function processPendingDriveVideo(
 ): Promise<{ error: string | null }> {
   const { buffer, driveFileId, fileName, meta } = params;
 
+  console.log("[queue] processPendingDriveVideo", item.id, item.status, driveFileId, fileName);
+
   console.info("[drive-import] whisper", {
     ingestionId: item.id,
     fileName,
@@ -710,6 +714,8 @@ async function processPendingDriveStage(
   item: import("@/types/database").ExpertIngestionQueueItem,
   ingestionRepo: ExpertIngestionQueueRepository
 ): Promise<{ error: string | null }> {
+  console.log("[queue] processPendingDriveStage", item.id, item.status);
+
   const ctx = await getOptionalDataContext();
   if (!ctx) return { error: "Usuário não autenticado." };
 
@@ -1257,11 +1263,15 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
   failed: number;
   error: string | null;
 }> {
+  console.log("[queue] processExpertBrainIngestionQueue start", { limit });
+
   const ctx = await getOptionalDataContext();
   if (!ctx) return { processed: 0, failed: 0, error: "Usuário não autenticado." };
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
   const { data: pending, error: pendingError } = await ingestionRepo.findWorkable(limit);
+
+  console.log("[queue] processExpertBrainIngestionQueue pending", pending?.length ?? 0);
 
   if (pendingError) return { processed: 0, failed: 0, error: pendingError };
   if (!pending?.length) {
@@ -1287,6 +1297,7 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
   let failed = 0;
 
   for (const item of pending) {
+    console.log("[queue] processExpertBrainIngestionQueue item", item.id, item.status);
     const { error: processError } = await processIngestionItem(item);
     if (processError) failed += 1;
     else processed += 1;

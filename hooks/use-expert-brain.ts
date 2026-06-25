@@ -306,12 +306,13 @@ export function useExpertBrain() {
         body: JSON.stringify({ limit }),
       });
       const { data, error: parseError } = await parseJsonResponse<{
+        success?: boolean;
         error?: string;
         message?: string;
         processed?: number;
       }>(res);
 
-      if (parseError || !res.ok || data?.error) {
+      if (parseError || !res.ok || data?.success === false || data?.error) {
         return { error: data?.error ?? parseError ?? "Erro ao processar fila." };
       }
 
