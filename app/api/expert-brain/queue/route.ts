@@ -1,11 +1,3 @@
-import {
-  ExpertIngestionQueueRepository,
-  ExpertProcessingQueueRepository,
-} from "@/lib/supabase/repositories/expert-brain.repository";
-import { processExpertBrainIngestionQueue } from "@/lib/supabase/services/expert-brain-ingestion.service";
-import { processExpertBrainQueue } from "@/lib/supabase/services/expert-brain-dashboard.service";
-import { getOptionalDataContext } from "@/lib/supabase/services/context";
-
 function queueErrorResponse(error: unknown, status = 500) {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack ?? null : null;
@@ -13,10 +5,40 @@ function queueErrorResponse(error: unknown, status = 500) {
   return Response.json({ success: false, error: message, stack }, { status });
 }
 
+async function loadQueueModules() {
+  const [
+    ingestion,
+    dashboard,
+    context,
+    repositories,
+  ] = await Promise.all([
+    import("@/lib/supabase/services/expert-brain-ingestion.service"),
+    import("@/lib/supabase/services/expert-brain-dashboard.service"),
+    import("@/lib/supabase/services/context"),
+    import("@/lib/supabase/repositories/expert-brain.repository"),
+  ]);
+
+  return {
+    processExpertBrainIngestionQueue: ingestion.processExpertBrainIngestionQueue,
+    processExpertBrainQueue: dashboard.processExpertBrainQueue,
+    getOptionalDataContext: context.getOptionalDataContext,
+    ExpertIngestionQueueRepository: repositories.ExpertIngestionQueueRepository,
+    ExpertProcessingQueueRepository: repositories.ExpertProcessingQueueRepository,
+  };
+}
+
 export async function POST(request: Request) {
   console.log("[queue] start");
 
   try {
+    const {
+      processExpertBrainIngestionQueue,
+      processExpertBrainQueue,
+      getOptionalDataContext,
+      ExpertIngestionQueueRepository,
+      ExpertProcessingQueueRepository,
+    } = await loadQueueModules();
+
     const body = await request.json().catch(() => ({}));
     const limit = typeof body.limit === "number" ? Math.min(body.limit, 20) : 5;
     const ingestLimit = Math.min(Math.max(limit, 3), 20);

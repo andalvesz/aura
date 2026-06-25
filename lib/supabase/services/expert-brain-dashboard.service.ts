@@ -13,9 +13,6 @@ import {
   ExpertTranscriptsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
 import {
-  requeueExpertBrainIngestionFromLesson,
-} from "@/lib/supabase/services/expert-brain-ingestion.service";
-import {
   ingestKnowledgeSource,
   reprocessKnowledgeSource,
 } from "@/lib/supabase/services/expert-brain.service";
@@ -276,6 +273,9 @@ export async function enqueueExpertReprocess(params: {
   for (const lessonId of lessonIds) {
     const { data: lesson } = await lessonsRepo.findById(lessonId);
     if (lesson?.file_path?.trim()) {
+      const { requeueExpertBrainIngestionFromLesson } = await import(
+        "@/lib/supabase/services/expert-brain-ingestion.service"
+      );
       const { error: ingestError } = await requeueExpertBrainIngestionFromLesson(lessonId);
       if (!ingestError) {
         queued += 1;

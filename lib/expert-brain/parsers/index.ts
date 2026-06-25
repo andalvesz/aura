@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import type { ExpertKnowledgeSourceType } from "@/types/database";
 
 export type ParsedLessonFile = {
@@ -102,6 +101,7 @@ export async function transcribeVideoBuffer(
 }
 
 export async function parseZipCourse(buffer: Buffer, fallbackTitle?: string): Promise<ParsedCourseStructure> {
+  const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(buffer);
   const entries = Object.keys(zip.files).filter((path) => {
     const entry = zip.files[path];

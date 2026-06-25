@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import type {
   ExpertBrainCategory,
   ExpertChecklist,
@@ -101,9 +100,10 @@ export type IngestKnowledgeSourceResult = {
   error: string | null;
 };
 
-function getOpenAi() {
+async function getOpenAi() {
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) return null;
+  const OpenAI = (await import("openai")).default;
   return new OpenAI({ apiKey });
 }
 
@@ -123,7 +123,7 @@ function parseJsonBlock<T>(text: string): T | null {
 }
 
 async function callExpertBrainAi<T>(system: string, user: string): Promise<T | null> {
-  const openai = getOpenAi();
+  const openai = await getOpenAi();
   if (!openai) return null;
 
   const response = await openai.chat.completions.create({
