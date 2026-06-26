@@ -1,13 +1,18 @@
 import { getOfferEngineDashboard } from "@/lib/supabase/services/offer-engine.service";
+import { jsonRouteError } from "@/utils/api-json-route";
 
 export async function GET() {
-  const { dashboard, stacks, error } = await getOfferEngineDashboard();
+  try {
+    const { dashboard, stacks, error } = await getOfferEngineDashboard();
 
-  if (error) {
-    return Response.json({ error }, { status: error === "Usuário não autenticado." ? 401 : 500 });
+    if (error) {
+      return Response.json({ error }, { status: error === "Usuário não autenticado." ? 401 : 500 });
+    }
+
+    return Response.json({ dashboard, stacks });
+  } catch (error) {
+    return jsonRouteError("offer-engine", error);
   }
-
-  return Response.json({ dashboard, stacks });
 }
 
 export async function POST() {

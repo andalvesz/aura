@@ -432,6 +432,30 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
       processed_at: new Date().toISOString(),
     });
   }
+
+  async findFailed(limit = 200) {
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("status", "failed")
+      .order("created_at", { ascending: true })
+      .limit(Math.max(1, limit));
+
+    return {
+      data: (data as ExpertIngestionQueueItem[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async resetToPendingDrive(id: string) {
+    return this.update(id, {
+      status: "pending_drive",
+      progress: 0,
+      error: null,
+      processed_at: null,
+    });
+  }
 }
 
 export class ExpertTranscriptsRepository extends BaseRepository<"expert_transcripts"> {

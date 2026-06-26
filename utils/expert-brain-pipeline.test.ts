@@ -23,7 +23,7 @@ test("pipeline stage index", () => {
 });
 
 test("ingestion status labels", () => {
-  assert.equal(ingestionStatusLabel("waiting_for_openai"), "Aguardando OpenAI");
+  assert.equal(ingestionStatusLabel("waiting_for_openai"), "Aguardando OpenAI — configure OPENAI_API_KEY no servidor");
   assert.equal(ingestionStatusLabel("completed"), "Concluído");
 });
 

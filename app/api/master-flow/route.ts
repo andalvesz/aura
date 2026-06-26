@@ -5,18 +5,23 @@ import {
   runNextStep,
 } from "@/lib/supabase/services/master-flow.service";
 import type { MasterFlowIntentInput } from "@/utils/master-flow-intent";
+import { jsonRouteError } from "@/utils/api-json-route";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const flowId = searchParams.get("flowId") ?? undefined;
+  try {
+    const { searchParams } = new URL(request.url);
+    const flowId = searchParams.get("flowId") ?? undefined;
 
-  const { status, error } = await getFlowStatus(flowId);
+    const { status, error } = await getFlowStatus(flowId);
 
-  if (error) {
-    return Response.json({ error }, { status: error === "Usuário não autenticado." ? 401 : 500 });
+    if (error) {
+      return Response.json({ error }, { status: error === "Usuário não autenticado." ? 401 : 500 });
+    }
+
+    return Response.json({ status });
+  } catch (error) {
+    return jsonRouteError("master-flow", error);
   }
-
-  return Response.json({ status });
 }
 
 export async function POST(request: Request) {
@@ -58,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     return Response.json({ status, error });
-  } catch {
-    return Response.json({ error: "Corpo da requisição inválido." }, { status: 400 });
+  } catch (error) {
+    return jsonRouteError("master-flow", error);
   }
 }

@@ -1,13 +1,18 @@
 import { getFunnelPagesDashboard } from "@/lib/supabase/services/funnel-pages.service";
+import { jsonRouteError } from "@/utils/api-json-route";
 
 export async function GET() {
-  const { dashboard, bundles, error } = await getFunnelPagesDashboard();
+  try {
+    const { dashboard, bundles, error } = await getFunnelPagesDashboard();
 
-  if (error) {
-    return Response.json({ error }, { status: error === "Usuário não autenticado." ? 401 : 500 });
+    if (error) {
+      return Response.json({ error }, { status: error === "Usuário não autenticado." ? 401 : 500 });
+    }
+
+    return Response.json({ dashboard, bundles });
+  } catch (error) {
+    return jsonRouteError("funnel-pages", error);
   }
-
-  return Response.json({ dashboard, bundles });
 }
 
 export async function POST() {

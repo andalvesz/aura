@@ -25,6 +25,7 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashb
 import { ExpertBrainDrivePanel } from "@/components/dashboard/modules/expert-brain-drive-panel";
 import { useExpertBrain, type ExpertUploadMode } from "@/hooks/use-expert-brain";
 import { cn } from "@/utils/cn";
+import { parseJsonResponse } from "@/utils/safe-json";
 import { EXPERT_BRAIN_UPLOAD_LIMIT_LABEL } from "@/utils/expert-brain-storage";
 import {
   ingestionStatusColor,
@@ -409,11 +410,35 @@ export function ExpertBrainView() {
 
   async function handleProcessQueue() {
     const { error: queueError, message, processed } = await processQueue(10);
-    if (queueError || (processed ?? 0) === 0) {
-      toast.error(queueError ?? message ?? "Nenhum item processado.");
+    if (queueError) {
+      toast.error(queueError);
       return;
     }
-    toast.success(message ?? `Processados: ${processed}`);
+    toast.success(message ?? `Processados: ${processed ?? 0}`);
+  }
+
+  async function handleResetFailedDrive() {
+    try {
+      const res = await fetch("/api/expert-brain-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset_failed_drive" }),
+      });
+      const { data, error: parseError } = await parseJsonResponse<{
+        success?: boolean;
+        error?: string;
+        message?: string;
+        reset?: number;
+      }>(res);
+      if (parseError || !res.ok || data?.error) {
+        toast.error(data?.error ?? parseError ?? "Erro ao reenfileirar vídeos do Drive.");
+        return;
+      }
+      toast.success(data?.message ?? `${data?.reset ?? 0} item(ns) reenfileirado(s).`);
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao reenfileirar vídeos do Drive.");
+    }
   }
 
   async function handleReprocess(type: "lesson" | "module" | "course", id: string) {
@@ -503,6 +528,10 @@ export function ExpertBrainView() {
           <ActionButton disabled={busy} onClick={handleProcessQueue}>
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
             Processar fila
+          </ActionButton>
+          <ActionButton variant="ghost" disabled={busy} onClick={() => void handleResetFailedDrive()}>
+            <RotateCcw className="size-3.5" />
+            Reenfileirar Drive (Storage)
           </ActionButton>
         </div>
       </div>

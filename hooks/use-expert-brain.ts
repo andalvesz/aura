@@ -310,20 +310,28 @@ export function useExpertBrain() {
         error?: string;
         message?: string;
         processed?: number;
+        completed?: number;
         found?: number;
         failed?: number;
+        skipped?: number;
+        pendingDriveRemaining?: number;
       }>(res);
 
-      if (parseError || !res.ok || data?.success === false || data?.error) {
+      if (parseError) {
+        return { error: parseError };
+      }
+
+      if (!res.ok || data?.error) {
         return {
-          error: data?.message ?? data?.error ?? parseError ?? "Erro ao processar fila.",
+          error: data?.message ?? data?.error ?? "Erro ao processar fila.",
+          processed: data?.processed ?? 0,
         };
       }
 
-      if ((data?.processed ?? 0) === 0 && (data?.failed ?? 0) === 0) {
+      if (data?.success === false) {
         return {
-          error: data?.message ?? "Nenhum item processável encontrado",
-          processed: 0,
+          error: data.message ?? "Fila não processou itens pendentes.",
+          processed: data.processed ?? 0,
         };
       }
 

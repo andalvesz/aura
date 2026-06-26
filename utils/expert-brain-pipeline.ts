@@ -52,7 +52,7 @@ export function ingestionStatusLabel(status: ExpertIngestionStatus | string): st
     transcribing: "Transcrevendo",
     extracting: "Extraindo",
     completed: "Concluído",
-    waiting_for_openai: "Aguardando OpenAI",
+    waiting_for_openai: "Aguardando OpenAI — configure OPENAI_API_KEY no servidor",
     failed: "Falhou",
     pending: "Upload",
     pending_drive: "Downloadando",

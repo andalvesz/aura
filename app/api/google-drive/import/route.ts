@@ -77,6 +77,14 @@ export async function POST(request: Request) {
       failed = ingestResult.failed;
       found = ingestResult.found;
       ingestMessage = ingestResult.message;
+
+      if (!ingestResult.success && ingestResult.pendingDriveRemaining > 0) {
+        console.warn("[drive-import] queue", {
+          stage: "post-import",
+          pendingDriveRemaining: ingestResult.pendingDriveRemaining,
+          message: ingestResult.message,
+        });
+      }
     }
 
     console.info("[drive-import] complete", {

@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "elite:certify": "node --import tsx scripts/aura-elite-certification.mjs",
     "aura-reality-validation": "node --import tsx scripts/aura-reality-validation.mjs",
-    "test": "node --import tsx --test utils/format.test.ts utils/aura-memory.test.ts utils/nexus.test.ts utils/mentor.test.ts utils/orchestrator.test.ts utils/aura-commands.test.ts utils/google-calendar.test.ts utils/comms-central.test.ts utils/notifications.test.ts utils/calendar.test.ts utils/reset-test-data.test.ts utils/alvesz-proposta.test.ts utils/global-search.test.ts utils/executive-reports.test.ts utils/xp.test.ts utils/product-factory-pro.test.ts utils/product-pro-locks.test.ts utils/revenue-certification.test.ts utils/expert-brain.test.ts utils/expert-brain-storage.test.ts utils/expert-brain-pipeline.test.ts utils/expert-brain-dashboard.test.ts lib/offline/storage.test.ts"
+    "test": "node --import tsx --test utils/format.test.ts utils/aura-memory.test.ts utils/nexus.test.ts utils/mentor.test.ts utils/orchestrator.test.ts utils/aura-commands.test.ts utils/google-calendar.test.ts utils/comms-central.test.ts utils/notifications.test.ts utils/calendar.test.ts utils/reset-test-data.test.ts utils/alvesz-proposta.test.ts utils/global-search.test.ts utils/executive-reports.test.ts utils/xp.test.ts utils/product-factory-pro.test.ts utils/product-pro-locks.test.ts utils/revenue-certification.test.ts utils/expert-brain.test.ts utils/expert-brain-storage.test.ts utils/expert-brain-pipeline.test.ts utils/expert-brain-dashboard.test.ts utils/expert-brain-queue.test.ts utils/aura-money-system.test.ts lib/offline/storage.test.ts",
+    "aura-money-audit": "node --import tsx scripts/aura-money-audit.mjs"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.8",

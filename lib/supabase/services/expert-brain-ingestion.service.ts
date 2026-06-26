@@ -36,6 +36,11 @@ import {
   validateExpertBrainFileSize,
 } from "@/utils/expert-brain-storage";
 import { logExpertBrain } from "@/utils/expert-brain-pipeline";
+import {
+  finalizeIngestionQueueRun,
+  shouldResetFailedDriveItem,
+  type IngestionQueueRunResult,
+} from "@/utils/expert-brain-queue";
 import { getOptionalDataContext } from "./context";
 
 export type RegisterExpertBrainIngestionInput = {
@@ -1210,9 +1215,15 @@ async function getTranscriptsRepo() {
 
 async function processIngestionItem(
   item: import("@/types/database").ExpertIngestionQueueItem
-): Promise<{ error: string | null; changed: boolean }> {
+): Promise<{
+  error: string | null;
+  changed: boolean;
+  terminalStatus: "completed" | "failed" | "waiting_for_openai" | null;
+}> {
   const ctx = await getOptionalDataContext();
-  if (!ctx) return { error: "Usuário não autenticado.", changed: false };
+  if (!ctx) {
+    return { error: "Usuário não autenticado.", changed: false, terminalStatus: null };
+  }
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
   let current = item;
@@ -1235,7 +1246,13 @@ async function processIngestionItem(
         break;
       case "waiting_for_openai":
         console.log("[queue] entering waiting_for_openai", current.id);
-        if (!hasOpenAiKey()) return { error: null, changed: initialStatus !== current.status };
+        if (!hasOpenAiKey()) {
+          return {
+            error: null,
+            changed: initialStatus !== current.status,
+            terminalStatus: "waiting_for_openai",
+          };
+        }
         await ingestionRepo.markTranscribing(current.id);
         {
           const refreshed = await ingestionRepo.findById(current.id);
@@ -1258,43 +1275,87 @@ async function processIngestionItem(
           status,
           reason: "status não possui handler no switch de processIngestionItem",
         });
-        return { error: null, changed: initialStatus !== current.status };
+        return { error: null, changed: initialStatus !== current.status, terminalStatus: null };
     }
 
-    if (result.error) return { error: result.error, changed: false };
+    if (result.error) {
+      return { error: result.error, changed: false, terminalStatus: "failed" };
+    }
 
     const refreshed = await ingestionRepo.findById(current.id);
     if (!refreshed.data) {
-      return { error: "Item da fila não encontrado após processamento.", changed: false };
+      return {
+        error: "Item da fila não encontrado após processamento.",
+        changed: false,
+        terminalStatus: null,
+      };
     }
 
     if (refreshed.data.status === current.status) {
       const message = `Estágio '${current.status}' não avançou o item da fila.`;
       await ingestionRepo.markFailed(current.id, message);
-      return { error: message, changed: false };
+      return { error: message, changed: false, terminalStatus: "failed" };
     }
 
-    if (
-      refreshed.data.status === "completed" ||
-      refreshed.data.status === "failed" ||
-      refreshed.data.status === "waiting_for_openai"
-    ) {
-      return { error: null, changed: initialStatus !== refreshed.data.status };
+    if (refreshed.data.status === "completed") {
+      return {
+        error: null,
+        changed: initialStatus !== refreshed.data.status,
+        terminalStatus: "completed",
+      };
+    }
+
+    if (refreshed.data.status === "failed") {
+      return { error: refreshed.data.error, changed: false, terminalStatus: "failed" };
+    }
+
+    if (refreshed.data.status === "waiting_for_openai") {
+      return {
+        error: null,
+        changed: initialStatus !== refreshed.data.status,
+        terminalStatus: "waiting_for_openai",
+      };
     }
 
     current = refreshed.data;
   }
 
-  return { error: null, changed: initialStatus !== current.status };
+  return { error: null, changed: initialStatus !== current.status, terminalStatus: null };
 }
 
-export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
-  processed: number;
-  failed: number;
-  found: number;
+export async function resetFailedDriveVideos(): Promise<{
+  reset: number;
+  scanned: number;
   error: string | null;
-  message: string | null;
 }> {
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { reset: 0, scanned: 0, error: "Usuário não autenticado." };
+
+  const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
+  const { data: failedItems, error } = await ingestionRepo.findFailed(500);
+
+  if (error) return { reset: 0, scanned: 0, error };
+
+  const candidates = (failedItems ?? []).filter((item) =>
+    shouldResetFailedDriveItem(item.metadata, item.error)
+  );
+
+  let reset = 0;
+  for (const item of candidates) {
+    const update = await ingestionRepo.resetToPendingDrive(item.id);
+    if (!update.error) reset += 1;
+  }
+
+  logExpertBrain("upload", {
+    stage: "reset_failed_drive_videos",
+    scanned: candidates.length,
+    reset,
+  });
+
+  return { reset, scanned: candidates.length, error: null };
+}
+
+export async function processExpertBrainIngestionQueue(limit = 3): Promise<IngestionQueueRunResult> {
   const effectiveLimit = Math.max(1, Math.min(limit, 20));
   console.log("[queue] processExpertBrainIngestionQueue start", {
     requestedLimit: limit,
@@ -1305,13 +1366,15 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
   const ctx = await getOptionalDataContext();
   if (!ctx) {
     console.log("[queue] after getOptionalDataContext", { userId: null });
-    return {
-      processed: 0,
-      failed: 0,
+    return finalizeIngestionQueueRun({
       found: 0,
+      processed: 0,
+      completed: 0,
+      failed: 0,
+      skipped: 0,
+      pendingDriveRemaining: 0,
       error: "Usuário não autenticado.",
-      message: null,
-    };
+    });
   }
   console.log("[queue] after getOptionalDataContext", { userId: ctx.userId });
 
@@ -1344,14 +1407,16 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
       })) ?? [],
   });
 
-  if (pendingError) {
-    return {
-      processed: 0,
-      failed: 0,
+  if (pendingError || pendingDriveError) {
+    return finalizeIngestionQueueRun({
       found: 0,
-      error: pendingError,
-      message: null,
-    };
+      processed: 0,
+      completed: 0,
+      failed: 0,
+      skipped: 0,
+      pendingDriveRemaining: 0,
+      error: pendingError ?? pendingDriveError ?? "Erro ao buscar fila.",
+    });
   }
 
   let pending = workableItems ?? [];
@@ -1363,9 +1428,10 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
   const found = pending.length;
   console.log("[queue] items to process", { found, effectiveLimit });
 
+  const { count: pendingDriveCount } = await ingestionRepo.countByStatus("pending_drive");
+  console.log("[queue] pending_drive remaining before run", { pendingDriveCount });
+
   if (!found) {
-    console.log("[queue] before countByStatus pending_drive");
-    const { count: pendingDriveCount } = await ingestionRepo.countByStatus("pending_drive");
     console.log("[queue] after countByStatus pending_drive", { pendingDriveCount });
     if (pendingDriveCount > 0) {
       console.error("[drive-import] queue", {
@@ -1375,13 +1441,14 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
         effectiveLimit,
       });
     }
-    return {
-      processed: 0,
-      failed: 0,
+    return finalizeIngestionQueueRun({
       found: 0,
-      error: null,
-      message: "Nenhum item processável encontrado",
-    };
+      processed: 0,
+      completed: 0,
+      failed: 0,
+      skipped: 0,
+      pendingDriveRemaining: pendingDriveCount,
+    });
   }
 
   console.info("[drive-import] queue", {
@@ -1392,36 +1459,59 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
   });
 
   let processed = 0;
+  let completed = 0;
   let failed = 0;
   let skipped = 0;
 
   for (const item of pending) {
     console.log("[queue] processExpertBrainIngestionQueue item", item.id, item.status);
     console.log("[queue] before processIngestionItem", item.id);
-    const { error: processError, changed } = await processIngestionItem(item);
-    console.log("[queue] after processIngestionItem", item.id, { processError, changed });
-    if (processError) failed += 1;
-    else if (changed) processed += 1;
+    const { error: processError, changed, terminalStatus } = await processIngestionItem(item);
+    console.log("[queue] after processIngestionItem", item.id, {
+      processError,
+      changed,
+      terminalStatus,
+    });
+
+    if (processError) {
+      failed += 1;
+      continue;
+    }
+
+    if (terminalStatus === "completed") {
+      completed += 1;
+      processed += 1;
+      continue;
+    }
+
+    if (terminalStatus === "waiting_for_openai") {
+      processed += 1;
+      continue;
+    }
+
+    if (changed) processed += 1;
     else skipped += 1;
   }
+
+  const { count: pendingDriveRemaining } = await ingestionRepo.countByStatus("pending_drive");
 
   console.log("[queue] processExpertBrainIngestionQueue summary", {
     found,
     processed,
+    completed,
     failed,
     skipped,
+    pendingDriveRemaining,
   });
 
-  const message =
-    processed > 0
-      ? `Ingestão: ${processed} · Falhas: ${failed}${skipped > 0 ? ` · Ignorados: ${skipped}` : ""}`
-      : failed > 0
-        ? `Nenhum item concluído · Falhas: ${failed}`
-        : skipped > 0
-          ? `${skipped} item(ns) encontrado(s), mas nenhum avançou de status`
-          : "Nenhum item processável encontrado";
-
-  return { processed, failed, found, error: null, message };
+  return finalizeIngestionQueueRun({
+    found,
+    processed,
+    completed,
+    failed,
+    skipped,
+    pendingDriveRemaining,
+  });
 }
 
 export async function getExpertBrainIngestionStatus(): Promise<{
