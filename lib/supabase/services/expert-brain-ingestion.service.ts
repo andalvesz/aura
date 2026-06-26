@@ -1269,23 +1269,73 @@ async function processIngestionItem(item: import("@/types/database").ExpertInges
 export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
   processed: number;
   failed: number;
+  found: number;
   error: string | null;
+  message: string | null;
 }> {
-  console.log("[queue] processExpertBrainIngestionQueue start", { limit });
+  const effectiveLimit = Math.max(1, Math.min(limit, 20));
+  console.log("[queue] processExpertBrainIngestionQueue start", {
+    requestedLimit: limit,
+    effectiveLimit,
+  });
 
   console.log("[queue] before getOptionalDataContext");
   const ctx = await getOptionalDataContext();
   console.log("[queue] after getOptionalDataContext");
-  if (!ctx) return { processed: 0, failed: 0, error: "Usuário não autenticado." };
+  if (!ctx) {
+    return {
+      processed: 0,
+      failed: 0,
+      found: 0,
+      error: "Usuário não autenticado.",
+      message: null,
+    };
+  }
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
 
-  console.log("[queue] before findWorkable");
-  const { data: pending, error: pendingError } = await ingestionRepo.findWorkable(limit);
-  console.log("[queue] after findWorkable", { count: pending?.length ?? 0, pendingError });
+  console.log("[queue] before findPendingDrive");
+  const { data: pendingDriveItems, error: pendingDriveError } =
+    await ingestionRepo.findPendingDrive(1);
+  console.log("[queue] after findPendingDrive", {
+    count: pendingDriveItems?.length ?? 0,
+    pendingDriveError,
+    items: pendingDriveItems?.map((item) => ({
+      id: item.id,
+      status: item.status,
+      fileName: item.file_name,
+    })),
+  });
 
-  if (pendingError) return { processed: 0, failed: 0, error: pendingError };
-  if (!pending?.length) {
+  console.log("[queue] before findWorkable");
+  const { data: workableItems, error: pendingError } =
+    await ingestionRepo.findWorkable(effectiveLimit);
+  console.log("[queue] after findWorkable", {
+    count: workableItems?.length ?? 0,
+    pendingError,
+    statuses: workableItems?.map((item) => item.status) ?? [],
+  });
+
+  if (pendingError) {
+    return {
+      processed: 0,
+      failed: 0,
+      found: 0,
+      error: pendingError,
+      message: null,
+    };
+  }
+
+  let pending = workableItems ?? [];
+  if (!pending.length && pendingDriveItems?.length) {
+    console.warn("[queue] findWorkable vazio — usando fallback pending_drive explícito");
+    pending = pendingDriveItems;
+  }
+
+  const found = pending.length;
+  console.log("[queue] items to process", { found, effectiveLimit });
+
+  if (!found) {
     console.log("[queue] before countByStatus pending_drive");
     const { count: pendingDriveCount } = await ingestionRepo.countByStatus("pending_drive");
     console.log("[queue] after countByStatus pending_drive", { pendingDriveCount });
@@ -1294,15 +1344,22 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
         stage: "processExpertBrainIngestionQueue",
         issue: "findWorkable vazio, mas há itens pending_drive",
         pendingDriveCount,
-        limit,
+        effectiveLimit,
       });
     }
-    return { processed: 0, failed: 0, error: null };
+    return {
+      processed: 0,
+      failed: 0,
+      found: 0,
+      error: null,
+      message: "Nenhum item processável encontrado",
+    };
   }
 
   console.info("[drive-import] queue", {
     stage: "processExpertBrainIngestionQueue",
-    limit,
+    effectiveLimit,
+    found,
     pending: pending.map((p) => ({ id: p.id, status: p.status, fileName: p.file_name })),
   });
 
@@ -1318,7 +1375,14 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
     else processed += 1;
   }
 
-  return { processed, failed, error: null };
+  const message =
+    processed > 0
+      ? `Ingestão: ${processed} · Falhas: ${failed}`
+      : failed > 0
+        ? `Nenhum item concluído · Falhas: ${failed}`
+        : "Nenhum item processável encontrado";
+
+  return { processed, failed, found, error: null, message };
 }
 
 export async function getExpertBrainIngestionStatus(): Promise<{

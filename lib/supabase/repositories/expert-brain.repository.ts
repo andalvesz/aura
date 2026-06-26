@@ -259,21 +259,38 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
     return this.findWorkable(limit);
   }
 
+  async findPendingDrive(limit = 1) {
+    const effectiveLimit = Math.max(1, limit);
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .eq("status", "pending_drive")
+      .order("created_at", { ascending: true })
+      .limit(effectiveLimit);
+
+    return {
+      data: (data as ExpertIngestionQueueItem[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
   async findWorkable(limit = 10) {
+    const effectiveLimit = Math.max(1, limit);
     const { data: driveItems, error: driveError } = await this.supabase
       .from("expert_ingestion_queue")
       .select("*")
       .eq("user_id", this.userId)
       .eq("status", "pending_drive")
       .order("created_at", { ascending: true })
-      .limit(limit);
+      .limit(effectiveLimit);
 
     if (driveError) {
       return { data: null, error: driveError.message };
     }
 
     const driveRows = (driveItems as ExpertIngestionQueueItem[]) ?? [];
-    const remaining = limit - driveRows.length;
+    const remaining = effectiveLimit - driveRows.length;
     if (remaining <= 0) {
       return { data: driveRows, error: null };
     }

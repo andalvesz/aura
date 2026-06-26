@@ -310,14 +310,29 @@ export function useExpertBrain() {
         error?: string;
         message?: string;
         processed?: number;
+        found?: number;
+        failed?: number;
       }>(res);
 
       if (parseError || !res.ok || data?.success === false || data?.error) {
-        return { error: data?.error ?? parseError ?? "Erro ao processar fila." };
+        return {
+          error: data?.message ?? data?.error ?? parseError ?? "Erro ao processar fila.",
+        };
+      }
+
+      if ((data?.processed ?? 0) === 0 && (data?.failed ?? 0) === 0) {
+        return {
+          error: data?.message ?? "Nenhum item processável encontrado",
+          processed: 0,
+        };
       }
 
       await refresh(true);
-      return { error: null, message: data?.message ?? "Fila processada.", processed: data?.processed ?? 0 };
+      return {
+        error: null,
+        message: data?.message ?? `Processados: ${data?.processed ?? 0}`,
+        processed: data?.processed ?? 0,
+      };
     } finally {
       setBusy(false);
     }

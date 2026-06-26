@@ -1,27 +1,45 @@
-const QUEUE_TEST_STEP = 1 as 1 | 2 | 3;
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  const requestedLimit = typeof body.limit === "number" ? body.limit : 5;
+  const effectiveLimit = Math.max(1, Math.min(requestedLimit, 20));
 
-export async function POST() {
-  const worker = await import("@/lib/supabase/services/expert-brain-ingestion.service");
+  console.log("[queue] POST", { requestedLimit, effectiveLimit });
 
-  if (QUEUE_TEST_STEP === 1) {
+  const { processExpertBrainIngestionQueue } = await import(
+    "@/lib/supabase/services/expert-brain-ingestion.service"
+  );
+
+  const result = await processExpertBrainIngestionQueue(effectiveLimit);
+
+  if (result.error) {
+    return Response.json(
+      {
+        success: false,
+        error: result.error,
+        found: result.found,
+        processed: result.processed,
+        failed: result.failed,
+        message: result.message,
+      },
+      { status: result.error === "Usuário não autenticado." ? 401 : 500 }
+    );
+  }
+
+  if (result.found === 0 || (result.processed === 0 && result.failed === 0)) {
     return Response.json({
-      success: true,
-      step: "import ok",
-      exports: Object.keys(worker),
+      success: false,
+      found: result.found,
+      processed: result.processed,
+      failed: result.failed,
+      message: result.message ?? "Nenhum item processável encontrado",
     });
   }
 
-  if (QUEUE_TEST_STEP === 2) {
-    await worker.processExpertBrainIngestionQueue(0);
-    return Response.json({
-      success: true,
-      step: "queue 0 ok",
-    });
-  }
-
-  await worker.processExpertBrainIngestionQueue(1);
   return Response.json({
     success: true,
-    step: "queue 1 ok",
+    found: result.found,
+    processed: result.processed,
+    failed: result.failed,
+    message: result.message,
   });
 }
