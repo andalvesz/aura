@@ -700,7 +700,8 @@ async function processPendingDriveVideo(
     ok: true,
   });
 
-  return completeDriveVideoIngestion(item, ingestionRepo, {
+  console.log("[queue] before completeDriveVideoIngestion", item.id);
+  const completeResult = await completeDriveVideoIngestion(item, ingestionRepo, {
     fileName,
     meta,
     driveFileId,
@@ -708,6 +709,8 @@ async function processPendingDriveVideo(
     transcriptPath: transcription.transcriptPath,
     transcriptId: transcription.transcriptId,
   });
+  console.log("[queue] after completeDriveVideoIngestion", item.id, { error: completeResult.error });
+  return completeResult;
 }
 
 async function processPendingDriveStage(
@@ -792,12 +795,15 @@ async function processPendingDriveStage(
   }
 
   if (isExpertBrainVideoFile(fileName)) {
-    return processPendingDriveVideo(item, ingestionRepo, {
+    console.log("[queue] before processPendingDriveVideo", item.id);
+    const driveVideoResult = await processPendingDriveVideo(item, ingestionRepo, {
       buffer,
       driveFileId,
       fileName,
       meta,
     });
+    console.log("[queue] after processPendingDriveVideo", item.id, { error: driveVideoResult.error });
+    return driveVideoResult;
   }
 
   console.info("[drive-import] upload", { ingestionId: item.id, fileName, bytes: buffer.length });
@@ -1214,7 +1220,9 @@ async function processIngestionItem(item: import("@/types/database").ExpertInges
     let result: { error: string | null };
 
     if (status === "pending_drive") {
+      console.log("[queue] before processPendingDriveStage", current.id);
       result = await processPendingDriveStage(current, ingestionRepo);
+      console.log("[queue] after processPendingDriveStage", current.id, { error: result.error });
     } else if (status === "uploaded" || status === "pending") {
       result = await processUploadedStage(current);
     } else if (status === "waiting_for_openai") {
@@ -1265,17 +1273,22 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
 }> {
   console.log("[queue] processExpertBrainIngestionQueue start", { limit });
 
+  console.log("[queue] before getOptionalDataContext");
   const ctx = await getOptionalDataContext();
+  console.log("[queue] after getOptionalDataContext");
   if (!ctx) return { processed: 0, failed: 0, error: "Usuário não autenticado." };
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
-  const { data: pending, error: pendingError } = await ingestionRepo.findWorkable(limit);
 
-  console.log("[queue] processExpertBrainIngestionQueue pending", pending?.length ?? 0);
+  console.log("[queue] before findWorkable");
+  const { data: pending, error: pendingError } = await ingestionRepo.findWorkable(limit);
+  console.log("[queue] after findWorkable", { count: pending?.length ?? 0, pendingError });
 
   if (pendingError) return { processed: 0, failed: 0, error: pendingError };
   if (!pending?.length) {
+    console.log("[queue] before countByStatus pending_drive");
     const { count: pendingDriveCount } = await ingestionRepo.countByStatus("pending_drive");
+    console.log("[queue] after countByStatus pending_drive", { pendingDriveCount });
     if (pendingDriveCount > 0) {
       console.error("[drive-import] queue", {
         stage: "processExpertBrainIngestionQueue",
@@ -1298,7 +1311,9 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
 
   for (const item of pending) {
     console.log("[queue] processExpertBrainIngestionQueue item", item.id, item.status);
+    console.log("[queue] before processIngestionItem", item.id);
     const { error: processError } = await processIngestionItem(item);
+    console.log("[queue] after processIngestionItem", item.id, { processError });
     if (processError) failed += 1;
     else processed += 1;
   }

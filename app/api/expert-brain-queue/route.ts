@@ -1,22 +1,27 @@
+const QUEUE_TEST_STEP = 1 as 1 | 2 | 3;
+
 export async function POST() {
-  console.log("[queue] start POST");
+  const worker = await import("@/lib/supabase/services/expert-brain-ingestion.service");
 
-  try {
-    console.log("[queue] before import expert-brain-ingestion.service");
-    await import("@/lib/supabase/services/expert-brain-ingestion.service");
-    console.log("[queue] imported expert-brain-ingestion.service");
-
+  if (QUEUE_TEST_STEP === 1) {
     return Response.json({
       success: true,
-      message: "worker imported",
+      step: "import ok",
+      exports: Object.keys(worker),
     });
-  } catch (err) {
-    console.error("FAILED import expert-brain-ingestion.service", err);
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack ?? null : null;
-    return Response.json(
-      { success: false, error: message, stack, step: "import expert-brain-ingestion.service" },
-      { status: 500 }
-    );
   }
+
+  if (QUEUE_TEST_STEP === 2) {
+    await worker.processExpertBrainIngestionQueue(0);
+    return Response.json({
+      success: true,
+      step: "queue 0 ok",
+    });
+  }
+
+  await worker.processExpertBrainIngestionQueue(1);
+  return Response.json({
+    success: true,
+    step: "queue 1 ok",
+  });
 }
