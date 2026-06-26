@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (result.found === 0 || (result.processed === 0 && result.failed === 0)) {
+  if (result.processed === 0) {
     return Response.json({
       success: false,
       found: result.found,

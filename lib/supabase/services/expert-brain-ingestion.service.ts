@@ -1208,48 +1208,70 @@ async function getTranscriptsRepo() {
   return new ExpertTranscriptsRepository(ctx.supabase, ctx.userId);
 }
 
-async function processIngestionItem(item: import("@/types/database").ExpertIngestionQueueItem) {
+async function processIngestionItem(
+  item: import("@/types/database").ExpertIngestionQueueItem
+): Promise<{ error: string | null; changed: boolean }> {
   const ctx = await getOptionalDataContext();
-  if (!ctx) return { error: "Usuário não autenticado." };
+  if (!ctx) return { error: "Usuário não autenticado.", changed: false };
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
   let current = item;
+  const initialStatus = item.status;
 
   for (let step = 0; step < 8; step++) {
     const status = current.status;
+    console.log("[queue] processing", current.id, status);
     let result: { error: string | null };
 
-    if (status === "pending_drive") {
-      console.log("[queue] before processPendingDriveStage", current.id);
-      result = await processPendingDriveStage(current, ingestionRepo);
-      console.log("[queue] after processPendingDriveStage", current.id, { error: result.error });
-    } else if (status === "uploaded" || status === "pending") {
-      result = await processUploadedStage(current);
-    } else if (status === "waiting_for_openai") {
-      if (!hasOpenAiKey()) return { error: null };
-      await ingestionRepo.markTranscribing(current.id);
-      const refreshed = await ingestionRepo.findById(current.id);
-      current = refreshed.data ?? { ...current, status: "transcribing" };
-      result = await processTranscribingStage(current);
-    } else if (status === "transcribing" || status === "processing") {
-      result = await processTranscribingStage(current);
-    } else if (status === "extracting") {
-      result = await processExtractingStage(current);
-    } else {
-      return { error: null };
+    switch (status) {
+      case "pending_drive":
+        console.log("[queue] entering pending_drive", current.id);
+        result = await processPendingDriveStage(current, ingestionRepo);
+        break;
+      case "uploaded":
+      case "pending":
+        console.log("[queue] entering uploaded/pending", current.id, status);
+        result = await processUploadedStage(current);
+        break;
+      case "waiting_for_openai":
+        console.log("[queue] entering waiting_for_openai", current.id);
+        if (!hasOpenAiKey()) return { error: null, changed: initialStatus !== current.status };
+        await ingestionRepo.markTranscribing(current.id);
+        {
+          const refreshed = await ingestionRepo.findById(current.id);
+          current = refreshed.data ?? { ...current, status: "transcribing" };
+        }
+        result = await processTranscribingStage(current);
+        break;
+      case "transcribing":
+      case "processing":
+        console.log("[queue] entering transcribing/processing", current.id, status);
+        result = await processTranscribingStage(current);
+        break;
+      case "extracting":
+        console.log("[queue] entering extracting", current.id);
+        result = await processExtractingStage(current);
+        break;
+      default:
+        console.warn("[queue] skip unhandled status", {
+          id: current.id,
+          status,
+          reason: "status não possui handler no switch de processIngestionItem",
+        });
+        return { error: null, changed: initialStatus !== current.status };
     }
 
-    if (result.error) return result;
+    if (result.error) return { error: result.error, changed: false };
 
     const refreshed = await ingestionRepo.findById(current.id);
     if (!refreshed.data) {
-      return { error: "Item da fila não encontrado após processamento." };
+      return { error: "Item da fila não encontrado após processamento.", changed: false };
     }
 
     if (refreshed.data.status === current.status) {
       const message = `Estágio '${current.status}' não avançou o item da fila.`;
       await ingestionRepo.markFailed(current.id, message);
-      return { error: message };
+      return { error: message, changed: false };
     }
 
     if (
@@ -1257,13 +1279,13 @@ async function processIngestionItem(item: import("@/types/database").ExpertInges
       refreshed.data.status === "failed" ||
       refreshed.data.status === "waiting_for_openai"
     ) {
-      return { error: null };
+      return { error: null, changed: initialStatus !== refreshed.data.status };
     }
 
     current = refreshed.data;
   }
 
-  return { error: null };
+  return { error: null, changed: initialStatus !== current.status };
 }
 
 export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
@@ -1281,8 +1303,8 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
 
   console.log("[queue] before getOptionalDataContext");
   const ctx = await getOptionalDataContext();
-  console.log("[queue] after getOptionalDataContext");
   if (!ctx) {
+    console.log("[queue] after getOptionalDataContext", { userId: null });
     return {
       processed: 0,
       failed: 0,
@@ -1291,6 +1313,7 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
       message: null,
     };
   }
+  console.log("[queue] after getOptionalDataContext", { userId: ctx.userId });
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
 
@@ -1311,9 +1334,14 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
   const { data: workableItems, error: pendingError } =
     await ingestionRepo.findWorkable(effectiveLimit);
   console.log("[queue] after findWorkable", {
-    count: workableItems?.length ?? 0,
+    total: workableItems?.length ?? 0,
     pendingError,
-    statuses: workableItems?.map((item) => item.status) ?? [],
+    items:
+      workableItems?.map((item) => ({
+        id: item.id,
+        status: item.status,
+        fileName: item.file_name,
+      })) ?? [],
   });
 
   if (pendingError) {
@@ -1365,22 +1393,33 @@ export async function processExpertBrainIngestionQueue(limit = 3): Promise<{
 
   let processed = 0;
   let failed = 0;
+  let skipped = 0;
 
   for (const item of pending) {
     console.log("[queue] processExpertBrainIngestionQueue item", item.id, item.status);
     console.log("[queue] before processIngestionItem", item.id);
-    const { error: processError } = await processIngestionItem(item);
-    console.log("[queue] after processIngestionItem", item.id, { processError });
+    const { error: processError, changed } = await processIngestionItem(item);
+    console.log("[queue] after processIngestionItem", item.id, { processError, changed });
     if (processError) failed += 1;
-    else processed += 1;
+    else if (changed) processed += 1;
+    else skipped += 1;
   }
+
+  console.log("[queue] processExpertBrainIngestionQueue summary", {
+    found,
+    processed,
+    failed,
+    skipped,
+  });
 
   const message =
     processed > 0
-      ? `Ingestão: ${processed} · Falhas: ${failed}`
+      ? `Ingestão: ${processed} · Falhas: ${failed}${skipped > 0 ? ` · Ignorados: ${skipped}` : ""}`
       : failed > 0
         ? `Nenhum item concluído · Falhas: ${failed}`
-        : "Nenhum item processável encontrado";
+        : skipped > 0
+          ? `${skipped} item(ns) encontrado(s), mas nenhum avançou de status`
+          : "Nenhum item processável encontrado";
 
   return { processed, failed, found, error: null, message };
 }

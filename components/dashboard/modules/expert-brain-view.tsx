@@ -408,12 +408,12 @@ export function ExpertBrainView() {
   }
 
   async function handleProcessQueue() {
-    const { error: queueError, message } = await processQueue(10);
-    if (queueError) {
-      toast.error(queueError);
+    const { error: queueError, message, processed } = await processQueue(10);
+    if (queueError || (processed ?? 0) === 0) {
+      toast.error(queueError ?? message ?? "Nenhum item processado.");
       return;
     }
-    toast.success(message ?? "Fila processada.");
+    toast.success(message ?? `Processados: ${processed}`);
   }
 
   async function handleReprocess(type: "lesson" | "module" | "course", id: string) {

@@ -277,49 +277,53 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
 
   async findWorkable(limit = 10) {
     const effectiveLimit = Math.max(1, limit);
-    const { data: driveItems, error: driveError } = await this.supabase
-      .from("expert_ingestion_queue")
-      .select("*")
-      .eq("user_id", this.userId)
-      .eq("status", "pending_drive")
-      .order("created_at", { ascending: true })
-      .limit(effectiveLimit);
-
-    if (driveError) {
-      return { data: null, error: driveError.message };
-    }
-
-    const driveRows = (driveItems as ExpertIngestionQueueItem[]) ?? [];
-    const remaining = effectiveLimit - driveRows.length;
-    if (remaining <= 0) {
-      return { data: driveRows, error: null };
-    }
-
-    const otherStatuses: ExpertIngestionStatus[] = [
+    const workableStatuses: ExpertIngestionStatus[] = [
+      "pending_drive",
       "uploaded",
-      "waiting_for_openai",
       "transcribing",
       "extracting",
+      "waiting_for_openai",
       "pending",
       "processing",
     ];
 
-    const { data: otherItems, error: otherError } = await this.supabase
+    const queryDescription = {
+      table: "expert_ingestion_queue",
+      select: "*",
+      filters: {
+        user_id: this.userId,
+        status: { in: workableStatuses },
+      },
+      order: { created_at: "asc" },
+      limit: effectiveLimit,
+    };
+
+    console.log("[queue] findWorkable query", queryDescription);
+
+    const { data, error } = await this.supabase
       .from("expert_ingestion_queue")
       .select("*")
       .eq("user_id", this.userId)
-      .in("status", otherStatuses)
+      .in("status", workableStatuses)
       .order("created_at", { ascending: true })
-      .limit(remaining);
+      .limit(effectiveLimit);
 
-    if (otherError) {
-      return { data: null, error: otherError.message };
+    if (error) {
+      return { data: null, error: error.message, queryDescription };
     }
 
-    return {
-      data: [...driveRows, ...((otherItems as ExpertIngestionQueueItem[]) ?? [])],
-      error: null,
-    };
+    const rows = (data as ExpertIngestionQueueItem[]) ?? [];
+    const sorted = [
+      ...rows.filter((row) => row.status === "pending_drive"),
+      ...rows.filter((row) => row.status !== "pending_drive"),
+    ].slice(0, effectiveLimit);
+
+    console.log("[queue] findWorkable result", {
+      total: sorted.length,
+      statuses: sorted.map((row) => ({ id: row.id, status: row.status })),
+    });
+
+    return { data: sorted, error: null, queryDescription };
   }
 
   async countActive() {
