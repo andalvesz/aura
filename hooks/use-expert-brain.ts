@@ -242,7 +242,7 @@ export function useExpertBrain() {
         }
 
         await refresh(true);
-        void fetch("/api/expert-brain/queue", {
+        void fetch("/api/expert-brain-queue", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ limit: 3 }),
@@ -300,7 +300,7 @@ export function useExpertBrain() {
     setBusy(true);
     startPolling();
     try {
-      const res = await fetch("/api/expert-brain/queue", {
+      const res = await fetch("/api/expert-brain-queue", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit }),
