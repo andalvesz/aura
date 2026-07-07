@@ -23,7 +23,7 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashb
 import { useOpportunityEngine } from "@/hooks/use-opportunity-engine";
 import { useProductStrategist } from "@/hooks/use-product-strategist";
 import { useValidationEngine } from "@/hooks/use-validation-engine";
-import type { OpportunityRecommendation } from "@/lib/opportunity/opportunity-types";
+import type { BusinessReasoningSummary, OpportunityRecommendation } from "@/lib/opportunity/opportunity-types";
 import type {
   ProductStrategistResult,
   ProductStrategyRecommendation,
@@ -44,6 +44,66 @@ function ScoreBar({ label, value, accent = "bg-emerald-500/70" }: { label: strin
         />
       </div>
     </div>
+  );
+}
+
+function IntentPanel({ reasoning }: { reasoning: BusinessReasoningSummary }) {
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle className="flex items-center gap-2">
+          <Target className="size-3.5 text-sky-400" />
+          Raciocínio de negócio
+        </PanelTitle>
+      </PanelHeader>
+      <PanelContent className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[12px] text-zinc-400">
+            {reasoning.businessModelJustification}
+          </p>
+          <div className="shrink-0 rounded-lg bg-sky-500/10 px-2.5 py-1 text-center">
+            <p className="text-[10px] text-zinc-500">Confidence</p>
+            <p className="text-lg font-bold text-sky-400">{Math.round(reasoning.confidence)}%</p>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-md border border-white/[0.06] px-3 py-2">
+            <p className="text-[10px] text-zinc-500">Problema identificado</p>
+            <p className="text-[12px] text-zinc-200">{reasoning.primaryProblem}</p>
+          </div>
+          <div className="rounded-md border border-white/[0.06] px-3 py-2">
+            <p className="text-[10px] text-zinc-500">Mercado identificado</p>
+            <p className="text-[12px] text-zinc-200">{reasoning.market ?? "—"}</p>
+          </div>
+          <div className="rounded-md border border-white/[0.06] px-3 py-2">
+            <p className="text-[10px] text-zinc-500">Tecnologia identificada</p>
+            <p className="text-[12px] text-zinc-200">{reasoning.technology ?? "—"}</p>
+          </div>
+          <div className="rounded-md border border-white/[0.06] px-3 py-2">
+            <p className="text-[10px] text-zinc-500">Modelo recomendado</p>
+            <p className="text-[12px] font-medium text-sky-300">{reasoning.recommendedBusinessModel}</p>
+          </div>
+        </div>
+
+        {reasoning.avatar || reasoning.problems.length > 1 ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {reasoning.avatar ? (
+              <div className="rounded-md border border-white/[0.06] px-3 py-2">
+                <p className="text-[10px] text-zinc-500">Avatar</p>
+                <p className="text-[12px] text-zinc-200">{reasoning.avatar}</p>
+              </div>
+            ) : null}
+            {reasoning.problems.length > 1 ? (
+              <div className="rounded-md border border-white/[0.06] px-3 py-2">
+                <p className="text-[10px] text-zinc-500">Problemas correlatos</p>
+                <p className="text-[12px] text-zinc-200">{reasoning.problems.slice(1).join(" · ")}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </PanelContent>
+    </Panel>
   );
 }
 
@@ -76,10 +136,13 @@ function OpportunityCard({
             <p className="text-[13px] font-medium text-zinc-100">{item.niche}</p>
           </div>
           <div className="rounded-lg bg-emerald-500/10 px-2.5 py-1 text-center">
-            <p className="text-[10px] text-zinc-500">Opportunity Score</p>
+            <p className="text-[10px] text-zinc-500">Score final</p>
             <p className="text-lg font-bold text-emerald-400">
               {Math.round(item.opportunityScore.total)}
             </p>
+            {item.intentMatchScore > 0 ? (
+              <p className="text-[9px] text-zinc-500">Intent {item.intentMatchScore}%</p>
+            ) : null}
           </div>
         </div>
 
@@ -101,8 +164,8 @@ function OpportunityCard({
             </p>
           </div>
           <div className="rounded-md border border-white/[0.06] px-3 py-2">
-            <p className="text-[10px] text-zinc-500">Avatar</p>
-            <p className="text-[12px] text-zinc-300">{item.avatar}</p>
+            <p className="text-[10px] text-zinc-500">Modelo de negócio</p>
+            <p className="text-[12px] font-medium text-sky-300">{item.businessModel}</p>
           </div>
         </div>
 
@@ -484,7 +547,7 @@ function ProductStrategistPanel({
 
 export function OpportunitiesView() {
   const router = useRouter();
-  const { opportunities, loading, error, search } = useOpportunityEngine();
+  const { opportunities, reasoning, loading, error, search } = useOpportunityEngine();
   const {
     validation,
     insights,
@@ -582,6 +645,8 @@ export function OpportunitiesView() {
           </PanelContent>
         </Panel>
       ) : null}
+
+      {reasoning ? <IntentPanel reasoning={reasoning} /> : null}
 
       {opportunities.length > 0 ? (
         <div className="space-y-3">

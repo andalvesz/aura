@@ -8,6 +8,10 @@ const sampleOpportunity: OpportunityRecommendation = {
   niche: "Excel",
   avatar: "Profissional administrativo",
   problem: "Planilhas mal estruturadas",
+  market: "Brasil",
+  technology: "Excel",
+  businessModel: "Curso",
+  confidence: 85,
   recommendedProduct: "Curso de Excel",
   price: 297,
   opportunityScore: {
@@ -20,6 +24,7 @@ const sampleOpportunity: OpportunityRecommendation = {
     margin: 84,
     total: 87,
   },
+  intentMatchScore: 85,
   estimatedProfit: 22000,
   investmentScore: 88,
   uniquenessScore: 75,

@@ -14,6 +14,8 @@ export async function POST(request: Request) {
 
     return Response.json({
       goal: result.goal,
+      intent: result.intent,
+      reasoning: result.reasoning,
       opportunities: result.recommendations,
       totalCandidates: result.totalCandidates,
     });

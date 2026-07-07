@@ -1,11 +1,16 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { OpportunityRecommendation } from "@/lib/opportunity/opportunity-types";
+import type {
+  BusinessReasoningSummary,
+  OpportunityIntent,
+  OpportunityRecommendation,
+} from "@/lib/opportunity/opportunity-types";
 import { parseJsonResponse } from "@/utils/safe-json";
 
 export function useOpportunityEngine() {
   const [opportunities, setOpportunities] = useState<OpportunityRecommendation[]>([]);
+  const [reasoning, setReasoning] = useState<BusinessReasoningSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastGoal, setLastGoal] = useState<string | null>(null);
@@ -29,21 +34,26 @@ export function useOpportunityEngine() {
 
       const { data, error: parseError } = await parseJsonResponse<{
         opportunities?: OpportunityRecommendation[];
+        intent?: OpportunityIntent;
+        reasoning?: BusinessReasoningSummary;
         error?: string;
       }>(res);
 
       if (parseError || !res.ok || data?.error) {
         setError(data?.error ?? parseError ?? "Erro ao buscar oportunidades.");
         setOpportunities([]);
+        setReasoning(null);
         return false;
       }
 
       setOpportunities(data?.opportunities ?? []);
+      setReasoning(data?.reasoning ?? null);
       setLastGoal(trimmed);
       return true;
     } catch {
       setError("Erro de conexão.");
       setOpportunities([]);
+      setReasoning(null);
       return false;
     } finally {
       setLoading(false);
@@ -56,6 +66,7 @@ export function useOpportunityEngine() {
 
   return {
     opportunities,
+    reasoning,
     loading,
     error,
     lastGoal,

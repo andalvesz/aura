@@ -4,9 +4,7 @@ import { DIGITAL_NICHES } from "@/lib/opportunity/opportunity-dataset";
 import {
   getTopOpportunities,
   parseGoal,
-  rankOpportunities,
   runOpportunityEngine,
-  selectCompatibleNiches,
 } from "@/lib/opportunity/opportunity-engine";
 import {
   computeInvestmentScore,
@@ -57,17 +55,7 @@ describe("opportunity engine — goal parsing", () => {
   });
 });
 
-describe("opportunity engine — ranking", () => {
-  it("orders opportunities by descending total score", () => {
-    const goal = parseGoal("Quero ganhar R$15.000 por mês");
-    const candidates = selectCompatibleNiches(goal, goal.raw);
-    const ranked = rankOpportunities(candidates, goal);
-
-    for (let i = 1; i < ranked.length; i++) {
-      assert.ok(ranked[i - 1]!.opportunityScore.total >= ranked[i]!.opportunityScore.total);
-    }
-  });
-
+describe("opportunity engine — business reasoning", () => {
   it("returns exactly top 3 recommendations", () => {
     const result = runOpportunityEngine("Quero ganhar R$30.000 por mês");
 
@@ -82,10 +70,44 @@ describe("opportunity engine — ranking", () => {
     assert.equal(top.length, 3);
   });
 
-  it("prioritizes niche mentioned in goal text", () => {
-    const result = runOpportunityEngine("Quero ganhar R$10.000 por mês com Excel");
-    const hasExcel = result.recommendations.some((r) => r.niche.toLowerCase().includes("excel"));
-    assert.ok(hasExcel);
+  it("reasons by problem and business model — not niche first", () => {
+    const result = runOpportunityEngine(
+      "Quero ganhar R$10.000 por mês usando IA para pequenos negócios"
+    );
+
+    assert.ok(result.reasoning);
+    assert.equal(result.reasoning.technology, "Inteligência Artificial");
+    assert.equal(result.reasoning.market, "Pequenos negócios (PME)");
+    assert.ok(result.reasoning.primaryProblem.length > 0);
+    assert.ok(result.reasoning.recommendedBusinessModel.length > 0);
+    assert.ok(result.reasoning.businessModelJustification.includes(result.reasoning.primaryProblem));
+
+    for (const rec of result.recommendations) {
+      assert.ok(rec.problem);
+      assert.ok(rec.businessModel);
+      assert.ok(rec.reason.includes(rec.businessModel));
+    }
+  });
+
+  it("does not recommend course without business model justification", () => {
+    const result = runOpportunityEngine("Automação com IA para pequenos negócios");
+    const cursoOnly = result.recommendations.filter((r) => r.businessModel === "Curso");
+
+    if (cursoOnly.length > 0) {
+      for (const rec of cursoOnly) {
+        assert.ok(rec.reason.length > 40);
+        assert.ok(rec.reason.includes("Problema"));
+      }
+    }
+
+    assert.notEqual(result.reasoning.recommendedBusinessModel, "Curso");
+  });
+
+  it("returns reasoning in engine result", () => {
+    const result = runOpportunityEngine("IA para pequenos negócios");
+    assert.ok(result.reasoning);
+    assert.equal(result.reasoning.technology, "Inteligência Artificial");
+    assert.ok(result.reasoning.confidence > 0);
   });
 });
 
