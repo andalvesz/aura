@@ -6,6 +6,7 @@ import type {
   RecommendationSummary,
 } from "@/lib/opportunity/opportunity-types";
 import { BUSINESS_MODELS } from "@/utils/business-reasoning";
+import { getConstraintsForModelLabel } from "@/utils/reality-engine";
 
 type ExplainContext = {
   rank: number;
@@ -333,7 +334,9 @@ export function enrichOpportunityResults(
 }
 
 /** Defaults for tests and fallbacks */
-export function defaultDecisionFields(): Pick<
+export function defaultDecisionFields(
+  businessModel = "Serviço"
+): Pick<
   OpportunityRecommendation,
   | "decisionExplanation"
   | "competitiveAdvantages"
@@ -343,6 +346,9 @@ export function defaultDecisionFields(): Pick<
   | "firstSalePlan"
   | "estimatedInvestment"
   | "estimatedValidationTime"
+  | "constraints"
+  | "realityPenalty"
+  | "realityCompatible"
 > {
   return {
     decisionExplanation: "Oportunidade ranqueada pelo motor de negócios.",
@@ -353,5 +359,8 @@ export function defaultDecisionFields(): Pick<
     firstSalePlan: "10 conversas diretas com o avatar ideal",
     estimatedInvestment: 3000,
     estimatedValidationTime: "14–30 dias",
+    constraints: getConstraintsForModelLabel(businessModel),
+    realityPenalty: 0,
+    realityCompatible: true,
   };
 }

@@ -29,10 +29,12 @@ describe("opportunity engine API", () => {
     assert.equal(response.status, 200);
     const body = (await response.json()) as {
       opportunities?: Array<{ opportunityScore: { total: number }; niche: string }>;
+      reality?: { realityScore: number };
       totalCandidates?: number;
     };
 
     assert.equal(body.opportunities?.length, 3);
+    assert.ok(body.reality?.realityScore !== undefined);
     assert.ok((body.totalCandidates ?? 0) >= 3);
     assert.ok(body.opportunities?.[0]?.niche);
     assert.ok(typeof body.opportunities?.[0]?.opportunityScore.total === "number");

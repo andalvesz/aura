@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       goal: result.goal,
       intent: result.intent,
       reasoning: result.reasoning,
+      reality: result.reality,
       opportunities: result.recommendations,
       comparison: result.comparison,
       recommendationSummary: result.recommendationSummary,

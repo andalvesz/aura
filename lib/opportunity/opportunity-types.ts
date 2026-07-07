@@ -41,6 +41,65 @@ export type OpportunityIntent = {
   explicitNiche: boolean;
 };
 
+export type OpportunityConstraints = {
+  minimumCapital: number;
+  minimumTimeHoursPerDay: number;
+  minimumExperience: "iniciante" | "intermediario" | "avancado";
+  complexity: number;
+  cashGenerationSpeed: number;
+};
+
+export type RealityProfile = {
+  raw: string;
+  availableCapital: number;
+  timeHoursPerDay: number;
+  experience: "iniciante" | "intermediario" | "avancado";
+  financialGoal: number;
+  deadline: string | null;
+  wantsToAppear: boolean;
+  team: "sozinho" | "pequena" | "equipe";
+  technicalKnowledge: "nenhum" | "basico" | "intermediario" | "avancado";
+  monthlyInvestmentCapacity: number;
+  profession: string | null;
+  hasAudience: boolean;
+  hasSalesExperience: boolean;
+};
+
+export type RealityCheckItem = {
+  constraint: string;
+  message: string;
+  severity: "info" | "warning" | "block";
+};
+
+export type BusinessPathStep = {
+  phase: string;
+  action: string;
+  modelHint: string;
+};
+
+export type EvolutionPlanPhase = {
+  label: string;
+  focus: string;
+  milestone: string;
+};
+
+export type PathRecommendationPhase = {
+  horizon: string;
+  recommendation: string;
+  model: string;
+};
+
+export type RealityEngineSummary = {
+  profile: RealityProfile;
+  realityScore: number;
+  realityChecks: RealityCheckItem[];
+  businessPath: BusinessPathStep[];
+  evolutionPlan: EvolutionPlanPhase[];
+  pathRecommendation: PathRecommendationPhase[];
+  filteredCount: number;
+  eliminatedModels: string[];
+};
+
 export type OpportunityRecommendation = {
   title: string;
   niche: string;
@@ -66,6 +125,9 @@ export type OpportunityRecommendation = {
   firstSalePlan: string;
   estimatedInvestment: number;
   estimatedValidationTime: string;
+  constraints: OpportunityConstraints;
+  realityPenalty: number;
+  realityCompatible: boolean;
 };
 
 export type OpportunityComparisonEntry = {
@@ -106,6 +168,7 @@ export type OpportunityEngineResult = {
   goal: ParsedGoal;
   intent: OpportunityIntent;
   reasoning: BusinessReasoningSummary;
+  reality: RealityEngineSummary;
   recommendations: OpportunityRecommendation[];
   comparison: OpportunityComparisonEntry[];
   recommendationSummary: RecommendationSummary;

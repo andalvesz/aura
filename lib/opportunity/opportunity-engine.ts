@@ -13,6 +13,7 @@ import type {
   OpportunityIntent,
   OpportunityRecommendation,
   ParsedGoal,
+  RealityProfile,
 } from "@/lib/opportunity/opportunity-types";
 import {
   buildOpportunityAngles,
@@ -22,6 +23,12 @@ import {
   type ScoredOpportunityAngle,
 } from "@/utils/business-reasoning";
 import { enrichOpportunityResults, defaultDecisionFields } from "@/utils/decision-explainer";
+import {
+  computeRealityPenalty,
+  getConstraintsForModelLabel,
+  getModelConstraints,
+  runRealityOnAngles,
+} from "@/utils/reality-engine";
 
 const GOAL_REVENUE_PATTERNS = [
   /(?:ganhar|faturar|receber|lucre|lucrar|atingir|meta\s+de)\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?)/i,
@@ -123,7 +130,8 @@ function toRecommendation(
   niche: DigitalNiche,
   goal: ParsedGoal,
   intent: OpportunityIntent,
-  reasoning: BusinessReasoningSummary
+  reasoning: BusinessReasoningSummary,
+  realityProfile: RealityProfile
 ): OpportunityRecommendation {
   const intentMatch = computeNicheIntentMatch(niche, intent);
   const opportunityScore = computeNicheOpportunityScore(niche, goal);
@@ -137,6 +145,9 @@ function toRecommendation(
   const estimatedSales = Math.ceil(goal.monthlyRevenue / price);
   const estimatedProfit = Math.round(price * estimatedSales * 0.75);
   const recommendedProduct = productLabelForModel(angle.businessModel, angle.problem, niche);
+  const constraints = getModelConstraints(angle.businessModel.id);
+  const realityPenalty = computeRealityPenalty(angle.businessModel.id, realityProfile);
+  const realityCompatible = realityPenalty < 70;
 
   return {
     title: `${recommendedProduct} · ${niche.name}`,
@@ -156,6 +167,9 @@ function toRecommendation(
     uniquenessScore: Math.round(computeUniquenessScore(niche)),
     reason: buildReason(angle, niche, finalTotal, goal, price),
     ...defaultDecisionFields(),
+    constraints,
+    realityPenalty,
+    realityCompatible,
   };
 }
 
@@ -186,11 +200,13 @@ export function runOpportunityEngine(goal: string): OpportunityEngineResult {
   const intent = parseOpportunityIntent(goal, parsedGoal.monthlyRevenue !== 10000);
 
   const angles = buildOpportunityAngles(reasoning);
-  const rawRecommendations = angles
+  const { reality, rankedAngles } = runRealityOnAngles(goal, angles);
+
+  const rawRecommendations = rankedAngles
     .slice(0, 3)
     .map((angle) => {
       const niche = pickNicheForAngle(angle, intent);
-      return toRecommendation(angle, niche, parsedGoal, intent, reasoningSummary);
+      return toRecommendation(angle, niche, parsedGoal, intent, reasoningSummary, reality.profile);
     })
     .sort((a, b) => b.opportunityScore.total - a.opportunityScore.total);
 
@@ -204,10 +220,20 @@ export function runOpportunityEngine(goal: string): OpportunityEngineResult {
     goal: parsedGoal,
     intent,
     reasoning: reasoningSummary,
+    reality: {
+      profile: reality.profile,
+      realityScore: reality.realityScore,
+      realityChecks: reality.realityChecks,
+      businessPath: reality.businessPath,
+      evolutionPlan: reality.evolutionPlan,
+      pathRecommendation: reality.pathRecommendation,
+      filteredCount: reality.filteredCount,
+      eliminatedModels: reality.eliminatedModels,
+    },
     recommendations,
     comparison,
     recommendationSummary,
-    totalCandidates: angles.length,
+    totalCandidates: rankedAngles.length,
   };
 }
 
