@@ -68,6 +68,7 @@ export type ModuleId =
   | "performance"
   | "growth-brain"
   | "expert-brain"
+  | "opportunities"
   | "market-hunter"
   | "offer-engine"
   | "funnel-pages"
@@ -393,16 +394,16 @@ export const MODULES: ModuleConfig[] = [
   {
     id: "master-flow",
     href: "/dashboard/master-flow",
-    label: "Aura Master Flow",
-    shortLabel: "Master Flow",
+    label: "Mission Core",
+    shortLabel: "Missão",
     description:
-      "Pipeline automatizado de criação de negócio — do mercado à campanha com Excellence.",
+      "Crie uma missão comercial completa — produto, oferta, landing, copy e campanha prontos para revisão.",
     icon: Layers,
     accent: "text-cyan-400",
     overview: {
-      metric: "Progresso",
+      metric: "Ativos",
       value: "—",
-      hint: "Crie um negócio completo",
+      hint: "Descreva seu objetivo e crie uma missão",
     },
   },
   {
@@ -463,6 +464,21 @@ export const MODULES: ModuleConfig[] = [
       metric: "Frameworks",
       value: "0",
       hint: "Faça upload de cursos para alimentar o Aura",
+    },
+  },
+  {
+    id: "opportunities",
+    href: "/dashboard/opportunities",
+    label: "Opportunity Engine",
+    shortLabel: "Oportunidades",
+    description:
+      "Recomenda as melhores oportunidades de produtos digitais com base na sua meta financeira.",
+    icon: Target,
+    accent: "text-emerald-400",
+    overview: {
+      metric: "Top 3",
+      value: "—",
+      hint: "Informe seu objetivo financeiro mensal",
     },
   },
   {

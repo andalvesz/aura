@@ -35,6 +35,11 @@ import {
   type ProductFactoryIntake,
 } from "@/utils/product-factory";
 import {
+  buildBriefSystemPromptBlock,
+  evaluateStrategyAdherence,
+  resolveStrategyFactoryProfile,
+} from "@/utils/product-build-brief";
+import {
   buildProActionPrompt,
   buildProGenerationSystemPrompt,
   computeProductQualityScore,
@@ -475,7 +480,10 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
   }
 
   const integrations = await buildIntegrationContext();
-  const productType: ProductFactoryType = input.product_type ?? "ebook";
+  const brief = input.build_brief ?? null;
+  const strategyProfile = brief ? resolveStrategyFactoryProfile(brief) : null;
+  const productType: ProductFactoryType =
+    strategyProfile?.product_type ?? input.product_type ?? "ebook";
   const nicheText = `${input.titulo} ${input.promessa} ${input.problema} ${input.publico ?? ""}`;
   const sensitive = detectSensitiveNiche(nicheText);
 
@@ -491,9 +499,13 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
     winnerPromptBlock: promptBlock,
   });
 
+  const briefPromptBlock = brief && strategyProfile
+    ? buildBriefSystemPromptBlock(brief, strategyProfile)
+    : "";
+
   const { data: generated, error: aiError } = await callProductFactoryAi<ProGeneratedProduct>(
     augmentGeneratorSystemPrompt(
-      buildProGenerationSystemPrompt(productType, sensitive),
+      buildProGenerationSystemPrompt(productType, sensitive) + briefPromptBlock,
       "product-factory",
       transversal,
       promptBlock
@@ -501,6 +513,8 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
     JSON.stringify({
       intake: input,
       product_type: productType,
+      strategy_profile: strategyProfile,
+      build_brief: brief,
       integrations,
       pro_v1: true,
       winnerContext,
@@ -555,10 +569,30 @@ export async function generateProductFactory(input: ProductFactoryIntake): Promi
     risk_score: normalizedCompliance.risk_score,
     forbidden_claims: normalizedCompliance.forbidden_claims,
   } as ProductComplianceCheck);
-  const enrichedContent = mergeQualityIntoContent(
-    payload.conteudo as Record<string, unknown>,
-    quality
-  );
+
+  const strategyAdherence =
+    brief != null
+      ? evaluateStrategyAdherence(brief, {
+          product_type: productType,
+          capitulos: payload.capitulos as Json,
+          titulo: generated.titulo,
+          conteudo: payload.conteudo as Json,
+          exercicios: payload.exercicios as Json,
+          bonus: generated.bonus,
+        })
+      : null;
+
+  const enrichedContent = {
+    ...mergeQualityIntoContent(payload.conteudo as Record<string, unknown>, quality),
+    ...(strategyAdherence
+      ? {
+          strategy_adherence_score: strategyAdherence.score,
+          strategy_adherence_aligned: strategyAdherence.aligned,
+          strategy_adherence_pendencies: strategyAdherence.pendencies,
+          build_brief: brief,
+        }
+      : {}),
+  };
   await factoryRepo.update(factory.id, { conteudo: enrichedContent as Json });
 
   await versionsRepo.create({

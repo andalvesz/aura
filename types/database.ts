@@ -1278,9 +1278,15 @@ export type OperationCenter = {
 export type MasterFlowStatus = "pending" | "running" | "completed" | "ready_for_approval" | "ready_to_sell" | "failed" | "paused";
 
 export type MasterFlowStep =
+  | "opportunity_engine"
+  | "validation_engine"
+  | "product_strategist"
   | "market_hunter"
   | "decision_engine"
   | "product_factory"
+  | "sales_system"
+  | "investment_committee"
+  | "mission_review"
   | "copylab"
   | "offer_engine"
   | "funnel_engine"

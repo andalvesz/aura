@@ -47,6 +47,7 @@ export async function certifyReadyToSell(flow: MasterFlow): Promise<ReadyToSellC
   let landingQualityScore: number | null = null;
   let campaignQualityScore: number | null = null;
   let creativeAssetDelivered = false;
+  let landingPublished: boolean | undefined;
   const certificationGaps: string[] = [];
 
   if (ctx && flow.product_id && !checkoutUrl) {
@@ -86,6 +87,7 @@ export async function certifyReadyToSell(flow: MasterFlow): Promise<ReadyToSellC
       landingUrl =
         landingUrl ?? landing?.published_url ?? landing?.preview_url ?? funnelUrl ?? null;
       landingHtml = landing?.html ?? null;
+      landingPublished = landing?.status === "published" || Boolean(landing?.published_url?.trim());
       if (landing) {
         landingQualityScore = computeLandingQualityScore({
           headline: landing.headline,
@@ -134,11 +136,15 @@ export async function certifyReadyToSell(flow: MasterFlow): Promise<ReadyToSellC
     }
   }
 
+  const campaignPrepared = Boolean(campaignId);
+
   const certification = evaluateReadyToSellCertification({
     checkout_url: checkoutUrl,
     funnel_url: funnelUrl,
     landing_url: landingUrl,
+    landing_published: landingPublished ?? meta.landing_published ?? undefined,
     campaign_id: campaignId,
+    campaign_prepared: campaignPrepared,
     excellence_score: excellenceScore,
     product_quality_score: productQualityScore,
     landing_quality_score: landingQualityScore,

@@ -74,6 +74,8 @@ export type ReadyToSellRequirements = {
   creative_asset_delivered?: boolean;
   landing_html?: string | null;
   explicit_publish_approval?: boolean;
+  landing_published?: boolean;
+  campaign_prepared?: boolean;
   certification_gaps?: string[] | null;
 };
 
@@ -94,7 +96,9 @@ export function evaluateReadyToSellCertification(
   }
   if (!requirements.funnel_url?.trim()) gaps.push("funnel_url ausente");
   if (!requirements.landing_url?.trim()) gaps.push("landing_url ausente");
+  if (requirements.landing_published === false) gaps.push("landing não publicada");
   if (!requirements.campaign_id?.trim()) gaps.push("campaign_id ausente");
+  if (requirements.campaign_prepared === false) gaps.push("campanha não preparada");
   if (
     requirements.excellence_score == null ||
     requirements.excellence_score < READY_TO_SELL_EXCELLENCE_MIN
@@ -127,6 +131,12 @@ export function evaluateReadyToSellCertification(
   }
   if (requirements.explicit_publish_approval === false) {
     gaps.push("aprovação explícita de publicação pendente");
+  }
+  if (
+    requirements.explicit_publish_approval !== true &&
+    requirements.campaign_prepared === true
+  ) {
+    gaps.push("aprovação de campanha pendente");
   }
   for (const gap of requirements.certification_gaps ?? []) {
     if (gap.trim()) gaps.push(gap.trim());

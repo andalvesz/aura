@@ -43,6 +43,7 @@ export type ProductFactoryIntake = {
   product_id?: string | null;
   copylab_id?: string | null;
   research_id?: string | null;
+  build_brief?: import("@/utils/product-build-brief").ProductBuildBrief;
 };
 
 export type ProductFactoryChapter = {

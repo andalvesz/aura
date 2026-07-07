@@ -1,16 +1,16 @@
 import { Suspense } from "react";
 import { ModuleHeader } from "@/components/dashboard/module-header";
-import { MissionCoreView } from "@/components/dashboard/modules/mission-core-view";
+import { OpportunitiesView } from "@/components/dashboard/modules/opportunities-view";
 import { ListSkeleton } from "@/components/dashboard/loading-skeleton";
 import { getModule } from "@/lib/modules";
 
-export default function MasterFlowPage() {
-  const mod = getModule("master-flow");
+export default function OpportunitiesPage() {
+  const mod = getModule("opportunities");
   return (
     <div className="space-y-3">
       <ModuleHeader module={mod} />
-      <Suspense fallback={<ListSkeleton rows={6} />}>
-        <MissionCoreView />
+      <Suspense fallback={<ListSkeleton rows={4} />}>
+        <OpportunitiesView />
       </Suspense>
     </div>
   );

@@ -96,6 +96,43 @@ function normalizeText(value: string): string {
     .trim();
 }
 
+const AMBIGUOUS_COUNTRY_TOKENS = new Set(["de", "es", "fr", "ca", "pt", "br", "us"]);
+
+const COUNTRY_TEXT_PATTERNS: Array<{ pattern: RegExp; code: string }> = [
+  { pattern: /\b(?:mercado\s+americano|mercado\s+dos?\s+eua)\b/i, code: "US" },
+  { pattern: /\b(?:nos?|nas?|no|na|em)\s+(?:eua|usa|estados\s+unidos|united\s+states)\b/i, code: "US" },
+  { pattern: /\b(?:eua|usa|estados\s+unidos|united\s+states)\b/i, code: "US" },
+  { pattern: /\bmercado\s+espanhol\b/i, code: "ES" },
+  { pattern: /\b(?:nos?|nas?|no|na|em)\s+(?:espanha|spain)\b/i, code: "ES" },
+  { pattern: /\b(?:espanha|spain)\b/i, code: "ES" },
+  { pattern: /\b(?:nos?|nas?|no|na|em)\s+(?:brasil|brazil)\b/i, code: "BR" },
+  { pattern: /\b(?:brasil|brazil)\b/i, code: "BR" },
+  { pattern: /\b(?:nos?|nas?|no|na|em)\s+(?:portugal)\b/i, code: "PT" },
+  { pattern: /\bportugal\b/i, code: "PT" },
+  { pattern: /\b(?:nos?|nas?|no|na|em)\s+(?:canada|canadá)\b/i, code: "CA" },
+  { pattern: /\b(?:canada|canadá)\b/i, code: "CA" },
+  { pattern: /\b(?:nos?|nas?|no|na|em)\s+(?:reino\s+unido|united\s+kingdom)\b/i, code: "GB" },
+  { pattern: /\b(?:reino\s+unido|united\s+kingdom)\b/i, code: "GB" },
+  { pattern: /\b(?:nos?|nas?|no|na|em)\s+(?:alemanha|germany)\b/i, code: "DE" },
+  { pattern: /\b(?:alemanha|germany)\b/i, code: "DE" },
+  { pattern: /\b(?:nos?|nas?|no|na|em)\s+(?:franca|frança|france)\b/i, code: "FR" },
+  { pattern: /\b(?:franca|frança|france)\b/i, code: "FR" },
+];
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function matchesCountryAlias(normalized: string, alias: string): boolean {
+  if (AMBIGUOUS_COUNTRY_TOKENS.has(alias) && !alias.includes(" ")) {
+    return false;
+  }
+  if (alias.includes(" ")) {
+    return normalized.includes(alias);
+  }
+  return new RegExp(`\\b${escapeRegex(alias)}\\b`, "i").test(normalized);
+}
+
 export function normalizeMarketCountry(input: string | null | undefined): string | null {
   if (!input?.trim()) return null;
   const key = normalizeText(input);
@@ -103,7 +140,7 @@ export function normalizeMarketCountry(input: string | null | undefined): string
   const upper = input.trim().toUpperCase();
   if (upper.length === 2 && MARKET_TO_CREATOR_COUNTRY[upper]) return upper;
   for (const [alias, code] of Object.entries(COUNTRY_ALIASES)) {
-    if (key.includes(alias)) return code;
+    if (matchesCountryAlias(key, alias)) return code;
   }
   return null;
 }
@@ -156,30 +193,69 @@ export function nicheMatches(
 }
 
 function extractCountryFromText(raw: string): string | null {
+  for (const { pattern, code } of COUNTRY_TEXT_PATTERNS) {
+    if (pattern.test(raw)) return code;
+  }
+
   const normalized = normalizeText(raw);
+  if (/\b(?:us|usa|eua)\b/i.test(normalized)) return "US";
+
   for (const [alias, code] of Object.entries(COUNTRY_ALIASES)) {
-    if (normalized.includes(alias)) return code;
+    if (matchesCountryAlias(normalized, alias)) return code;
   }
   return null;
 }
 
+function isPortuguesePhrase(raw: string): boolean {
+  const normalized = normalizeText(raw);
+  if (/[áéíóúãõç]/i.test(raw)) return true;
+  return /\b(?:quero|criar|negocio|produto|vender|nicho|para|mulheres|mercado|curso|programa)\b/.test(
+    normalized
+  );
+}
+
+function extractAvatarFromText(raw: string): string | null {
+  const match = raw.match(/\bpara\s+(.+?)$/i);
+  if (!match?.[1]) return null;
+  const avatar = match[1].trim();
+  return avatar.length >= 2 ? avatar : null;
+}
+
+const NICHE_STOP_PATTERN = /\s+(?:para|nos?|nas?|no|na|em)\s+/i;
+
+function stripCountryFromNiche(niche: string, country: string | null): string {
+  let next = niche.trim();
+  if (country) {
+    const countryWords = Object.keys(COUNTRY_ALIASES).filter((k) => COUNTRY_ALIASES[k] === country);
+    for (const word of countryWords) {
+      if (AMBIGUOUS_COUNTRY_TOKENS.has(word)) continue;
+      next = next.replace(new RegExp(`\\b${escapeRegex(word)}\\b`, "i"), "").trim();
+    }
+  }
+  return next.replace(/^(?:de|sobre)\s+/i, "").trim();
+}
+
 function extractNicheFromText(raw: string, country: string | null): string | null {
   const patterns = [
-    /(?:quero\s+)?vender\s+(.+?)(?:\s+nos?\s+|\s+no\s+|\s+em\s+|$)/i,
-    /(?:nicho|mercado|segmento)\s+(?:de\s+)?(.+?)(?:\s+nos?\s+|\s+no\s+|\s+em\s+|$)/i,
+    /(?:quero\s+)?(?:criar\s+(?:um\s+)?(?:negocio|negócio)\s+de\s+)(.+)$/i,
+    /(?:negocio|negócio)\s+de\s+(.+)$/i,
+    /(?:produto|curso|programa|método|metodo)\s+de\s+(.+)$/i,
+    /(?:quero\s+)?vender\s+(.+)$/i,
+    /(?:nicho|mercado|segmento)\s+(?:de\s+)?(.+)$/i,
   ];
+
   for (const pattern of patterns) {
     const match = raw.match(pattern);
-    if (match?.[1]) {
-      let niche = match[1].trim();
-      if (country) {
-        const countryWords = Object.keys(COUNTRY_ALIASES).filter((k) => COUNTRY_ALIASES[k] === country);
-        for (const word of countryWords) {
-          niche = niche.replace(new RegExp(`\\b${word}\\b`, "i"), "").trim();
-        }
-      }
-      if (niche.length >= 3) return niche;
+    if (!match?.[1]) continue;
+
+    let niche = match[1].trim();
+    const stopMatch = niche.match(NICHE_STOP_PATTERN);
+    if (stopMatch?.index != null && stopMatch.index > 0) {
+      niche = niche.slice(0, stopMatch.index).trim();
     }
+
+    niche = stripCountryFromNiche(niche, country);
+    if (niche.length >= 2) return niche;
   }
   return null;
 }
@@ -192,17 +268,19 @@ function extractTicketFromText(raw: string): number | null {
 }
 
 export function parseIntentFromText(raw: string): MasterFlowIntentInput {
-  const country = extractCountryFromText(raw);
-  const niche = extractNicheFromText(raw, country);
-  const ticket = extractTicketFromText(raw);
+  const trimmed = raw.trim();
+  const country = extractCountryFromText(trimmed) ?? (isPortuguesePhrase(trimmed) ? "BR" : null);
+  const avatar = extractAvatarFromText(trimmed);
+  const niche = extractNicheFromText(trimmed, country);
+  const ticket = extractTicketFromText(trimmed);
   const language = normalizeMarketLanguage(null, country);
   return {
-    raw: raw.trim(),
+    raw: trimmed,
     niche,
     country,
     language,
     ticket,
-    avatar: null,
+    avatar,
   };
 }
 

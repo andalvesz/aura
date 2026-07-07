@@ -2,24 +2,26 @@ import type { MasterFlow, MasterFlowStatus, MasterFlowStep } from "@/types/datab
 import { isReadyToSellStatus } from "@/utils/revenue-certification";
 
 export const MASTER_FLOW_STEPS: MasterFlowStep[] = [
-  "market_hunter",
+  "opportunity_engine",
+  "validation_engine",
+  "product_strategist",
   "decision_engine",
   "product_factory",
-  "copylab",
-  "offer_engine",
-  "funnel_engine",
-  "funnel_pages",
-  "checkout_engine",
-  "creative_director",
-  "ads_commander",
-  "publish_orchestrator",
-  "commercial_excellence",
+  "sales_system",
+  "investment_committee",
+  "mission_review",
 ];
 
 export const MASTER_FLOW_STEP_LABELS: Record<MasterFlowStep, string> = {
+  opportunity_engine: "Opportunity Engine",
+  validation_engine: "Validation Engine",
+  product_strategist: "Product Strategist",
   market_hunter: "Market Hunter",
   decision_engine: "Decision Engine",
   product_factory: "Product Factory",
+  sales_system: "Sales System",
+  investment_committee: "Investment Committee",
+  mission_review: "Mission Review",
   copylab: "CopyLab",
   offer_engine: "Offer Engine",
   funnel_engine: "Funnel Engine",
@@ -51,17 +53,46 @@ export type MasterFlowMetadata = {
   checkout_id?: string | null;
   funnel_url?: string | null;
   landing_url?: string | null;
+  landing_published?: boolean | null;
+  campaign_published?: boolean | null;
+  product_quality_score?: number | null;
   campaign_id?: string | null;
   excellence_score?: number | null;
   commercial_excellence_score?: number | null;
   decision_score?: number | null;
   decision_reason?: string | null;
+  opportunity_engine_score?: number | null;
+  opportunity_recommendations?: string[] | null;
+  selected_opportunity?: import("@/lib/opportunity/opportunity-types").OpportunityRecommendation | null;
+  validation_score?: number | null;
+  validation_approved?: boolean | null;
+  validation_recommendation?: string | null;
+  validation_reasons?: string[] | null;
+  product_strategies?: import("@/lib/product-strategist/product-strategist-types").ProductStrategyRecommendation[] | null;
+  selected_strategy?: import("@/lib/product-strategist/product-strategist-types").ProductStrategyRecommendation | null;
+  product_strategist_score?: number | null;
+  product_strategist_explanation?: string | null;
+  product_build_brief?: import("@/utils/product-build-brief").ProductBuildBrief | null;
+  product_strategy_adherence?: import("@/utils/product-build-brief").ProductStrategyAdherence | null;
+  sales_package?: import("@/utils/sales-system").SalesPackage | null;
+  sales_pending_items?: string[] | null;
+  commercial_score?: number | null;
+  ready_to_sell?: boolean | null;
+  investment_score?: number | null;
+  investment_approved?: boolean | null;
+  investment_recommendation?: string | null;
+  investment_must_fix?: string[] | null;
+  investment_specialists?: import("@/lib/investment-committee/investment-committee-types").InvestmentSpecialistReview[] | null;
+  mission_launch_approved?: boolean | null;
   checkout_completion?: import("@/utils/revenue-certification").CheckoutCompletionResult | null;
   commercial_status?: "ready_to_sell" | "incomplete" | null;
   certification_gaps?: string[] | null;
   explicit_publish_approval?: boolean | null;
   last_error?: string | null;
   completed_steps?: MasterFlowStep[];
+  knowledge_warnings?: string[] | null;
+  checkout_pending?: boolean | null;
+  checkout_gap?: string | null;
 };
 
 export type MasterFlowStepStatus = {
@@ -96,6 +127,16 @@ export function mergeMasterFlowMetadata(
 
 const LEGACY_STEP_MAP: Partial<Record<MasterFlowStep, MasterFlowStep>> = {
   excellence: "commercial_excellence",
+  market_hunter: "opportunity_engine",
+  copylab: "sales_system",
+  offer_engine: "sales_system",
+  funnel_engine: "sales_system",
+  funnel_pages: "sales_system",
+  checkout_engine: "sales_system",
+  creative_director: "sales_system",
+  commercial_excellence: "sales_system",
+  ads_commander: "mission_review",
+  publish_orchestrator: "mission_review",
 };
 
 export function normalizeMasterFlowStep(step: MasterFlowStep): MasterFlowStep {
