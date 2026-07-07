@@ -23,6 +23,7 @@ import {
 } from "@/utils/master-flow-intent";
 import { resolveIntentV2 } from "@/utils/intent-engine-v2";
 import { resolveCreatorLocale } from "@/utils/creator-locale";
+import { defaultDecisionFields } from "@/utils/decision-explainer";
 import { toCreatorCountryFromIntent, toCreatorLanguageFromIntent } from "@/utils/master-flow-intent";
 import { getOptionalDataContext } from "./context";
 import {
@@ -314,6 +315,7 @@ async function executeStep(flow: MasterFlow): Promise<{
             investmentScore: 50,
             uniquenessScore: 50,
             reason: meta.user_intent ?? "",
+            ...defaultDecisionFields(),
           } satisfies import("@/lib/opportunity/opportunity-types").OpportunityRecommendation);
 
         const validation = validateOpportunity(opportunity);
@@ -392,6 +394,7 @@ async function executeStep(flow: MasterFlow): Promise<{
             investmentScore: 50,
             uniquenessScore: 50,
             reason: meta.user_intent ?? "",
+            ...defaultDecisionFields(),
           } satisfies import("@/lib/opportunity/opportunity-types").OpportunityRecommendation);
 
         const validation =

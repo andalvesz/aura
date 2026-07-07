@@ -9,6 +9,7 @@ import {
   computeStrategyTotalScore,
 } from "@/lib/product-strategist/product-strategist-score";
 import { runProductStrategist, strategizeProduct } from "@/lib/product-strategist/product-strategist";
+import { defaultDecisionFields } from "@/utils/decision-explainer";
 
 const strongOpportunity: OpportunityRecommendation = {
   title: "Programa Elite de Excel — Excel",
@@ -36,6 +37,7 @@ const strongOpportunity: OpportunityRecommendation = {
   investmentScore: 88,
   uniquenessScore: 75,
   reason: "Alta demanda com produção rápida.",
+  ...defaultDecisionFields(),
 };
 
 describe("product strategist score", () => {

@@ -108,6 +108,8 @@ describe("opportunity engine — business reasoning", () => {
     assert.ok(result.reasoning);
     assert.equal(result.reasoning.technology, "Inteligência Artificial");
     assert.ok(result.reasoning.confidence > 0);
+    assert.equal(result.comparison.length, 3);
+    assert.ok(result.recommendationSummary.narrative.length > 20);
   });
 });
 

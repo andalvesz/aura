@@ -4,6 +4,7 @@ import { extractValidationInsights } from "@/lib/validation/validation-engine";
 import { validateOpportunity } from "@/lib/validation/validation-engine";
 import { strategizeProduct } from "@/lib/product-strategist/product-strategist";
 import type { OpportunityRecommendation } from "@/lib/opportunity/opportunity-types";
+import { defaultDecisionFields } from "@/utils/decision-explainer";
 
 const approvedOpportunity: OpportunityRecommendation = {
   title: "Programa Elite — Excel",
@@ -31,6 +32,7 @@ const approvedOpportunity: OpportunityRecommendation = {
   investmentScore: 88,
   uniquenessScore: 75,
   reason: "Forte fit.",
+  ...defaultDecisionFields(),
 };
 
 describe("opportunities dashboard — validation display", () => {

@@ -21,6 +21,7 @@ import {
   type BusinessProblem,
   type ScoredOpportunityAngle,
 } from "@/utils/business-reasoning";
+import { enrichOpportunityResults, defaultDecisionFields } from "@/utils/decision-explainer";
 
 const GOAL_REVENUE_PATTERNS = [
   /(?:ganhar|faturar|receber|lucre|lucrar|atingir|meta\s+de)\s*(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:,\d+)?)/i,
@@ -154,6 +155,7 @@ function toRecommendation(
     investmentScore: Math.round(computeInvestmentScore(niche)),
     uniquenessScore: Math.round(computeUniquenessScore(niche)),
     reason: buildReason(angle, niche, finalTotal, goal, price),
+    ...defaultDecisionFields(),
   };
 }
 
@@ -184,7 +186,7 @@ export function runOpportunityEngine(goal: string): OpportunityEngineResult {
   const intent = parseOpportunityIntent(goal, parsedGoal.monthlyRevenue !== 10000);
 
   const angles = buildOpportunityAngles(reasoning);
-  const recommendations = angles
+  const rawRecommendations = angles
     .slice(0, 3)
     .map((angle) => {
       const niche = pickNicheForAngle(angle, intent);
@@ -192,11 +194,19 @@ export function runOpportunityEngine(goal: string): OpportunityEngineResult {
     })
     .sort((a, b) => b.opportunityScore.total - a.opportunityScore.total);
 
+  const { recommendations, comparison, recommendationSummary } = enrichOpportunityResults(
+    rawRecommendations,
+    parsedGoal,
+    reasoningSummary
+  );
+
   return {
     goal: parsedGoal,
     intent,
     reasoning: reasoningSummary,
     recommendations,
+    comparison,
+    recommendationSummary,
     totalCandidates: angles.length,
   };
 }

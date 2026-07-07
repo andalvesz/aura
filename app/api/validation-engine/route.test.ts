@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { POST } from "@/app/api/validation-engine/route";
+import { defaultDecisionFields } from "@/utils/decision-explainer";
 import type { OpportunityRecommendation } from "@/lib/opportunity/opportunity-types";
 
 const sampleOpportunity: OpportunityRecommendation = {
@@ -29,6 +30,7 @@ const sampleOpportunity: OpportunityRecommendation = {
   investmentScore: 88,
   uniquenessScore: 75,
   reason: "Alta demanda.",
+  ...defaultDecisionFields(),
 };
 
 describe("validation engine API", () => {

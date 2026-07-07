@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { POST } from "@/app/api/product-strategist/route";
+import { defaultDecisionFields } from "@/utils/decision-explainer";
 import type { OpportunityRecommendation } from "@/lib/opportunity/opportunity-types";
 import { validateOpportunity } from "@/lib/validation/validation-engine";
 
@@ -30,6 +31,7 @@ const sampleOpportunity: OpportunityRecommendation = {
   investmentScore: 88,
   uniquenessScore: 75,
   reason: "Alta demanda.",
+  ...defaultDecisionFields(),
 };
 
 describe("product strategist API", () => {

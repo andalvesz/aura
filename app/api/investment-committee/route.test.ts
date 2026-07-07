@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { POST } from "@/app/api/investment-committee/route";
 import type { MasterFlowMetadata } from "@/utils/master-flow";
 import { buildSalesPackage } from "@/utils/sales-system";
+import { defaultDecisionFields } from "@/utils/decision-explainer";
 
 const meta: MasterFlowMetadata = {
   factory_id: "factory-1",
@@ -58,6 +59,7 @@ const meta: MasterFlowMetadata = {
     investmentScore: 88,
     uniquenessScore: 75,
     reason: "Alta demanda.",
+    ...defaultDecisionFields(),
   },
 };
 

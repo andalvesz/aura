@@ -18,6 +18,7 @@ import {
 } from "@/lib/investment-committee/investment-committee";
 import type { MasterFlowMetadata } from "@/utils/master-flow";
 import { buildSalesPackage } from "@/utils/sales-system";
+import { defaultDecisionFields } from "@/utils/decision-explainer";
 
 const strongMeta: MasterFlowMetadata = {
   factory_id: "factory-1",
@@ -53,6 +54,7 @@ const strongMeta: MasterFlowMetadata = {
     investmentScore: 88,
     uniquenessScore: 75,
     reason: "Alta demanda.",
+    ...defaultDecisionFields(),
   },
   selected_strategy: {
     id: "B",
@@ -126,6 +128,7 @@ const weakMeta: MasterFlowMetadata = {
     investmentScore: 30,
     uniquenessScore: 22,
     reason: "Nicho saturado.",
+    ...defaultDecisionFields(),
   },
 };
 

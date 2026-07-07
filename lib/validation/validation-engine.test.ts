@@ -15,6 +15,7 @@ import {
   isValidationApproved,
   validateOpportunity,
 } from "@/lib/validation/validation-engine";
+import { defaultDecisionFields } from "@/utils/decision-explainer";
 
 const strongOpportunity: OpportunityRecommendation = {
   title: "Programa Elite de Excel — Excel",
@@ -42,6 +43,7 @@ const strongOpportunity: OpportunityRecommendation = {
   investmentScore: 88,
   uniquenessScore: 75,
   reason: "Alta demanda com produção rápida.",
+  ...defaultDecisionFields(),
 };
 
 const weakOpportunity: OpportunityRecommendation = {
@@ -70,6 +72,7 @@ const weakOpportunity: OpportunityRecommendation = {
   investmentScore: 35,
   uniquenessScore: 22,
   reason: "Nicho saturado com ticket baixo.",
+  ...defaultDecisionFields(),
 };
 
 describe("validation score", () => {

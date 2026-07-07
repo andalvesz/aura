@@ -58,6 +58,32 @@ export type OpportunityRecommendation = {
   investmentScore: number;
   uniquenessScore: number;
   reason: string;
+  decisionExplanation: string;
+  competitiveAdvantages: string[];
+  risks: string[];
+  assumptions: string[];
+  firstMvp: string;
+  firstSalePlan: string;
+  estimatedInvestment: number;
+  estimatedValidationTime: string;
+};
+
+export type OpportunityComparisonEntry = {
+  rank: number;
+  title: string;
+  businessModel: string;
+  verdict: string;
+  highlights: string[];
+  label: "recomendada" | "alternativa" | "evitar";
+};
+
+export type RecommendationSummary = {
+  recommendedOption: number;
+  recommendedTitle: string;
+  narrative: string;
+  reasons: string[];
+  optionYCondition: string;
+  avoidOptionZ: string;
 };
 
 export type BusinessReasoningSummary = {
@@ -81,5 +107,7 @@ export type OpportunityEngineResult = {
   intent: OpportunityIntent;
   reasoning: BusinessReasoningSummary;
   recommendations: OpportunityRecommendation[];
+  comparison: OpportunityComparisonEntry[];
+  recommendationSummary: RecommendationSummary;
   totalCandidates: number;
 };

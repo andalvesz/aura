@@ -23,7 +23,12 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashb
 import { useOpportunityEngine } from "@/hooks/use-opportunity-engine";
 import { useProductStrategist } from "@/hooks/use-product-strategist";
 import { useValidationEngine } from "@/hooks/use-validation-engine";
-import type { BusinessReasoningSummary, OpportunityRecommendation } from "@/lib/opportunity/opportunity-types";
+import type {
+  BusinessReasoningSummary,
+  OpportunityComparisonEntry,
+  OpportunityRecommendation,
+  RecommendationSummary,
+} from "@/lib/opportunity/opportunity-types";
 import type {
   ProductStrategistResult,
   ProductStrategyRecommendation,
@@ -107,6 +112,110 @@ function IntentPanel({ reasoning }: { reasoning: BusinessReasoningSummary }) {
   );
 }
 
+function DecisionComparisonPanel({
+  comparison,
+  opportunities,
+}: {
+  comparison: OpportunityComparisonEntry[];
+  opportunities: OpportunityRecommendation[];
+}) {
+  const labelStyles: Record<OpportunityComparisonEntry["label"], string> = {
+    recomendada: "border-emerald-500/25 bg-emerald-500/5",
+    alternativa: "border-amber-500/25 bg-amber-500/5",
+    evitar: "border-zinc-500/25 bg-zinc-500/5",
+  };
+
+  const labelText: Record<OpportunityComparisonEntry["label"], string> = {
+    recomendada: "Recomendada",
+    alternativa: "Alternativa",
+    evitar: "Evitar agora",
+  };
+
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle className="flex items-center gap-2">
+          <Lightbulb className="size-3.5 text-violet-400" />
+          Comparativo TOP 3
+        </PanelTitle>
+      </PanelHeader>
+      <PanelContent className="space-y-3">
+        {comparison.map((entry) => {
+          const opp = opportunities[entry.rank - 1];
+          return (
+            <div
+              key={entry.rank}
+              className={`rounded-md border px-4 py-3 ${labelStyles[entry.label]}`}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[12px] font-medium text-zinc-100">
+                  Opção {entry.rank} — {entry.businessModel}
+                </p>
+                <span className="text-[10px] text-zinc-500">{labelText[entry.label]}</span>
+              </div>
+              <p className="text-[11px] text-zinc-400">{entry.verdict}</p>
+              <ul className="mt-2 space-y-1">
+                {entry.highlights.map((h) => (
+                  <li key={h} className="text-[11px] text-zinc-300">
+                    · {h}
+                  </li>
+                ))}
+              </ul>
+              {opp ? (
+                <div className="mt-3 grid gap-2 border-t border-white/[0.06] pt-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[10px] text-zinc-500">MVP</p>
+                    <p className="text-[11px] text-zinc-300">{opp.firstMvp}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500">Validação</p>
+                    <p className="text-[11px] text-zinc-300">{opp.estimatedValidationTime}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500">Investimento est.</p>
+                    <p className="text-[11px] text-zinc-300">
+                      R$ {opp.estimatedInvestment.toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-zinc-500">1ª venda</p>
+                    <p className="text-[11px] text-zinc-300">{opp.firstSalePlan}</p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </PanelContent>
+    </Panel>
+  );
+}
+
+function RecommendationSummaryPanel({ summary }: { summary: RecommendationSummary }) {
+  return (
+    <Panel>
+      <PanelHeader>
+        <PanelTitle className="flex items-center gap-2">
+          <TrendingUp className="size-3.5 text-emerald-400" />
+          Recomendação do consultor
+        </PanelTitle>
+      </PanelHeader>
+      <PanelContent className="space-y-3">
+        <p className="text-[13px] leading-relaxed text-zinc-200">{summary.narrative}</p>
+        {summary.reasons.length > 0 ? (
+          <ul className="space-y-1 rounded-md border border-emerald-500/15 bg-emerald-500/5 px-3 py-2">
+            {summary.reasons.map((r) => (
+              <li key={r} className="text-[11px] text-emerald-200/90">
+                · {r}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </PanelContent>
+    </Panel>
+  );
+}
+
 function OpportunityCard({
   rank,
   item,
@@ -176,7 +285,35 @@ function OpportunityCard({
           <ScoreBar label="Produção" value={item.opportunityScore.production} />
         </div>
 
-        <p className="text-[11px] text-zinc-400">{item.reason}</p>
+        <p className="text-[11px] text-zinc-400">{item.decisionExplanation}</p>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="rounded-md border border-white/[0.06] px-3 py-2">
+            <p className="mb-1 text-[10px] text-zinc-500">Vantagens</p>
+            <ul className="space-y-0.5">
+              {item.competitiveAdvantages.slice(0, 2).map((a) => (
+                <li key={a} className="text-[10px] text-zinc-300">
+                  · {a}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-md border border-red-500/10 bg-red-500/5 px-3 py-2">
+            <p className="mb-1 flex items-center gap-1 text-[10px] text-red-400">
+              <AlertTriangle className="size-3" />
+              Riscos
+            </p>
+            <ul className="space-y-0.5">
+              {item.risks.slice(0, 2).map((r) => (
+                <li key={r} className="text-[10px] text-zinc-300">
+                  · {r}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <p className="text-[10px] text-zinc-500">{item.reason}</p>
 
         <ActionButton
           variant={selected ? "primary" : "ghost"}
@@ -547,7 +684,8 @@ function ProductStrategistPanel({
 
 export function OpportunitiesView() {
   const router = useRouter();
-  const { opportunities, reasoning, loading, error, search } = useOpportunityEngine();
+  const { opportunities, reasoning, comparison, recommendationSummary, loading, error, search } =
+    useOpportunityEngine();
   const {
     validation,
     insights,
@@ -662,6 +800,14 @@ export function OpportunitiesView() {
               />
             ))}
           </div>
+
+          {comparison.length > 0 ? (
+            <DecisionComparisonPanel comparison={comparison} opportunities={opportunities} />
+          ) : null}
+
+          {recommendationSummary ? (
+            <RecommendationSummaryPanel summary={recommendationSummary} />
+          ) : null}
 
           {selected ? (
             <>
