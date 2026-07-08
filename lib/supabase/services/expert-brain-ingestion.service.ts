@@ -333,6 +333,14 @@ async function runExtractionForLesson(params: {
   const { data: lesson } = await lessonsRepo.findById(params.lessonId);
   const existingSourceId = lesson?.source_id ?? null;
 
+  console.info("[expert-brain-queue] before runAifPipeline", {
+    lessonId: params.lessonId,
+    title: params.title,
+    sourceType: params.sourceType,
+    existingSourceId,
+    rawTextLength: params.rawText.length,
+  });
+
   const pipeline = await runAifPipeline({
     title: params.title,
     sourceType: params.sourceType,
@@ -344,6 +352,13 @@ async function runExtractionForLesson(params: {
     moduleId: params.moduleId,
     lessonId: params.lessonId,
     existingSourceId: existingSourceId,
+  });
+
+  console.info("[expert-brain-queue] after runAifPipeline", {
+    lessonId: params.lessonId,
+    stage: pipeline.stage,
+    expertSourceId: pipeline.expertSourceId,
+    error: pipeline.error,
   });
 
   if (pipeline.error || !pipeline.expertSourceId) {
