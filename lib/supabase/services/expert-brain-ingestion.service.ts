@@ -1174,22 +1174,50 @@ async function processIngestionItem(
 
   // AIF v2: exactly one chunk micro-step per Function invocation
   if (isAifChunkStatus(status) || status === "transcribed") {
-    const step = await runAifPipelineStep(item);
-    console.info("[aif-v2] pipeline step", {
+    console.log("[queue] before runAifPipelineStep", {
+      itemId: item.id,
+      status,
+      fileName: item.file_name,
+    });
+    let step: Awaited<ReturnType<typeof runAifPipelineStep>>;
+    try {
+      step = await runAifPipelineStep(item);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[queue] after runAifPipelineStep FAILED", {
+        itemId: item.id,
+        status,
+        error: message,
+      });
+      console.log("[queue] marking failed", { itemId: item.id, error: message });
+      await ingestionRepo.markFailed(item.id, message);
+      return { error: message, changed: false, terminalStatus: "failed" };
+    }
+    console.log("[queue] after runAifPipelineStep", {
       id: item.id,
       from: status,
       to: step.status,
+      stepName: step.step,
       currentChunk: step.currentChunk,
       totalChunks: step.totalChunks,
       memorySafe: step.memorySafe,
+      failed: step.failed,
+      completed: step.completed,
     });
 
     if (step.failed) {
+      console.log("[queue] marking failed", { itemId: item.id, error: step.error });
       return { error: step.error, changed: false, terminalStatus: "failed" };
     }
     if (step.completed) {
+      console.log("[queue] item completed", { itemId: item.id });
       return { error: null, changed: true, terminalStatus: "completed" };
     }
+    console.log("[queue] status advanced", {
+      itemId: item.id,
+      from: status,
+      to: step.status,
+    });
     return {
       error: null,
       changed: step.advanced,
@@ -1420,9 +1448,31 @@ export async function processExpertBrainIngestionQueue(limit = 1): Promise<Inges
   let skipped = 0;
 
   for (const item of pending) {
-    console.log("[queue] processExpertBrainIngestionQueue item", item.id, item.status);
+    console.log("[queue] select item", {
+      itemId: item.id,
+      status: item.status,
+      fileName: item.file_name,
+    });
     console.log("[queue] before processIngestionItem", item.id);
-    const { error: processError, changed, terminalStatus } = await processIngestionItem(item);
+    let processError: string | null = null;
+    let changed = false;
+    let terminalStatus: "completed" | "failed" | "waiting_for_openai" | null = null;
+    try {
+      const result = await processIngestionItem(item);
+      processError = result.error;
+      changed = result.changed;
+      terminalStatus = result.terminalStatus;
+    } catch (error) {
+      processError = error instanceof Error ? error.message : String(error);
+      console.error("[queue] processIngestionItem threw", {
+        itemId: item.id,
+        status: item.status,
+        error: processError,
+      });
+      console.log("[queue] marking failed", { itemId: item.id, error: processError });
+      await ingestionRepo.markFailed(item.id, processError);
+      terminalStatus = "failed";
+    }
     console.log("[queue] after processIngestionItem", item.id, {
       processError,
       changed,
