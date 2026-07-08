@@ -279,9 +279,16 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
     const effectiveLimit = Math.max(1, limit);
     const workableStatuses: ExpertIngestionStatus[] = [
       "pending_drive",
+      "downloaded",
       "uploaded",
       "transcribing",
+      "transcribed",
+      "chunking",
       "extracting",
+      "extracting_chunk",
+      "normalizing_chunk",
+      "validating_chunk",
+      "committing_chunk",
       "waiting_for_openai",
       "pending",
       "processing",
@@ -329,9 +336,16 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
   async countActive() {
     const statuses: ExpertIngestionStatus[] = [
       "pending_drive",
+      "downloaded",
       "uploaded",
       "transcribing",
+      "transcribed",
+      "chunking",
       "extracting",
+      "extracting_chunk",
+      "normalizing_chunk",
+      "validating_chunk",
+      "committing_chunk",
       "waiting_for_openai",
       "pending",
       "processing",
@@ -410,6 +424,14 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
 
   async markExtracting(id: string) {
     return this.update(id, { status: "extracting", progress: 50, error: null });
+  }
+
+  async markChunking(id: string) {
+    return this.update(id, { status: "chunking", progress: 55, error: null });
+  }
+
+  async markTranscribed(id: string) {
+    return this.update(id, { status: "transcribed", progress: 45, error: null });
   }
 
   async markCompleted(id: string) {

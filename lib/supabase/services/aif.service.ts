@@ -64,10 +64,14 @@ export type AifCommitResult = {
   error: string | null;
 };
 
-async function commitStructuredKnowledgeToExpertBrain(params: {
+export type AifCommitMode = "replace" | "append";
+
+export async function commitStructuredKnowledgeToExpertBrain(params: {
   input: AifPipelineInput;
   rawText: string;
   knowledge: AifStructuredKnowledge;
+  /** replace = clear existing artifacts (default). append = incremental AIF v2 chunk commit. */
+  commitMode?: AifCommitMode;
 }): Promise<AifCommitResult> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return { source: null, entityCount: 0, error: "Usuário não autenticado." };
@@ -82,15 +86,17 @@ async function commitStructuredKnowledgeToExpertBrain(params: {
   const successPatternsRepo = new ExpertSuccessPatternsRepository(ctx.supabase, ctx.userId);
 
   let source: ExpertKnowledgeSource | null = null;
+  const commitMode: AifCommitMode = params.commitMode ?? "replace";
 
   const aifMetadata = {
-    aif_version: "1.0",
+    aif_version: commitMode === "append" ? "2.0" : "1.0",
     pipeline: "aura_intelligence_factory",
     entity_count: countAifEntities(params.knowledge),
     validation: params.knowledge.validation,
     graph_summary: params.knowledge.graph.nodes.length,
     structured_only: true,
     processed_at: new Date().toISOString(),
+    commit_mode: commitMode,
   };
 
   if (params.input.existingSourceId) {
@@ -98,8 +104,10 @@ async function commitStructuredKnowledgeToExpertBrain(params: {
     if (loadError || !existing) {
       return { source: null, entityCount: 0, error: loadError ?? "Fonte não encontrada." };
     }
-    const { error: clearError } = await clearSourceArtifacts(existing.id);
-    if (clearError) return { source: null, entityCount: 0, error: clearError };
+    if (commitMode === "replace") {
+      const { error: clearError } = await clearSourceArtifacts(existing.id);
+      if (clearError) return { source: null, entityCount: 0, error: clearError };
+    }
 
     const { data: updated } = await sourcesRepo.update(existing.id, {
       status: "processing",
@@ -337,6 +345,27 @@ export async function runAifPipeline(input: AifPipelineInput): Promise<AifPipeli
       error: importResult.error ?? "Importação falhou.",
     };
   }
+
+  // OOM guard: single-shot pipeline must not ingest huge transcripts in memory
+  const { AIF_HARD_MAX_EXTRACT_CHARS } = await import("@/lib/aif/chunking");
+  if (importResult.rawText.length > AIF_HARD_MAX_EXTRACT_CHARS) {
+    console.warn("[aif] single-shot rejected — text too large; use AIF v2 queue", {
+      contentLength: importResult.rawText.length,
+      maxAllowed: AIF_HARD_MAX_EXTRACT_CHARS,
+    });
+    return {
+      stage: "import",
+      import: importResult,
+      knowledge: null,
+      expertSourceId: null,
+      error: `Texto muito grande (${importResult.rawText.length} chars) para AIF single-shot. Use a fila incremental (AIF v2).`,
+    };
+  }
+
+  console.info("[aif] single-shot extract", {
+    contentLength: importResult.rawText.length,
+    title: importResult.title,
+  });
 
   const extraction = await runAifKnowledgeExtractor({
     rawText: importResult.rawText,

@@ -1017,7 +1017,15 @@ export type ExpertIngestionStatus =
   | "pending"
   | "processing"
   | "done"
-  | "pending_drive";
+  | "pending_drive"
+  // AIF v2 incremental pipeline
+  | "downloaded"
+  | "transcribed"
+  | "chunking"
+  | "extracting_chunk"
+  | "normalizing_chunk"
+  | "validating_chunk"
+  | "committing_chunk";
 
 export type ExpertTranscriptStatus = "transcribing" | "ready" | "failed" | "waiting_for_openai";
 

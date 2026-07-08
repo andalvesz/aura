@@ -96,9 +96,17 @@ export function useExpertBrain() {
   useEffect(() => {
     const ingestion = dashboard?.ingestionQueue ?? [];
     const activeStatuses = new Set([
+      "pending_drive",
+      "downloaded",
       "uploaded",
       "transcribing",
+      "transcribed",
+      "chunking",
       "extracting",
+      "extracting_chunk",
+      "normalizing_chunk",
+      "validating_chunk",
+      "committing_chunk",
       "waiting_for_openai",
       "pending",
       "processing",
@@ -245,7 +253,7 @@ export function useExpertBrain() {
         void fetch("/api/expert-brain-queue", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ limit: 3 }),
+          body: JSON.stringify({ limit: 1 }),
         }).catch(() => undefined);
         return {
           error: null,
@@ -296,7 +304,7 @@ export function useExpertBrain() {
     return { error: null, knowledge: data?.knowledge ?? null };
   }, []);
 
-  const processQueue = useCallback(async (limit = 10) => {
+  const processQueue = useCallback(async (limit = 1) => {
     setBusy(true);
     startPolling();
     try {
@@ -314,7 +322,9 @@ export function useExpertBrain() {
         found?: number;
         failed?: number;
         skipped?: number;
+        remaining?: number;
         pendingDriveRemaining?: number;
+        memorySafe?: boolean;
       }>(res);
 
       if (parseError) {

@@ -24,3 +24,34 @@ export {
   isOperationalDecisionRule,
   filterOperationalRules,
 } from "./decision-rules";
+
+export {
+  splitTextIntoChunks,
+  createChunkId,
+  logAifChunkPlan,
+  AIF_MAX_CHUNK_CHARS,
+  AIF_HARD_MAX_EXTRACT_CHARS,
+} from "./chunking";
+
+export {
+  getProgress,
+  buildAifV2MetadataPatch,
+  aifChunkProgressPercent,
+  allChunksCompleted,
+  isAifChunkStatus,
+  AIF_VERSION_V2,
+  AIF_CHUNK_STATUSES,
+} from "./aif-progress";
+export type { AifProgressSnapshot, AifV2QueueMetadata } from "./aif-progress";
+
+// updateProgress is server-only — import from "@/lib/aif/aif-progress-update"
+
+export {
+  emptyExtractionDraft,
+  mergeChunkResults,
+  finalizeChunkKnowledge,
+  commitChunkKnowledge,
+} from "./aif-commit";
+
+// runAifPipelineStep lives in aif-pipeline-step.ts — import it directly to avoid
+// circular dependency with aif.service.ts (which imports this barrel).

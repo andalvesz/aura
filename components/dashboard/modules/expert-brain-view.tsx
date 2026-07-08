@@ -28,6 +28,7 @@ import { cn } from "@/utils/cn";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { EXPERT_BRAIN_UPLOAD_LIMIT_LABEL } from "@/utils/expert-brain-storage";
 import {
+  formatAifChunkProgress,
   ingestionStatusColor,
   ingestionStatusLabel,
   PIPELINE_STAGE_LABELS,
@@ -128,23 +129,29 @@ function ProcessingPanel({ items }: { items: ExpertIngestionQueueItem[] }) {
 
   return (
     <div className="max-h-72 space-y-3 overflow-y-auto">
-      {items.map((item) => (
-        <div key={item.id} className="rounded border border-white/[0.06] p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="truncate text-[12px] font-medium text-zinc-100">
-              {item.file_name ?? item.file_path.split("/").pop()}
+      {items.map((item) => {
+        const chunkLabel = formatAifChunkProgress(item);
+        return (
+          <div key={item.id} className="rounded border border-white/[0.06] p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <p className="truncate text-[12px] font-medium text-zinc-100">
+                {item.file_name ?? item.file_path.split("/").pop()}
+              </p>
+              <IngestionStatusBadge status={item.status} />
+            </div>
+            <PipelineProgressBar status={item.status} progress={item.progress} />
+            {chunkLabel ? (
+              <p className="mt-1 text-[10px] text-violet-300/90">{chunkLabel}</p>
+            ) : null}
+            <p className="mt-2 text-[10px] text-zinc-600">
+              {item.course_name ?? "Sem curso"}
+              {item.module_name ? ` · ${item.module_name}` : ""}
+              {item.lesson_name ? ` · ${item.lesson_name}` : ""}
             </p>
-            <IngestionStatusBadge status={item.status} />
+            {item.error ? <p className="mt-1 text-[10px] text-red-400">{item.error}</p> : null}
           </div>
-          <PipelineProgressBar status={item.status} progress={item.progress} />
-          <p className="mt-2 text-[10px] text-zinc-600">
-            {item.course_name ?? "Sem curso"}
-            {item.module_name ? ` · ${item.module_name}` : ""}
-            {item.lesson_name ? ` · ${item.lesson_name}` : ""}
-          </p>
-          {item.error ? <p className="mt-1 text-[10px] text-red-400">{item.error}</p> : null}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -475,9 +482,16 @@ export function ExpertBrainView() {
     dashboard?.ingestionQueue.filter((item) =>
       [
         "pending_drive",
+        "downloaded",
         "uploaded",
         "transcribing",
+        "transcribed",
+        "chunking",
         "extracting",
+        "extracting_chunk",
+        "normalizing_chunk",
+        "validating_chunk",
+        "committing_chunk",
         "waiting_for_openai",
         "pending",
         "processing",
@@ -661,7 +675,9 @@ export function ExpertBrainView() {
               <p className="text-[11px] text-zinc-500">Nenhum arquivo na fila de ingestão.</p>
             ) : (
               <div className="max-h-56 space-y-2 overflow-y-auto">
-                {dashboard.ingestionQueue.map((item) => (
+                {dashboard.ingestionQueue.map((item) => {
+                  const chunkLabel = formatAifChunkProgress(item);
+                  return (
                   <div
                     key={item.id}
                     className="rounded border border-white/[0.06] p-2"
@@ -675,11 +691,15 @@ export function ExpertBrainView() {
                     <div className="mt-2">
                       <PipelineProgressBar status={item.status} progress={item.progress} />
                     </div>
+                    {chunkLabel ? (
+                      <p className="mt-1 text-[10px] text-violet-300/90">{chunkLabel}</p>
+                    ) : null}
                     {item.error ? (
                       <p className="mt-1 text-[10px] text-red-400">{item.error}</p>
                     ) : null}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </PanelContent>

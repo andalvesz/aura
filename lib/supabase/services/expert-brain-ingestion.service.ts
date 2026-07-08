@@ -13,7 +13,9 @@ import {
   ExpertProcessingQueueRepository,
   ExpertTranscriptsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
-import { runAifPipeline } from "@/lib/supabase/services/aif.service";
+import { runAifPipelineStep } from "@/lib/aif/aif-pipeline-step";
+import { isAifChunkStatus, buildAifV2MetadataPatch, AIF_VERSION_V2 } from "@/lib/aif/aif-progress";
+import { AIF_MAX_CHUNK_CHARS } from "@/lib/aif/chunking";
 import {
   downloadExpertBrainTranscript,
   hasOpenAiKey,
@@ -66,6 +68,15 @@ type IngestionMeta = {
   source?: string | null;
   transcript_path?: string | null;
   transcript_only?: boolean;
+  aifVersion?: string | null;
+  totalChunks?: number;
+  currentChunk?: number;
+  processedChunks?: number[];
+  chunkPaths?: string[];
+  expertSourceId?: string | null;
+  driveFileId?: string | null;
+  fileName?: string | null;
+  transcriptPath?: string | null;
 };
 
 function driveFileIdFromPath(filePath: string): string | null {
@@ -297,109 +308,6 @@ async function ensureSingleLesson(params: {
   return { lessonId, courseId: result.courseId, moduleId, error: null };
 }
 
-async function runExtractionForLesson(params: {
-  lessonId: string;
-  courseId: string | null;
-  moduleId: string | null;
-  rawText: string;
-  title: string;
-  sourceType: import("@/types/database").ExpertKnowledgeSourceType;
-  author?: string | null;
-  niche?: string | null;
-  origin?: string | null;
-  transcriptId?: string | null;
-}): Promise<{ sourceId: string | null; error: string | null }> {
-  const ctx = await getOptionalDataContext();
-  if (!ctx) return { sourceId: null, error: "Usuário não autenticado." };
-
-  const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
-  const transcriptsRepo = new ExpertTranscriptsRepository(ctx.supabase, ctx.userId);
-
-  logExpertBrain("extract", {
-    lessonId: params.lessonId,
-    title: params.title,
-    words: params.rawText.split(/\s+/).length,
-  });
-
-  console.info("[drive-import] extract", {
-    lessonId: params.lessonId,
-    title: params.title,
-    sourceType: params.sourceType,
-    words: params.rawText.split(/\s+/).length,
-  });
-
-  await lessonsRepo.update(params.lessonId, { status: "processing" });
-
-  const { data: lesson } = await lessonsRepo.findById(params.lessonId);
-  const existingSourceId = lesson?.source_id ?? null;
-
-  console.info("[expert-brain-queue] before runAifPipeline", {
-    lessonId: params.lessonId,
-    title: params.title,
-    sourceType: params.sourceType,
-    existingSourceId,
-    rawTextLength: params.rawText.length,
-  });
-
-  const pipeline = await runAifPipeline({
-    title: params.title,
-    sourceType: params.sourceType,
-    rawText: params.rawText,
-    author: params.author ?? null,
-    niche: params.niche ?? null,
-    origin: params.origin ?? null,
-    courseId: params.courseId,
-    moduleId: params.moduleId,
-    lessonId: params.lessonId,
-    existingSourceId: existingSourceId,
-  });
-
-  console.info("[expert-brain-queue] after runAifPipeline", {
-    lessonId: params.lessonId,
-    stage: pipeline.stage,
-    expertSourceId: pipeline.expertSourceId,
-    error: pipeline.error,
-  });
-
-  if (pipeline.error || !pipeline.expertSourceId) {
-    console.error("[drive-import] extract", {
-      lessonId: params.lessonId,
-      error: pipeline.error ?? "Falha na extração.",
-    });
-    await lessonsRepo.update(params.lessonId, {
-      status: "failed",
-      metadata: {
-        ...(typeof lesson?.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
-        error: pipeline.error ?? "Falha na extração.",
-      } as Json,
-    });
-    return { sourceId: null, error: pipeline.error ?? "Falha na extração." };
-  }
-
-  const knowledge = pipeline.knowledge;
-  await lessonsRepo.update(params.lessonId, {
-    status: "ready",
-    source_id: pipeline.expertSourceId,
-    raw_text: params.rawText,
-    metadata: {
-      ...(typeof lesson?.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
-      aif_pipeline: true,
-      frameworks_count: knowledge?.frameworks.length ?? 0,
-      decision_rules_count: knowledge?.decisionRules.length ?? 0,
-      success_patterns_count: knowledge?.cases.length ?? 0,
-      failure_patterns_count: knowledge?.antiPatterns.length ?? 0,
-      checklists_count: knowledge?.checklists.length ?? 0,
-      processed_at: new Date().toISOString(),
-    } as Json,
-  });
-
-  if (params.transcriptId) {
-    await transcriptsRepo.update(params.transcriptId, { source_id: pipeline.expertSourceId });
-  }
-
-  return { sourceId: pipeline.expertSourceId, error: null };
-}
-
 export async function registerExpertBrainIngestion(
   input: RegisterExpertBrainIngestionInput
 ): Promise<{ ingestionId: string | null; error: string | null }> {
@@ -606,40 +514,41 @@ async function completeDriveVideoIngestion(
     });
   }
 
-  const extraction = await runExtractionForLesson({
-    lessonId: lessonResult.lessonId,
-    courseId: lessonResult.courseId,
-    moduleId: lessonResult.moduleId,
-    rawText,
-    title: lessonName,
-    sourceType: detectExpertBrainSourceType(fileName),
-    author: meta.author,
-    niche: meta.niche,
-    origin: "google_drive",
-    transcriptId,
-  });
-
-  if (extraction.error) {
-    return failIngestionItem(ingestionRepo, item.id, extraction.error);
-  }
-
-  const completedError = ingestionUpdateError(
-    "Falha ao marcar completed",
-    await ingestionRepo.markCompleted(item.id)
+  // AIF v2: after transcript + lesson, enter incremental chunk pipeline (never full-text extract here)
+  const chunkingError = ingestionUpdateError(
+    "Falha ao iniciar AIF v2 chunking",
+    await ingestionRepo.update(item.id, {
+      status: "chunking",
+      progress: 55,
+      error: null,
+      metadata: {
+        ...mergedMetadata,
+        ...buildAifV2MetadataPatch({
+          aifVersion: AIF_VERSION_V2,
+          source: "google_drive",
+          driveFileId,
+          fileName,
+          transcriptPath,
+          totalChunks: 0,
+          currentChunk: 0,
+          processedChunks: [],
+          chunkPaths: [],
+        }),
+        lesson_id: lessonResult.lessonId,
+        course_id: lessonResult.courseId,
+        module_id: lessonResult.moduleId,
+        author: meta.author ?? null,
+        niche: meta.niche ?? null,
+      } as Json,
+    })
   );
-  if (completedError) return failIngestionItem(ingestionRepo, item.id, completedError);
+  if (chunkingError) return failIngestionItem(ingestionRepo, item.id, chunkingError);
 
-  logExpertBrain("complete", {
+  console.info("[aif-v2] drive video ready for chunking", {
     ingestionId: item.id,
     lessonId: lessonResult.lessonId,
-    sourceId: extraction.sourceId,
-    mode: "drive-video",
-  });
-  console.info("[drive-import] complete", {
-    ingestionId: item.id,
-    lessonId: lessonResult.lessonId,
-    sourceId: extraction.sourceId,
-    transcriptPath,
+    textLength: rawText.length,
+    maxChunkChars: AIF_MAX_CHUNK_CHARS,
   });
 
   return { error: null };
@@ -1106,7 +1015,7 @@ async function processExtractingStage(
   let moduleId = meta.module_id ?? null;
   let rawText: string | null = null;
   let title = item.lesson_name?.trim() || titleFromExpertBrainFileName(fileName);
-  let sourceType = detectExpertBrainSourceType(fileName);
+  let transcriptPath = meta.transcript_path ?? meta.transcriptPath ?? null;
 
   if (!lessonId) {
     if (meta.transcript_only || isGoogleDriveIngestionPath(item.file_path)) {
@@ -1121,6 +1030,7 @@ async function processExtractingStage(
           return { error: transcriptError ?? "Transcrição indisponível." };
         }
         rawText = text;
+        transcriptPath = transcript.transcript_path;
       }
     }
 
@@ -1150,7 +1060,6 @@ async function processExtractingStage(
     const { data: lesson } = await lessonsRepo.findById(lessonId);
     rawText = lesson?.raw_text?.trim() ?? null;
     title = lesson?.title ?? title;
-    sourceType = lesson?.source_type ?? sourceType;
     moduleId = lesson?.module_id ?? moduleId;
   }
 
@@ -1181,37 +1090,53 @@ async function processExtractingStage(
     return { error: "Aula não encontrada." };
   }
 
-  const transcriptsRepo = (await getTranscriptsRepo())!;
-  const { data: transcript } = await transcriptsRepo.findByIngestionId(item.id);
-
-  const extraction = await runExtractionForLesson({
-    lessonId,
-    courseId,
-    moduleId,
-    rawText,
-    title,
-    sourceType,
-    author: meta.author,
-    niche: meta.niche,
-    origin: meta.source === "google_drive" ? "google_drive" : fileName,
-    transcriptId: transcript?.id ?? null,
-  });
-
-  if (extraction.error) {
-    await ingestionRepo.markFailed(item.id, extraction.error);
-    return { error: extraction.error };
+  // Persist lesson raw_text for resume, then hand off to AIF v2 chunk pipeline
+  {
+    const ctx = await getOptionalDataContext();
+    if (ctx) {
+      const lessonsRepo = new ExpertCourseLessonsRepository(ctx.supabase, ctx.userId);
+      await lessonsRepo.update(lessonId, {
+        status: "processing",
+        raw_text: rawText,
+      });
+    }
   }
 
-  await ingestionRepo.markCompleted(item.id);
-  logExpertBrain("complete", {
+  console.info("[aif-v2] handoff extracting → chunking", {
     ingestionId: item.id,
     lessonId,
-    sourceId: extraction.sourceId,
+    textLength: rawText.length,
+    maxChunkChars: AIF_MAX_CHUNK_CHARS,
   });
-  console.info("[drive-import] complete", {
-    ingestionId: item.id,
-    lessonId,
-    sourceId: extraction.sourceId,
+
+  const baseMeta =
+    typeof item.metadata === "object" && item.metadata && !Array.isArray(item.metadata)
+      ? (item.metadata as Record<string, unknown>)
+      : {};
+
+  await ingestionRepo.update(item.id, {
+    status: "chunking",
+    progress: 55,
+    error: null,
+    metadata: {
+      ...baseMeta,
+      ...buildAifV2MetadataPatch({
+        aifVersion: AIF_VERSION_V2,
+        source: meta.source ?? null,
+        driveFileId: meta.drive_file_id ?? meta.driveFileId ?? null,
+        fileName,
+        transcriptPath,
+        totalChunks: 0,
+        currentChunk: 0,
+        processedChunks: [],
+        chunkPaths: [],
+      }),
+      lesson_id: lessonId,
+      course_id: courseId,
+      module_id: moduleId,
+      author: meta.author ?? null,
+      niche: meta.niche ?? null,
+    } as Json,
   });
 
   return { error: null };
@@ -1242,101 +1167,113 @@ async function processIngestionItem(
   }
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
-  let current = item;
   const initialStatus = item.status;
+  const status = item.status;
 
-  for (let step = 0; step < 8; step++) {
-    const status = current.status;
-    console.log("[queue] processing", current.id, status);
-    let result: { error: string | null };
+  console.log("[queue] processing one step", item.id, status);
 
-    switch (status) {
-      case "pending_drive":
-        console.log("[queue] entering pending_drive", current.id);
-        result = await processPendingDriveStage(current, ingestionRepo);
-        break;
-      case "uploaded":
-      case "pending":
-        console.log("[queue] entering uploaded/pending", current.id, status);
-        result = await processUploadedStage(current);
-        break;
-      case "waiting_for_openai":
-        console.log("[queue] entering waiting_for_openai", current.id);
-        if (!hasOpenAiKey()) {
-          return {
-            error: null,
-            changed: initialStatus !== current.status,
-            terminalStatus: "waiting_for_openai",
-          };
-        }
-        await ingestionRepo.markTranscribing(current.id);
-        {
-          const refreshed = await ingestionRepo.findById(current.id);
-          current = refreshed.data ?? { ...current, status: "transcribing" };
-        }
-        result = await processTranscribingStage(current);
-        break;
-      case "transcribing":
-      case "processing":
-        console.log("[queue] entering transcribing/processing", current.id, status);
-        result = await processTranscribingStage(current);
-        break;
-      case "extracting":
-        console.log("[queue] entering extracting", current.id);
-        result = await processExtractingStage(current);
-        break;
-      default:
-        console.warn("[queue] skip unhandled status", {
-          id: current.id,
-          status,
-          reason: "status não possui handler no switch de processIngestionItem",
-        });
-        return { error: null, changed: initialStatus !== current.status, terminalStatus: null };
+  // AIF v2: exactly one chunk micro-step per Function invocation
+  if (isAifChunkStatus(status) || status === "transcribed") {
+    const step = await runAifPipelineStep(item);
+    console.info("[aif-v2] pipeline step", {
+      id: item.id,
+      from: status,
+      to: step.status,
+      currentChunk: step.currentChunk,
+      totalChunks: step.totalChunks,
+      memorySafe: step.memorySafe,
+    });
+
+    if (step.failed) {
+      return { error: step.error, changed: false, terminalStatus: "failed" };
     }
-
-    if (result.error) {
-      return { error: result.error, changed: false, terminalStatus: "failed" };
+    if (step.completed) {
+      return { error: null, changed: true, terminalStatus: "completed" };
     }
-
-    const refreshed = await ingestionRepo.findById(current.id);
-    if (!refreshed.data) {
-      return {
-        error: "Item da fila não encontrado após processamento.",
-        changed: false,
-        terminalStatus: null,
-      };
-    }
-
-    if (refreshed.data.status === current.status) {
-      const message = `Estágio '${current.status}' não avançou o item da fila.`;
-      await ingestionRepo.markFailed(current.id, message);
-      return { error: message, changed: false, terminalStatus: "failed" };
-    }
-
-    if (refreshed.data.status === "completed") {
-      return {
-        error: null,
-        changed: initialStatus !== refreshed.data.status,
-        terminalStatus: "completed",
-      };
-    }
-
-    if (refreshed.data.status === "failed") {
-      return { error: refreshed.data.error, changed: false, terminalStatus: "failed" };
-    }
-
-    if (refreshed.data.status === "waiting_for_openai") {
-      return {
-        error: null,
-        changed: initialStatus !== refreshed.data.status,
-        terminalStatus: "waiting_for_openai",
-      };
-    }
-
-    current = refreshed.data;
+    return {
+      error: null,
+      changed: step.advanced,
+      terminalStatus: null,
+    };
   }
 
-  return { error: null, changed: initialStatus !== current.status, terminalStatus: null };
+  let result: { error: string | null };
+
+  switch (status) {
+    case "pending_drive":
+      console.log("[queue] entering pending_drive", item.id);
+      result = await processPendingDriveStage(item, ingestionRepo);
+      break;
+    case "uploaded":
+    case "pending":
+      console.log("[queue] entering uploaded/pending", item.id, status);
+      result = await processUploadedStage(item);
+      break;
+    case "waiting_for_openai":
+      console.log("[queue] entering waiting_for_openai", item.id);
+      if (!hasOpenAiKey()) {
+        return { error: null, changed: false, terminalStatus: "waiting_for_openai" };
+      }
+      await ingestionRepo.markTranscribing(item.id);
+      {
+        const refreshed = await ingestionRepo.findById(item.id);
+        result = await processTranscribingStage(
+          refreshed.data ?? { ...item, status: "transcribing" }
+        );
+      }
+      break;
+    case "transcribing":
+    case "processing":
+      console.log("[queue] entering transcribing/processing", item.id, status);
+      result = await processTranscribingStage(item);
+      break;
+    case "extracting":
+      console.log("[queue] entering extracting → aif-v2 handoff", item.id);
+      result = await processExtractingStage(item);
+      break;
+    default:
+      console.warn("[queue] skip unhandled status", {
+        id: item.id,
+        status,
+        reason: "status não possui handler no switch de processIngestionItem",
+      });
+      return { error: null, changed: false, terminalStatus: null };
+  }
+
+  if (result.error) {
+    return { error: result.error, changed: false, terminalStatus: "failed" };
+  }
+
+  const refreshed = await ingestionRepo.findById(item.id);
+  if (!refreshed.data) {
+    return {
+      error: "Item da fila não encontrado após processamento.",
+      changed: false,
+      terminalStatus: null,
+    };
+  }
+
+  if (refreshed.data.status === initialStatus) {
+    const message = `Estágio '${initialStatus}' não avançou o item da fila.`;
+    await ingestionRepo.markFailed(item.id, message);
+    return { error: message, changed: false, terminalStatus: "failed" };
+  }
+
+  if (refreshed.data.status === "completed") {
+    return { error: null, changed: true, terminalStatus: "completed" };
+  }
+  if (refreshed.data.status === "failed") {
+    return { error: refreshed.data.error, changed: false, terminalStatus: "failed" };
+  }
+  if (refreshed.data.status === "waiting_for_openai") {
+    return { error: null, changed: true, terminalStatus: "waiting_for_openai" };
+  }
+
+  return {
+    error: null,
+    changed: initialStatus !== refreshed.data.status,
+    terminalStatus: null,
+  };
 }
 
 export async function resetFailedDriveVideos(): Promise<{
@@ -1371,11 +1308,14 @@ export async function resetFailedDriveVideos(): Promise<{
   return { reset, scanned: candidates.length, error: null };
 }
 
-export async function processExpertBrainIngestionQueue(limit = 3): Promise<IngestionQueueRunResult> {
-  const effectiveLimit = Math.max(1, Math.min(limit, 20));
+export async function processExpertBrainIngestionQueue(limit = 1): Promise<IngestionQueueRunResult> {
+  // Memory-safe default: 1 item (1 file or 1 chunk step) per Function invocation
+  const effectiveLimit = Math.max(1, Math.min(limit, 3));
   console.log("[queue] processExpertBrainIngestionQueue start", {
     requestedLimit: limit,
     effectiveLimit,
+    memorySafe: true,
+    aifVersion: AIF_VERSION_V2,
   });
 
   console.log("[queue] before getOptionalDataContext");
