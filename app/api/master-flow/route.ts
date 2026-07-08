@@ -7,8 +7,14 @@ import {
 import { getOptionalDataContext } from "@/lib/supabase/services/context";
 import type { MasterFlowIntentInput } from "@/utils/master-flow-intent";
 
+const NO_MISSION_MESSAGE = "Nenhuma missão encontrada.";
+
 function authStatus(error: string): number {
   return error === "Usuário não autenticado." ? 401 : 500;
+}
+
+function isNoMissionError(error: string | null | undefined): boolean {
+  return (error ?? "").trim() === NO_MISSION_MESSAGE;
 }
 
 async function resolveUserIdForLog(): Promise<string | null> {
@@ -20,16 +26,53 @@ async function resolveUserIdForLog(): Promise<string | null> {
   }
 }
 
-function masterFlowJsonError(error: unknown, status = 500): Response {
-  const message = error instanceof Error ? error.message : String(error);
-  const stack = error instanceof Error ? error.stack ?? null : null;
-  console.error("[master-flow] error", { message, stack });
-  return Response.json({ success: false, error: message, stack }, { status });
+function masterFlowFatal(error: unknown, status = 500): Response {
+  console.error("[master-flow] fatal", error);
+
+  const err = error instanceof Error ? error : new Error(String(error));
+  return Response.json(
+    {
+      success: false,
+      error: err.message,
+      name: err.name,
+      stack: err.stack ?? null,
+    },
+    { status }
+  );
 }
 
 function masterFlowServiceError(error: string, status: number): Response {
-  console.error("[master-flow] error", { message: error, stack: null });
-  return Response.json({ success: false, mission: null, error, stack: null }, { status });
+  console.error("[master-flow] fatal", error);
+  return Response.json(
+    {
+      success: false,
+      error,
+      name: "MasterFlowServiceError",
+      stack: null,
+      mission: null,
+    },
+    { status }
+  );
+}
+
+function noMissionResponse(): Response {
+  return Response.json({
+    success: true,
+    mission: null,
+    message: NO_MISSION_MESSAGE,
+  });
+}
+
+function selectedOpportunityFromIntent(intent?: MasterFlowIntentInput | null) {
+  if (!intent) return null;
+  return {
+    niche: intent.niche ?? null,
+    country: intent.country ?? null,
+    language: intent.language ?? null,
+    avatar: intent.avatar ?? null,
+    ticket: intent.ticket ?? null,
+    raw: intent.raw ?? null,
+  };
 }
 
 export async function GET(request: Request) {
@@ -43,12 +86,21 @@ export async function GET(request: Request) {
 
     if (action !== "status") {
       return Response.json(
-        { success: false, error: "Ação GET inválida. Use action=status.", stack: null },
+        {
+          success: false,
+          error: "Ação GET inválida. Use action=status.",
+          name: "InvalidAction",
+          stack: null,
+        },
         { status: 400 }
       );
     }
 
-    console.info("[master-flow] before getMissionStatus", { action, userId, flowId: flowId ?? null });
+    console.info("[master-flow] before getMissionStatus", {
+      action,
+      userId,
+      flowId: flowId ?? null,
+    });
 
     const { mission, error } = await getMissionStatus(flowId);
 
@@ -60,13 +112,17 @@ export async function GET(request: Request) {
       error: error ?? null,
     });
 
+    if (!mission && isNoMissionError(error)) {
+      return noMissionResponse();
+    }
+
     if (error && !mission) {
       return masterFlowServiceError(error, authStatus(error));
     }
 
     return Response.json({ success: true, mission, error: error ?? null });
   } catch (error) {
-    return masterFlowJsonError(error);
+    return masterFlowFatal(error);
   }
 }
 
@@ -81,22 +137,32 @@ export async function POST(request: Request) {
 
     const action = body.action ?? "start";
     const flowId = body.flowId;
+    const payloadKeys = Object.keys(body);
 
     console.info("[master-flow] POST", {
       action,
       userId,
       flowId: flowId ?? null,
-      payload: body,
+      payloadKeys,
     });
 
     if (action === "start") {
-      console.info("[master-flow] before startMission", { action, userId, payload: body });
+      const selectedOpportunity = selectedOpportunityFromIntent(body.intent);
+
+      console.info("[master-flow] before startMission", {
+        action,
+        userId,
+        payloadKeys,
+        selectedOpportunity,
+      });
 
       const { mission, error } = await startMission(body.intent);
 
       console.info("[master-flow] after startMission", {
         action,
         userId,
+        payloadKeys,
+        selectedOpportunity,
         hasMission: Boolean(mission),
         error: error ?? null,
       });
@@ -124,7 +190,11 @@ export async function POST(request: Request) {
     }
 
     if (action === "status") {
-      console.info("[master-flow] before getMissionStatus", { action, userId, flowId: flowId ?? null });
+      console.info("[master-flow] before getMissionStatus", {
+        action,
+        userId,
+        flowId: flowId ?? null,
+      });
 
       const { mission, error } = await getMissionStatus(flowId);
 
@@ -136,6 +206,10 @@ export async function POST(request: Request) {
         error: error ?? null,
       });
 
+      if (!mission && isNoMissionError(error)) {
+        return noMissionResponse();
+      }
+
       if (error && !mission) {
         return masterFlowServiceError(error, authStatus(error));
       }
@@ -146,11 +220,12 @@ export async function POST(request: Request) {
       {
         success: false,
         error: `Ação inválida: ${action}. Use start, advance, approve ou status.`,
+        name: "InvalidAction",
         stack: null,
       },
       { status: 400 }
     );
   } catch (error) {
-    return masterFlowJsonError(error);
+    return masterFlowFatal(error);
   }
 }
