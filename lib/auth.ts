@@ -3,14 +3,27 @@ import { redirect } from "next/navigation";
 import { hasSupabaseEnv } from "@/lib/env";
 import { safeDashboardPath } from "@/lib/redirect";
 import { createClient } from "@/lib/supabase/server";
+import {
+  clearSupabaseSessionIfBadJwt,
+  logSupabaseAuthDiagnostics,
+} from "@/lib/supabase/auth-debug";
 
 export async function getUser() {
   if (!hasSupabaseEnv()) return null;
 
   const supabase = await createClient();
+
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
+
+  if (error) {
+    await logSupabaseAuthDiagnostics(supabase, "auth.getUser");
+    const cleared = await clearSupabaseSessionIfBadJwt(supabase, "auth.getUser");
+    if (cleared) return null;
+  }
+
   return user;
 }
 

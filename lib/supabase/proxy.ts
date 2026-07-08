@@ -1,6 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasSupabaseEnv, getSupabaseEnv } from "@/lib/env";
+import {
+  clearSupabaseSessionIfBadJwt,
+  logSupabaseAuthDiagnostics,
+} from "@/lib/supabase/auth-debug";
+import {
+  SUPABASE_COOKIE_ENCODING,
+  supabaseCookieOptions,
+  supabaseServerAuthOptions,
+} from "@/lib/supabase/cookie-options";
 
 const AUTH_ROUTES = new Set(["/login", "/cadastro"]);
 const PROTECTED_PREFIX = "/dashboard";
@@ -51,14 +60,15 @@ export async function updateSession(request: NextRequest) {
   const { url, anonKey } = getSupabaseEnv();
 
   const supabase = createServerClient(url, anonKey, {
+    cookieEncoding: SUPABASE_COOKIE_ENCODING,
+    cookieOptions: supabaseCookieOptions,
+    auth: supabaseServerAuthOptions,
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value)
-        );
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         supabaseResponse = nextWithPathname(request, pathname);
         cookiesToSet.forEach(({ name, value, options }) =>
           supabaseResponse.cookies.set(name, value, options)
@@ -69,7 +79,13 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
+
+  if (userError) {
+    await logSupabaseAuthDiagnostics(supabase, `proxy:${pathname}`);
+    await clearSupabaseSessionIfBadJwt(supabase, `proxy:${pathname}`);
+  }
 
   const isAuthRoute = AUTH_ROUTES.has(pathname);
   const isProtected = pathname.startsWith(PROTECTED_PREFIX);
