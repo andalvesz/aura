@@ -6,7 +6,7 @@ import {
   KnowledgeJobsRepository,
   KnowledgeSourcesRepository,
 } from "@/lib/supabase/repositories/knowledge-sources.repository";
-import { ingestKnowledgeSource } from "@/lib/supabase/services/expert-brain.service";
+import { runAifPipeline } from "@/lib/supabase/services/aif.service";
 import { KNOWLEDGE_JOB_STAGE_PROGRESS } from "@/utils/knowledge-sources";
 import { getOptionalDataContext } from "./context";
 
@@ -154,32 +154,34 @@ async function processKnowledgeJob(
 
   await updateJobAndSource(job, source, "saving");
 
-  const result = await ingestKnowledgeSource({
+  const pipeline = await runAifPipeline({
     title,
-    source_type: expertSourceType,
-    raw_text: text,
+    sourceType: expertSourceType,
+    rawText: text,
     origin: source.provider === "google_drive" ? "google_drive" : "upload",
-    course_id: null,
-    module_id: null,
-    lesson_id: null,
+    courseId: null,
+    moduleId: null,
+    lessonId: null,
   });
 
-  if (result.error || !result.source) {
-    await failJob(job, source, result.error ?? "Extração falhou.");
-    return { ok: false, error: result.error ?? "Extração falhou." };
+  if (pipeline.error || !pipeline.expertSourceId) {
+    await failJob(job, source, pipeline.error ?? "Extração falhou.");
+    return { ok: false, error: pipeline.error ?? "Extração falhou." };
   }
 
+  const knowledge = pipeline.knowledge;
   await sourcesRepo.update(source.id, {
     status: "ready",
     progress: 100,
-    expert_source_id: result.source.id,
+    expert_source_id: pipeline.expertSourceId,
     metadata: {
       ...readMetadata(source),
+      aif_pipeline: true,
       extracted: {
-        frameworks: result.frameworks.length,
-        decisionRules: result.decisionRules.length,
-        successPatterns: result.successPatterns.length,
-        failurePatterns: result.failurePatterns.length,
+        frameworks: knowledge?.frameworks.length ?? 0,
+        decisionRules: knowledge?.decisionRules.length ?? 0,
+        successPatterns: knowledge?.cases.length ?? 0,
+        failurePatterns: knowledge?.antiPatterns.length ?? 0,
       },
     } as Json,
   });

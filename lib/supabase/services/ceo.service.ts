@@ -36,6 +36,7 @@ import {
 import { getOptionalDataContext } from "./context";
 import { upsertOperationFromCeo, executeCeoOperationFromMessage } from "./operation-center.service";
 import { recordSystemLog } from "@/lib/logs/record";
+import { getAifCeoExpertKnowledgeBlock } from "@/lib/supabase/services/aif.service";
 import { isMissingSupabaseTableError } from "@/utils/supabase-errors";
 
 function getOpenAi() {
@@ -446,6 +447,8 @@ export async function createCeoPlan(pergunta: string): Promise<{
     return { session: null, radar: null, error: buildBudgetAskReply() };
   }
 
+  const expertKnowledgeBlock = await getAifCeoExpertKnowledgeBlock(trimmed);
+
   const generated = await callCeoAi<GeneratedCeoPlan>(
     `${buildCeoAiContext()}
 ${campaignQuestion ? buildBudgetAiRules(budget.orcamento) : ""}
@@ -480,6 +483,7 @@ Regras:
       pergunta: trimmed,
       radarBase: baseRadar,
       budget: budgetBlock,
+      expert_brain_structured: expertKnowledgeBlock,
       decision_engine: unifiedDecisions
         ? {
             bestProduct: unifiedDecisions.bestProduct,

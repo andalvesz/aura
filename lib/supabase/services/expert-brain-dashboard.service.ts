@@ -12,10 +12,7 @@ import {
   ExpertSuccessPatternsRepository,
   ExpertTranscriptsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
-import {
-  ingestKnowledgeSource,
-  reprocessKnowledgeSource,
-} from "@/lib/supabase/services/expert-brain.service";
+import { runAifPipeline } from "@/lib/supabase/services/aif.service";
 import { getOptionalDataContext } from "./context";
 import {
   buildCourseTree,
@@ -331,43 +328,67 @@ async function processLessonQueueItem(lessonId: string, action: "process" | "rep
   if (module) await modulesRepo.updateStatus(module.id, "processing");
   if (course) await coursesRepo.updateStatus(course.id, "processing");
 
-  let result;
+  let pipeline;
 
   if (action === "reprocess" && lesson.source_id) {
-    result = await reprocessKnowledgeSource(lesson.source_id);
-  } else if (lesson.source_id) {
-    result = await reprocessKnowledgeSource(lesson.source_id);
-  } else {
-    result = await ingestKnowledgeSource({
+    pipeline = await runAifPipeline({
       title: lesson.title,
-      source_type: lesson.source_type,
-      raw_text: rawText,
+      sourceType: lesson.source_type,
+      rawText,
       author: course?.author ?? null,
       niche: course?.niche ?? null,
       origin: lesson.file_name,
-      course_id: course?.id ?? null,
-      module_id: lesson.module_id,
-      lesson_id: lesson.id,
+      courseId: course?.id ?? null,
+      moduleId: lesson.module_id,
+      lessonId: lesson.id,
+      existingSourceId: lesson.source_id,
+    });
+  } else if (lesson.source_id) {
+    pipeline = await runAifPipeline({
+      title: lesson.title,
+      sourceType: lesson.source_type,
+      rawText,
+      author: course?.author ?? null,
+      niche: course?.niche ?? null,
+      origin: lesson.file_name,
+      courseId: course?.id ?? null,
+      moduleId: lesson.module_id,
+      lessonId: lesson.id,
+      existingSourceId: lesson.source_id,
+    });
+  } else {
+    pipeline = await runAifPipeline({
+      title: lesson.title,
+      sourceType: lesson.source_type,
+      rawText,
+      author: course?.author ?? null,
+      niche: course?.niche ?? null,
+      origin: lesson.file_name,
+      courseId: course?.id ?? null,
+      moduleId: lesson.module_id,
+      lessonId: lesson.id,
     });
 
-    if (!result.error && result.source) {
-      await lessonsRepo.update(lessonId, { source_id: result.source.id });
+    if (!pipeline.error && pipeline.expertSourceId) {
+      await lessonsRepo.update(lessonId, { source_id: pipeline.expertSourceId });
     }
   }
 
-  if (result.error || !result.source) {
+  if (pipeline.error || !pipeline.expertSourceId) {
     await lessonsRepo.update(lessonId, {
       status: "failed",
       metadata: {
         ...(typeof lesson.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
-        error: result.error ?? "Falha no processamento.",
+        error: pipeline.error ?? "Falha no processamento.",
       } as Json,
     });
     await refreshModuleStatus(lesson.module_id);
-    return { error: result.error ?? "Falha no processamento." };
+    return { error: pipeline.error ?? "Falha no processamento." };
   }
 
-  await sourcesRepo.update(result.source.id, {
+  const knowledge = pipeline.knowledge;
+
+  await sourcesRepo.update(pipeline.expertSourceId, {
     course_id: course?.id ?? null,
     module_id: lesson.module_id,
     lesson_id: lesson.id,
@@ -375,13 +396,14 @@ async function processLessonQueueItem(lessonId: string, action: "process" | "rep
 
   await lessonsRepo.update(lessonId, {
     status: "ready",
-    source_id: result.source.id,
+    source_id: pipeline.expertSourceId,
     metadata: {
       ...(typeof lesson.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
-      frameworks_count: result.frameworks.length,
-      decision_rules_count: result.decisionRules.length,
-      success_patterns_count: result.successPatterns.length,
-      failure_patterns_count: result.failurePatterns.length,
+      aif_pipeline: true,
+      frameworks_count: knowledge?.frameworks.length ?? 0,
+      decision_rules_count: knowledge?.decisionRules.length ?? 0,
+      success_patterns_count: knowledge?.cases.length ?? 0,
+      failure_patterns_count: knowledge?.antiPatterns.length ?? 0,
       processed_at: new Date().toISOString(),
     } as Json,
   });

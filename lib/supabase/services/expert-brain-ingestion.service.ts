@@ -13,7 +13,7 @@ import {
   ExpertProcessingQueueRepository,
   ExpertTranscriptsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
-import { ingestKnowledgeSource } from "@/lib/supabase/services/expert-brain.service";
+import { runAifPipeline } from "@/lib/supabase/services/aif.service";
 import {
   downloadExpertBrainTranscript,
   hasOpenAiKey,
@@ -333,55 +333,56 @@ async function runExtractionForLesson(params: {
   const { data: lesson } = await lessonsRepo.findById(params.lessonId);
   const existingSourceId = lesson?.source_id ?? null;
 
-  const result = await ingestKnowledgeSource({
+  const pipeline = await runAifPipeline({
     title: params.title,
-    source_type: params.sourceType,
-    raw_text: params.rawText,
+    sourceType: params.sourceType,
+    rawText: params.rawText,
     author: params.author ?? null,
     niche: params.niche ?? null,
     origin: params.origin ?? null,
-    course_id: params.courseId,
-    module_id: params.moduleId,
-    lesson_id: params.lessonId,
-    existing_source_id: existingSourceId,
+    courseId: params.courseId,
+    moduleId: params.moduleId,
+    lessonId: params.lessonId,
+    existingSourceId: existingSourceId,
   });
 
-  if (result.error || !result.source) {
+  if (pipeline.error || !pipeline.expertSourceId) {
     console.error("[drive-import] extract", {
       lessonId: params.lessonId,
-      error: result.error ?? "Falha na extração.",
+      error: pipeline.error ?? "Falha na extração.",
     });
     await lessonsRepo.update(params.lessonId, {
       status: "failed",
       metadata: {
         ...(typeof lesson?.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
-        error: result.error ?? "Falha na extração.",
+        error: pipeline.error ?? "Falha na extração.",
       } as Json,
     });
-    return { sourceId: null, error: result.error ?? "Falha na extração." };
+    return { sourceId: null, error: pipeline.error ?? "Falha na extração." };
   }
 
+  const knowledge = pipeline.knowledge;
   await lessonsRepo.update(params.lessonId, {
     status: "ready",
-    source_id: result.source.id,
+    source_id: pipeline.expertSourceId,
     raw_text: params.rawText,
     metadata: {
       ...(typeof lesson?.metadata === "object" && lesson.metadata ? lesson.metadata : {}),
-      frameworks_count: result.frameworks.length,
-      decision_rules_count: result.decisionRules.length,
-      success_patterns_count: result.successPatterns.length,
-      failure_patterns_count: result.failurePatterns.length,
-      playbooks_count: result.playbooks.length,
-      checklists_count: result.checklists.length,
+      aif_pipeline: true,
+      frameworks_count: knowledge?.frameworks.length ?? 0,
+      decision_rules_count: knowledge?.decisionRules.length ?? 0,
+      success_patterns_count: knowledge?.cases.length ?? 0,
+      failure_patterns_count: knowledge?.antiPatterns.length ?? 0,
+      checklists_count: knowledge?.checklists.length ?? 0,
       processed_at: new Date().toISOString(),
     } as Json,
   });
 
   if (params.transcriptId) {
-    await transcriptsRepo.update(params.transcriptId, { source_id: result.source.id });
+    await transcriptsRepo.update(params.transcriptId, { source_id: pipeline.expertSourceId });
   }
 
-  return { sourceId: result.source.id, error: null };
+  return { sourceId: pipeline.expertSourceId, error: null };
 }
 
 export async function registerExpertBrainIngestion(

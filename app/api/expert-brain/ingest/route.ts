@@ -1,4 +1,4 @@
-import { ingestKnowledgeSource } from "@/lib/supabase/services/expert-brain.service";
+import { runAifPipeline } from "@/lib/supabase/services/aif.service";
 import type { ExpertKnowledgeSourceType } from "@/types/database";
 
 const VALID_SOURCE_TYPES: ExpertKnowledgeSourceType[] = [
@@ -30,29 +30,31 @@ export async function POST(request: Request) {
       return Response.json({ error: "Informe raw_text." }, { status: 400 });
     }
 
-    const result = await ingestKnowledgeSource({
+    const pipeline = await runAifPipeline({
       title,
-      source_type,
-      raw_text,
+      sourceType: source_type,
+      rawText: raw_text,
       author,
       niche,
       origin,
     });
 
-    if (result.error) {
-      const status = result.error === "Usuário não autenticado." ? 401 : 400;
-      return Response.json({ error: result.error }, { status });
+    if (pipeline.error) {
+      const status = pipeline.error === "Usuário não autenticado." ? 401 : 400;
+      return Response.json({ error: pipeline.error, stage: pipeline.stage }, { status });
     }
 
+    const knowledge = pipeline.knowledge;
     return Response.json({
-      source: result.source,
-      frameworks: result.frameworks,
-      playbooks: result.playbooks,
-      patterns: result.patterns,
-      decisionRules: result.decisionRules,
-      checklists: result.checklists,
-      failurePatterns: result.failurePatterns,
-      successPatterns: result.successPatterns,
+      source_id: pipeline.expertSourceId,
+      aif: true,
+      frameworks: knowledge?.frameworks ?? [],
+      decisionRules: knowledge?.decisionRules ?? [],
+      checklists: knowledge?.checklists ?? [],
+      antiPatterns: knowledge?.antiPatterns ?? [],
+      cases: knowledge?.cases ?? [],
+      validation: knowledge?.validation ?? null,
+      graph_edges: knowledge?.graph.edges.length ?? 0,
     });
   } catch {
     return Response.json({ error: "Erro ao ingerir conhecimento." }, { status: 500 });
