@@ -1,37 +1,69 @@
-import { getOptionalDataContext } from "@/lib/supabase/services/context";
-import { ExpertIngestionQueueRepository } from "@/lib/supabase/repositories/expert-brain.repository";
-import {
-  EXPERT_BRAIN_FILES_BUCKET,
-  EXPERT_BRAIN_TRANSCRIPTS_BUCKET,
-} from "@/utils/expert-brain-storage";
+import { NextResponse } from "next/server";
 
-function jsonError(
-  step: string,
-  error: unknown,
-  extra: Record<string, unknown> = {}
-): Response {
-  const message = error instanceof Error ? error.message : String(error);
-  const stack = error instanceof Error ? error.stack : null;
-  console.error("[expert-brain-queue] error", { step, message, stack, ...extra });
-  return Response.json(
+/**
+ * FATAL-safe Expert Brain queue route.
+ * NO app-local static imports — they crash the Function before POST can return JSON.
+ * Every dependency is dynamically imported inside the outer try/catch.
+ */
+
+type QueueCtx = {
+  userId: string;
+  supabase: {
+    from: (table: string) => {
+      select: (
+        cols: string
+      ) => {
+        limit: (n: number) => Promise<{ error: { message: string; code?: string } | null }>;
+      };
+    };
+    storage: {
+      from: (bucket: string) => {
+        list: (
+          path: string,
+          opts: { limit: number }
+        ) => Promise<{ error: { message: string } | null }>;
+      };
+    };
+  };
+};
+
+function fatalJson(err: unknown, extra: Record<string, unknown> = {}) {
+  const message = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error ? err.stack : null;
+  console.error("[expert-brain-queue] FATAL", { message, stack, ...extra });
+  return NextResponse.json(
     {
       success: false,
-      step,
-      error: message,
+      fatal: true,
+      message,
       stack,
-      memorySafe: true,
       ...extra,
     },
     { status: 500 }
   );
 }
 
-function readItemSource(
-  item: {
-    file_path: string;
-    metadata: unknown;
-  } | null
-): string | null {
+function importFailedJson(moduleName: string, err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error ? err.stack : null;
+  console.error("[expert-brain-queue] IMPORT FAILED", { module: moduleName, message, stack });
+  return NextResponse.json(
+    {
+      success: false,
+      fatal: true,
+      importFailed: true,
+      module: moduleName,
+      message,
+      stack,
+    },
+    { status: 500 }
+  );
+}
+
+function readItemSource(item: {
+  file_path: string;
+  metadata: unknown;
+} | null): string | null {
   if (!item) return null;
   if (typeof item.metadata === "object" && item.metadata && !Array.isArray(item.metadata)) {
     const meta = item.metadata as Record<string, unknown>;
@@ -53,61 +85,6 @@ function metadataKeys(metadata: unknown): string[] {
   return [];
 }
 
-const REQUIRED_TABLES = [
-  "expert_ingestion_queue",
-  "expert_knowledge_sources",
-  "expert_frameworks",
-  "expert_decision_rules",
-  "expert_success_patterns",
-  "expert_failure_patterns",
-  "expert_transcripts",
-] as const;
-
-const REQUIRED_BUCKETS = [EXPERT_BRAIN_FILES_BUCKET, EXPERT_BRAIN_TRANSCRIPTS_BUCKET] as const;
-
-async function assertExpertBrainInfrastructure(
-  supabase: Awaited<ReturnType<typeof getOptionalDataContext>> extends infer T
-    ? T extends { supabase: infer S }
-      ? S
-      : never
-    : never
-): Promise<{ ok: true } | { ok: false; missing: string }> {
-  for (const table of REQUIRED_TABLES) {
-    const { error } = await supabase.from(table).select("id").limit(1);
-    if (error) {
-      const msg = error.message.toLowerCase();
-      if (
-        msg.includes("does not exist") ||
-        msg.includes("could not find") ||
-        msg.includes("schema cache") ||
-        error.code === "42P01" ||
-        error.code === "PGRST205"
-      ) {
-        return { ok: false, missing: `Missing table/bucket: ${table}` };
-      }
-      // Other query errors (RLS, etc.) — don’t block, but log
-      console.warn("[expert-brain-queue] table probe warning", { table, error: error.message });
-    }
-  }
-
-  for (const bucket of REQUIRED_BUCKETS) {
-    const { error } = await supabase.storage.from(bucket).list("", { limit: 1 });
-    if (error) {
-      const msg = error.message.toLowerCase();
-      if (
-        msg.includes("not found") ||
-        msg.includes("does not exist") ||
-        (msg.includes("bucket") && msg.includes("not"))
-      ) {
-        return { ok: false, missing: `Missing table/bucket: ${bucket}` };
-      }
-      console.warn("[expert-brain-queue] bucket probe warning", { bucket, error: error.message });
-    }
-  }
-
-  return { ok: true };
-}
-
 function classifyDbError(message: string): string {
   const lower = message.toLowerCase();
   if (
@@ -125,195 +102,309 @@ function classifyDbError(message: string): string {
   return message;
 }
 
+const REQUIRED_TABLES = [
+  "expert_ingestion_queue",
+  "expert_knowledge_sources",
+  "expert_frameworks",
+  "expert_decision_rules",
+  "expert_success_patterns",
+  "expert_failure_patterns",
+  "expert_transcripts",
+] as const;
+
+async function assertExpertBrainInfrastructure(
+  supabase: QueueCtx["supabase"],
+  filesBucket: string,
+  transcriptsBucket: string
+): Promise<{ ok: true } | { ok: false; missing: string }> {
+  for (const table of REQUIRED_TABLES) {
+    const { error } = await supabase.from(table).select("id").limit(1);
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes("does not exist") ||
+        msg.includes("could not find") ||
+        msg.includes("schema cache") ||
+        error.code === "42P01" ||
+        error.code === "PGRST205"
+      ) {
+        return { ok: false, missing: `Missing table/bucket: ${table}` };
+      }
+      console.warn("[expert-brain-queue] table probe warning", { table, error: error.message });
+    }
+  }
+
+  for (const bucket of [filesBucket, transcriptsBucket]) {
+    const { error } = await supabase.storage.from(bucket).list("", { limit: 1 });
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes("not found") ||
+        msg.includes("does not exist") ||
+        (msg.includes("bucket") && msg.includes("not"))
+      ) {
+        return { ok: false, missing: `Missing table/bucket: ${bucket}` };
+      }
+      console.warn("[expert-brain-queue] bucket probe warning", { bucket, error: error.message });
+    }
+  }
+
+  return { ok: true };
+}
+
 export async function POST(request: Request) {
-  let step = "parse_body";
-  let itemId: string | null = null;
-  let itemStatus: string | null = null;
-  let fileName: string | null = null;
-  let source: string | null = null;
+  let step = "enter_post";
+  let lastImport: string | null = null;
+  const importsLoaded: string[] = [];
 
   try {
-    let body: Record<string, unknown> = {};
-    try {
-      step = "parse_body";
-      body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-    } catch (error) {
-      return jsonError("parse_body", error);
-    }
+    console.log("[expert-brain-queue] STEP 1 enter_post");
 
+    // --- STEP: parse body (no imports) ---
+    step = "parse_body";
+    console.log("[expert-brain-queue] STEP 2 parse_body");
+    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
     const requestedLimit = typeof body.limit === "number" ? body.limit : 1;
     const effectiveLimit = Math.max(1, Math.min(requestedLimit, 3));
     const action = typeof body.action === "string" ? body.action : "process";
 
-    let ctx: Awaited<ReturnType<typeof getOptionalDataContext>> = null;
+    // --- IMPORT: storage utils ---
+    step = "import_storage";
+    lastImport = "@/utils/expert-brain-storage";
+    console.log("[expert-brain-queue] IMPORT STORAGE", lastImport);
+    let EXPERT_BRAIN_FILES_BUCKET: string;
+    let EXPERT_BRAIN_TRANSCRIPTS_BUCKET: string;
     try {
-      step = "get_user";
-      ctx = await getOptionalDataContext();
-    } catch (error) {
-      return jsonError("get_user", error, { requestedLimit: effectiveLimit });
+      const storageMod = await import("@/utils/expert-brain-storage");
+      EXPERT_BRAIN_FILES_BUCKET = storageMod.EXPERT_BRAIN_FILES_BUCKET;
+      EXPERT_BRAIN_TRANSCRIPTS_BUCKET = storageMod.EXPERT_BRAIN_TRANSCRIPTS_BUCKET;
+      importsLoaded.push(lastImport);
+      console.log("[expert-brain-queue] IMPORT STORAGE ok");
+    } catch (err) {
+      return importFailedJson(lastImport, err);
     }
 
+    // --- IMPORT: auth/context ---
+    step = "import_context";
+    lastImport = "@/lib/supabase/services/context";
+    console.log("[expert-brain-queue] IMPORT SUPABASE CONTEXT", lastImport);
+    let getOptionalDataContext: () => Promise<QueueCtx | null>;
+    try {
+      const contextMod = await import("@/lib/supabase/services/context");
+      getOptionalDataContext = contextMod.getOptionalDataContext as unknown as () => Promise<QueueCtx | null>;
+      importsLoaded.push(lastImport);
+      console.log("[expert-brain-queue] IMPORT SUPABASE CONTEXT ok");
+    } catch (err) {
+      return importFailedJson(lastImport, err);
+    }
+
+    // --- get user ---
+    step = "get_user";
+    console.log("[expert-brain-queue] STEP 3 get_user");
+    const ctx = await getOptionalDataContext();
     const userId = ctx?.userId ?? null;
-    console.log("[expert-brain-queue]", {
-      step: "get_user",
-      userId,
-      action,
-      limit: effectiveLimit,
-    });
+    console.log("[expert-brain-queue]", { step: "get_user", userId, action, limit: effectiveLimit });
 
     if (!ctx || !userId) {
-      return Response.json(
+      return NextResponse.json(
         {
           success: false,
           step: "get_user",
           error: "Usuário não autenticado.",
-          stack: null,
-          memorySafe: true,
+          fatal: false,
+          importsLoaded,
         },
         { status: 401 }
       );
     }
 
-    try {
-      step = "create_supabase_client";
-      const infra = await assertExpertBrainInfrastructure(ctx.supabase);
-      if (!infra.ok) {
-        return jsonError("create_supabase_client", new Error(infra.missing), {
-          userId,
+    // --- infra probe ---
+    step = "create_supabase_client";
+    console.log("[expert-brain-queue] STEP 4 infra probe");
+    const infra = await assertExpertBrainInfrastructure(
+      ctx.supabase,
+      EXPERT_BRAIN_FILES_BUCKET,
+      EXPERT_BRAIN_TRANSCRIPTS_BUCKET
+    );
+    if (!infra.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          fatal: true,
+          step: "create_supabase_client",
+          message: infra.missing,
           missing: infra.missing,
-        });
-      }
-    } catch (error) {
-      return jsonError("create_supabase_client", error, { userId });
+          importsLoaded,
+        },
+        { status: 500 }
+      );
     }
 
-    let processExpertBrainIngestionQueue: typeof import(
-      "@/lib/supabase/services/expert-brain-ingestion.service"
-    ).processExpertBrainIngestionQueue;
-    let resetFailedDriveVideos: typeof import(
-      "@/lib/supabase/services/expert-brain-ingestion.service"
-    ).resetFailedDriveVideos;
-
+    // --- IMPORT: repository ---
+    step = "import_repository";
+    lastImport = "@/lib/supabase/repositories/expert-brain.repository";
+    console.log("[expert-brain-queue] IMPORT REPOSITORY", lastImport);
+    let ExpertIngestionQueueRepository: new (
+      supabase: QueueCtx["supabase"],
+      userId: string
+    ) => {
+      findWorkable: (limit: number) => Promise<{
+        data: Array<{
+          id: string;
+          status: string;
+          file_name: string | null;
+          file_path: string;
+          metadata: unknown;
+        }> | null;
+        error: string | null;
+      }>;
+    };
     try {
-      step = "process_queue_start";
-      const mod = await import("@/lib/supabase/services/expert-brain-ingestion.service");
-      processExpertBrainIngestionQueue = mod.processExpertBrainIngestionQueue;
-      resetFailedDriveVideos = mod.resetFailedDriveVideos;
-    } catch (error) {
-      return jsonError("process_queue_start", error, {
-        note: "Falha ao importar expert-brain-ingestion.service",
-      });
+      const repoMod = await import("@/lib/supabase/repositories/expert-brain.repository");
+      ExpertIngestionQueueRepository =
+        repoMod.ExpertIngestionQueueRepository as unknown as typeof ExpertIngestionQueueRepository;
+      importsLoaded.push(lastImport);
+      console.log("[expert-brain-queue] IMPORT REPOSITORY ok");
+    } catch (err) {
+      return importFailedJson(lastImport, err);
+    }
+
+    // --- IMPORT: ingestion service (pulls AIF pipeline transitively) ---
+    step = "import_ingestion_service";
+    lastImport = "@/lib/supabase/services/expert-brain-ingestion.service";
+    console.log("[expert-brain-queue] IMPORT INGESTION SERVICE", lastImport);
+    let processExpertBrainIngestionQueue: (limit?: number) => Promise<{
+      success: boolean;
+      found: number;
+      processed: number;
+      completed: number;
+      failed: number;
+      skipped: number;
+      pendingDriveRemaining: number;
+      error?: string | null;
+      message?: string;
+    }>;
+    let resetFailedDriveVideos: () => Promise<{
+      reset: number;
+      scanned: number;
+      error: string | null;
+    }>;
+    try {
+      const ingestionMod = await import(
+        "@/lib/supabase/services/expert-brain-ingestion.service"
+      );
+      processExpertBrainIngestionQueue = ingestionMod.processExpertBrainIngestionQueue;
+      resetFailedDriveVideos = ingestionMod.resetFailedDriveVideos;
+      importsLoaded.push(lastImport);
+      console.log("[expert-brain-queue] IMPORT INGESTION SERVICE ok");
+    } catch (err) {
+      return importFailedJson(lastImport, err);
+    }
+
+    // Soft probe: can we load AIF step module without running it?
+    step = "import_aif_step";
+    lastImport = "@/lib/aif/aif-pipeline-step";
+    console.log("[expert-brain-queue] IMPORT AIF", lastImport);
+    try {
+      await import("@/lib/aif/aif-pipeline-step");
+      importsLoaded.push(lastImport);
+      console.log("[expert-brain-queue] IMPORT AIF ok");
+    } catch (err) {
+      return importFailedJson(lastImport, err);
     }
 
     if (action === "reset_failed_drive") {
-      try {
-        const resetResult = await resetFailedDriveVideos();
-        if (resetResult.error) {
-          return jsonError("reset_failed_drive", new Error(resetResult.error), {
+      step = "reset_failed_drive";
+      console.log("[expert-brain-queue] STEP reset_failed_drive");
+      const resetResult = await resetFailedDriveVideos();
+      if (resetResult.error) {
+        return NextResponse.json(
+          {
+            success: false,
+            fatal: true,
+            step: "reset_failed_drive",
+            message: resetResult.error,
             reset: resetResult.reset,
             scanned: resetResult.scanned,
-          });
-        }
-        return Response.json({
-          success: true,
-          step: "response",
-          action,
-          reset: resetResult.reset,
-          scanned: resetResult.scanned,
-          memorySafe: true,
-          message:
-            resetResult.reset > 0
-              ? `${resetResult.reset} vídeo(s) do Drive reenfileirado(s) como pending_drive`
-              : "Nenhum item failed de Storage do Drive para reprocessar",
-        });
-      } catch (error) {
-        return jsonError("reset_failed_drive", error);
-      }
-    }
-
-    let first: {
-      id: string;
-      status: string;
-      file_name: string | null;
-      file_path: string;
-      metadata: unknown;
-    } | null = null;
-
-    try {
-      step = "list_pending_items";
-      const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
-      const { data: pendingItems, error: pendingError } =
-        await ingestionRepo.findWorkable(effectiveLimit);
-
-      if (pendingError) {
-        return jsonError(
-          "list_pending_items",
-          new Error(classifyDbError(pendingError)),
-          { pendingError }
+            importsLoaded,
+          },
+          { status: 500 }
         );
       }
-
-      step = "select_first_item";
-      first = pendingItems?.[0] ?? null;
-      itemId = first?.id ?? null;
-      itemStatus = first?.status ?? null;
-      fileName = first?.file_name ?? null;
-      source = readItemSource(first);
-
-      console.log("[expert-brain-queue]", {
-        step: "select_first_item",
-        itemId,
-        status: itemStatus,
-        fileName,
-        source,
-        metadataKeys: first ? metadataKeys(first.metadata) : [],
-        limit: effectiveLimit,
-        found: pendingItems?.length ?? 0,
-      });
-    } catch (error) {
-      return jsonError(step === "select_first_item" ? "select_first_item" : "list_pending_items", error, {
-        itemId,
-        status: itemStatus,
+      return NextResponse.json({
+        success: true,
+        step: "response",
+        action,
+        reset: resetResult.reset,
+        scanned: resetResult.scanned,
+        memorySafe: true,
+        importsLoaded,
+        message:
+          resetResult.reset > 0
+            ? `${resetResult.reset} vídeo(s) do Drive reenfileirado(s) como pending_drive`
+            : "Nenhum item failed de Storage do Drive para reprocessar",
       });
     }
 
+    // --- list pending ---
+    step = "list_pending_items";
+    console.log("[expert-brain-queue] STEP 5 list_pending_items");
+    const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
+    const { data: pendingItems, error: pendingError } =
+      await ingestionRepo.findWorkable(effectiveLimit);
+
+    if (pendingError) {
+      return NextResponse.json(
+        {
+          success: false,
+          fatal: true,
+          step: "list_pending_items",
+          message: classifyDbError(pendingError),
+          pendingError,
+          importsLoaded,
+        },
+        { status: 500 }
+      );
+    }
+
+    step = "select_first_item";
+    const first = pendingItems?.[0] ?? null;
+    const itemId = first?.id ?? null;
+    const itemStatus = first?.status ?? null;
+    const fileName = first?.file_name ?? null;
+    const source = readItemSource(first);
+
     console.log("[expert-brain-queue]", {
-      step: "process_queue_start",
+      step: "select_first_item",
       itemId,
       status: itemStatus,
       fileName,
       source,
       metadataKeys: first ? metadataKeys(first.metadata) : [],
       limit: effectiveLimit,
+      found: pendingItems?.length ?? 0,
+      importsLoaded,
     });
 
-    let result: Awaited<ReturnType<typeof processExpertBrainIngestionQueue>>;
-    try {
-      step = "process_aif_step";
-      result = await processExpertBrainIngestionQueue(effectiveLimit);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return jsonError("process_aif_step", error, {
-        itemId,
-        status: itemStatus,
-        fileName,
-        source,
-        classified: classifyDbError(message),
-      });
-    }
-
-    console.log("[expert-brain-queue]", {
-      step: "process_aif_step_done",
+    step = "process_queue_start";
+    console.log("[expert-brain-queue] STEP 6 process_queue_start", {
       itemId,
       status: itemStatus,
       fileName,
       source,
+      limit: effectiveLimit,
+    });
+
+    step = "process_aif_step";
+    console.log("[expert-brain-queue] STEP 7 processExpertBrainIngestionQueue");
+    const result = await processExpertBrainIngestionQueue(effectiveLimit);
+
+    console.log("[expert-brain-queue] STEP 8 process done", {
       success: result.success,
       processed: result.processed,
       completed: result.completed,
       failed: result.failed,
       error: result.error,
-      limit: effectiveLimit,
     });
 
     const remaining =
@@ -321,25 +412,32 @@ export async function POST(request: Request) {
       Math.max(0, (result.found ?? 0) - (result.processed ?? 0));
 
     if (result.error) {
-      const classified = classifyDbError(result.error);
-      return jsonError("update_item", new Error(classified), {
-        found: result.found,
-        processed: result.processed,
-        completed: result.completed,
-        failed: result.failed,
-        skipped: result.skipped,
-        remaining,
-        message: result.message,
-        itemId,
-        status: itemStatus,
-        fileName,
-        source,
-        originalError: result.error,
-      });
+      return NextResponse.json(
+        {
+          success: false,
+          fatal: true,
+          step: "update_item",
+          message: classifyDbError(result.error),
+          originalError: result.error,
+          found: result.found,
+          processed: result.processed,
+          completed: result.completed,
+          failed: result.failed,
+          skipped: result.skipped,
+          remaining,
+          itemId,
+          status: itemStatus,
+          fileName,
+          source,
+          importsLoaded,
+        },
+        { status: result.error === "Usuário não autenticado." ? 401 : 500 }
+      );
     }
 
     step = "response";
-    return Response.json({
+    console.log("[expert-brain-queue] STEP 9 response ok");
+    return NextResponse.json({
       success: result.success,
       step: "response",
       processed: result.processed,
@@ -355,13 +453,21 @@ export async function POST(request: Request) {
       status: itemStatus,
       fileName,
       source,
+      importsLoaded,
     });
-  } catch (error) {
-    return jsonError(step || "response", error, {
-      itemId,
-      status: itemStatus,
-      fileName,
-      source,
+  } catch (err) {
+    console.error("[expert-brain-queue] FATAL CATCH", {
+      step,
+      lastImport,
+      importsLoaded,
+      err,
+    });
+    return fatalJson(err, {
+      step,
+      lastImport,
+      importsLoaded,
+      importFailed: lastImport != null && !importsLoaded.includes(lastImport),
+      module: lastImport,
     });
   }
 }
