@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, GoogleDriveConnection } from "@/types/database";
+import type {
+  Database,
+  GoogleDriveConnection,
+  GoogleDriveConnectionStatusValue,
+} from "@/types/database";
 
 export class GoogleDriveConnectionsRepository {
   constructor(
@@ -26,6 +30,8 @@ export class GoogleDriveConnectionsRepository {
     access_token: string;
     refresh_token: string;
     expires_at: string;
+    status?: GoogleDriveConnectionStatusValue;
+    last_error?: string | null;
   }): Promise<{ data: GoogleDriveConnection | null; error: string | null }> {
     const { data, error } = await this.supabase
       .from("google_drive_connections")
@@ -37,6 +43,8 @@ export class GoogleDriveConnectionsRepository {
           access_token: row.access_token,
           refresh_token: row.refresh_token,
           expires_at: row.expires_at,
+          status: row.status ?? "active",
+          last_error: row.last_error ?? null,
         },
         { onConflict: "user_id" }
       )
@@ -47,6 +55,30 @@ export class GoogleDriveConnectionsRepository {
       data: (data as GoogleDriveConnection) ?? null,
       error: error?.message ?? null,
     };
+  }
+
+  async markExpired(lastError: string): Promise<{ error: string | null }> {
+    const { error } = await this.supabase
+      .from("google_drive_connections")
+      .update({
+        status: "expired",
+        last_error: lastError,
+      })
+      .eq("user_id", this.userId);
+
+    return { error: error?.message ?? null };
+  }
+
+  async markActive(): Promise<{ error: string | null }> {
+    const { error } = await this.supabase
+      .from("google_drive_connections")
+      .update({
+        status: "active",
+        last_error: null,
+      })
+      .eq("user_id", this.userId);
+
+    return { error: error?.message ?? null };
   }
 
   async deleteForUser(): Promise<{ error: string | null }> {

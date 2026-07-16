@@ -108,6 +108,7 @@ export function useExpertBrain() {
       "validating_chunk",
       "committing_chunk",
       "waiting_for_openai",
+      "waiting_transcription_retry",
       "pending",
       "processing",
     ]);
@@ -115,8 +116,9 @@ export function useExpertBrain() {
     const hasProcessingLessons =
       (dashboard?.metrics.queuePending ?? 0) > 0 ||
       (dashboard?.metrics.queueProcessing ?? 0) > 0;
+    const needsReconnect = dashboard?.driveConnection?.needsReconnect;
 
-    if (hasActive || hasProcessingLessons) startPolling();
+    if (hasActive || hasProcessingLessons || needsReconnect) startPolling();
     else stopPolling();
   }, [dashboard, startPolling, stopPolling]);
 

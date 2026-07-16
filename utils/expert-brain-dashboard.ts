@@ -14,6 +14,7 @@ import type {
   ExpertTranscript,
 } from "@/types/database";
 import { EXPERT_BRAIN_CATEGORY_LABELS } from "@/utils/expert-brain";
+import { isOauthReconnectError } from "@/utils/google-drive-oauth-errors";
 
 export type ExpertBrainStatusCounts = {
   pending: number;
@@ -62,6 +63,16 @@ export type ExpertBrainArtifactSummary = {
   createdAt: string;
 };
 
+export type ExpertBrainIngestionBucket =
+  | "pending"
+  | "processing"
+  | "waiting_oauth"
+  | "waiting_whisper"
+  | "completed"
+  | "failed";
+
+export type ExpertBrainIngestionBucketCounts = Record<ExpertBrainIngestionBucket, number>;
+
 export type ExpertBrainDashboard = {
   metrics: {
     courses: number;
@@ -76,6 +87,15 @@ export type ExpertBrainDashboard = {
     failurePatterns: number;
   };
   statusCounts: ExpertBrainStatusCounts;
+  ingestionBuckets: ExpertBrainIngestionBucketCounts;
+  driveConnection: {
+    connected: boolean;
+    expired: boolean;
+    needsReconnect: boolean;
+    email: string | null;
+    accountName: string | null;
+    lastError: string | null;
+  };
   courses: ExpertBrainCourseSummary[];
   queue: ExpertProcessingQueueItem[];
   ingestionQueue: ExpertIngestionQueueItem[];
@@ -108,6 +128,15 @@ export function emptyExpertBrainDashboard(): ExpertBrainDashboard {
       failurePatterns: 0,
     },
     statusCounts: emptyExpertStatusCounts(),
+    ingestionBuckets: emptyIngestionBucketCounts(),
+    driveConnection: {
+      connected: false,
+      expired: false,
+      needsReconnect: false,
+      email: null,
+      accountName: null,
+      lastError: null,
+    },
     courses: [],
     queue: [],
     ingestionQueue: [],
@@ -119,8 +148,69 @@ export function emptyExpertBrainDashboard(): ExpertBrainDashboard {
   };
 }
 
+export function emptyIngestionBucketCounts(): ExpertBrainIngestionBucketCounts {
+  return {
+    pending: 0,
+    processing: 0,
+    waiting_oauth: 0,
+    waiting_whisper: 0,
+    completed: 0,
+    failed: 0,
+  };
+}
+
 export function emptyExpertStatusCounts(): ExpertBrainStatusCounts {
   return { pending: 0, processing: 0, ready: 0, failed: 0, partial: 0 };
+}
+
+export function ingestionBucketLabel(bucket: ExpertBrainIngestionBucket): string {
+  const labels: Record<ExpertBrainIngestionBucket, string> = {
+    pending: "Pending",
+    processing: "Processing",
+    waiting_oauth: "Waiting OAuth",
+    waiting_whisper: "Waiting Whisper",
+    completed: "Completed",
+    failed: "Failed",
+  };
+  return labels[bucket];
+}
+
+export function bucketForIngestionItem(
+  item: Pick<ExpertIngestionQueueItem, "status" | "last_error" | "error">,
+  driveNeedsReconnect: boolean
+): ExpertBrainIngestionBucket {
+  const status = item.status;
+  const oauthError =
+    isOauthReconnectError(item.last_error) || isOauthReconnectError(item.error);
+
+  if (status === "failed") return "failed";
+  if (status === "completed" || status === "done") return "completed";
+  if (status === "waiting_transcription_retry" || status === "waiting_for_openai") {
+    return "waiting_whisper";
+  }
+  if (status === "pending_drive" && (driveNeedsReconnect || oauthError)) {
+    return "waiting_oauth";
+  }
+  if (
+    status === "pending_drive" ||
+    status === "pending" ||
+    status === "uploaded" ||
+    status === "downloaded"
+  ) {
+    return "pending";
+  }
+  return "processing";
+}
+
+export function countIngestionBuckets(
+  items: Array<Pick<ExpertIngestionQueueItem, "status" | "last_error" | "error">>,
+  driveNeedsReconnect: boolean
+): ExpertBrainIngestionBucketCounts {
+  const counts = emptyIngestionBucketCounts();
+  for (const item of items) {
+    counts[bucketForIngestionItem(item, driveNeedsReconnect)] += 1;
+  }
+  return counts;
 }
 
 export function countByStatus<T extends { status: string }>(items: T[]): ExpertBrainStatusCounts {

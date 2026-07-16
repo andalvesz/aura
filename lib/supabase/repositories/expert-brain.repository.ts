@@ -290,6 +290,7 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
       "validating_chunk",
       "committing_chunk",
       "waiting_for_openai",
+      "waiting_transcription_retry",
       "pending",
       "processing",
     ];
@@ -347,6 +348,7 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
       "validating_chunk",
       "committing_chunk",
       "waiting_for_openai",
+      "waiting_transcription_retry",
       "pending",
       "processing",
     ];
@@ -420,6 +422,77 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
 
   async markWaitingForOpenai(id: string) {
     return this.update(id, { status: "waiting_for_openai", progress: 25, error: null });
+  }
+
+  async markWaitingTranscriptionRetry(id: string, lastError: string) {
+    const current = await this.findById(id);
+    const alreadyWaiting = current.data?.status === "waiting_transcription_retry";
+    const retryCount = alreadyWaiting
+      ? (current.data?.retry_count ?? 0)
+      : (current.data?.retry_count ?? 0) + 1;
+    return this.update(id, {
+      status: "waiting_transcription_retry",
+      progress: current.data?.progress ?? 25,
+      error: null,
+      last_error: lastError,
+      retry_count: retryCount,
+      processed_at: null,
+    });
+  }
+
+  /**
+   * Park item as pending_drive after OAuth failure.
+   * Preserves progress + AIF chunk metadata — never restarts from zero.
+   */
+  async markPendingDriveForOauth(id: string, lastError: string) {
+    const current = await this.findById(id);
+    const retryCount = (current.data?.retry_count ?? 0) + 1;
+    return this.update(id, {
+      status: "pending_drive",
+      // Keep progress so chunk resume stays intact after reconnect
+      progress: current.data?.progress ?? 0,
+      error: null,
+      last_error: lastError,
+      retry_count: retryCount,
+      processed_at: null,
+    });
+  }
+
+  async markPendingDriveForReconnect(
+    id: string,
+    options?: { preserveProgress?: boolean; clearLastError?: boolean }
+  ) {
+    const current = await this.findById(id);
+    return this.update(id, {
+      status: "pending_drive",
+      progress: options?.preserveProgress ? (current.data?.progress ?? 0) : (current.data?.progress ?? 0),
+      error: null,
+      last_error: options?.clearLastError ? null : (current.data?.last_error ?? null),
+      processed_at: null,
+    });
+  }
+
+  async findDriveReconnectCandidates(limit = 500) {
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .or(
+        [
+          "status.eq.pending_drive",
+          "and(status.eq.failed,last_error.ilike.%invalid_grant%)",
+          "and(status.eq.failed,error.ilike.%invalid_grant%)",
+          "and(status.eq.failed,last_error.ilike.%precisa ser reconectado%)",
+          "and(status.eq.failed,error.ilike.%precisa ser reconectado%)",
+        ].join(",")
+      )
+      .order("created_at", { ascending: true })
+      .limit(Math.max(1, limit));
+
+    return {
+      data: (data as ExpertIngestionQueueItem[]) ?? null,
+      error: error?.message ?? null,
+    };
   }
 
   async markExtracting(id: string) {

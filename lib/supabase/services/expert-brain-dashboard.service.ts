@@ -13,10 +13,12 @@ import {
   ExpertTranscriptsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
 import { runAifPipeline } from "@/lib/supabase/services/aif.service";
+import { getGoogleDriveConnectionStatus } from "@/lib/supabase/services/google-drive.service";
 import { getOptionalDataContext } from "./context";
 import {
   buildCourseTree,
   countByStatus,
+  countIngestionBuckets,
   emptyExpertBrainDashboard,
   mapDecisionRuleArtifact,
   mapFailurePatternArtifact,
@@ -185,6 +187,7 @@ export async function getExpertBrainDashboard(): Promise<{
       decisionRules,
       successPatterns,
       failurePatterns,
+      driveConnection,
     ] = await Promise.all([
       safeDashboardListQuery("expert_courses", () => coursesRepo.findRecent(100), warnings),
       safeDashboardListQuery("expert_course_modules", () => modulesRepo.findAllRecent(), warnings),
@@ -200,7 +203,10 @@ export async function getExpertBrainDashboard(): Promise<{
       safeDashboardListQuery("expert_decision_rules", () => decisionRulesRepo.findTop(30), warnings),
       safeDashboardListQuery("expert_success_patterns", () => successRepo.findRecent(30), warnings),
       safeDashboardListQuery("expert_failure_patterns", () => failureRepo.findRecent(30), warnings),
+      getGoogleDriveConnectionStatus(),
     ]);
+
+    const driveNeedsReconnect = driveConnection.needsReconnect || driveConnection.expired;
 
     return {
       dashboard: {
@@ -217,6 +223,15 @@ export async function getExpertBrainDashboard(): Promise<{
           failurePatterns: failurePatterns.length,
         },
         statusCounts: countByStatus(lessons),
+        ingestionBuckets: countIngestionBuckets(ingestionQueue, driveNeedsReconnect),
+        driveConnection: {
+          connected: driveConnection.connected,
+          expired: driveConnection.expired,
+          needsReconnect: driveNeedsReconnect,
+          email: driveConnection.email,
+          accountName: driveConnection.accountName,
+          lastError: driveConnection.lastError,
+        },
         courses: buildCourseTree(courses, modules, lessons, transcripts),
         queue,
         ingestionQueue,

@@ -7,6 +7,7 @@ export type ExpertBrainPipelineStage = "upload" | "transcribe" | "extract" | "co
 export const PIPELINE_PROGRESS: Record<string, number> = {
   uploaded: 0,
   waiting_for_openai: 25,
+  waiting_transcription_retry: 25,
   transcribing: 25,
   transcribed: 45,
   downloaded: 20,
@@ -43,6 +44,7 @@ export function pipelineStageIndex(status: ExpertIngestionStatus | string): numb
     case "downloaded":
       return 0;
     case "waiting_for_openai":
+    case "waiting_transcription_retry":
     case "transcribing":
     case "transcribed":
       return 1;
@@ -76,6 +78,7 @@ export function ingestionStatusLabel(status: ExpertIngestionStatus | string): st
     committing_chunk: "Commitando chunk",
     completed: "Concluído",
     waiting_for_openai: "Aguardando OpenAI — configure OPENAI_API_KEY no servidor",
+    waiting_transcription_retry: "Aguardando retry do Whisper",
     failed: "Falhou",
     pending: "Upload",
     pending_drive: "Downloadando",
@@ -99,6 +102,7 @@ export function ingestionStatusColor(status: ExpertIngestionStatus | string): st
     committing_chunk: "text-emerald-300 bg-emerald-500/10",
     completed: "text-emerald-400 bg-emerald-500/10",
     waiting_for_openai: "text-orange-400 bg-orange-500/10",
+    waiting_transcription_retry: "text-amber-300 bg-amber-500/10",
     failed: "text-red-400 bg-red-500/10",
     pending: "text-sky-400 bg-sky-500/10",
     pending_drive: "text-cyan-400 bg-cyan-500/10",

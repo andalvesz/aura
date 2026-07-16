@@ -9,7 +9,11 @@ import {
 import { fetchGoogleUserProfile } from "@/lib/google-calendar/oauth";
 import { GoogleDriveConnectionsRepository } from "@/lib/supabase/repositories/google-drive.repository";
 import { getOptionalDataContext } from "@/lib/supabase/services/context";
-import { saveGoogleDriveExpertConnection } from "@/lib/supabase/services/google-drive.service";
+import {
+  requeueDriveItemsAfterOAuthReconnect,
+  saveGoogleDriveExpertConnection,
+} from "@/lib/supabase/services/google-drive.service";
+import { processExpertBrainIngestionQueue } from "@/lib/supabase/services/expert-brain-ingestion.service";
 
 export async function GET(request: Request) {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
@@ -73,8 +77,22 @@ export async function GET(request: Request) {
       displayName: profile.name,
     });
 
+    if (error) {
+      const response = NextResponse.redirect(
+        `${redirectBase}?drive_error=${encodeURIComponent(error)}`
+      );
+      response.cookies.delete(GOOGLE_DRIVE_EXPERT_OAUTH_STATE_COOKIE);
+      return response;
+    }
+
+    // Reattach pending Drive items (preserve chunk progress) and resume queue
+    const { requeued } = await requeueDriveItemsAfterOAuthReconnect();
+    if (requeued > 0) {
+      void processExpertBrainIngestionQueue(1).catch(() => undefined);
+    }
+
     const response = NextResponse.redirect(
-      error ? `${redirectBase}?drive_error=${encodeURIComponent(error)}` : `${redirectBase}?drive_connected=1`
+      `${redirectBase}?drive_connected=1&drive_requeued=${requeued}`
     );
     response.cookies.delete(GOOGLE_DRIVE_EXPERT_OAUTH_STATE_COOKIE);
     return response;

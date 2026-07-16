@@ -120,6 +120,8 @@ export type GoogleCalendarConnection = {
   updated_at: string;
 };
 
+export type GoogleDriveConnectionStatusValue = "active" | "expired" | "disconnected";
+
 export type GoogleDriveConnection = {
   id: string;
   user_id: string;
@@ -128,6 +130,8 @@ export type GoogleDriveConnection = {
   access_token: string | null;
   refresh_token: string | null;
   expires_at: string | null;
+  status: GoogleDriveConnectionStatusValue;
+  last_error: string | null;
   created_at: string;
 };
 
@@ -1013,6 +1017,7 @@ export type ExpertIngestionStatus =
   | "extracting"
   | "completed"
   | "waiting_for_openai"
+  | "waiting_transcription_retry"
   | "failed"
   | "pending"
   | "processing"
@@ -1056,6 +1061,8 @@ export type ExpertIngestionQueueItem = {
   status: ExpertIngestionStatus;
   progress: number;
   error: string | null;
+  retry_count: number;
+  last_error: string | null;
   metadata: Json;
   created_at: string;
   processed_at: string | null;
@@ -3278,6 +3285,8 @@ export type Database = {
           access_token?: string | null;
           refresh_token?: string | null;
           expires_at?: string | null;
+          status?: GoogleDriveConnectionStatusValue;
+          last_error?: string | null;
           created_at?: string;
         }
       >;
@@ -6339,6 +6348,8 @@ export type Database = {
           | "status"
           | "progress"
           | "error"
+          | "retry_count"
+          | "last_error"
         > & {
           id?: string;
           course_name?: string | null;
@@ -6348,6 +6359,8 @@ export type Database = {
           status?: ExpertIngestionStatus;
           progress?: number;
           error?: string | null;
+          retry_count?: number;
+          last_error?: string | null;
           metadata?: Json;
           created_at?: string;
           processed_at?: string | null;

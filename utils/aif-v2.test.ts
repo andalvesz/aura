@@ -31,6 +31,8 @@ function mockItem(
     status: "extracting_chunk",
     progress: 60,
     error: null,
+    retry_count: 0,
+    last_error: null,
     metadata: {},
     created_at: new Date().toISOString(),
     processed_at: null,

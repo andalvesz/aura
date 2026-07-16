@@ -39,8 +39,11 @@ import type { ExpertIngestionQueueItem } from "@/types/database";
 import {
   expertStatusColor,
   expertStatusLabel,
+  ingestionBucketLabel,
+  bucketForIngestionItem,
   type ExpertBrainArtifactSummary,
   type ExpertBrainCourseSummary,
+  type ExpertBrainIngestionBucket,
 } from "@/utils/expert-brain-dashboard";
 
 const UPLOAD_TABS: Array<{
@@ -493,10 +496,32 @@ export function ExpertBrainView() {
         "validating_chunk",
         "committing_chunk",
         "waiting_for_openai",
+        "waiting_transcription_retry",
         "pending",
         "processing",
       ].includes(item.status)
     ) ?? [];
+
+  const driveNeedsReconnect = Boolean(dashboard?.driveConnection?.needsReconnect);
+  const ingestionBuckets = dashboard?.ingestionBuckets;
+  const bucketOrder: ExpertBrainIngestionBucket[] = [
+    "pending",
+    "processing",
+    "waiting_oauth",
+    "waiting_whisper",
+    "completed",
+    "failed",
+  ];
+  const itemsByBucket = bucketOrder.reduce(
+    (acc, bucket) => {
+      acc[bucket] =
+        dashboard?.ingestionQueue.filter(
+          (item) => bucketForIngestionItem(item, driveNeedsReconnect) === bucket
+        ) ?? [];
+      return acc;
+    },
+    {} as Record<ExpertBrainIngestionBucket, ExpertIngestionQueueItem[]>
+  );
 
   if (loading) {
     return (
@@ -550,7 +575,24 @@ export function ExpertBrainView() {
         </div>
       </div>
 
-      <ExpertBrainDrivePanel busy={busy} onImported={() => void refresh()} />
+      <ExpertBrainDrivePanel
+        busy={busy}
+        needsReconnect={driveNeedsReconnect}
+        onImported={() => void refresh()}
+      />
+
+      {driveNeedsReconnect ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-3 py-3">
+          <p className="text-[12px] font-medium text-amber-100">
+            Google Drive precisa ser reconectado
+          </p>
+          <ActionButton onClick={() => {
+            window.location.href = "/api/google-drive/auth";
+          }}>
+            Reconectar Google Drive
+          </ActionButton>
+        </div>
+      ) : null}
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Cursos" value={String(metrics?.courses ?? 0)} />
@@ -665,46 +707,72 @@ export function ExpertBrainView() {
         </PanelContent>
       </Panel>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Panel>
-          <PanelHeader>
-            <PanelTitle>Fila de ingestão (Storage)</PanelTitle>
-          </PanelHeader>
-          <PanelContent>
-            {!dashboard?.ingestionQueue.length ? (
-              <p className="text-[11px] text-zinc-500">Nenhum arquivo na fila de ingestão.</p>
-            ) : (
-              <div className="max-h-56 space-y-2 overflow-y-auto">
-                {dashboard.ingestionQueue.map((item) => {
-                  const chunkLabel = formatAifChunkProgress(item);
-                  return (
-                  <div
-                    key={item.id}
-                    className="rounded border border-white/[0.06] p-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-[11px] text-zinc-200">
-                        {item.file_name ?? item.file_path.split("/").pop()}
-                      </p>
-                      <IngestionStatusBadge status={item.status} />
-                    </div>
-                    <div className="mt-2">
-                      <PipelineProgressBar status={item.status} progress={item.progress} />
-                    </div>
-                    {chunkLabel ? (
-                      <p className="mt-1 text-[10px] text-violet-300/90">{chunkLabel}</p>
-                    ) : null}
-                    {item.error ? (
-                      <p className="mt-1 text-[10px] text-red-400">{item.error}</p>
-                    ) : null}
-                  </div>
-                  );
-                })}
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Fila de ingestão</PanelTitle>
+        </PanelHeader>
+        <PanelContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            {bucketOrder.map((bucket) => (
+              <div key={bucket} className="rounded bg-white/[0.03] p-2 text-center">
+                <p className="text-[16px] font-semibold text-zinc-100">
+                  {ingestionBuckets?.[bucket] ?? 0}
+                </p>
+                <p className="text-[10px] text-zinc-500">{ingestionBucketLabel(bucket)}</p>
               </div>
-            )}
-          </PanelContent>
-        </Panel>
+            ))}
+          </div>
 
+          {!dashboard?.ingestionQueue.length ? (
+            <p className="text-[11px] text-zinc-500">Nenhum arquivo na fila de ingestão.</p>
+          ) : (
+            <div className="space-y-4">
+              {bucketOrder.map((bucket) => {
+                const items = itemsByBucket[bucket];
+                if (!items.length) return null;
+                return (
+                  <div key={bucket} className="space-y-2">
+                    <p className="text-[10px] uppercase tracking-wide text-zinc-500">
+                      {ingestionBucketLabel(bucket)} ({items.length})
+                    </p>
+                    <div className="max-h-40 space-y-2 overflow-y-auto">
+                      {items.map((item) => {
+                        const chunkLabel = formatAifChunkProgress(item);
+                        return (
+                          <div
+                            key={item.id}
+                            className="rounded border border-white/[0.06] p-2"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="truncate text-[11px] text-zinc-200">
+                                {item.file_name ?? item.file_path.split("/").pop()}
+                              </p>
+                              <IngestionStatusBadge status={item.status} />
+                            </div>
+                            <div className="mt-2">
+                              <PipelineProgressBar status={item.status} progress={item.progress} />
+                            </div>
+                            {chunkLabel ? (
+                              <p className="mt-1 text-[10px] text-violet-300/90">{chunkLabel}</p>
+                            ) : null}
+                            {item.last_error || item.error ? (
+                              <p className="mt-1 text-[10px] text-red-400">
+                                {item.last_error ?? item.error}
+                              </p>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </PanelContent>
+      </Panel>
+
+      <div className="grid gap-3 lg:grid-cols-2">
         <Panel>
           <PanelHeader>
             <PanelTitle>Fila de extração (IA)</PanelTitle>

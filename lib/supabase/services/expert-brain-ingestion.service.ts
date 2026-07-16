@@ -22,7 +22,10 @@ import {
   transcribeDriveIngestionVideo,
   transcribeIngestionVideo,
 } from "@/lib/supabase/services/expert-brain-transcription.service";
-import { getValidGoogleDriveExpertAccessToken } from "@/lib/supabase/services/google-drive.service";
+import {
+  getValidGoogleDriveExpertAccessToken,
+  markGoogleDriveConnectionExpired,
+} from "@/lib/supabase/services/google-drive.service";
 import {
   EXPERT_BRAIN_FILES_BUCKET,
   assertExpertBrainStoragePathOwned,
@@ -43,6 +46,10 @@ import {
   shouldResetFailedDriveItem,
   type IngestionQueueRunResult,
 } from "@/utils/expert-brain-queue";
+import {
+  isInvalidGrantError,
+  isOauthReconnectError,
+} from "@/utils/google-drive-oauth-errors";
 import { getOptionalDataContext } from "./context";
 
 export type RegisterExpertBrainIngestionInput = {
@@ -429,13 +436,59 @@ function ingestionUpdateError(
   return result.error ? `${label}: ${result.error}` : null;
 }
 
+type IngestionStageResult = {
+  error: string | null;
+  parked?: "waiting_oauth" | "waiting_transcription_retry" | "waiting_for_openai";
+};
+
 async function failIngestionItem(
   ingestionRepo: ExpertIngestionQueueRepository,
   id: string,
   message: string
-): Promise<{ error: string }> {
+): Promise<IngestionStageResult & { error: string }> {
   await ingestionRepo.markFailed(id, message);
   return { error: message };
+}
+
+async function parkPendingDriveForOauth(
+  ingestionRepo: ExpertIngestionQueueRepository,
+  id: string,
+  message: string
+): Promise<IngestionStageResult> {
+  const lastError = isInvalidGrantError(message)
+    ? message
+    : "Google Drive precisa ser reconectado";
+  if (isInvalidGrantError(message) || isOauthReconnectError(message)) {
+    await markGoogleDriveConnectionExpired(message);
+  }
+
+  const current = await ingestionRepo.findById(id);
+  const alreadyWaiting =
+    current.data?.status === "pending_drive" &&
+    isOauthReconnectError(current.data.last_error);
+
+  if (alreadyWaiting) {
+    // Already parked for OAuth — do not bump retry_count on every queue tick
+    await ingestionRepo.update(id, {
+      status: "pending_drive",
+      last_error: lastError,
+      error: null,
+      processed_at: null,
+    });
+  } else {
+    await ingestionRepo.markPendingDriveForOauth(id, lastError);
+  }
+
+  return { error: null, parked: "waiting_oauth" };
+}
+
+async function parkWaitingTranscriptionRetry(
+  ingestionRepo: ExpertIngestionQueueRepository,
+  id: string,
+  message: string
+): Promise<IngestionStageResult> {
+  await ingestionRepo.markWaitingTranscriptionRetry(id, message);
+  return { error: null, parked: "waiting_transcription_retry" };
 }
 
 async function completeDriveVideoIngestion(
@@ -563,7 +616,7 @@ async function processPendingDriveVideo(
     fileName: string;
     meta: IngestionMeta;
   }
-): Promise<{ error: string | null }> {
+): Promise<IngestionStageResult> {
   const { buffer, driveFileId, fileName, meta } = params;
 
   console.log("[queue] processPendingDriveVideo", item.id, item.status, driveFileId, fileName);
@@ -611,10 +664,19 @@ async function processPendingDriveVideo(
       await ingestionRepo.markWaitingForOpenai(item.id)
     );
     if (waitError) return failIngestionItem(ingestionRepo, item.id, waitError);
-    return { error: null };
+    return { error: null, parked: "waiting_for_openai" };
   }
 
-  if (transcription.error || !transcription.rawText?.trim() || !transcription.transcriptPath) {
+  // Empty Whisper text → retryable wait (never failed)
+  if (!transcription.rawText?.trim()) {
+    return parkWaitingTranscriptionRetry(
+      ingestionRepo,
+      item.id,
+      transcription.error ?? "Whisper retornou texto vazio."
+    );
+  }
+
+  if (transcription.error || !transcription.transcriptPath) {
     return failIngestionItem(
       ingestionRepo,
       item.id,
@@ -646,7 +708,7 @@ async function processPendingDriveVideo(
 async function processPendingDriveStage(
   item: import("@/types/database").ExpertIngestionQueueItem,
   ingestionRepo: ExpertIngestionQueueRepository
-): Promise<{ error: string | null }> {
+): Promise<IngestionStageResult> {
   console.log("[queue] processPendingDriveStage", item.id, item.status);
 
   const ctx = await getOptionalDataContext();
@@ -664,21 +726,24 @@ async function processPendingDriveStage(
     );
   }
 
-  const progressStartError = ingestionUpdateError(
-    "Falha ao atualizar progresso",
-    await ingestionRepo.updateProgress(item.id, 10)
-  );
-  if (progressStartError) {
-    return failIngestionItem(ingestionRepo, item.id, progressStartError);
+  // Only bump early progress when still at zero — never wipe resumed chunk progress
+  if ((item.progress ?? 0) < 10) {
+    const progressStartError = ingestionUpdateError(
+      "Falha ao atualizar progresso",
+      await ingestionRepo.updateProgress(item.id, 10)
+    );
+    if (progressStartError) {
+      return failIngestionItem(ingestionRepo, item.id, progressStartError);
+    }
   }
 
-  const { accessToken, error: tokenError } = await getValidGoogleDriveExpertAccessToken();
+  const { accessToken, error: tokenError, expired } = await getValidGoogleDriveExpertAccessToken();
   if (!accessToken) {
-    return failIngestionItem(
-      ingestionRepo,
-      item.id,
-      tokenError ?? "Google Drive não conectado."
-    );
+    const message = tokenError ?? "Google Drive não conectado.";
+    if (expired || isInvalidGrantError(message) || isOauthReconnectError(message)) {
+      return parkPendingDriveForOauth(ingestionRepo, item.id, message);
+    }
+    return failIngestionItem(ingestionRepo, item.id, message);
   }
 
   logExpertBrain("upload", {
@@ -707,8 +772,10 @@ async function processPendingDriveStage(
       message,
       stack: err instanceof Error ? err.stack : undefined,
     });
-    const downloadError = await failIngestionItem(ingestionRepo, item.id, message);
-    return downloadError;
+    if (isInvalidGrantError(message) || isOauthReconnectError(message)) {
+      return parkPendingDriveForOauth(ingestionRepo, item.id, message);
+    }
+    return failIngestionItem(ingestionRepo, item.id, message);
   }
 
   const sizeError = validateExpertBrainFileSize(buffer.length);
@@ -887,7 +954,7 @@ async function processUploadedStage(
 
 async function processTranscribingStage(
   item: import("@/types/database").ExpertIngestionQueueItem
-): Promise<{ error: string | null }> {
+): Promise<IngestionStageResult> {
   const ingestionRepo = (await getIngestionRepo())!;
   const fileName = item.file_name ?? item.file_path.split("/").pop() ?? "arquivo";
   const meta = readIngestionMeta(item);
@@ -923,16 +990,24 @@ async function processTranscribingStage(
 
   if (transcription.waitingForOpenai) {
     await ingestionRepo.markWaitingForOpenai(item.id);
-    return { error: null };
+    return { error: null, parked: "waiting_for_openai" };
   }
 
-  if (transcription.error || !transcription.rawText?.trim()) {
+  if (!transcription.rawText?.trim()) {
+    return parkWaitingTranscriptionRetry(
+      ingestionRepo,
+      item.id,
+      transcription.error ?? "Whisper retornou texto vazio."
+    );
+  }
+
+  if (transcription.error) {
     console.error("[drive-import] whisper", {
       ingestionId: item.id,
-      error: transcription.error ?? "Transcrição falhou.",
+      error: transcription.error,
       waitingForOpenai: transcription.waitingForOpenai,
     });
-    await ingestionRepo.markFailed(item.id, transcription.error ?? "Transcrição falhou.");
+    await ingestionRepo.markFailed(item.id, transcription.error);
     return { error: transcription.error };
   }
 
@@ -1159,7 +1234,13 @@ async function processIngestionItem(
 ): Promise<{
   error: string | null;
   changed: boolean;
-  terminalStatus: "completed" | "failed" | "waiting_for_openai" | null;
+  terminalStatus:
+    | "completed"
+    | "failed"
+    | "waiting_for_openai"
+    | "waiting_oauth"
+    | "waiting_transcription_retry"
+    | null;
 }> {
   const ctx = await getOptionalDataContext();
   if (!ctx) {
@@ -1225,7 +1306,7 @@ async function processIngestionItem(
     };
   }
 
-  let result: { error: string | null };
+  let result: IngestionStageResult;
 
   switch (status) {
     case "pending_drive":
@@ -1241,6 +1322,20 @@ async function processIngestionItem(
       console.log("[queue] entering waiting_for_openai", item.id);
       if (!hasOpenAiKey()) {
         return { error: null, changed: false, terminalStatus: "waiting_for_openai" };
+      }
+      await ingestionRepo.markTranscribing(item.id);
+      {
+        const refreshed = await ingestionRepo.findById(item.id);
+        result = await processTranscribingStage(
+          refreshed.data ?? { ...item, status: "transcribing" }
+        );
+      }
+      break;
+    case "waiting_transcription_retry":
+      console.log("[queue] entering waiting_transcription_retry", item.id);
+      if (!hasOpenAiKey()) {
+        await ingestionRepo.markWaitingForOpenai(item.id);
+        return { error: null, changed: true, terminalStatus: "waiting_for_openai" };
       }
       await ingestionRepo.markTranscribing(item.id);
       {
@@ -1266,6 +1361,16 @@ async function processIngestionItem(
         reason: "status não possui handler no switch de processIngestionItem",
       });
       return { error: null, changed: false, terminalStatus: null };
+  }
+
+  if (result.parked === "waiting_oauth") {
+    return { error: null, changed: true, terminalStatus: "waiting_oauth" };
+  }
+  if (result.parked === "waiting_transcription_retry") {
+    return { error: null, changed: true, terminalStatus: "waiting_transcription_retry" };
+  }
+  if (result.parked === "waiting_for_openai") {
+    return { error: null, changed: true, terminalStatus: "waiting_for_openai" };
   }
 
   if (result.error) {
@@ -1295,6 +1400,15 @@ async function processIngestionItem(
   }
   if (refreshed.data.status === "waiting_for_openai") {
     return { error: null, changed: true, terminalStatus: "waiting_for_openai" };
+  }
+  if (refreshed.data.status === "waiting_transcription_retry") {
+    return { error: null, changed: true, terminalStatus: "waiting_transcription_retry" };
+  }
+  if (
+    refreshed.data.status === "pending_drive" &&
+    isOauthReconnectError(refreshed.data.last_error)
+  ) {
+    return { error: null, changed: true, terminalStatus: "waiting_oauth" };
   }
 
   return {
@@ -1456,7 +1570,13 @@ export async function processExpertBrainIngestionQueue(limit = 1): Promise<Inges
     console.log("[queue] before processIngestionItem", item.id);
     let processError: string | null = null;
     let changed = false;
-    let terminalStatus: "completed" | "failed" | "waiting_for_openai" | null = null;
+    let terminalStatus:
+      | "completed"
+      | "failed"
+      | "waiting_for_openai"
+      | "waiting_oauth"
+      | "waiting_transcription_retry"
+      | null = null;
     try {
       const result = await processIngestionItem(item);
       processError = result.error;
@@ -1490,7 +1610,11 @@ export async function processExpertBrainIngestionQueue(limit = 1): Promise<Inges
       continue;
     }
 
-    if (terminalStatus === "waiting_for_openai") {
+    if (
+      terminalStatus === "waiting_for_openai" ||
+      terminalStatus === "waiting_oauth" ||
+      terminalStatus === "waiting_transcription_retry"
+    ) {
       processed += 1;
       continue;
     }

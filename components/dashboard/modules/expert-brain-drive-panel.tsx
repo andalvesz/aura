@@ -32,13 +32,19 @@ function DriveFileIcon({ mimeType }: { mimeType: string }) {
 
 type ExpertBrainDrivePanelProps = {
   busy?: boolean;
+  needsReconnect?: boolean;
   onImported?: () => void;
 };
 
-export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: ExpertBrainDrivePanelProps) {
+export function ExpertBrainDrivePanel({
+  busy: externalBusy,
+  needsReconnect: needsReconnectProp,
+  onImported,
+}: ExpertBrainDrivePanelProps) {
   const searchParams = useSearchParams();
   const {
     connected,
+    needsReconnect: needsReconnectHook,
     email,
     accountName,
     folders,
@@ -58,14 +64,22 @@ export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: Expert
     setError,
   } = useGoogleDrive();
 
+  const needsReconnect = Boolean(needsReconnectProp || needsReconnectHook);
+
   useEffect(() => {
     if (searchParams.get("drive_connected")) {
-      toast.success("Google Drive conectado.");
+      const requeued = searchParams.get("drive_requeued");
+      toast.success(
+        requeued && Number(requeued) > 0
+          ? `Google Drive reconectado. ${requeued} item(ns) reenfileirado(s).`
+          : "Google Drive conectado."
+      );
       void refresh();
+      onImported?.();
     }
     const driveError = searchParams.get("drive_error");
     if (driveError) toast.error(`Drive: ${driveError}`);
-  }, [searchParams, refresh]);
+  }, [searchParams, refresh, onImported]);
 
   const isBusy = busy || Boolean(externalBusy);
   const currentFolder = drivePath[drivePath.length - 1];
@@ -96,21 +110,36 @@ export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: Expert
           <HardDrive className="size-3.5 text-cyan-400" />
           Google Drive
         </PanelTitle>
-        {connected && (
+        {(connected || needsReconnect) && (
           <div className="flex flex-wrap gap-2">
             <ActionButton variant="ghost" onClick={() => void refresh()} disabled={isBusy}>
               <RefreshCw className={cn("size-3.5", isBusy && "animate-spin")} />
               Atualizar
             </ActionButton>
-            <ActionButton variant="ghost" onClick={() => void handleDisconnect()} disabled={isBusy}>
-              <LogOut className="size-3.5" />
-              Desconectar
-            </ActionButton>
+            {connected && (
+              <ActionButton variant="ghost" onClick={() => void handleDisconnect()} disabled={isBusy}>
+                <LogOut className="size-3.5" />
+                Desconectar
+              </ActionButton>
+            )}
           </div>
         )}
       </PanelHeader>
       <PanelContent className="space-y-4">
-        {error && (
+        {needsReconnect && (
+          <div className="space-y-3 rounded-md border border-amber-500/25 bg-amber-500/[0.06] px-3 py-3">
+            <p className="text-[12px] font-medium text-amber-100">
+              Google Drive precisa ser reconectado
+            </p>
+            <p className="text-[11px] text-amber-200/80">
+              O token expirou ou foi revogado. Reconecte para retomar downloads sem reiniciar chunks
+              já processados.
+            </p>
+            <ActionButton onClick={connect}>Reconectar Google Drive</ActionButton>
+          </div>
+        )}
+
+        {error && !needsReconnect && (
           <div className="rounded-md border border-red-500/20 bg-red-500/[0.04] px-3 py-2 text-[11px] text-red-300">
             {error}
             <button
@@ -123,7 +152,7 @@ export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: Expert
           </div>
         )}
 
-        {!connected ? (
+        {!connected && !needsReconnect ? (
           <div className="space-y-3">
             <p className="text-[12px] text-zinc-400">
               Conecte sua conta Google para navegar nas pastas do Drive e importar cursos (PDF, TXT,
@@ -131,7 +160,7 @@ export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: Expert
             </p>
             <ActionButton onClick={connect}>Conectar Google Drive</ActionButton>
           </div>
-        ) : (
+        ) : connected ? (
           <>
             <div className="rounded-md border border-white/[0.06] bg-white/[0.02] p-3">
               <p className="text-[12px] font-medium text-zinc-100">
@@ -250,7 +279,7 @@ export function ExpertBrainDrivePanel({ busy: externalBusy, onImported }: Expert
               Importar do Google Drive
             </ActionButton>
           </>
-        )}
+        ) : null}
       </PanelContent>
     </Panel>
   );

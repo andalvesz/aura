@@ -11,6 +11,7 @@ test("pipeline progress maps ingestion statuses", () => {
   assert.equal(pipelineProgressForStatus("uploaded"), 0);
   assert.equal(pipelineProgressForStatus("transcribing"), 25);
   assert.equal(pipelineProgressForStatus("waiting_for_openai"), 25);
+  assert.equal(pipelineProgressForStatus("waiting_transcription_retry"), 25);
   assert.equal(pipelineProgressForStatus("extracting"), 50);
   assert.equal(pipelineProgressForStatus("extracting_chunk"), 60);
   assert.equal(pipelineProgressForStatus("completed"), 100);
@@ -19,6 +20,7 @@ test("pipeline progress maps ingestion statuses", () => {
 test("pipeline stage index", () => {
   assert.equal(pipelineStageIndex("uploaded"), 0);
   assert.equal(pipelineStageIndex("transcribing"), 1);
+  assert.equal(pipelineStageIndex("waiting_transcription_retry"), 1);
   assert.equal(pipelineStageIndex("extracting"), 2);
   assert.equal(pipelineStageIndex("extracting_chunk"), 2);
   assert.equal(pipelineStageIndex("completed"), 3);
@@ -26,6 +28,7 @@ test("pipeline stage index", () => {
 
 test("ingestion status labels", () => {
   assert.equal(ingestionStatusLabel("waiting_for_openai"), "Aguardando OpenAI — configure OPENAI_API_KEY no servidor");
+  assert.equal(ingestionStatusLabel("waiting_transcription_retry"), "Aguardando retry do Whisper");
   assert.equal(ingestionStatusLabel("completed"), "Concluído");
   assert.equal(ingestionStatusLabel("extracting_chunk"), "Extraindo chunk");
 });

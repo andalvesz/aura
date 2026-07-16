@@ -16,6 +16,7 @@ export type SelectedGoogleDriveFolder = {
 
 export function useGoogleDrive() {
   const [connected, setConnected] = useState(false);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [accountName, setAccountName] = useState<string | null>(null);
   const [folders, setFolders] = useState<DriveItem[]>([]);
@@ -41,18 +42,29 @@ export function useGoogleDrive() {
         email?: string | null;
         accountName?: string | null;
         connected?: boolean;
+        expired?: boolean;
+        needsReconnect?: boolean;
         error?: string;
       }>(res);
 
       if (parseError || !res.ok || data?.error) {
+        const reconnect = Boolean(data?.needsReconnect || data?.expired);
         setConnected(false);
+        setNeedsReconnect(reconnect);
         setFolders([]);
         setFiles([]);
-        setError(data?.error ?? parseError ?? "Erro ao listar pastas.");
+        setError(
+          reconnect
+            ? "Google Drive precisa ser reconectado"
+            : (data?.error ?? parseError ?? "Erro ao listar pastas.")
+        );
+        if (data?.email) setEmail(data.email);
+        if (data?.accountName) setAccountName(data.accountName);
         return;
       }
 
       setConnected(Boolean(data?.connected));
+      setNeedsReconnect(Boolean(data?.needsReconnect || data?.expired));
       setEmail(data?.email ?? null);
       setAccountName(data?.accountName ?? null);
       setFolders(data?.folders ?? []);
@@ -114,6 +126,7 @@ export function useGoogleDrive() {
       }
 
       setConnected(false);
+      setNeedsReconnect(false);
       setEmail(null);
       setAccountName(null);
       setFolders([]);
@@ -196,6 +209,7 @@ export function useGoogleDrive() {
 
   return {
     connected,
+    needsReconnect,
     email,
     accountName,
     folders,
