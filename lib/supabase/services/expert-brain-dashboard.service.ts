@@ -215,7 +215,7 @@ export async function getExpertBrainDashboard(): Promise<{
           modules: modules.length,
           lessons: lessons.length,
           sourcesReady: readySources.length,
-          queuePending: pendingQueueCount + ingestionActiveCount,
+          queuePending: pendingQueueCount,
           queueProcessing: processingQueueCount + ingestionActiveCount,
           frameworks: frameworks.length,
           decisionRules: decisionRules.length,

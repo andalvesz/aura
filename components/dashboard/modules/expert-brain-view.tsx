@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
@@ -16,6 +16,7 @@ import {
   Video,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
 import { EmptyState } from "@/components/dashboard/empty-state";
@@ -45,6 +46,7 @@ import {
   type ExpertBrainCourseSummary,
   type ExpertBrainIngestionBucket,
 } from "@/utils/expert-brain-dashboard";
+
 
 const UPLOAD_TABS: Array<{
   mode: ExpertUploadMode;
@@ -376,6 +378,9 @@ function CourseTree({
 }
 
 export function ExpertBrainView() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const handledOAuthRef = useRef(false);
   const {
     dashboard,
     loading,
@@ -395,6 +400,52 @@ export function ExpertBrainView() {
   const [niche, setNiche] = useState("");
   const [preview, setPreview] = useState<{ title: string; content: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleImported = useCallback(() => {
+    void refresh();
+  }, [refresh]);
+
+  // OAuth callback: toast once, clear query params, single dashboard refresh.
+  // Handled here (not DrivePanel) so skeleton remounts cannot re-trigger it.
+  useEffect(() => {
+    const driveConnected = searchParams.get("drive_connected");
+    const driveError = searchParams.get("drive_error");
+
+    if (driveError) {
+      if (!handledOAuthRef.current) {
+        handledOAuthRef.current = true;
+        toast.error(`Drive: ${driveError}`);
+      }
+      router.replace("/dashboard/expert-brain");
+      return;
+    }
+
+    if (driveConnected !== "1") return;
+
+    // Survive React Strict Mode remounts while query params are still present
+    const toastKey = `expert-brain-oauth:${searchParams.get("drive_requeued") ?? "ok"}`;
+    const alreadyToasted =
+      typeof sessionStorage !== "undefined" && sessionStorage.getItem(toastKey) === "1";
+
+    if (!alreadyToasted) {
+      try {
+        sessionStorage.setItem(toastKey, "1");
+      } catch {
+        // ignore storage failures
+      }
+      const requeued = searchParams.get("drive_requeued");
+      toast.success(
+        requeued && Number(requeued) > 0
+          ? `Google Drive reconectado. ${requeued} item(ns) reenfileirado(s).`
+          : "Google Drive conectado."
+      );
+    }
+
+    handledOAuthRef.current = true;
+    router.replace("/dashboard/expert-brain");
+    // Mount already refreshes; only refresh again if we still have no dashboard data.
+    // Avoid forcing loading=true loop after reconnect.
+  }, [searchParams, router]);
 
   const activeTab = UPLOAD_TABS.find((t) => t.mode === uploadMode) ?? UPLOAD_TABS[0];
 
@@ -523,7 +574,7 @@ export function ExpertBrainView() {
     {} as Record<ExpertBrainIngestionBucket, ExpertIngestionQueueItem[]>
   );
 
-  if (loading) {
+  if (loading && !dashboard) {
     return (
       <div className="space-y-3">
         <MetricsSkeleton count={4} />
@@ -532,8 +583,18 @@ export function ExpertBrainView() {
     );
   }
 
-  if (error) {
-    return <EmptyState title="Expert Brain" description={error} />;
+  if (error && !dashboard) {
+    return (
+      <div className="space-y-3">
+        <EmptyState title="Expert Brain" description={error} />
+        <div className="flex justify-center">
+          <ActionButton onClick={() => void refresh()}>
+            <RefreshCw className="size-3.5" />
+            Tentar novamente
+          </ActionButton>
+        </div>
+      </div>
+    );
   }
 
   const metrics = dashboard?.metrics;
@@ -575,10 +636,20 @@ export function ExpertBrainView() {
         </div>
       </div>
 
+      {error ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-500/20 bg-red-500/[0.04] px-3 py-3">
+          <p className="text-[12px] text-red-300">{error}</p>
+          <ActionButton variant="ghost" onClick={() => void refresh()}>
+            <RefreshCw className="size-3.5" />
+            Tentar novamente
+          </ActionButton>
+        </div>
+      ) : null}
+
       <ExpertBrainDrivePanel
         busy={busy}
         needsReconnect={driveNeedsReconnect}
-        onImported={() => void refresh()}
+        onImported={handleImported}
       />
 
       {driveNeedsReconnect ? (

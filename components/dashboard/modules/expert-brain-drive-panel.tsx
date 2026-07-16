@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import {
   ChevronRight,
   File,
@@ -12,7 +11,6 @@ import {
   RefreshCw,
   Video,
 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ActionButton } from "@/components/dashboard/action-button";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/dashboard/panel";
@@ -41,7 +39,6 @@ export function ExpertBrainDrivePanel({
   needsReconnect: needsReconnectProp,
   onImported,
 }: ExpertBrainDrivePanelProps) {
-  const searchParams = useSearchParams();
   const {
     connected,
     needsReconnect: needsReconnectHook,
@@ -65,22 +62,6 @@ export function ExpertBrainDrivePanel({
   } = useGoogleDrive();
 
   const needsReconnect = Boolean(needsReconnectProp || needsReconnectHook);
-
-  useEffect(() => {
-    if (searchParams.get("drive_connected")) {
-      const requeued = searchParams.get("drive_requeued");
-      toast.success(
-        requeued && Number(requeued) > 0
-          ? `Google Drive reconectado. ${requeued} item(ns) reenfileirado(s).`
-          : "Google Drive conectado."
-      );
-      void refresh();
-      onImported?.();
-    }
-    const driveError = searchParams.get("drive_error");
-    if (driveError) toast.error(`Drive: ${driveError}`);
-  }, [searchParams, refresh, onImported]);
-
   const isBusy = busy || Boolean(externalBusy);
   const currentFolder = drivePath[drivePath.length - 1];
   const canSelectCurrentFolder = currentFolder && currentFolder.id !== "root";

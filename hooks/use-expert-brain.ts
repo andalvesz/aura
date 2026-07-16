@@ -15,7 +15,6 @@ import {
   type ExpertBrainUploadMode,
 } from "@/utils/expert-brain-storage";
 import { parseJsonResponse } from "@/utils/safe-json";
-import { useMountFetch } from "./use-mount-fetch";
 
 export type ExpertUploadMode = ExpertBrainUploadMode;
 
@@ -33,21 +32,68 @@ const MODE_MODULE_LABEL: Record<ExpertUploadMode, string> = {
   transcripts: "Transcrições",
 };
 
+const REFRESH_TIMEOUT_MS = 15_000;
+const POLL_INTERVAL_MS = 2500;
+
+const ACTIVE_INGESTION_STATUSES = new Set([
+  "pending_drive",
+  "downloaded",
+  "uploaded",
+  "transcribing",
+  "transcribed",
+  "chunking",
+  "extracting",
+  "extracting_chunk",
+  "normalizing_chunk",
+  "validating_chunk",
+  "committing_chunk",
+  "waiting_for_openai",
+  "waiting_transcription_retry",
+  "pending",
+  "processing",
+]);
+
 export function useExpertBrain() {
   const [dashboard, setDashboard] = useState<ExpertBrainDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<ExpertUploadProgress[]>([]);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const refreshInFlightRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      console.info("[expert-brain-ui] polling:stop");
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
 
   const refresh = useCallback(async (silent = false) => {
-    if (!silent) {
+    if (refreshInFlightRef.current) {
+      console.info("[expert-brain-ui] refresh:skip", { reason: "in_flight", silent });
+      return;
+    }
+
+    refreshInFlightRef.current = true;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+
+    if (!silent && mountedRef.current) {
       setLoading(true);
       setError(null);
     }
+
+    console.info("[expert-brain-ui] refresh:start", { silent });
+
     try {
-      const res = await fetch("/api/expert-brain");
+      const res = await fetch("/api/expert-brain", { signal: controller.signal });
       const { data, error: parseError } = await parseJsonResponse<{
         dashboard?: ExpertBrainDashboard;
         warnings?: Array<{ table: string; message: string }>;
@@ -55,8 +101,10 @@ export function useExpertBrain() {
       }>(res);
 
       if (parseError || !res.ok || !data || data.error) {
-        if (!silent) {
-          setError(data?.error ?? parseError ?? "Erro ao carregar Expert Brain.");
+        const message = data?.error ?? parseError ?? "Erro ao carregar Expert Brain.";
+        console.info("[expert-brain-ui] refresh:error", { message, silent });
+        if (mountedRef.current && !silent) {
+          setError(message);
           setDashboard(null);
         }
         return;
@@ -66,61 +114,68 @@ export function useExpertBrain() {
         console.warn("[expert-brain-dashboard] partial load warnings", data.warnings);
       }
 
-      setDashboard(data.dashboard ?? null);
-    } catch {
-      if (!silent) {
-        setError("Erro de conexão.");
+      if (mountedRef.current) {
+        setDashboard(data.dashboard ?? null);
+        setError(null);
+      }
+      console.info("[expert-brain-ui] refresh:success", { silent });
+    } catch (err) {
+      const aborted = err instanceof Error && err.name === "AbortError";
+      const message = aborted
+        ? "Tempo esgotado ao carregar Expert Brain (15s)."
+        : "Erro de conexão.";
+      console.info("[expert-brain-ui] refresh:error", { message, aborted, silent });
+      if (mountedRef.current && !silent) {
+        setError(message);
         setDashboard(null);
       }
     } finally {
-      if (!silent) setLoading(false);
-    }
-  }, []);
-
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+      clearTimeout(timeoutId);
+      if (abortRef.current === controller) abortRef.current = null;
+      refreshInFlightRef.current = false;
+      // Always clear loading — including timeout, network error, unmount race, silent polls.
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
   const startPolling = useCallback(() => {
-    stopPolling();
+    if (pollRef.current) return;
+    console.info("[expert-brain-ui] polling:start");
     pollRef.current = setInterval(() => {
+      if (refreshInFlightRef.current) return;
       void refresh(true);
-    }, 2500);
-  }, [refresh, stopPolling]);
+    }, POLL_INTERVAL_MS);
+  }, [refresh]);
 
-  useEffect(() => () => stopPolling(), [stopPolling]);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+      stopPolling();
+    };
+  }, [stopPolling]);
 
   useEffect(() => {
     const ingestion = dashboard?.ingestionQueue ?? [];
-    const activeStatuses = new Set([
-      "pending_drive",
-      "downloaded",
-      "uploaded",
-      "transcribing",
-      "transcribed",
-      "chunking",
-      "extracting",
-      "extracting_chunk",
-      "normalizing_chunk",
-      "validating_chunk",
-      "committing_chunk",
-      "waiting_for_openai",
-      "waiting_transcription_retry",
-      "pending",
-      "processing",
-    ]);
-    const hasActive = ingestion.some((item) => activeStatuses.has(item.status));
+    const hasActive = ingestion.some((item) => ACTIVE_INGESTION_STATUSES.has(item.status));
     const hasProcessingLessons =
       (dashboard?.metrics.queuePending ?? 0) > 0 ||
       (dashboard?.metrics.queueProcessing ?? 0) > 0;
-    const needsReconnect = dashboard?.driveConnection?.needsReconnect;
 
-    if (hasActive || hasProcessingLessons || needsReconnect) startPolling();
+    // Polling only refreshes GET status — never auto-POSTs the queue.
+    // Do not keep polling solely for needsReconnect (UI banner covers that).
+    if (hasActive || hasProcessingLessons) startPolling();
     else stopPolling();
   }, [dashboard, startPolling, stopPolling]);
+
+  // Initial load
+  useEffect(() => {
+    void refresh(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount once
+  }, []);
 
   const uploadToStorage = useCallback(
     async (file: File, userId: string, mode: ExpertUploadMode) => {
@@ -252,6 +307,7 @@ export function useExpertBrain() {
         }
 
         await refresh(true);
+        // One-shot kick after upload — not a loop. User/worker continues processing.
         void fetch("/api/expert-brain-queue", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -385,8 +441,6 @@ export function useExpertBrain() {
     },
     [refresh, startPolling]
   );
-
-  useMountFetch(() => refresh(false), [refresh]);
 
   return {
     dashboard,
