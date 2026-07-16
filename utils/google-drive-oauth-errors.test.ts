@@ -41,7 +41,13 @@ test("ingestion buckets separate oauth and whisper waits", () => {
       last_error: "Whisper retornou texto vazio.",
       error: null,
     },
-    { status: "chunking" as const, last_error: null, error: null },
+    // processing only counts with a valid (unexpired) lease per the canonical spec
+    {
+      status: "chunking" as const,
+      last_error: null,
+      error: null,
+      lease_until: new Date(Date.now() + 60_000).toISOString(),
+    },
     { status: "completed" as const, last_error: null, error: null },
     { status: "failed" as const, last_error: null, error: "boom" },
   ];
@@ -51,6 +57,14 @@ test("ingestion buckets separate oauth and whisper waits", () => {
   assert.equal(bucketForIngestionItem(items[1], false), "waiting_oauth");
   assert.equal(bucketForIngestionItem(items[2], false), "waiting_whisper");
   assert.equal(bucketForIngestionItem(items[3], false), "processing");
+  // same processing status but with an expired lease → pending (never double count)
+  assert.equal(
+    bucketForIngestionItem(
+      { status: "chunking", last_error: null, error: null, lease_until: null },
+      false
+    ),
+    "pending"
+  );
   assert.equal(bucketForIngestionItem(items[4], false), "completed");
   assert.equal(bucketForIngestionItem(items[5], false), "failed");
 

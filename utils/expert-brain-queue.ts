@@ -7,10 +7,37 @@ export type IngestionQueueRunCounts = {
   pendingDriveRemaining: number;
 };
 
-export type IngestionQueueRunResult = IngestionQueueRunCounts & {
-  success: boolean;
-  message: string;
-  error: string | null;
+export type IngestionQueueItemOutcome = {
+  itemId: string | null;
+  previousStatus: string | null;
+  currentStatus: string | null;
+  stepExecuted: string | null;
+  progress: number | null;
+  /** Whether the single processed item reached `completed`. */
+  itemCompleted: boolean;
+  retryScheduled: boolean;
+  nextRetryAt: string | null;
+  remaining: number;
+};
+
+export type IngestionQueueRunResult = IngestionQueueRunCounts &
+  IngestionQueueItemOutcome & {
+    success: boolean;
+    message: string;
+    error: string | null;
+    memorySafe: true;
+  };
+
+export const EMPTY_ITEM_OUTCOME: IngestionQueueItemOutcome = {
+  itemId: null,
+  previousStatus: null,
+  currentStatus: null,
+  stepExecuted: null,
+  progress: null,
+  itemCompleted: false,
+  retryScheduled: false,
+  nextRetryAt: null,
+  remaining: 0,
 };
 
 export function buildIngestionQueueMessage(counts: IngestionQueueRunCounts): string {
@@ -46,11 +73,14 @@ export function evaluateIngestionQueueSuccess(counts: IngestionQueueRunCounts): 
 }
 
 export function finalizeIngestionQueueRun(
-  counts: IngestionQueueRunCounts & { error?: string | null }
+  counts: IngestionQueueRunCounts & { error?: string | null } & Partial<IngestionQueueItemOutcome>
 ): IngestionQueueRunResult {
   const error = counts.error ?? null;
   const message = buildIngestionQueueMessage(counts);
   const success = !error && evaluateIngestionQueueSuccess(counts);
+  const remaining =
+    counts.remaining ??
+    counts.pendingDriveRemaining + Math.max(0, counts.found - counts.processed);
 
   return {
     found: counts.found,
@@ -62,6 +92,16 @@ export function finalizeIngestionQueueRun(
     success,
     message,
     error,
+    memorySafe: true,
+    itemId: counts.itemId ?? null,
+    previousStatus: counts.previousStatus ?? null,
+    currentStatus: counts.currentStatus ?? null,
+    stepExecuted: counts.stepExecuted ?? null,
+    progress: counts.progress ?? null,
+    itemCompleted: counts.itemCompleted ?? counts.completed > 0,
+    retryScheduled: counts.retryScheduled ?? false,
+    nextRetryAt: counts.nextRetryAt ?? null,
+    remaining,
   };
 }
 

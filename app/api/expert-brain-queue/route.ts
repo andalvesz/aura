@@ -152,6 +152,15 @@ async function assertExpertBrainInfrastructure(
   return { ok: true };
 }
 
+/**
+ * Vercel Cron invokes the endpoint via GET. When CRON_SECRET is configured,
+ * Vercel automatically sends `Authorization: Bearer <CRON_SECRET>`, which the
+ * handler validates. Delegates to the same single-micro-step POST logic.
+ */
+export async function GET(request: Request) {
+  return POST(request);
+}
+
 export async function POST(request: Request) {
   let step = "enter_post";
   let lastImport: string | null = null;
@@ -164,9 +173,23 @@ export async function POST(request: Request) {
     step = "parse_body";
     console.log("[expert-brain-queue] STEP 2 parse_body");
     const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-    const requestedLimit = typeof body.limit === "number" ? body.limit : 1;
-    const effectiveLimit = Math.max(1, Math.min(requestedLimit, 3));
+    // Beta hard cap: exactly one micro-step per invocation, regardless of input.
+    const effectiveLimit = 1;
     const action = typeof body.action === "string" ? body.action : "process";
+
+    // Cron authorization: Vercel Cron / internal callers may present CRON_SECRET.
+    // NOTE: the queue is user-scoped via the Supabase session; a matching secret
+    // authorizes the caller but does not by itself create a user context.
+    const cronSecret = process.env.CRON_SECRET?.trim();
+    const authHeader = request.headers.get("authorization") ?? "";
+    const cronHeader = request.headers.get("x-cron-secret") ?? "";
+    const isCronCaller =
+      Boolean(cronSecret) &&
+      (authHeader === `Bearer ${cronSecret}` || cronHeader === cronSecret);
+    console.log("[expert-brain-queue] auth mode", {
+      isCronCaller,
+      hasCronSecret: Boolean(cronSecret),
+    });
 
     // --- IMPORT: storage utils ---
     step = "import_storage";
@@ -206,6 +229,22 @@ export async function POST(request: Request) {
     console.log("[expert-brain-queue]", { step: "get_user", userId, action, limit: effectiveLimit });
 
     if (!ctx || !userId) {
+      // Cron authorized but no user session: the queue is user-scoped, so there
+      // is nothing this invocation can process without a session. Return 200 so
+      // the scheduler does not treat it as a hard failure.
+      if (isCronCaller) {
+        return NextResponse.json({
+          success: true,
+          step: "get_user",
+          memorySafe: true,
+          cron: true,
+          processed: 0,
+          message:
+            "Cron autorizado, mas a fila é escopada por usuário e não há sessão. " +
+            "Processamento unattended requer worker com service-role (fora do escopo desta fase).",
+          importsLoaded,
+        });
+      }
       return NextResponse.json(
         {
           success: false,
@@ -283,6 +322,15 @@ export async function POST(request: Request) {
       pendingDriveRemaining: number;
       error?: string | null;
       message?: string;
+      itemId?: string | null;
+      previousStatus?: string | null;
+      currentStatus?: string | null;
+      stepExecuted?: string | null;
+      progress?: number | null;
+      itemCompleted?: boolean;
+      retryScheduled?: boolean;
+      nextRetryAt?: string | null;
+      remaining?: number;
     }>;
     let resetFailedDriveVideos: () => Promise<{
       reset: number;
@@ -440,17 +488,27 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: result.success,
       step: "response",
+      memorySafe: true,
+      // Per-spec single-item outcome
+      itemId: result.itemId ?? itemId,
+      previousStatus: result.previousStatus,
+      currentStatus: result.currentStatus,
+      stepExecuted: result.stepExecuted,
+      progress: result.progress,
+      completed: result.itemCompleted,
+      retryScheduled: result.retryScheduled,
+      nextRetryAt: result.nextRetryAt,
+      remaining: result.remaining ?? remaining,
+      error: result.error,
+      // Aggregate/diagnostic fields
       processed: result.processed,
-      completed: result.completed,
+      completedCount: result.completed,
       failed: result.failed,
-      remaining,
       found: result.found,
       skipped: result.skipped,
       pendingDriveRemaining: result.pendingDriveRemaining,
       message: result.message,
-      memorySafe: true,
-      itemId,
-      status: itemStatus,
+      status: result.currentStatus ?? itemStatus,
       fileName,
       source,
       importsLoaded,

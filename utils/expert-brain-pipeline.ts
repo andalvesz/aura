@@ -10,6 +10,7 @@ export const PIPELINE_PROGRESS: Record<string, number> = {
   waiting_transcription_retry: 25,
   transcribing: 25,
   transcribed: 45,
+  downloading: 15,
   downloaded: 20,
   chunking: 55,
   extracting: 50,
@@ -41,6 +42,7 @@ export function pipelineStageIndex(status: ExpertIngestionStatus | string): numb
     case "uploaded":
     case "pending":
     case "pending_drive":
+    case "downloading":
     case "downloaded":
       return 0;
     case "waiting_for_openai":
@@ -67,6 +69,7 @@ export function pipelineStageIndex(status: ExpertIngestionStatus | string): numb
 export function ingestionStatusLabel(status: ExpertIngestionStatus | string): string {
   const labels: Record<string, string> = {
     uploaded: "Upload",
+    downloading: "Baixando",
     downloaded: "Baixado",
     transcribing: "Transcrevendo",
     transcribed: "Transcrito",
@@ -81,7 +84,7 @@ export function ingestionStatusLabel(status: ExpertIngestionStatus | string): st
     waiting_transcription_retry: "Aguardando retry do Whisper",
     failed: "Falhou",
     pending: "Upload",
-    pending_drive: "Downloadando",
+    pending_drive: "Aguardando Drive",
     processing: "Processando",
     done: "Concluído",
   };
@@ -91,6 +94,7 @@ export function ingestionStatusLabel(status: ExpertIngestionStatus | string): st
 export function ingestionStatusColor(status: ExpertIngestionStatus | string): string {
   const colors: Record<string, string> = {
     uploaded: "text-sky-400 bg-sky-500/10",
+    downloading: "text-cyan-400 bg-cyan-500/10",
     downloaded: "text-cyan-400 bg-cyan-500/10",
     transcribing: "text-amber-400 bg-amber-500/10",
     transcribed: "text-amber-300 bg-amber-500/10",

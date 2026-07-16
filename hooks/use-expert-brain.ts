@@ -37,6 +37,7 @@ const POLL_INTERVAL_MS = 2500;
 
 const ACTIVE_INGESTION_STATUSES = new Set([
   "pending_drive",
+  "downloading",
   "downloaded",
   "uploaded",
   "transcribing",

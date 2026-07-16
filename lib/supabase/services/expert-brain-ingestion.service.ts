@@ -14,7 +14,23 @@ import {
   ExpertTranscriptsRepository,
 } from "@/lib/supabase/repositories/expert-brain.repository";
 import { runAifPipelineStep } from "@/lib/aif/aif-pipeline-step";
-import { isAifChunkStatus, buildAifV2MetadataPatch, AIF_VERSION_V2 } from "@/lib/aif/aif-progress";
+import {
+  isAifChunkStatus,
+  buildAifV2MetadataPatch,
+  getProgress,
+  AIF_VERSION_V2,
+} from "@/lib/aif/aif-progress";
+import {
+  classifyIngestionError,
+  planRetry,
+  MAX_RECOVERABLE_RETRIES,
+  RETRY_BACKOFF_MS,
+  isTerminalState,
+} from "@/utils/expert-brain-state-machine";
+import {
+  recordIngestionEvent,
+  eventForTransition,
+} from "@/lib/logs/expert-brain-timeline";
 import { AIF_MAX_CHUNK_CHARS } from "@/lib/aif/chunking";
 import {
   downloadExpertBrainTranscript,
@@ -23,6 +39,7 @@ import {
   transcribeIngestionVideo,
 } from "@/lib/supabase/services/expert-brain-transcription.service";
 import {
+  getGoogleDriveConnectionStatus,
   getValidGoogleDriveExpertAccessToken,
   markGoogleDriveConnectionExpired,
 } from "@/lib/supabase/services/google-drive.service";
@@ -705,11 +722,58 @@ async function processPendingDriveVideo(
   return completeResult;
 }
 
+/**
+ * Canonical micro-step: pending_drive → downloading.
+ * Only validates the Drive file id + OAuth token (cheap), then flips to
+ * `downloading`. The heavy download happens in {@link processDownloadingStage}.
+ */
 async function processPendingDriveStage(
   item: import("@/types/database").ExpertIngestionQueueItem,
   ingestionRepo: ExpertIngestionQueueRepository
 ): Promise<IngestionStageResult> {
   console.log("[queue] processPendingDriveStage", item.id, item.status);
+
+  const ctx = await getOptionalDataContext();
+  if (!ctx) return { error: "Usuário não autenticado." };
+
+  const meta = readIngestionMeta(item);
+  const driveFileId = meta.drive_file_id ?? driveFileIdFromPath(item.file_path);
+
+  if (!driveFileId) {
+    return failIngestionItem(
+      ingestionRepo,
+      item.id,
+      "ID do arquivo no Google Drive ausente."
+    );
+  }
+
+  const { accessToken, error: tokenError, expired } = await getValidGoogleDriveExpertAccessToken();
+  if (!accessToken) {
+    const message = tokenError ?? "Google Drive não conectado.";
+    if (expired || isInvalidGrantError(message) || isOauthReconnectError(message)) {
+      return parkPendingDriveForOauth(ingestionRepo, item.id, message);
+    }
+    return failIngestionItem(ingestionRepo, item.id, message);
+  }
+
+  const markError = ingestionUpdateError(
+    "Falha ao marcar downloading",
+    await ingestionRepo.markDownloading(item.id)
+  );
+  if (markError) return failIngestionItem(ingestionRepo, item.id, markError);
+  return { error: null };
+}
+
+/**
+ * Canonical micro-step: downloading → downloaded/transcribing/chunking.
+ * Downloads the Drive file and branches into transcription (video) or the
+ * legacy upload/extract path (documents).
+ */
+async function processDownloadingStage(
+  item: import("@/types/database").ExpertIngestionQueueItem,
+  ingestionRepo: ExpertIngestionQueueRepository
+): Promise<IngestionStageResult> {
+  console.log("[queue] processDownloadingStage", item.id, item.status);
 
   const ctx = await getOptionalDataContext();
   if (!ctx) return { error: "Usuário não autenticado." };
@@ -724,17 +788,6 @@ async function processPendingDriveStage(
       item.id,
       "ID do arquivo no Google Drive ausente."
     );
-  }
-
-  // Only bump early progress when still at zero — never wipe resumed chunk progress
-  if ((item.progress ?? 0) < 10) {
-    const progressStartError = ingestionUpdateError(
-      "Falha ao atualizar progresso",
-      await ingestionRepo.updateProgress(item.id, 10)
-    );
-    if (progressStartError) {
-      return failIngestionItem(ingestionRepo, item.id, progressStartError);
-    }
   }
 
   const { accessToken, error: tokenError, expired } = await getValidGoogleDriveExpertAccessToken();
@@ -1313,6 +1366,10 @@ async function processIngestionItem(
       console.log("[queue] entering pending_drive", item.id);
       result = await processPendingDriveStage(item, ingestionRepo);
       break;
+    case "downloading":
+      console.log("[queue] entering downloading", item.id);
+      result = await processDownloadingStage(item, ingestionRepo);
+      break;
     case "uploaded":
     case "pending":
       console.log("[queue] entering uploaded/pending", item.id, status);
@@ -1450,9 +1507,58 @@ export async function resetFailedDriveVideos(): Promise<{
   return { reset, scanned: candidates.length, error: null };
 }
 
+function newWorkerId(userId: string): string {
+  return `w:${userId.slice(0, 8)}:${Date.now().toString(36)}:${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+}
+
+/**
+ * Apply exponential-backoff retry policy for a recoverable failure without
+ * marking the item permanently failed (unless the cap is reached).
+ * Returns whether a retry was scheduled + the next attempt timestamp.
+ */
+async function applyRecoverableRetry(
+  ingestionRepo: ExpertIngestionQueueRepository,
+  item: import("@/types/database").ExpertIngestionQueueItem,
+  resumableStatus: import("@/types/database").ExpertIngestionStatus,
+  message: string
+): Promise<{ retryScheduled: boolean; nextRetryAt: string | null; failed: boolean }> {
+  const plan = planRetry(item.retry_count ?? 0);
+  if (plan.giveUp || !plan.nextRetryAt) {
+    await ingestionRepo.markFailed(
+      item.id,
+      `${message} (após ${MAX_RECOVERABLE_RETRIES} tentativas)`
+    );
+    await recordIngestionEvent(item.id, "failed", { reason: message, retryCount: plan.retryCount });
+    return { retryScheduled: false, nextRetryAt: null, failed: true };
+  }
+  await ingestionRepo.scheduleRetry(item.id, {
+    status: resumableStatus,
+    retryCount: plan.retryCount,
+    nextRetryAt: plan.nextRetryAt,
+    lastError: message,
+  });
+  await recordIngestionEvent(item.id, "retry_scheduled", {
+    retryCount: plan.retryCount,
+    nextRetryAt: plan.nextRetryAt,
+    delayMs: plan.delayMs,
+    reason: message,
+  });
+  return { retryScheduled: true, nextRetryAt: plan.nextRetryAt, failed: false };
+}
+
+/**
+ * Process exactly ONE eligible ingestion item, executing a SINGLE micro-step.
+ * - default and hard-max limit = 1 during this beta phase
+ * - atomic lease prevents duplicate processing
+ * - a failed / OAuth / Whisper item never blocks the others
+ * - recoverable errors get exponential-backoff retries, not immediate failure
+ * - resumes from persisted state; never restarts an item from scratch
+ */
 export async function processExpertBrainIngestionQueue(limit = 1): Promise<IngestionQueueRunResult> {
-  // Memory-safe default: 1 item (1 file or 1 chunk step) per Function invocation
-  const effectiveLimit = Math.max(1, Math.min(limit, 3));
+  // Beta hard cap: exactly one item / one micro-step per invocation.
+  const effectiveLimit = 1;
   console.log("[queue] processExpertBrainIngestionQueue start", {
     requestedLimit: limit,
     effectiveLimit,
@@ -1460,10 +1566,8 @@ export async function processExpertBrainIngestionQueue(limit = 1): Promise<Inges
     aifVersion: AIF_VERSION_V2,
   });
 
-  console.log("[queue] before getOptionalDataContext");
   const ctx = await getOptionalDataContext();
   if (!ctx) {
-    console.log("[queue] after getOptionalDataContext", { userId: null });
     return finalizeIngestionQueueRun({
       found: 0,
       processed: 0,
@@ -1474,173 +1578,192 @@ export async function processExpertBrainIngestionQueue(limit = 1): Promise<Inges
       error: "Usuário não autenticado.",
     });
   }
-  console.log("[queue] after getOptionalDataContext", { userId: ctx.userId });
 
   const ingestionRepo = new ExpertIngestionQueueRepository(ctx.supabase, ctx.userId);
+  const workerId = newWorkerId(ctx.userId);
 
-  console.log("[queue] before findPendingDrive");
-  const { data: pendingDriveItems, error: pendingDriveError } =
-    await ingestionRepo.findPendingDrive(1);
-  console.log("[queue] after findPendingDrive", {
-    count: pendingDriveItems?.length ?? 0,
-    pendingDriveError,
-    items: pendingDriveItems?.map((item) => ({
-      id: item.id,
-      status: item.status,
-      fileName: item.file_name,
-    })),
+  // 1. Recover abandoned leases (crashed workers) so their items become eligible.
+  const recovered = await ingestionRepo.recoverExpiredLeases(50);
+  if (recovered.recovered > 0) {
+    console.log("[queue] recovered abandoned leases", { count: recovered.recovered });
+  }
+
+  // 2. Skip OAuth-parked items while the Drive connection is expired.
+  const driveStatus = await getGoogleDriveConnectionStatus();
+  const driveConnectionExpired = driveStatus.expired || driveStatus.needsReconnect;
+
+  // 3. Atomically claim a single eligible item.
+  const { data: claimed, error: claimError } = await ingestionRepo.claimNextEligibleItem(workerId, {
+    driveConnectionExpired,
   });
 
-  console.log("[queue] before findWorkable");
-  const { data: workableItems, error: pendingError } =
-    await ingestionRepo.findWorkable(effectiveLimit);
-  console.log("[queue] after findWorkable", {
-    total: workableItems?.length ?? 0,
-    pendingError,
-    items:
-      workableItems?.map((item) => ({
-        id: item.id,
-        status: item.status,
-        fileName: item.file_name,
-      })) ?? [],
-  });
+  const { count: pendingDriveBefore } = await ingestionRepo.countByStatus("pending_drive");
 
-  if (pendingError || pendingDriveError) {
+  if (claimError) {
     return finalizeIngestionQueueRun({
       found: 0,
       processed: 0,
       completed: 0,
       failed: 0,
       skipped: 0,
-      pendingDriveRemaining: 0,
-      error: pendingError ?? pendingDriveError ?? "Erro ao buscar fila.",
+      pendingDriveRemaining: pendingDriveBefore,
+      error: claimError,
     });
   }
 
-  let pending = workableItems ?? [];
-  if (!pending.length && pendingDriveItems?.length) {
-    console.warn("[queue] findWorkable vazio — usando fallback pending_drive explícito");
-    pending = pendingDriveItems;
-  }
-
-  const found = pending.length;
-  console.log("[queue] items to process", { found, effectiveLimit });
-
-  const { count: pendingDriveCount } = await ingestionRepo.countByStatus("pending_drive");
-  console.log("[queue] pending_drive remaining before run", { pendingDriveCount });
-
-  if (!found) {
-    console.log("[queue] after countByStatus pending_drive", { pendingDriveCount });
-    if (pendingDriveCount > 0) {
-      console.error("[drive-import] queue", {
-        stage: "processExpertBrainIngestionQueue",
-        issue: "findWorkable vazio, mas há itens pending_drive",
-        pendingDriveCount,
-        effectiveLimit,
-      });
-    }
+  if (!claimed) {
     return finalizeIngestionQueueRun({
       found: 0,
       processed: 0,
       completed: 0,
       failed: 0,
       skipped: 0,
-      pendingDriveRemaining: pendingDriveCount,
+      pendingDriveRemaining: pendingDriveBefore,
     });
   }
 
-  console.info("[drive-import] queue", {
-    stage: "processExpertBrainIngestionQueue",
-    effectiveLimit,
-    found,
-    pending: pending.map((p) => ({ id: p.id, status: p.status, fileName: p.file_name })),
+  const previousStatus = claimed.status;
+  console.log("[queue] claimed item", {
+    itemId: claimed.id,
+    status: previousStatus,
+    fileName: claimed.file_name,
+    workerId,
   });
 
-  let processed = 0;
-  let completed = 0;
-  let failed = 0;
-  let skipped = 0;
+  let processError: string | null = null;
+  let terminalStatus:
+    | "completed"
+    | "failed"
+    | "waiting_for_openai"
+    | "waiting_oauth"
+    | "waiting_transcription_retry"
+    | null = null;
 
-  for (const item of pending) {
-    console.log("[queue] select item", {
-      itemId: item.id,
-      status: item.status,
-      fileName: item.file_name,
+  try {
+    const result = await processIngestionItem(claimed);
+    processError = result.error;
+    terminalStatus = result.terminalStatus;
+  } catch (error) {
+    processError = error instanceof Error ? error.message : String(error);
+    console.error("[queue] processIngestionItem threw", {
+      itemId: claimed.id,
+      status: previousStatus,
+      error: processError,
     });
-    console.log("[queue] before processIngestionItem", item.id);
-    let processError: string | null = null;
-    let changed = false;
-    let terminalStatus:
-      | "completed"
-      | "failed"
-      | "waiting_for_openai"
-      | "waiting_oauth"
-      | "waiting_transcription_retry"
-      | null = null;
-    try {
-      const result = await processIngestionItem(item);
-      processError = result.error;
-      changed = result.changed;
-      terminalStatus = result.terminalStatus;
-    } catch (error) {
-      processError = error instanceof Error ? error.message : String(error);
-      console.error("[queue] processIngestionItem threw", {
-        itemId: item.id,
-        status: item.status,
-        error: processError,
-      });
-      console.log("[queue] marking failed", { itemId: item.id, error: processError });
-      await ingestionRepo.markFailed(item.id, processError);
+    await ingestionRepo.markFailed(claimed.id, processError);
+    terminalStatus = "failed";
+  }
+
+  let retryScheduled = false;
+  let nextRetryAt: string | null = null;
+
+  // Centralized recoverable-error handling: convert a raw failure into a
+  // scheduled retry (with backoff) unless it is permanent / OAuth / capped.
+  if (processError) {
+    const kind = classifyIngestionError(processError);
+    if (kind === "recoverable") {
+      const resumable = (isTerminalState(previousStatus) ? "pending_drive" : previousStatus) as
+        import("@/types/database").ExpertIngestionStatus;
+      const retry = await applyRecoverableRetry(ingestionRepo, claimed, resumable, processError);
+      retryScheduled = retry.retryScheduled;
+      nextRetryAt = retry.nextRetryAt;
+      terminalStatus = retry.failed ? "failed" : null;
+    } else if (kind === "oauth") {
+      terminalStatus = "waiting_oauth";
+    } else {
       terminalStatus = "failed";
     }
-    console.log("[queue] after processIngestionItem", item.id, {
-      processError,
-      changed,
-      terminalStatus,
-    });
-
-    if (processError) {
-      failed += 1;
-      continue;
-    }
-
-    if (terminalStatus === "completed") {
-      completed += 1;
-      processed += 1;
-      continue;
-    }
-
-    if (
-      terminalStatus === "waiting_for_openai" ||
-      terminalStatus === "waiting_oauth" ||
-      terminalStatus === "waiting_transcription_retry"
-    ) {
-      processed += 1;
-      continue;
-    }
-
-    if (changed) processed += 1;
-    else skipped += 1;
   }
+
+  // Whisper "empty" already parked as waiting_transcription_retry; add backoff
+  // + cap so the 5th recoverable failure becomes `failed`.
+  if (terminalStatus === "waiting_transcription_retry") {
+    const refreshed = (await ingestionRepo.findById(claimed.id)).data;
+    const rc = refreshed?.retry_count ?? 0;
+    if (rc >= MAX_RECOVERABLE_RETRIES) {
+      await ingestionRepo.markFailed(
+        claimed.id,
+        refreshed?.last_error ?? "Whisper falhou após tentativas máximas."
+      );
+      await recordIngestionEvent(claimed.id, "failed", { reason: "whisper_retry_cap" });
+      terminalStatus = "failed";
+    } else {
+      const delay = RETRY_BACKOFF_MS[Math.max(0, rc - 1)] ?? RETRY_BACKOFF_MS[0];
+      nextRetryAt = new Date(Date.now() + delay).toISOString();
+      await ingestionRepo.update(claimed.id, { next_retry_at: nextRetryAt });
+      retryScheduled = true;
+      await recordIngestionEvent(claimed.id, "retry_scheduled", {
+        reason: "whisper_empty",
+        retryCount: rc,
+        nextRetryAt,
+      });
+    }
+  }
+
+  // Re-read final state, mirror progress into columns, release the lease.
+  const finalRes = await ingestionRepo.findById(claimed.id);
+  const finalItem = finalRes.data;
+  const currentStatus = finalItem?.status ?? previousStatus;
+  const progressSnap = finalItem ? getProgress(finalItem) : null;
+
+  if (finalItem) {
+    await ingestionRepo.persistMicroStep(claimed.id, {
+      currentStep: currentStatus,
+      currentChunk: progressSnap?.currentChunk ?? finalItem.current_chunk ?? 0,
+      totalChunks: progressSnap?.totalChunks ?? finalItem.total_chunks ?? 0,
+      processedChunks: progressSnap?.processedChunks.length ?? finalItem.processed_chunks ?? 0,
+    });
+    // Emit the transition timeline event (idempotent-ish, best effort).
+    const event = eventForTransition(previousStatus, currentStatus);
+    if (event) {
+      await recordIngestionEvent(claimed.id, event, {
+        from: previousStatus,
+        to: currentStatus,
+        progress: finalItem.progress,
+      });
+    }
+  }
+
+  // Always release the lease so the item can be picked up on the next tick.
+  await ingestionRepo.releaseLease(claimed.id);
 
   const { count: pendingDriveRemaining } = await ingestionRepo.countByStatus("pending_drive");
 
+  const isCompleted = currentStatus === "completed";
+  const isFailed = terminalStatus === "failed" || currentStatus === "failed";
+  const processed = isFailed ? 0 : 1;
+  const completed = isCompleted ? 1 : 0;
+  const failed = isFailed ? 1 : 0;
+  const skipped = 0;
+
   console.log("[queue] processExpertBrainIngestionQueue summary", {
-    found,
+    itemId: claimed.id,
+    previousStatus,
+    currentStatus,
     processed,
     completed,
     failed,
-    skipped,
+    retryScheduled,
+    nextRetryAt,
     pendingDriveRemaining,
   });
 
   return finalizeIngestionQueueRun({
-    found,
+    found: 1,
     processed,
     completed,
     failed,
     skipped,
     pendingDriveRemaining,
+    itemId: claimed.id,
+    previousStatus,
+    currentStatus,
+    stepExecuted: previousStatus === currentStatus ? currentStatus : `${previousStatus}→${currentStatus}`,
+    progress: finalItem?.progress ?? null,
+    itemCompleted: isCompleted,
+    retryScheduled,
+    nextRetryAt,
+    remaining: pendingDriveRemaining + (isCompleted || isFailed ? 0 : 1),
   });
 }
 

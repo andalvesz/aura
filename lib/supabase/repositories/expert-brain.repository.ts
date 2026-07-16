@@ -23,6 +23,12 @@ import type {
   ExpertTranscriptStatus,
   TableInsert,
 } from "@/types/database";
+import {
+  WORKABLE_STATES,
+  computeLeaseUntil,
+  isItemEligible,
+  DEFAULT_LEASE_MS,
+} from "@/utils/expert-brain-state-machine";
 import { BaseRepository } from "./base.repository";
 
 export class ExpertKnowledgeSourcesRepository extends BaseRepository<"expert_knowledge_sources"> {
@@ -279,6 +285,7 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
     const effectiveLimit = Math.max(1, limit);
     const workableStatuses: ExpertIngestionStatus[] = [
       "pending_drive",
+      "downloading",
       "downloaded",
       "uploaded",
       "transcribing",
@@ -337,6 +344,7 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
   async countActive() {
     const statuses: ExpertIngestionStatus[] = [
       "pending_drive",
+      "downloading",
       "downloaded",
       "uploaded",
       "transcribing",
@@ -549,6 +557,175 @@ export class ExpertIngestionQueueRepository extends BaseRepository<"expert_inges
       progress: 0,
       error: null,
       processed_at: null,
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Sprint 1: lease / lock + eligibility + retry (single source of truth in
+  // utils/expert-brain-state-machine.ts)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Atomically claim the next eligible item for a worker.
+   * Returns the claimed item (with lease applied) or null when nothing is
+   * available / the race was lost to another worker.
+   */
+  async claimNextEligibleItem(
+    workerId: string,
+    options: { leaseMs?: number; driveConnectionExpired?: boolean; scan?: number } = {}
+  ): Promise<{ data: ExpertIngestionQueueItem | null; error: string | null }> {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const leaseMs = options.leaseMs ?? DEFAULT_LEASE_MS;
+    const scan = Math.max(1, options.scan ?? 10);
+
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .in("status", WORKABLE_STATES as unknown as ExpertIngestionStatus[])
+      .or(`next_retry_at.is.null,next_retry_at.lte.${nowIso}`)
+      .or(`lease_until.is.null,lease_until.lt.${nowIso}`)
+      .order("created_at", { ascending: true })
+      .limit(scan);
+
+    if (error) return { data: null, error: error.message };
+
+    const candidates = ((data as ExpertIngestionQueueItem[]) ?? []).filter((item) =>
+      isItemEligible(item, { now, driveConnectionExpired: options.driveConnectionExpired })
+    );
+
+    // Prefer pending_drive (oldest first) then everything else — matches the
+    // legacy ordering while respecting eligibility.
+    const ordered = [
+      ...candidates.filter((c) => c.status === "pending_drive"),
+      ...candidates.filter((c) => c.status !== "pending_drive"),
+    ];
+
+    for (const candidate of ordered) {
+      const leaseUntil = computeLeaseUntil(now, leaseMs);
+      const { data: claimed, error: claimError } = await this.supabase
+        .from("expert_ingestion_queue")
+        .update({
+          processing_by: workerId,
+          processing_started_at: nowIso,
+          lease_until: leaseUntil,
+          last_attempt_at: nowIso,
+        })
+        .eq("user_id", this.userId)
+        .eq("id", candidate.id)
+        .or(`lease_until.is.null,lease_until.lt.${nowIso}`)
+        .select()
+        .maybeSingle();
+
+      if (claimError) return { data: null, error: claimError.message };
+      if (claimed) {
+        return { data: claimed as ExpertIngestionQueueItem, error: null };
+      }
+      // lost the race for this candidate — try the next one
+    }
+
+    return { data: null, error: null };
+  }
+
+  /** Release the lease after a micro-step (keeps all progress). */
+  async releaseLease(
+    id: string,
+    patch: import("@/types/database").TableUpdate<"expert_ingestion_queue"> = {}
+  ) {
+    return this.update(id, {
+      processing_by: null,
+      lease_until: null,
+      ...patch,
+    });
+  }
+
+  /**
+   * Persist a recoverable-retry schedule without marking the item failed.
+   * The item keeps its resumable status so eligibility picks it up after
+   * next_retry_at elapses.
+   */
+  async scheduleRetry(
+    id: string,
+    params: { status: ExpertIngestionStatus; retryCount: number; nextRetryAt: string; lastError: string }
+  ) {
+    return this.update(id, {
+      status: params.status,
+      retry_count: params.retryCount,
+      next_retry_at: params.nextRetryAt,
+      last_error: params.lastError,
+      error: null,
+      processing_by: null,
+      lease_until: null,
+      last_attempt_at: new Date().toISOString(),
+      processed_at: null,
+    });
+  }
+
+  /** Mirror per-micro-step progress into dedicated columns (from AIF metadata). */
+  async persistMicroStep(
+    id: string,
+    params: {
+      currentStep: string | null;
+      currentChunk: number;
+      totalChunks: number;
+      processedChunks: number;
+    }
+  ) {
+    return this.update(id, {
+      current_step: params.currentStep,
+      current_chunk: params.currentChunk,
+      total_chunks: params.totalChunks,
+      processed_chunks: params.processedChunks,
+      last_attempt_at: new Date().toISOString(),
+    });
+  }
+
+  /** Clear next_retry_at so a due item is picked up immediately. */
+  async clearRetrySchedule(id: string) {
+    return this.update(id, { next_retry_at: null });
+  }
+
+  /** Recover leases that have expired (worker crashed mid-step). */
+  async recoverExpiredLeases(limit = 100): Promise<{ recovered: number; error: string | null }> {
+    const nowIso = new Date().toISOString();
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .update({ processing_by: null, lease_until: null })
+      .eq("user_id", this.userId)
+      .not("lease_until", "is", null)
+      .lt("lease_until", nowIso)
+      .select("id")
+      .limit(Math.max(1, limit));
+
+    if (error) return { recovered: 0, error: error.message };
+    return { recovered: (data ?? []).length, error: null };
+  }
+
+  /** Diagnostics: currently-held (valid) leases. */
+  async findHeldLeases(limit = 100) {
+    const nowIso = new Date().toISOString();
+    const { data, error } = await this.supabase
+      .from("expert_ingestion_queue")
+      .select("*")
+      .eq("user_id", this.userId)
+      .not("lease_until", "is", null)
+      .gt("lease_until", nowIso)
+      .order("lease_until", { ascending: true })
+      .limit(Math.max(1, limit));
+
+    return {
+      data: (data as ExpertIngestionQueueItem[]) ?? null,
+      error: error?.message ?? null,
+    };
+  }
+
+  async markDownloading(id: string) {
+    return this.update(id, {
+      status: "downloading",
+      current_step: "downloading",
+      progress: 10,
+      error: null,
     });
   }
 }

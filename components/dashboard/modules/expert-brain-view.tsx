@@ -127,6 +127,98 @@ function PipelineProgressBar({ status, progress }: { status: string; progress: n
   );
 }
 
+function formatWhen(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const t = Date.parse(value);
+  if (Number.isNaN(t)) return null;
+  return new Date(t).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function leaseIsValid(leaseUntil: string | null | undefined): boolean {
+  if (!leaseUntil) return false;
+  const t = Date.parse(leaseUntil);
+  return !Number.isNaN(t) && t > Date.now();
+}
+
+/** Rich per-item card: step, file, chunk, progress, retries, errors, lock. */
+function IngestionItemCard({
+  item,
+  diagnostic,
+}: {
+  item: ExpertIngestionQueueItem;
+  diagnostic: boolean;
+}) {
+  const chunkLabel = formatAifChunkProgress(item);
+  const totalChunks = item.total_chunks ?? 0;
+  const currentChunk = item.current_chunk ?? 0;
+  const processedChunks = item.processed_chunks ?? 0;
+  const lastAttempt = formatWhen(item.last_attempt_at);
+  const nextRetry = formatWhen(item.next_retry_at);
+  const errorText = item.last_error ?? item.error;
+  const locked = leaseIsValid(item.lease_until);
+
+  return (
+    <div className="rounded border border-white/[0.06] p-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-[11px] text-zinc-200">
+          {item.file_name ?? item.file_path.split("/").pop()}
+        </p>
+        <IngestionStatusBadge status={item.status} />
+      </div>
+
+      <div className="mt-2">
+        <PipelineProgressBar status={item.status} progress={item.progress} />
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-zinc-500">
+        <span>
+          Etapa: <span className="text-zinc-300">{ingestionStatusLabel(item.status)}</span>
+        </span>
+        {totalChunks > 0 ? (
+          <span>
+            Chunk:{" "}
+            <span className="text-zinc-300">
+              {Math.min(currentChunk + 1, totalChunks)}/{totalChunks} ({processedChunks} ok)
+            </span>
+          </span>
+        ) : chunkLabel ? (
+          <span className="text-violet-300/90">{chunkLabel}</span>
+        ) : null}
+        {(item.retry_count ?? 0) > 0 ? (
+          <span>
+            Tentativas: <span className="text-amber-300">{item.retry_count}</span>
+          </span>
+        ) : null}
+        {lastAttempt ? (
+          <span>
+            Última: <span className="text-zinc-300">{lastAttempt}</span>
+          </span>
+        ) : null}
+        {nextRetry ? (
+          <span>
+            Próxima: <span className="text-amber-300">{nextRetry}</span>
+          </span>
+        ) : null}
+        {diagnostic ? (
+          <span>
+            Lock:{" "}
+            <span className={locked ? "text-emerald-300" : "text-zinc-500"}>
+              {locked ? `ativo (${item.processing_by ?? "?"})` : "livre"}
+            </span>
+          </span>
+        ) : null}
+      </div>
+
+      {errorText ? <p className="mt-1 text-[10px] text-red-400">{errorText}</p> : null}
+    </div>
+  );
+}
+
 function ProcessingPanel({ items }: { items: ExpertIngestionQueueItem[] }) {
   if (!items.length) {
     return <p className="text-[11px] text-zinc-500">Nenhum processamento em andamento.</p>;
@@ -399,6 +491,7 @@ export function ExpertBrainView() {
   const [author, setAuthor] = useState("");
   const [niche, setNiche] = useState("");
   const [preview, setPreview] = useState<{ title: string; content: string } | null>(null);
+  const [diagnostic, setDiagnostic] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleImported = useCallback(() => {
@@ -536,6 +629,7 @@ export function ExpertBrainView() {
     dashboard?.ingestionQueue.filter((item) =>
       [
         "pending_drive",
+        "downloading",
         "downloaded",
         "uploaded",
         "transcribing",
@@ -780,7 +874,21 @@ export function ExpertBrainView() {
 
       <Panel>
         <PanelHeader>
-          <PanelTitle>Fila de ingestão</PanelTitle>
+          <PanelTitle className="flex items-center justify-between gap-2">
+            <span>Fila de ingestão</span>
+            <button
+              type="button"
+              onClick={() => setDiagnostic((v) => !v)}
+              className={cn(
+                "rounded px-2 py-0.5 text-[10px] font-medium transition",
+                diagnostic
+                  ? "bg-violet-500/20 text-violet-300"
+                  : "bg-white/[0.04] text-zinc-500 hover:text-zinc-300"
+              )}
+            >
+              {diagnostic ? "Diagnóstico: ON" : "Diagnóstico"}
+            </button>
+          </PanelTitle>
         </PanelHeader>
         <PanelContent className="space-y-4">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -806,34 +914,10 @@ export function ExpertBrainView() {
                     <p className="text-[10px] uppercase tracking-wide text-zinc-500">
                       {ingestionBucketLabel(bucket)} ({items.length})
                     </p>
-                    <div className="max-h-40 space-y-2 overflow-y-auto">
-                      {items.map((item) => {
-                        const chunkLabel = formatAifChunkProgress(item);
-                        return (
-                          <div
-                            key={item.id}
-                            className="rounded border border-white/[0.06] p-2"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="truncate text-[11px] text-zinc-200">
-                                {item.file_name ?? item.file_path.split("/").pop()}
-                              </p>
-                              <IngestionStatusBadge status={item.status} />
-                            </div>
-                            <div className="mt-2">
-                              <PipelineProgressBar status={item.status} progress={item.progress} />
-                            </div>
-                            {chunkLabel ? (
-                              <p className="mt-1 text-[10px] text-violet-300/90">{chunkLabel}</p>
-                            ) : null}
-                            {item.last_error || item.error ? (
-                              <p className="mt-1 text-[10px] text-red-400">
-                                {item.last_error ?? item.error}
-                              </p>
-                            ) : null}
-                          </div>
-                        );
-                      })}
+                    <div className="max-h-56 space-y-2 overflow-y-auto">
+                      {items.map((item) => (
+                        <IngestionItemCard key={item.id} item={item} diagnostic={diagnostic} />
+                      ))}
                     </div>
                   </div>
                 );

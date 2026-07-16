@@ -14,7 +14,13 @@ import type {
   ExpertTranscript,
 } from "@/types/database";
 import { EXPERT_BRAIN_CATEGORY_LABELS } from "@/utils/expert-brain";
-import { isOauthReconnectError } from "@/utils/google-drive-oauth-errors";
+import {
+  bucketForItem as smBucketForItem,
+  countBuckets as smCountBuckets,
+  deriveQueueMetrics as smDeriveQueueMetrics,
+  type IngestionBucket,
+  type IngestionBucketCounts,
+} from "@/utils/expert-brain-state-machine";
 
 export type ExpertBrainStatusCounts = {
   pending: number;
@@ -63,15 +69,9 @@ export type ExpertBrainArtifactSummary = {
   createdAt: string;
 };
 
-export type ExpertBrainIngestionBucket =
-  | "pending"
-  | "processing"
-  | "waiting_oauth"
-  | "waiting_whisper"
-  | "completed"
-  | "failed";
+export type ExpertBrainIngestionBucket = IngestionBucket;
 
-export type ExpertBrainIngestionBucketCounts = Record<ExpertBrainIngestionBucket, number>;
+export type ExpertBrainIngestionBucketCounts = IngestionBucketCounts;
 
 export type ExpertBrainDashboard = {
   metrics: {
@@ -176,41 +176,33 @@ export function ingestionBucketLabel(bucket: ExpertBrainIngestionBucket): string
 }
 
 export function bucketForIngestionItem(
-  item: Pick<ExpertIngestionQueueItem, "status" | "last_error" | "error">,
+  item: Pick<ExpertIngestionQueueItem, "status" | "last_error" | "error"> & {
+    lease_until?: string | null;
+  },
   driveNeedsReconnect: boolean
 ): ExpertBrainIngestionBucket {
-  const status = item.status;
-  const oauthError =
-    isOauthReconnectError(item.last_error) || isOauthReconnectError(item.error);
-
-  if (status === "failed") return "failed";
-  if (status === "completed" || status === "done") return "completed";
-  if (status === "waiting_transcription_retry" || status === "waiting_for_openai") {
-    return "waiting_whisper";
-  }
-  if (status === "pending_drive" && (driveNeedsReconnect || oauthError)) {
-    return "waiting_oauth";
-  }
-  if (
-    status === "pending_drive" ||
-    status === "pending" ||
-    status === "uploaded" ||
-    status === "downloaded"
-  ) {
-    return "pending";
-  }
-  return "processing";
+  return smBucketForItem(item, { driveConnectionExpired: driveNeedsReconnect });
 }
 
 export function countIngestionBuckets(
-  items: Array<Pick<ExpertIngestionQueueItem, "status" | "last_error" | "error">>,
+  items: Array<
+    Pick<ExpertIngestionQueueItem, "status" | "last_error" | "error"> & {
+      lease_until?: string | null;
+    }
+  >,
   driveNeedsReconnect: boolean
 ): ExpertBrainIngestionBucketCounts {
-  const counts = emptyIngestionBucketCounts();
-  for (const item of items) {
-    counts[bucketForIngestionItem(item, driveNeedsReconnect)] += 1;
-  }
-  return counts;
+  return smCountBuckets(items, { driveConnectionExpired: driveNeedsReconnect });
+}
+
+/**
+ * Derive the two summary numbers (queuePending / queueProcessing) from the
+ * mutually-exclusive ingestion buckets. Guarantees no item is counted twice.
+ */
+export function deriveQueueMetricsFromBuckets(
+  counts: ExpertBrainIngestionBucketCounts
+): { queuePending: number; queueProcessing: number } {
+  return smDeriveQueueMetrics(counts);
 }
 
 export function countByStatus<T extends { status: string }>(items: T[]): ExpertBrainStatusCounts {

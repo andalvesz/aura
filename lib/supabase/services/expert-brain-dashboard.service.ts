@@ -19,6 +19,7 @@ import {
   buildCourseTree,
   countByStatus,
   countIngestionBuckets,
+  deriveQueueMetricsFromBuckets,
   emptyExpertBrainDashboard,
   mapDecisionRuleArtifact,
   mapFailurePatternArtifact,
@@ -71,24 +72,6 @@ async function safeDashboardListQuery<T>(
   } catch (err) {
     warnings.push(logDashboardQueryFailure(table, err));
     return [];
-  }
-}
-
-async function safeDashboardCountQuery(
-  table: string,
-  loader: () => Promise<{ count: number; error: string | null }>,
-  warnings: ExpertBrainDashboardQueryWarning[]
-): Promise<number> {
-  try {
-    const result = await loader();
-    if (result.error) {
-      warnings.push(logDashboardQueryFailure(table, { message: result.error }));
-      return 0;
-    }
-    return result.count;
-  } catch (err) {
-    warnings.push(logDashboardQueryFailure(table, err));
-    return 0;
   }
 }
 
@@ -178,11 +161,8 @@ export async function getExpertBrainDashboard(): Promise<{
       lessons,
       queue,
       ingestionQueue,
-      ingestionActiveCount,
       transcripts,
       readySources,
-      pendingQueueCount,
-      processingQueueCount,
       frameworks,
       decisionRules,
       successPatterns,
@@ -193,12 +173,9 @@ export async function getExpertBrainDashboard(): Promise<{
       safeDashboardListQuery("expert_course_modules", () => modulesRepo.findAllRecent(), warnings),
       safeDashboardListQuery("expert_course_lessons", () => lessonsRepo.findAllRecent(), warnings),
       safeDashboardListQuery("expert_processing_queue", () => queueRepo.findRecent(20), warnings),
-      safeDashboardListQuery("expert_ingestion_queue", () => ingestionRepo.findRecent(30), warnings),
-      safeDashboardCountQuery("expert_ingestion_queue", () => ingestionRepo.countActive(), warnings),
+      safeDashboardListQuery("expert_ingestion_queue", () => ingestionRepo.findRecent(200), warnings),
       safeDashboardListQuery("expert_transcripts", () => transcriptsRepo.findRecent(30), warnings),
       safeDashboardListQuery("expert_knowledge_sources", () => sourcesRepo.findByStatus("ready", 1000), warnings),
-      safeDashboardCountQuery("expert_processing_queue", () => queueRepo.countByStatus("pending"), warnings),
-      safeDashboardCountQuery("expert_processing_queue", () => queueRepo.countByStatus("processing"), warnings),
       safeDashboardListQuery("expert_frameworks", () => frameworksRepo.findRecent(30), warnings),
       safeDashboardListQuery("expert_decision_rules", () => decisionRulesRepo.findTop(30), warnings),
       safeDashboardListQuery("expert_success_patterns", () => successRepo.findRecent(30), warnings),
@@ -208,6 +185,11 @@ export async function getExpertBrainDashboard(): Promise<{
 
     const driveNeedsReconnect = driveConnection.needsReconnect || driveConnection.expired;
 
+    // Mutually-exclusive ingestion buckets are the single source of truth for
+    // the pending/processing split — never mix pending and processing.
+    const ingestionBuckets = countIngestionBuckets(ingestionQueue, driveNeedsReconnect);
+    const { queuePending, queueProcessing } = deriveQueueMetricsFromBuckets(ingestionBuckets);
+
     return {
       dashboard: {
         metrics: {
@@ -215,15 +197,15 @@ export async function getExpertBrainDashboard(): Promise<{
           modules: modules.length,
           lessons: lessons.length,
           sourcesReady: readySources.length,
-          queuePending: pendingQueueCount,
-          queueProcessing: processingQueueCount + ingestionActiveCount,
+          queuePending,
+          queueProcessing,
           frameworks: frameworks.length,
           decisionRules: decisionRules.length,
           successPatterns: successPatterns.length,
           failurePatterns: failurePatterns.length,
         },
         statusCounts: countByStatus(lessons),
-        ingestionBuckets: countIngestionBuckets(ingestionQueue, driveNeedsReconnect),
+        ingestionBuckets,
         driveConnection: {
           connected: driveConnection.connected,
           expired: driveConnection.expired,

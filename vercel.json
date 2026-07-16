@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/expert-brain-queue?action=process",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

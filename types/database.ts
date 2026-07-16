@@ -1024,6 +1024,7 @@ export type ExpertIngestionStatus =
   | "done"
   | "pending_drive"
   // AIF v2 incremental pipeline
+  | "downloading"
   | "downloaded"
   | "transcribed"
   | "chunking"
@@ -1063,6 +1064,17 @@ export type ExpertIngestionQueueItem = {
   error: string | null;
   retry_count: number;
   last_error: string | null;
+  // Sprint 1 stabilization: per-micro-step persistence + lease/lock
+  current_step: string | null;
+  current_chunk: number;
+  total_chunks: number;
+  processed_chunks: number;
+  last_attempt_at: string | null;
+  next_retry_at: string | null;
+  processing_by: string | null;
+  processing_started_at: string | null;
+  lease_until: string | null;
+  updated_at: string;
   metadata: Json;
   created_at: string;
   processed_at: string | null;
@@ -6350,6 +6362,16 @@ export type Database = {
           | "error"
           | "retry_count"
           | "last_error"
+          | "current_step"
+          | "current_chunk"
+          | "total_chunks"
+          | "processed_chunks"
+          | "last_attempt_at"
+          | "next_retry_at"
+          | "processing_by"
+          | "processing_started_at"
+          | "lease_until"
+          | "updated_at"
         > & {
           id?: string;
           course_name?: string | null;
@@ -6361,6 +6383,16 @@ export type Database = {
           error?: string | null;
           retry_count?: number;
           last_error?: string | null;
+          current_step?: string | null;
+          current_chunk?: number;
+          total_chunks?: number;
+          processed_chunks?: number;
+          last_attempt_at?: string | null;
+          next_retry_at?: string | null;
+          processing_by?: string | null;
+          processing_started_at?: string | null;
+          lease_until?: string | null;
+          updated_at?: string;
           metadata?: Json;
           created_at?: string;
           processed_at?: string | null;
