@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/expert-brain-queue?action=process",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 12 * * *"
     }
   ]
 }
