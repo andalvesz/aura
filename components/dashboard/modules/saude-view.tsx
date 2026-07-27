@@ -276,7 +276,7 @@ export function SaudeView() {
 
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_360px]">
         <div className="grid gap-2 lg:grid-cols-2">
-          <Panel>
+          <Panel id="habitos">
             <PanelHeader className="gap-2">
               <Check className="size-4 text-sky-400" />
               <PanelTitle>Hábitos de hoje</PanelTitle>
@@ -315,7 +315,7 @@ export function SaudeView() {
             </PanelContent>
           </Panel>
 
-          <Panel>
+          <Panel id="treinos">
             <PanelHeader className="gap-2">
               <Dumbbell className="size-4 text-rose-400" />
               <PanelTitle>Treino do dia</PanelTitle>
@@ -347,7 +347,7 @@ export function SaudeView() {
             </PanelContent>
           </Panel>
 
-          <Panel>
+          <Panel id="dieta">
             <PanelHeader className="gap-2">
               <Utensils className="size-4 text-emerald-400" />
               <PanelTitle>Refeições planejadas</PanelTitle>

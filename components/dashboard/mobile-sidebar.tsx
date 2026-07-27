@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { X } from "lucide-react";
+import { ContextSwitcher } from "@/components/dashboard/context-switcher";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
+import { useAuraContext } from "@/components/dashboard/aura-context-provider";
 import { cn } from "@/utils/cn";
 
 type MobileSidebarProps = {
@@ -12,6 +14,12 @@ type MobileSidebarProps = {
 };
 
 export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
+  const { activeContext, activeWorkspaceId, workspaces } = useAuraContext();
+  const subtitle =
+    activeContext === "workspace"
+      ? workspaces.find((w) => w.id === activeWorkspaceId)?.name ?? "Workspace"
+      : "OS pessoal";
+
   useEffect(() => {
     if (!open) return;
 
@@ -57,7 +65,7 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
             >
               Aura
             </Link>
-            <p className="text-[10px] text-zinc-600">OS pessoal · Anderson Alves</p>
+            <p className="text-[10px] text-zinc-600">{subtitle}</p>
           </div>
           <button
             type="button"
@@ -67,6 +75,13 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           >
             <X className="size-5" />
           </button>
+        </div>
+        <div className="border-b border-white/[0.06] px-2 py-3">
+          <ContextSwitcher
+            activeContext={activeContext}
+            activeWorkspaceId={activeWorkspaceId}
+            workspaces={workspaces}
+          />
         </div>
         <div className="flex-1 overflow-y-auto px-2 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-2">
           <DashboardNav onNavigate={onClose} />

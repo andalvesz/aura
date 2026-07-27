@@ -1,4 +1,3 @@
-import { BaseRepository } from "@/lib/supabase/repositories";
 import { listEventos } from "@/lib/supabase/services/eventos.service";
 import { listGrowthLeads } from "@/lib/supabase/services/growth.service";
 import { listClientes } from "@/lib/supabase/services/alvesz.service";
@@ -23,7 +22,10 @@ export async function loadAuraCommandParseContext(): Promise<{
   const [eventosRes, leadsRes, clientesRes] = await Promise.all([
     listEventos(),
     listGrowthLeads(),
-    listClientes(),
+    listClientes().catch((err) => ({
+      data: null as null,
+      error: err instanceof Error ? err.message : String(err),
+    })),
   ]);
 
   const error = eventosRes.error ?? leadsRes.error ?? clientesRes.error ?? null;
@@ -62,14 +64,36 @@ export async function loadAlveszEventosHint(): Promise<string> {
   const ctx = await getOptionalDataContext();
   if (!ctx) return "";
 
-  const { data } = await new BaseRepository(ctx.supabase, "alvesz_eventos", ctx.userId).findAll(
-    "data_evento"
-  );
+  let workspaceId = ctx.activeWorkspaceId;
+  if (!workspaceId) {
+    const { data: memberRows } = await ctx.supabase
+      .from("workspace_members")
+      .select("workspace_id")
+      .eq("user_id", ctx.userId)
+      .eq("status", "active");
+    const ids = (memberRows ?? []).map((r) => r.workspace_id);
+    if (ids.length) {
+      const { data: ws } = await ctx.supabase
+        .from("workspaces")
+        .select("id, slug")
+        .in("id", ids);
+      workspaceId =
+        ws?.find((w) => w.slug === "alvesz")?.id ?? ws?.[0]?.id ?? null;
+    }
+  }
+
+  if (!workspaceId) return "Nenhum evento Alvesz cadastrado.";
+
+  const { data } = await ctx.supabase
+    .from("alvesz_eventos")
+    .select("titulo, data_evento")
+    .eq("workspace_id", workspaceId)
+    .order("data_evento", { ascending: true })
+    .limit(8);
 
   if (!data?.length) return "Nenhum evento Alvesz cadastrado.";
 
   return data
-    .slice(0, 8)
     .map((e) => `- ${e.titulo} (${e.data_evento})`)
     .join("\n");
 }

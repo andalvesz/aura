@@ -5,9 +5,11 @@ import {
   BookOpen,
   Brain,
   Banknote,
+  Briefcase,
   Building2,
   CalendarDays,
   Castle,
+  Check,
   ClipboardCheck,
   Crosshair,
   Crown,
@@ -16,6 +18,7 @@ import {
   Factory,
   Dumbbell,
   FileText,
+  Heart,
   Home,
   Link2,
   PlugZap,
@@ -28,6 +31,7 @@ import {
   Layers,
   LineChart,
   Rocket,
+  Settings,
   Share2,
   Sparkles,
   Stethoscope,
@@ -35,6 +39,7 @@ import {
   Star,
   Target,
   TrendingUp,
+  Utensils,
   Wallet,
   CircleDollarSign,
   Gift,
@@ -48,7 +53,6 @@ export type ModuleId =
   | "alvesz"
   | "saude"
   | "social-media"
-  | "consorcios"
   | "crescimento"
   | "comunicacao"
   | "viagens"
@@ -84,6 +88,22 @@ export type ModuleId =
   | "knowledge"
   | "knowledge-sources";
 
+/** Aura OS 2.0 — contexts that organize the product by life area. */
+export type OsContext =
+  | "vida"
+  | "negocios"
+  | "alvesz"
+  | "aura"
+  | "configuracoes";
+
+export const OS_CONTEXT_LABELS: Record<OsContext, string> = {
+  vida: "Vida",
+  negocios: "Negócios",
+  alvesz: "Alvesz Experience",
+  aura: "Aura",
+  configuracoes: "Configurações",
+};
+
 export type ModuleConfig = {
   id: ModuleId;
   href: string;
@@ -92,6 +112,8 @@ export type ModuleConfig = {
   description: string;
   icon: LucideIcon;
   accent: string;
+  /** OS 2.0 context used for breadcrumbs and overview grouping. */
+  context: OsContext;
   overview: {
     metric: string;
     value: string;
@@ -108,6 +130,7 @@ export const MODULES: ModuleConfig[] = [
     description: "Controle de gastos, receitas e metas financeiras.",
     icon: Wallet,
     accent: "text-emerald-400",
+    context: "vida",
     overview: {
       metric: "Status",
       value: "—",
@@ -122,6 +145,7 @@ export const MODULES: ModuleConfig[] = [
     description: "Agenda inteligente e organização pessoal.",
     icon: CalendarDays,
     accent: "text-sky-400",
+    context: "vida",
     overview: {
       metric: "Eventos",
       value: "0",
@@ -136,6 +160,7 @@ export const MODULES: ModuleConfig[] = [
     description: "Clientes, estoque, eventos e orçamentos.",
     icon: Building2,
     accent: "text-violet-400",
+    context: "alvesz",
     overview: {
       metric: "Orçamentos",
       value: "0",
@@ -150,6 +175,7 @@ export const MODULES: ModuleConfig[] = [
     description: "Treino, alimentação, hábitos e evolução.",
     icon: Dumbbell,
     accent: "text-rose-400",
+    context: "vida",
     overview: {
       metric: "Hábitos",
       value: "0",
@@ -160,10 +186,11 @@ export const MODULES: ModuleConfig[] = [
     id: "social-media",
     href: "/dashboard/social-media",
     label: "Instagram Inteligente",
-    shortLabel: "Social Media",
+    shortLabel: "Marketing IA",
     description: "Inteligência integrada: oportunidades, metas, relatório e IA Coach.",
     icon: Share2,
     accent: "text-amber-400",
+    context: "negocios",
     overview: {
       metric: "Conteúdos",
       value: "0",
@@ -171,28 +198,15 @@ export const MODULES: ModuleConfig[] = [
     },
   },
   {
-    id: "consorcios",
-    href: "/dashboard/consorcios",
-    label: "Consórcios e Vendas",
-    shortLabel: "Consórcios",
-    description: "Leads, funil de vendas e estratégias.",
-    icon: Target,
-    accent: "text-orange-400",
-    overview: {
-      metric: "Leads",
-      value: "0",
-      hint: "Nenhum lead cadastrado",
-    },
-  },
-  {
     id: "crescimento",
     href: "/dashboard/crescimento",
     label: "Crescimento Digital",
-    shortLabel: "Crescimento",
+    shortLabel: "Growth",
     description:
       "Missões, vendas online, análise de perfis e estratégias de crescimento.",
     icon: Rocket,
     accent: "text-cyan-400",
+    context: "negocios",
     overview: {
       metric: "XP",
       value: "—",
@@ -207,6 +221,7 @@ export const MODULES: ModuleConfig[] = [
     description: "Gmail, propostas Alvesz, follow-up e mensagens.",
     icon: Mail,
     accent: "text-indigo-400",
+    context: "negocios",
     overview: {
       metric: "E-mails",
       value: "0",
@@ -221,6 +236,7 @@ export const MODULES: ModuleConfig[] = [
     description: "Planeje e acompanhe viagens com checklist, IA e integrações.",
     icon: MapPin,
     accent: "text-teal-400",
+    context: "vida",
     overview: {
       metric: "Viagens",
       value: "0",
@@ -235,6 +251,7 @@ export const MODULES: ModuleConfig[] = [
     description: "Inglês personalizado para viagens, Disney, NBA e negócios.",
     icon: Languages,
     accent: "text-violet-400",
+    context: "vida",
     overview: {
       metric: "Streak",
       value: "0d",
@@ -250,6 +267,7 @@ export const MODULES: ModuleConfig[] = [
       "Acompanhe toda a preparação da viagem: finanças, checklist, inglês e calendário.",
     icon: Castle,
     accent: "text-fuchsia-400",
+    context: "vida",
     overview: {
       metric: "Contagem",
       value: "—",
@@ -265,6 +283,7 @@ export const MODULES: ModuleConfig[] = [
       "Trajetória de vida, conquistas, certificados e marcos — contexto permanente da Aura.",
     icon: Star,
     accent: "text-yellow-400",
+    context: "vida",
     overview: {
       metric: "Conquistas",
       value: "0",
@@ -275,11 +294,12 @@ export const MODULES: ModuleConfig[] = [
     id: "creator",
     href: "/dashboard/creator",
     label: "Aura Creator",
-    shortLabel: "Creator",
+    shortLabel: "Creator IA",
     description:
       "Pipeline completo: ideia → escala. Market Research, CopyLab, Launch Center, checklists, scores IA e integração Legado + Financeiro.",
     icon: Sparkles,
     accent: "text-violet-400",
+    context: "negocios",
     overview: {
       metric: "Produtos",
       value: "0",
@@ -295,6 +315,7 @@ export const MODULES: ModuleConfig[] = [
       "Fluxo unificado de lançamento — do produto à campanha Meta em modo seguro, com Smart Score e orquestração de todos os módulos.",
     icon: Rocket,
     accent: "text-orange-400",
+    context: "negocios",
     overview: {
       metric: "Smart Score",
       value: "—",
@@ -310,6 +331,7 @@ export const MODULES: ModuleConfig[] = [
       "Central de operações do Smart Launch — missão ativa, progresso, revenue, CEO, execution e performance em um painel.",
     icon: Target,
     accent: "text-cyan-400",
+    context: "negocios",
     overview: {
       metric: "Missão",
       value: "—",
@@ -320,11 +342,12 @@ export const MODULES: ModuleConfig[] = [
     id: "money",
     href: "/dashboard/money",
     label: "Aura Money Missions",
-    shortLabel: "Money",
+    shortLabel: "Investimentos",
     description:
       "Transforme metas financeiras em planos executáveis com IA — integrando todos os módulos da Aura.",
     icon: Banknote,
     accent: "text-emerald-400",
+    context: "negocios",
     overview: {
       metric: "Meta",
       value: "—",
@@ -340,6 +363,7 @@ export const MODULES: ModuleConfig[] = [
       "Centralize receitas e despesas da operação digital — lucro, ROI e investimento em um só lugar.",
     icon: CircleDollarSign,
     accent: "text-emerald-400",
+    context: "negocios",
     overview: {
       metric: "Lucro mês",
       value: "—",
@@ -355,6 +379,7 @@ export const MODULES: ModuleConfig[] = [
       "Centro de inteligência financeira e comercial — previsões, ROAS, ROI e insights por plataforma.",
     icon: LineChart,
     accent: "text-emerald-400",
+    context: "negocios",
     overview: {
       metric: "Receita",
       value: "—",
@@ -365,11 +390,12 @@ export const MODULES: ModuleConfig[] = [
     id: "ceo",
     href: "/dashboard/ceo",
     label: "Aura CEO",
-    shortLabel: "CEO",
+    shortLabel: "CEO Advisor",
     description:
       "Inteligência central — estratégias e planos de ação integrando todos os módulos da Aura.",
     icon: Crown,
     accent: "text-violet-400",
+    context: "negocios",
     overview: {
       metric: "Score IA",
       value: "—",
@@ -385,6 +411,7 @@ export const MODULES: ModuleConfig[] = [
       "Central de execução operacional — prepare operações completas para aprovação em modo seguro.",
     icon: ClipboardCheck,
     accent: "text-fuchsia-400",
+    context: "negocios",
     overview: {
       metric: "Score",
       value: "—",
@@ -395,11 +422,12 @@ export const MODULES: ModuleConfig[] = [
     id: "master-flow",
     href: "/dashboard/master-flow",
     label: "Mission Core",
-    shortLabel: "Missão",
+    shortLabel: "Mission Core",
     description:
       "Crie uma missão comercial completa — produto, oferta, landing, copy e campanha prontos para revisão.",
     icon: Layers,
     accent: "text-cyan-400",
+    context: "negocios",
     overview: {
       metric: "Ativos",
       value: "—",
@@ -415,6 +443,7 @@ export const MODULES: ModuleConfig[] = [
       "Transforme planos da Aura em tarefas executáveis com Daily Briefing e Executive Memory.",
     icon: Cpu,
     accent: "text-cyan-400",
+    context: "negocios",
     overview: {
       metric: "Missões",
       value: "0",
@@ -430,6 +459,7 @@ export const MODULES: ModuleConfig[] = [
       "Analise resultados cross-module e tome decisões estratégicas com IA executiva.",
     icon: TrendingUp,
     accent: "text-emerald-400",
+    context: "negocios",
     overview: {
       metric: "Score",
       value: "—",
@@ -445,6 +475,7 @@ export const MODULES: ModuleConfig[] = [
       "Sistema de aprendizado — cada venda, clique e campanha alimenta a inteligência do Aura.",
     icon: Brain,
     accent: "text-violet-400",
+    context: "negocios",
     overview: {
       metric: "Memórias",
       value: "0",
@@ -460,6 +491,7 @@ export const MODULES: ModuleConfig[] = [
       "Ingestão de cursos e materiais — extrai frameworks, decision rules e padrões de sucesso/falha.",
     icon: Sparkles,
     accent: "text-amber-400",
+    context: "negocios",
     overview: {
       metric: "Frameworks",
       value: "0",
@@ -470,11 +502,12 @@ export const MODULES: ModuleConfig[] = [
     id: "opportunities",
     href: "/dashboard/opportunities",
     label: "Opportunity Engine",
-    shortLabel: "Oportunidades",
+    shortLabel: "Opportunity Engine",
     description:
       "Recomenda as melhores oportunidades de produtos digitais com base na sua meta financeira.",
     icon: Target,
     accent: "text-emerald-400",
+    context: "negocios",
     overview: {
       metric: "Top 3",
       value: "—",
@@ -490,6 +523,7 @@ export const MODULES: ModuleConfig[] = [
       "Descoberta automática de oportunidades — encontre o produto certo para vender agora.",
     icon: Crosshair,
     accent: "text-emerald-400",
+    context: "negocios",
     overview: {
       metric: "Score",
       value: "—",
@@ -505,6 +539,7 @@ export const MODULES: ModuleConfig[] = [
       "Monetização automática — gera bumps, upsells, downsells, VIP e continuidade por produto.",
     icon: Gift,
     accent: "text-fuchsia-400",
+    context: "negocios",
     overview: {
       metric: "AOV",
       value: "—",
@@ -520,6 +555,7 @@ export const MODULES: ModuleConfig[] = [
       "Gera automaticamente todas as páginas do funil — front-end, upsells, downsells, quiz e thank you.",
     icon: Layers,
     accent: "text-cyan-400",
+    context: "negocios",
     overview: {
       metric: "Páginas",
       value: "0",
@@ -535,6 +571,7 @@ export const MODULES: ModuleConfig[] = [
       "IA que aprende padrões reais de conversão — explica por que converteu ou não e recomenda ações.",
     icon: LineChart,
     accent: "text-lime-400",
+    context: "negocios",
     overview: {
       metric: "Insights",
       value: "0",
@@ -550,6 +587,7 @@ export const MODULES: ModuleConfig[] = [
       "Auditoria de especialistas virtuais — nenhum ativo é entregue sem score de qualidade.",
     icon: ShieldCheck,
     accent: "text-violet-400",
+    context: "negocios",
     overview: {
       metric: "Média",
       value: "—",
@@ -565,6 +603,7 @@ export const MODULES: ModuleConfig[] = [
       "Prepara campanhas completas para Meta, Google e futuras plataformas — nunca publica automaticamente.",
     icon: Megaphone,
     accent: "text-orange-400",
+    context: "negocios",
     overview: {
       metric: "Preparadas",
       value: "0",
@@ -580,6 +619,7 @@ export const MODULES: ModuleConfig[] = [
       "Gera assets reais de imagem via OpenAI Images e Flux — prompt otimizado, Excellence review e download.",
     icon: ImageIcon,
     accent: "text-fuchsia-400",
+    context: "negocios",
     overview: {
       metric: "Assets reais",
       value: "—",
@@ -595,6 +635,7 @@ export const MODULES: ModuleConfig[] = [
       "Monitore campanhas, tome decisões seguras e peça aprovação para ações sensíveis.",
     icon: Bot,
     accent: "text-orange-400",
+    context: "negocios",
     overview: {
       metric: "Pendentes",
       value: "0",
@@ -605,11 +646,12 @@ export const MODULES: ModuleConfig[] = [
     id: "product-factory",
     href: "/dashboard/creator/factory",
     label: "Aura Product Factory",
-    shortLabel: "Factory",
+    shortLabel: "Product Factory",
     description:
       "Crie e-books completos com conteúdo, design, PDF baixável e compliance para anúncios.",
     icon: Factory,
     accent: "text-pink-400",
+    context: "negocios",
     overview: {
       metric: "Produtos",
       value: "0",
@@ -625,6 +667,7 @@ export const MODULES: ModuleConfig[] = [
       "Centralize integrações com Kiwify, Hotmart, Eduzz, Monetizze — vendas, afiliados e Score IA.",
     icon: Link2,
     accent: "text-indigo-400",
+    context: "negocios",
     overview: {
       metric: "Plataformas",
       value: "0",
@@ -640,6 +683,7 @@ export const MODULES: ModuleConfig[] = [
       "Central de integrações externas — Meta, Kiwify, sync unificado, logs e status em um só lugar.",
     icon: PlugZap,
     accent: "text-cyan-400",
+    context: "aura",
     overview: {
       metric: "Conectadas",
       value: "0",
@@ -655,6 +699,7 @@ export const MODULES: ModuleConfig[] = [
       "Escolha automaticamente a melhor estratégia para cada mercado internacional — país, idioma, moeda e Global Score.",
     icon: Globe,
     accent: "text-sky-400",
+    context: "negocios",
     overview: {
       metric: "Global Score",
       value: "—",
@@ -665,11 +710,12 @@ export const MODULES: ModuleConfig[] = [
     id: "knowledge-sources",
     href: "/dashboard/knowledge-sources",
     label: "Knowledge Sources",
-    shortLabel: "Fontes",
+    shortLabel: "Google Drive",
     description:
       "Aprenda de cursos no Google Drive e uploads TXT/PDF — extrai conhecimento sem armazenar vídeos.",
     icon: HardDrive,
     accent: "text-cyan-400",
+    context: "aura",
     overview: {
       metric: "Fontes",
       value: "0",
@@ -680,11 +726,12 @@ export const MODULES: ModuleConfig[] = [
     id: "knowledge",
     href: "/dashboard/knowledge",
     label: "Aura Knowledge & Connect",
-    shortLabel: "Knowledge",
+    shortLabel: "Configurações IA",
     description:
       "Aprenda com fontes externas — campanhas, produtos, copies e mercados vencedores com Executive Memory.",
     icon: BookOpen,
     accent: "text-amber-400",
+    context: "aura",
     overview: {
       metric: "Entradas",
       value: "0",
@@ -775,13 +822,270 @@ export function getModule(id: ModuleId): ModuleConfig {
   return mod;
 }
 
+export function getModuleByHref(pathname: string): ModuleConfig | null {
+  const exact = MODULES.find((m) => m.href === pathname);
+  if (exact) return exact;
+  return (
+    MODULES.find(
+      (m) => m.href !== "/dashboard" && pathname.startsWith(`${m.href}/`)
+    ) ?? null
+  );
+}
+
+export function getModuleBreadcrumb(module: ModuleConfig): string[] {
+  if (module.context === "alvesz") {
+    return [OS_CONTEXT_LABELS.alvesz];
+  }
+  return [OS_CONTEXT_LABELS[module.context], module.shortLabel];
+}
+
+export function modulesByContext(context: OsContext): ModuleConfig[] {
+  return MODULES.filter((m) => m.context === context);
+}
+
 export function isModuleActive(
   pathname: string,
   href: string
 ): boolean {
-  if (href === "/dashboard") {
-    return pathname === "/dashboard";
+  const pathOnly = pathname.split("#")[0] ?? pathname;
+  const hrefPath = href.split("#")[0] ?? href;
+
+  if (hrefPath === "/dashboard") {
+    return pathOnly === "/dashboard";
   }
 
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return pathOnly === hrefPath || pathOnly.startsWith(`${hrefPath}/`);
 }
+
+// ---------------------------------------------------------------------------
+// Aura OS 2.0 — contextual navigation tree
+// ---------------------------------------------------------------------------
+
+export type OsNavLink = {
+  id: string;
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  accent?: string;
+  children?: OsNavLink[];
+};
+
+export type OsNavSection = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  /** Standalone section link (Dashboard / Alvesz). */
+  href?: string;
+  accent?: string;
+  items?: OsNavLink[];
+};
+
+function navFromModule(
+  id: ModuleId,
+  labelOverride?: string
+): OsNavLink {
+  const mod = getModule(id);
+  return {
+    id: mod.id,
+    href: mod.href,
+    label: labelOverride ?? mod.shortLabel,
+    icon: mod.icon,
+    accent: mod.accent,
+  };
+}
+
+/**
+ * Primary OS navigation. Curated tree by context.
+ * Remaining business modules stay reachable under Negócios so nothing is lost.
+ */
+export const OS_NAV: OsNavSection[] = [
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: Home,
+    href: "/dashboard",
+  },
+  {
+    id: "vida",
+    label: "Vida",
+    icon: Heart,
+    items: [
+      navFromModule("financeiro"),
+      {
+        ...navFromModule("saude"),
+        children: [
+          {
+            id: "saude-treinos",
+            href: "/dashboard/saude#treinos",
+            label: "Treinos",
+            icon: Dumbbell,
+            accent: "text-rose-400",
+          },
+          {
+            id: "saude-dieta",
+            href: "/dashboard/saude#dieta",
+            label: "Dieta",
+            icon: Utensils,
+            accent: "text-emerald-400",
+          },
+          {
+            id: "saude-habitos",
+            href: "/dashboard/saude#habitos",
+            label: "Hábitos",
+            icon: Check,
+            accent: "text-sky-400",
+          },
+        ],
+      },
+      navFromModule("calendario"),
+      navFromModule("viagens"),
+      navFromModule("idiomas"),
+      {
+        id: "objetivos",
+        href: GOALS_NAV.href,
+        label: "Objetivos",
+        icon: GOALS_NAV.icon,
+        accent: "text-amber-400",
+      },
+      navFromModule("disney-nba"),
+      navFromModule("legado"),
+    ],
+  },
+  {
+    id: "negocios",
+    label: "Negócios",
+    icon: Briefcase,
+    items: [
+      navFromModule("ceo", "CEO Advisor"),
+      navFromModule("opportunities", "Opportunity Engine"),
+      navFromModule("master-flow", "Mission Core"),
+      navFromModule("product-factory", "Product Factory"),
+      navFromModule("expert-brain", "Expert Brain"),
+      navFromModule("social-media", "Marketing IA"),
+      navFromModule("creator", "Creator IA"),
+      navFromModule("crescimento", "Growth"),
+      navFromModule("money", "Investimentos"),
+      // Remaining business capabilities (preserved, not removed)
+      navFromModule("growth-brain"),
+      navFromModule("revenue"),
+      navFromModule("revenue-ai"),
+      navFromModule("mission"),
+      navFromModule("smart-launch"),
+      navFromModule("operation-center"),
+      navFromModule("execution"),
+      navFromModule("performance"),
+      navFromModule("market-hunter"),
+      navFromModule("offer-engine"),
+      navFromModule("funnel-pages"),
+      navFromModule("conversion-intelligence"),
+      navFromModule("excellence"),
+      navFromModule("ads-commander"),
+      navFromModule("creative-director"),
+      navFromModule("autopilot"),
+      navFromModule("platforms"),
+      navFromModule("global"),
+      navFromModule("comunicacao"),
+    ],
+  },
+  {
+    id: "alvesz",
+    label: "Alvesz Experience",
+    icon: Building2,
+    href: "/dashboard/alvesz",
+    accent: "text-violet-400",
+  },
+  {
+    id: "aura",
+    label: "Aura",
+    icon: Sparkles,
+    items: [
+      navFromModule("knowledge", "Configurações IA"),
+      {
+        id: "memoria",
+        href: MEMORY_NAV.href,
+        label: "Memória",
+        icon: MEMORY_NAV.icon,
+        accent: "text-violet-400",
+      },
+      navFromModule("integrations", "Integrações"),
+      navFromModule("knowledge-sources", "Google Drive"),
+      {
+        id: "expert-brain-queue",
+        href: "/dashboard/expert-brain",
+        label: "Expert Brain Queue",
+        icon: Sparkles,
+        accent: "text-amber-400",
+      },
+      {
+        id: "logs",
+        href: LOGS_NAV.href,
+        label: "Logs",
+        icon: LOGS_NAV.icon,
+        accent: "text-orange-400",
+      },
+      {
+        id: "diagnostico",
+        href: DIAGNOSTICS_NAV.href,
+        label: "Diagnóstico",
+        icon: DIAGNOSTICS_NAV.icon,
+        accent: "text-teal-400",
+      },
+      {
+        id: "black-health",
+        href: BLACK_HEALTH_NAV.href,
+        label: BLACK_HEALTH_NAV.label,
+        icon: BLACK_HEALTH_NAV.icon,
+        accent: "text-rose-400",
+      },
+      {
+        id: "feed-inspector",
+        href: FEED_INSPECTOR_NAV.href,
+        label: FEED_INSPECTOR_NAV.label,
+        icon: FEED_INSPECTOR_NAV.icon,
+        accent: "text-cyan-400",
+      },
+      {
+        id: "decision-engine",
+        href: DECISION_ENGINE_NAV.href,
+        label: DECISION_ENGINE_NAV.label,
+        icon: DECISION_ENGINE_NAV.icon,
+        accent: "text-violet-400",
+      },
+    ],
+  },
+  {
+    id: "configuracoes",
+    label: "Configurações",
+    icon: Settings,
+    items: [
+      {
+        id: "workspace",
+        href: "/dashboard/workspace",
+        label: "Workspace",
+        icon: Building2,
+        accent: "text-violet-400",
+      },
+      {
+        id: "notificacoes",
+        href: NOTIFICATIONS_NAV.href,
+        label: "Notificações",
+        icon: NOTIFICATIONS_NAV.icon,
+        accent: "text-amber-400",
+      },
+      {
+        id: "relatorios",
+        href: REPORTS_NAV.href,
+        label: "Relatórios",
+        icon: REPORTS_NAV.icon,
+        accent: "text-cyan-400",
+      },
+      {
+        id: "business-intelligence",
+        href: BI_NAV.href,
+        label: "Business Intelligence",
+        icon: BI_NAV.icon,
+        accent: "text-violet-400",
+      },
+    ],
+  },
+];

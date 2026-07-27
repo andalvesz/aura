@@ -13,6 +13,10 @@ export {
   ExpertPatternsRepository,
 } from "./expert-brain.repository";
 export { BaseRepository, type RepositoryResult } from "./base.repository";
+export {
+  WorkspaceScopedRepository,
+  type WorkspaceRepositoryResult,
+} from "./workspace-scoped.repository";
 export { GastosRepository } from "./gastos.repository";
 export { FinancialGoalsRepository } from "./financial-goals.repository";
 export { GoalsRepository } from "./goals.repository";

@@ -1,17 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, EstoqueItem } from "@/types/database";
-import { BaseRepository } from "./base.repository";
+import { WorkspaceScopedRepository } from "./workspace-scoped.repository";
 
-export class EstoqueRepository extends BaseRepository<"estoque"> {
-  constructor(supabase: SupabaseClient<Database>, userId: string) {
-    super(supabase, "estoque", userId);
+export class EstoqueRepository extends WorkspaceScopedRepository<"estoque"> {
+  constructor(
+    supabase: SupabaseClient<Database>,
+    userId: string,
+    workspaceId: string
+  ) {
+    super(supabase, "estoque", userId, workspaceId);
   }
 
   async findCritical() {
     const { data, error } = await this.supabase
       .from("estoque")
       .select("*")
-      .eq("user_id", this.userId)
+      .eq("workspace_id", this.workspaceId)
       .order("quantidade", { ascending: true });
     const items = (data as EstoqueItem[]) ?? [];
     return {

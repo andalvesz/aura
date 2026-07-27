@@ -83,7 +83,6 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   alvesz: "/dashboard/alvesz",
   saude: "/dashboard/saude",
   "social-media": "/dashboard/social-media",
-  consorcios: "/dashboard/consorcios",
   crescimento: "/dashboard/crescimento",
   comunicacao: "/dashboard/comunicacao",
   viagens: "/dashboard/viagens",
@@ -92,7 +91,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   legado: "/dashboard/legado",
   creator: "/dashboard/creator",
   "smart-launch": "/dashboard/smart-launch",
-  "mission": "/dashboard/mission",
+  mission: "/dashboard/mission",
   money: "/dashboard/money",
   revenue: "/dashboard/revenue",
   "revenue-ai": "/dashboard/revenue-ai",
@@ -120,6 +119,11 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   "knowledge-sources": "/dashboard/knowledge-sources",
 };
 
+/** Legacy module ids still present in old notifications. */
+const LEGACY_NOTIFICATION_HREFS: Record<string, string> = {
+  consorcios: "/dashboard/crescimento",
+};
+
 export function isNotificationRead(notification: Pick<Notification, "status">): boolean {
   return notification.status === "read";
 }
@@ -137,7 +141,13 @@ export function getNotificationHref(notification: Notification): string {
     return "/dashboard/creator/autopilot";
   }
   if (notification.related_module) {
-    return NOTIFICATION_MODULE_HREFS[notification.related_module as ModuleId];
+    const key = notification.related_module;
+    if (key in NOTIFICATION_MODULE_HREFS) {
+      return NOTIFICATION_MODULE_HREFS[key as ModuleId];
+    }
+    if (key in LEGACY_NOTIFICATION_HREFS) {
+      return LEGACY_NOTIFICATION_HREFS[key];
+    }
   }
   return "/dashboard/notificacoes";
 }

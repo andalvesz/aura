@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { ModuleConfig } from "@/lib/modules";
+import { getModuleBreadcrumb } from "@/lib/modules";
 import { ActionButton } from "./action-button";
 
 type ModuleHeaderProps = {
@@ -9,6 +10,7 @@ type ModuleHeaderProps = {
 
 export function ModuleHeader({ module, action }: ModuleHeaderProps) {
   const Icon = module.icon;
+  const crumbs = getModuleBreadcrumb(module);
 
   return (
     <header className="flex flex-wrap items-end justify-between gap-3">
@@ -18,7 +20,7 @@ export function ModuleHeader({ module, action }: ModuleHeaderProps) {
         </div>
         <div>
           <p className="text-[11px] font-medium uppercase tracking-widest text-zinc-600">
-            {module.shortLabel}
+            {crumbs.join(" · ")}
           </p>
           <h1 className="text-lg font-semibold tracking-tight text-zinc-50 sm:text-[22px]">
             {module.label}

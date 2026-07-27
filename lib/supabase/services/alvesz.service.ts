@@ -5,38 +5,44 @@ import {
 } from "@/lib/supabase/repositories";
 import type { Orcamento, TableInsert, TableUpdate } from "@/types/database";
 import { normalizeOrcamentoStatus } from "@/utils/alvesz-integration";
-import { getDataContext } from "./context";
+import { requireWorkspaceContext } from "./context";
 import { syncAlveszIncomeFromOrcamento } from "./finance.service";
 import { awardAuraXp } from "./xp.service";
 
-export async function listClientes() {
-  const { supabase, userId } = await getDataContext();
-  return new ClientesRepository(supabase, userId).findAll();
+async function alveszRepos() {
+  return requireWorkspaceContext();
 }
 
-export async function createCliente(payload: Omit<TableInsert<"clientes">, "user_id">) {
-  const { supabase, userId } = await getDataContext();
-  return new ClientesRepository(supabase, userId).create(payload);
+export async function listClientes() {
+  const { supabase, userId, activeWorkspaceId } = await alveszRepos();
+  return new ClientesRepository(supabase, userId, activeWorkspaceId).findAll();
+}
+
+export async function createCliente(
+  payload: Omit<TableInsert<"clientes">, "user_id" | "workspace_id">
+) {
+  const { supabase, userId, activeWorkspaceId } = await alveszRepos();
+  return new ClientesRepository(supabase, userId, activeWorkspaceId).create(payload);
 }
 
 export async function listOrcamentos() {
-  const { supabase, userId } = await getDataContext();
-  return new OrcamentosRepository(supabase, userId).findWithCliente();
+  const { supabase, userId, activeWorkspaceId } = await alveszRepos();
+  return new OrcamentosRepository(supabase, userId, activeWorkspaceId).findWithCliente();
 }
 
 export async function createOrcamento(
-  payload: Omit<TableInsert<"orcamentos">, "user_id">
+  payload: Omit<TableInsert<"orcamentos">, "user_id" | "workspace_id">
 ) {
-  const { supabase, userId } = await getDataContext();
-  return new OrcamentosRepository(supabase, userId).create(payload);
+  const { supabase, userId, activeWorkspaceId } = await alveszRepos();
+  return new OrcamentosRepository(supabase, userId, activeWorkspaceId).create(payload);
 }
 
 export async function updateOrcamento(
   id: string,
   payload: TableUpdate<"orcamentos">
 ) {
-  const { supabase, userId } = await getDataContext();
-  const repo = new OrcamentosRepository(supabase, userId);
+  const { supabase, userId, activeWorkspaceId } = await alveszRepos();
+  const repo = new OrcamentosRepository(supabase, userId, activeWorkspaceId);
   const previous = await repo.findById(id);
   const result = await repo.update(id, payload);
 
@@ -57,18 +63,18 @@ export async function updateOrcamento(
 }
 
 export async function listEstoque() {
-  const { supabase, userId } = await getDataContext();
-  return new EstoqueRepository(supabase, userId).findAll("produto");
+  const { supabase, userId, activeWorkspaceId } = await alveszRepos();
+  return new EstoqueRepository(supabase, userId, activeWorkspaceId).findAll("produto");
 }
 
 export async function listEstoqueCritico() {
-  const { supabase, userId } = await getDataContext();
-  return new EstoqueRepository(supabase, userId).findCritical();
+  const { supabase, userId, activeWorkspaceId } = await alveszRepos();
+  return new EstoqueRepository(supabase, userId, activeWorkspaceId).findCritical();
 }
 
 export async function createEstoqueItem(
-  payload: Omit<TableInsert<"estoque">, "user_id">
+  payload: Omit<TableInsert<"estoque">, "user_id" | "workspace_id">
 ) {
-  const { supabase, userId } = await getDataContext();
-  return new EstoqueRepository(supabase, userId).create(payload);
+  const { supabase, userId, activeWorkspaceId } = await alveszRepos();
+  return new EstoqueRepository(supabase, userId, activeWorkspaceId).create(payload);
 }

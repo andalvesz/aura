@@ -112,6 +112,7 @@ describe("notifications generator", () => {
         {
           id: "o1",
           user_id: "u",
+          workspace_id: "ws1",
           cliente_id: null,
           tipo_evento: "Casamento",
           convidados: 100,

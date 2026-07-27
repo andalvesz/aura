@@ -58,14 +58,21 @@ function computeGoalAtual(goal: Goal, ctx: SyncContext): number {
 
 async function loadSyncContext(
   userId: string,
-  supabase: SupabaseClient<Database>
+  supabase: SupabaseClient<Database>,
+  workspaceId?: string | null
 ) {
   const [incomeRes, conteudosRes, eventosRes, alveszRes, leadsRes, workoutsRes] =
     await Promise.all([
       new BaseRepository(supabase, "financial_income", userId).findAll("data"),
       new BaseRepository(supabase, "conteudos", userId).findAll("created_at"),
       new BaseRepository(supabase, "eventos", userId).findAll("data_inicio"),
-      new BaseRepository(supabase, "alvesz_eventos", userId).findAll("data_evento"),
+      workspaceId
+        ? supabase
+            .from("alvesz_eventos")
+            .select("*")
+            .eq("workspace_id", workspaceId)
+            .order("data_evento", { ascending: false })
+        : Promise.resolve({ data: [], error: null }),
       new BaseRepository(supabase, "growth_leads", userId).findAll("created_at"),
       new BaseRepository(supabase, "health_workouts", userId).findAll("data"),
     ]);
@@ -74,7 +81,8 @@ async function loadSyncContext(
     financialIncome: (incomeRes.data ?? []) as FinancialIncome[],
     conteudos: (conteudosRes.data ?? []) as Conteudo[],
     eventos: (eventosRes.data ?? []) as Evento[],
-    alveszEventos: (alveszRes.data ?? []) as AlveszEvento[],
+    alveszEventos: ((alveszRes as { data: AlveszEvento[] | null }).data ??
+      []) as AlveszEvento[],
     leads: (leadsRes.data ?? []) as GrowthLead[],
     healthWorkouts: (workoutsRes.data ?? []) as HealthWorkout[],
   } satisfies SyncContext;
@@ -105,7 +113,11 @@ export async function syncGoalsProgress(): Promise<{
   const { data: goals, error: listError } = await repo.findAll("data_fim");
   if (listError) return { goals: [], error: listError };
 
-  const syncCtx = await loadSyncContext(ctx.userId, ctx.supabase);
+  const syncCtx = await loadSyncContext(
+    ctx.userId,
+    ctx.supabase,
+    ctx.activeWorkspaceId
+  );
   const autoTypes = new Set<GoalTipo>([
     "financeira",
     "conteudo",

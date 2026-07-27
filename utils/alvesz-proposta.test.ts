@@ -12,6 +12,7 @@ import {
 const baseOrcamento: Orcamento = {
   id: "o1",
   user_id: "u1",
+  workspace_id: "ws1",
   cliente_id: "c1",
   tipo_evento: "Casamento Premium",
   convidados: 120,
@@ -29,6 +30,7 @@ const baseOrcamento: Orcamento = {
 const cliente: Cliente = {
   id: "c1",
   user_id: "u1",
+  workspace_id: "ws1",
   nome: "Maria Silva",
   telefone: "11999999999",
   email: null,

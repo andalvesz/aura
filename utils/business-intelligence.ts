@@ -229,9 +229,9 @@ function analyzeLeads(data: BiInputData, items: BiItem[]) {
       kind: "insight",
       domain: "leads",
       severity: "baixa",
-      title: "Funil Consórcios",
+      title: "Funil de leads (legado)",
       description: `${consorcioLeads.length} leads · ${abertos} em aberto · ${funnel.find((f) => f.status === "fechado")?.count ?? 0} fechados`,
-      href: "/dashboard/consorcios",
+      href: "/dashboard/crescimento",
     });
 
     const novos = consorcioLeads.filter((l) => l.status === "novo");
@@ -240,9 +240,9 @@ function analyzeLeads(data: BiInputData, items: BiItem[]) {
         kind: "recomendacao",
         domain: "leads",
         severity: "media",
-        title: "Contatar leads novos de consórcios",
+        title: "Contatar leads novos",
         description: `${novos.length} leads novos aguardando primeiro contato.`,
-        href: "/dashboard/consorcios",
+        href: "/dashboard/crescimento",
       });
     }
   }

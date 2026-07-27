@@ -1,6 +1,5 @@
-import { listClientes } from "@/lib/supabase/services/alvesz.service";
+import { listClientes, listOrcamentos } from "@/lib/supabase/services/alvesz.service";
 import { listEventos } from "@/lib/supabase/services/eventos.service";
-import { OrcamentosRepository } from "@/lib/supabase/repositories";
 import {
   GrowthGoalsRepository,
   GrowthLeadsRepository,
@@ -88,7 +87,11 @@ async function loadNexusModuleData(): Promise<{
   ] = await Promise.all([
     safeLoad(() => listClientes(), []),
     safeLoad(
-      () => new OrcamentosRepository(ctx.supabase, ctx.userId).findAll(),
+      () =>
+        listOrcamentos().catch(() => ({
+          data: [] as never[],
+          error: "workspace_required",
+        })),
       []
     ),
     safeLoad(() => listEventos(), []),

@@ -57,6 +57,7 @@ describe("follow-up", () => {
     const orcamento: Orcamento = {
       id: "o1",
       user_id: "u1",
+      workspace_id: "ws1",
       cliente_id: null,
       tipo_evento: "Casamento",
       convidados: 80,

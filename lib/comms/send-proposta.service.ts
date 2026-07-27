@@ -25,13 +25,17 @@ export async function sendPropostaByEmail(params: {
     return { error: "Gmail não autorizado. Reconecte em Comunicação com permissão de e-mail." };
   }
 
-  const { supabase, userId } = await getDataContext();
+  const { supabase, userId, activeWorkspaceId } = await getDataContext();
+
+  if (!activeWorkspaceId) {
+    return { error: "Selecione o workspace Alvesz para enviar propostas." };
+  }
 
   const { data: proposta, error: propError } = await supabase
     .from("alvesz_propostas")
     .select("id, orcamento_id, conteudo, pdf_meta")
     .eq("id", params.propostaId)
-    .eq("user_id", userId)
+    .eq("workspace_id", activeWorkspaceId)
     .maybeSingle();
 
   if (propError || !proposta) {

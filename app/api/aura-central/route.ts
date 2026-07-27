@@ -199,9 +199,8 @@ import {
 } from "@/utils/aura-commands";
 import { listCommunicationLogs } from "@/lib/comms";
 import { countRecentInboundHint } from "@/lib/comms/gmail.service";
-import { listClientes } from "@/lib/supabase/services/alvesz.service";
+import { listClientes, listOrcamentos } from "@/lib/supabase/services/alvesz.service";
 import { listGrowthLeads } from "@/lib/supabase/services/growth.service";
-import { OrcamentosRepository } from "@/lib/supabase/repositories";
 import {
   buildCommsCentralReply,
   detectCommsCentralQuery,
@@ -1428,7 +1427,7 @@ export async function POST(req: Request) {
       const [leadsRes, orcRes, clientesRes, logsRes, gmailStatus, inboundCount] =
         await Promise.all([
           listGrowthLeads(),
-          new OrcamentosRepository(ctx.supabase, ctx.userId).findAll(),
+          listOrcamentos(),
           listClientes(),
           listCommunicationLogs(100),
           getGmailPublicStatus(),

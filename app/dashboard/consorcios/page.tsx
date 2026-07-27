@@ -1,12 +1,9 @@
-import { ModuleHeader } from "@/components/dashboard/module-header";
-import { ConsorciosView } from "@/components/dashboard/modules/consorcios-view";
-import { getModule } from "@/lib/modules";
+import { redirect } from "next/navigation";
+
+/**
+ * Consórcios foi removido do Aura OS 2.0.
+ * Mantém a rota apenas como redirect para não quebrar bookmarks.
+ */
 export default function ConsorciosPage() {
-  const mod = getModule("consorcios");
-  return (
-    <div className="space-y-3">
-      <ModuleHeader module={mod} />
-      <ConsorciosView />
-    </div>
-  );
+  redirect("/dashboard/crescimento");
 }

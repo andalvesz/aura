@@ -1,7 +1,6 @@
 import { getCommsDashboardStats } from "@/lib/comms";
-import { listClientes } from "@/lib/supabase/services/alvesz.service";
+import { listClientes, listOrcamentos } from "@/lib/supabase/services/alvesz.service";
 import { listGrowthLeads } from "@/lib/supabase/services/growth.service";
-import { OrcamentosRepository } from "@/lib/supabase/repositories";
 import { getOptionalDataContext } from "@/lib/supabase/services/context";
 
 export async function GET() {
@@ -13,8 +12,8 @@ export async function GET() {
 
     const [leadsRes, orcRes, clientesRes] = await Promise.all([
       listGrowthLeads(),
-      new OrcamentosRepository(ctx.supabase, ctx.userId).findAll(),
-      listClientes(),
+      listOrcamentos().catch(() => ({ data: [] as never[], error: null })),
+      listClientes().catch(() => ({ data: [] as never[], error: null })),
     ]);
 
     const stats = await getCommsDashboardStats(

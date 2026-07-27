@@ -17,10 +17,24 @@ import {
   toOfflineTable,
 } from "@/lib/offline/row";
 import { useOnlineStatus } from "@/hooks/use-online-status";
+import {
+  loadClientAuraContext,
+  shouldLoadWorkspaceTable,
+} from "@/lib/workspace/client-context";
+import { isWorkspaceTable } from "@/lib/workspace/constants";
 import type { TableInsert, TableRow, TableUpdate, UserScopedTable } from "@/types/database";
 
 type CrudQuery = {
   select: (columns?: string) => {
+    eq: (
+      column: string,
+      value: string
+    ) => {
+      order: (
+        column: string,
+        options?: { ascending?: boolean }
+      ) => Promise<{ data: unknown[] | null; error: { message: string } | null }>;
+    };
     order: (
       column: string,
       options?: { ascending?: boolean }
@@ -123,30 +137,40 @@ export function useSupabaseCrud<T extends UserScopedTable>({
       setError(null);
 
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const ctx = await loadClientAuraContext(supabase);
 
-        if (!user) {
+        if (!ctx) {
           setData([]);
           setError("Sessão expirada. Faça login novamente.");
           return;
         }
 
+        if (!shouldLoadWorkspaceTable(table, ctx)) {
+          setData([]);
+          setError(null);
+          return;
+        }
+
         if (offlineTable) {
-          const hasPending = getOfflineSyncQueue(user.id).some(
+          const hasPending = getOfflineSyncQueue(ctx.userId).some(
             (op) => op.table === offlineTable
           );
           if (!isOnlineRef.current || hasPending) {
-            setData(loadOfflineCache(user.id));
+            setData(loadOfflineCache(ctx.userId));
             setError(null);
             return;
           }
         }
 
-        const { data: rows, error: err } = await getQuery(supabase, table)
-          .select("*")
-          .order(orderBy, { ascending });
+        const base = getQuery(supabase, table).select("*");
+        const filtered =
+          isWorkspaceTable(table) && ctx.activeWorkspaceId
+            ? base.eq("workspace_id", ctx.activeWorkspaceId)
+            : base;
+
+        const { data: rows, error: err } = await filtered.order(orderBy, {
+          ascending,
+        });
 
         if (err) {
           setData([]);
@@ -158,7 +182,7 @@ export function useSupabaseCrud<T extends UserScopedTable>({
         setData(list);
         setError(null);
         if (offlineTable) {
-          persistOfflineCache(list, user.id);
+          persistOfflineCache(list, ctx.userId);
         }
       } catch (cause) {
         console.error(`[useSupabaseCrud] ${table}`, cause);
@@ -196,39 +220,60 @@ export function useSupabaseCrud<T extends UserScopedTable>({
   }, [offlineTable, refresh]);
 
   const create = useCallback(
-    async (payload: Omit<TableInsert<T>, "user_id">) => {
+    async (payload: Omit<TableInsert<T>, "user_id" | "workspace_id">) => {
       setError(null);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      const ctx = await loadClientAuraContext(supabase);
+      if (!ctx) {
         const msg = "Sessão expirada. Faça login novamente.";
+        setError(msg);
+        return { data: null, error: msg };
+      }
+
+      if (isWorkspaceTable(table) && !ctx.activeWorkspaceId) {
+        const msg = "Selecione o workspace Alvesz para criar este registro.";
         setError(msg);
         return { data: null, error: msg };
       }
 
       if (offlineTable && !isOnline) {
         const id = newOfflineRowId();
-        const row = buildOfflineInsertRow<T>(user.id, id, payload);
+      const row = buildOfflineInsertRow<T>(
+          ctx.userId,
+          id,
+          payload as Omit<TableInsert<T>, "user_id">
+        );
         const next = sortOfflineRows(
           [row, ...data],
           orderBy,
           ascending
         ) as TableRow<T>[];
         setData(next);
-        persistOfflineCache(next, user.id);
-        appendOfflineSyncOp(user.id, {
+        persistOfflineCache(next, ctx.userId);
+        appendOfflineSyncOp(ctx.userId, {
           type: "insert",
           table: offlineTable,
           id,
-          payload: payload as Record<string, unknown>,
+          payload: {
+            ...(payload as Record<string, unknown>),
+            ...(ctx.activeWorkspaceId
+              ? { workspace_id: ctx.activeWorkspaceId }
+              : {}),
+          },
           createdAt: new Date().toISOString(),
         });
         return { data: row, error: null };
       }
 
+      const insertPayload: Record<string, unknown> = {
+        ...payload,
+        user_id: ctx.userId,
+      };
+      if (isWorkspaceTable(table) && ctx.activeWorkspaceId) {
+        insertPayload.workspace_id = ctx.activeWorkspaceId;
+      }
+
       const { data: row, error: err } = await getQuery(supabase, table)
-        .insert({ ...payload, user_id: user.id })
+        .insert(insertPayload)
         .select()
         .single();
       if (err) {
@@ -258,10 +303,8 @@ export function useSupabaseCrud<T extends UserScopedTable>({
   const update = useCallback(
     async (id: string, payload: TableUpdate<T>) => {
       setError(null);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      const ctx = await loadClientAuraContext(supabase);
+      if (!ctx) {
         const msg = "Sessão expirada. Faça login novamente.";
         setError(msg);
         return { data: null, error: msg };
@@ -281,8 +324,8 @@ export function useSupabaseCrud<T extends UserScopedTable>({
           ascending
         ) as TableRow<T>[];
         setData(next);
-        persistOfflineCache(next, user.id);
-        appendOfflineSyncOp(user.id, {
+        persistOfflineCache(next, ctx.userId);
+        appendOfflineSyncOp(ctx.userId, {
           type: "update",
           table: offlineTable,
           id,
@@ -333,10 +376,8 @@ export function useSupabaseCrud<T extends UserScopedTable>({
   const remove = useCallback(
     async (id: string) => {
       setError(null);
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      const ctx = await loadClientAuraContext(supabase);
+      if (!ctx) {
         const msg = "Sessão expirada. Faça login novamente.";
         setError(msg);
         return { error: msg };
@@ -345,8 +386,8 @@ export function useSupabaseCrud<T extends UserScopedTable>({
       if (offlineTable && !isOnline) {
         const next = data.filter((row) => row.id !== id);
         setData(next);
-        persistOfflineCache(next, user.id);
-        appendOfflineSyncOp(user.id, {
+        persistOfflineCache(next, ctx.userId);
+        appendOfflineSyncOp(ctx.userId, {
           type: "delete",
           table: offlineTable,
           id,

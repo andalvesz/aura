@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { loadClientAuraContext } from "@/lib/workspace/client-context";
 import type { Orcamento } from "@/types/database";
 
 export type OrcamentoWithCliente = Orcamento;
@@ -15,9 +16,18 @@ export function useOrcamentos() {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const ctx = await loadClientAuraContext(supabase);
+    if (!ctx?.activeWorkspaceId) {
+      setData([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     const { data: rows, error: err } = await supabase
       .from("orcamentos")
       .select("*")
+      .eq("workspace_id", ctx.activeWorkspaceId)
       .order("created_at", { ascending: false });
     setData((rows ?? []) as unknown as OrcamentoWithCliente[]);
     setError(err?.message ?? null);
@@ -40,16 +50,18 @@ export function useOrcamentos() {
       local?: string | null;
       observacoes?: string | null;
     }) => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return { data: null, error: "Sessão expirada." };
+      const ctx = await loadClientAuraContext(supabase);
+      if (!ctx?.userId) return { data: null, error: "Sessão expirada." };
+      if (!ctx.activeWorkspaceId) {
+        return { data: null, error: "Selecione o workspace Alvesz." };
+      }
 
       const { data: row, error: err } = await supabase
         .from("orcamentos")
         .insert({
           ...payload,
-          user_id: user.id,
+          user_id: ctx.userId,
+          workspace_id: ctx.activeWorkspaceId,
           status: payload.status ?? "rascunho",
         })
         .select()

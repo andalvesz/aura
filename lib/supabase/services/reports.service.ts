@@ -86,9 +86,17 @@ export async function loadExecutiveReportData(): Promise<{
     ] = await Promise.all([
       new FinancialIncomeRepository(ctx.supabase, ctx.userId).findAll("data"),
       new FinancialGoalsRepository(ctx.supabase, ctx.userId).findAll("data_fim"),
-      new BaseRepository(ctx.supabase, "alvesz_eventos", ctx.userId).findAll(
-        "data_evento"
-      ),
+      ctx.activeWorkspaceId
+        ? ctx.supabase
+            .from("alvesz_eventos")
+            .select("*")
+            .eq("workspace_id", ctx.activeWorkspaceId)
+            .order("data_evento", { ascending: false })
+            .then((r) => ({
+              data: r.data,
+              error: r.error?.message ?? null,
+            }))
+        : Promise.resolve({ data: [], error: null }),
       ctx.supabase
         .from("financial_balance")
         .select("*")

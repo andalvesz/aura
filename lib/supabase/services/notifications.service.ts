@@ -2,10 +2,9 @@ import {
   BaseRepository,
   ConteudosRepository,
   NotificationsRepository,
-  OrcamentosRepository,
 } from "@/lib/supabase/repositories";
 import { GrowthLeadsRepository, GrowthMissionsRepository } from "@/lib/supabase/repositories/growth.repository";
-import { listClientes } from "@/lib/supabase/services/alvesz.service";
+import { listClientes, listOrcamentos } from "@/lib/supabase/services/alvesz.service";
 import { listEventos } from "@/lib/supabase/services/eventos.service";
 import type {
   Conteudo,
@@ -120,12 +119,20 @@ export async function syncNotifications(): Promise<{
         [] as Goal[]
       ),
       safeLoad(
-        () => new OrcamentosRepository(supabase, userId).findAll(),
+        () =>
+          listOrcamentos().catch(() => ({
+            data: [] as Orcamento[],
+            error: "workspace_required",
+          })),
         [] as Orcamento[]
       ),
       safeLoad(async () => {
-        const { data, error } = await listClientes();
-        return { data: data ?? [], error };
+        try {
+          const { data, error } = await listClientes();
+          return { data: data ?? [], error };
+        } catch {
+          return { data: [], error: null };
+        }
       }, []),
       safeLoad(
         () => new BaseRepository(supabase, "gastos", userId).findAll("data"),

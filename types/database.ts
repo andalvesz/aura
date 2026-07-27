@@ -6,13 +6,53 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+export type AuraActiveContext = "personal" | "workspace";
+
 export type Profile = {
   id: string;
   email: string;
   full_name: string | null;
   avatar_url: string | null;
+  onboarding_completed: boolean;
+  active_workspace_id: string | null;
+  active_context: AuraActiveContext;
   created_at: string;
   updated_at: string;
+};
+
+export type WorkspaceRole = "owner" | "admin" | "member";
+export type WorkspaceMemberStatus = "active" | "invited" | "suspended";
+
+export type Workspace = {
+  id: string;
+  name: string;
+  slug: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkspaceMember = {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: WorkspaceRole;
+  status: WorkspaceMemberStatus;
+  invited_by: string | null;
+  joined_at: string | null;
+  created_at: string;
+};
+
+export type WorkspaceInvite = {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: Exclude<WorkspaceRole, "owner">;
+  token_hash: string;
+  expires_at: string;
+  accepted_at: string | null;
+  invited_by: string;
+  created_at: string;
 };
 
 export type Gasto = {
@@ -163,6 +203,7 @@ export type CommunicationLog = {
 export type Cliente = {
   id: string;
   user_id: string;
+  workspace_id: string;
   nome: string;
   telefone: string | null;
   email: string | null;
@@ -176,6 +217,7 @@ export type Cliente = {
 export type Orcamento = {
   id: string;
   user_id: string;
+  workspace_id: string;
   cliente_id: string | null;
   tipo_evento: string;
   convidados: number;
@@ -193,6 +235,7 @@ export type Orcamento = {
 export type AlveszProposta = {
   id: string;
   user_id: string;
+  workspace_id: string;
   orcamento_id: string;
   conteudo: string;
   melhorada_ia: boolean;
@@ -204,6 +247,7 @@ export type AlveszProposta = {
 export type EstoqueItem = {
   id: string;
   user_id: string;
+  workspace_id: string;
   produto: string;
   quantidade: number;
   unidade: string;
@@ -252,6 +296,7 @@ export type Conteudo = {
 export type AlveszEvento = {
   id: string;
   user_id: string;
+  workspace_id: string;
   titulo: string;
   data_evento: string;
   local: string | null;
@@ -437,6 +482,7 @@ export type LanguageLesson = {
 export type Lead = {
   id: string;
   user_id: string;
+  workspace_id: string;
   nome: string;
   telefone: string | null;
   origem: string;
@@ -3206,7 +3252,43 @@ type TableDef<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
 export type Database = {
   public: {
     Tables: {
-      profiles: TableDef<Profile>;
+      profiles: TableDef<
+        Profile,
+        Omit<Profile, "onboarding_completed" | "active_workspace_id" | "active_context" | "created_at" | "updated_at"> & {
+          onboarding_completed?: boolean;
+          active_workspace_id?: string | null;
+          active_context?: AuraActiveContext;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      workspaces: TableDef<
+        Workspace,
+        Omit<Workspace, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        }
+      >;
+      workspace_members: TableDef<
+        WorkspaceMember,
+        Omit<WorkspaceMember, "id" | "created_at" | "joined_at" | "invited_by" | "status" | "role"> & {
+          id?: string;
+          role?: WorkspaceRole;
+          status?: WorkspaceMemberStatus;
+          invited_by?: string | null;
+          joined_at?: string | null;
+          created_at?: string;
+        }
+      >;
+      workspace_invites: TableDef<
+        WorkspaceInvite,
+        Omit<WorkspaceInvite, "id" | "created_at" | "accepted_at"> & {
+          id?: string;
+          accepted_at?: string | null;
+          created_at?: string;
+        }
+      >;
       gastos: TableDef<
         Gasto,
         Omit<Gasto, "id" | "created_at" | "updated_at"> & {
@@ -3339,8 +3421,9 @@ export type Database = {
       >;
       clientes: TableDef<
         Cliente,
-        Omit<Cliente, "id" | "created_at" | "updated_at" | "instagram"> & {
+        Omit<Cliente, "id" | "created_at" | "updated_at" | "instagram" | "workspace_id"> & {
           id?: string;
+          workspace_id?: string;
           instagram?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -3357,8 +3440,10 @@ export type Database = {
           | "local"
           | "observacoes"
           | "growth_lead_id"
+          | "workspace_id"
         > & {
           id?: string;
+          workspace_id?: string;
           data_evento?: string | null;
           local?: string | null;
           observacoes?: string | null;
@@ -3371,9 +3456,10 @@ export type Database = {
         AlveszProposta,
         Omit<
           AlveszProposta,
-          "id" | "created_at" | "updated_at" | "melhorada_ia" | "pdf_meta"
+          "id" | "created_at" | "updated_at" | "melhorada_ia" | "pdf_meta" | "workspace_id"
         > & {
           id?: string;
+          workspace_id?: string;
           melhorada_ia?: boolean;
           pdf_meta?: Json;
           created_at?: string;
@@ -3382,8 +3468,9 @@ export type Database = {
       >;
       estoque: TableDef<
         EstoqueItem,
-        Omit<EstoqueItem, "id" | "created_at" | "updated_at"> & {
+        Omit<EstoqueItem, "id" | "created_at" | "updated_at" | "workspace_id"> & {
           id?: string;
+          workspace_id?: string;
           created_at?: string;
           updated_at?: string;
         }
@@ -3431,8 +3518,9 @@ export type Database = {
       >;
       leads: TableDef<
         Lead,
-        Omit<Lead, "id" | "created_at" | "updated_at"> & {
+        Omit<Lead, "id" | "created_at" | "updated_at" | "workspace_id"> & {
           id?: string;
+          workspace_id?: string;
           created_at?: string;
           updated_at?: string;
         }
@@ -3533,9 +3621,16 @@ export type Database = {
         AlveszEvento,
         Omit<
           AlveszEvento,
-          "id" | "created_at" | "updated_at" | "evento_calendario_id" | "local" | "cliente_id"
+          | "id"
+          | "created_at"
+          | "updated_at"
+          | "evento_calendario_id"
+          | "local"
+          | "cliente_id"
+          | "workspace_id"
         > & {
           id?: string;
+          workspace_id?: string;
           local?: string | null;
           cliente_id?: string | null;
           evento_calendario_id?: string | null;
@@ -6768,6 +6863,7 @@ export type Database = {
     Functions: {
       seed_demo_data: { Args: Record<string, never>; Returns: undefined };
       mark_communication_opened: { Args: { p_token: string }; Returns: boolean };
+      accept_workspace_invite: { Args: { p_token_hash: string }; Returns: string };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -6930,6 +7026,15 @@ export type UserScopedTable =
   | "revenue_forecasts"
   | "market_opportunities"
   | "market_watchlist";
+
+/** Tables owned by a workspace (Alvesz V1). */
+export type WorkspaceScopedTable =
+  | "clientes"
+  | "orcamentos"
+  | "estoque"
+  | "leads"
+  | "alvesz_eventos"
+  | "alvesz_propostas";
 
 export type AiModule =
   | "aura_central"

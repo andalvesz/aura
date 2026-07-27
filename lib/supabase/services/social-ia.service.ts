@@ -92,8 +92,9 @@ export async function getSocialIaMentorContext(options?: {
     };
   }
 
-  const { supabase, userId } = ctx;
+  const { supabase, userId, activeWorkspaceId } = ctx;
   const { start, end } = getWeekRange();
+  const wsId = activeWorkspaceId;
 
   const [
     conteudosLoad,
@@ -122,10 +123,15 @@ export async function getSocialIaMentorContext(options?: {
       () => new BaseRepository(supabase, "eventos", userId).findAll("data_inicio"),
       []
     ),
-    safeLoad(
-      () => new BaseRepository(supabase, "alvesz_eventos", userId).findAll("data_evento"),
-      []
-    ),
+    safeLoad(async () => {
+      if (!wsId) return { data: [] as AlveszEvento[], error: null };
+      const { data, error } = await supabase
+        .from("alvesz_eventos")
+        .select("*")
+        .eq("workspace_id", wsId)
+        .order("data_evento", { ascending: false });
+      return { data: (data as AlveszEvento[]) ?? [], error: error?.message ?? null };
+    }, []),
     safeLoad(
       () => new BaseRepository(supabase, "financial_income", userId).findAll("data"),
       []
@@ -134,14 +140,24 @@ export async function getSocialIaMentorContext(options?: {
       () => new BaseRepository(supabase, "health_workouts", userId).findAll("data"),
       []
     ),
-    safeLoad(
-      () => new BaseRepository(supabase, "orcamentos", userId).findAll("created_at"),
-      []
-    ),
-    safeLoad(
-      () => new BaseRepository(supabase, "leads", userId).findAll("created_at"),
-      []
-    ),
+    safeLoad(async () => {
+      if (!wsId) return { data: [] as Orcamento[], error: null };
+      const { data, error } = await supabase
+        .from("orcamentos")
+        .select("*")
+        .eq("workspace_id", wsId)
+        .order("created_at", { ascending: false });
+      return { data: (data as Orcamento[]) ?? [], error: error?.message ?? null };
+    }, []),
+    safeLoad(async () => {
+      if (!wsId) return { data: [] as Lead[], error: null };
+      const { data, error } = await supabase
+        .from("leads")
+        .select("*")
+        .eq("workspace_id", wsId)
+        .order("created_at", { ascending: false });
+      return { data: (data as Lead[]) ?? [], error: error?.message ?? null };
+    }, []),
     safeLoad(
       () => new BaseRepository(supabase, "trips", userId).findAll("data_ida"),
       []

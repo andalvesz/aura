@@ -140,10 +140,10 @@ export function RevenueView() {
               Alvesz →
             </Link>
             <Link
-              href="/dashboard/consorcios"
+              href="/dashboard/crescimento"
               className="text-[10px] text-violet-400 hover:underline"
             >
-              Consórcios →
+              Growth →
             </Link>
           </div>
         </PanelContent>

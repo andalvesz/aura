@@ -38,11 +38,20 @@ function ilikeOr(columns: string[], pattern: string): string {
 async function searchTable(
   supabase: Awaited<ReturnType<typeof getDataContext>>["supabase"],
   userId: string,
+  workspaceId: string | null,
   entity: GlobalSearchEntity,
   pattern: string,
   perTable: number
 ): Promise<GlobalSearchResult[]> {
   const orFilter = (cols: string[]) => ilikeOr(cols, pattern);
+  const workspaceEntities = new Set([
+    "clientes",
+    "orcamentos",
+    "alvesz_eventos",
+  ]);
+  if (workspaceEntities.has(entity) && !workspaceId) {
+    return [];
+  }
 
   switch (entity) {
     case "growth_leads": {
@@ -97,7 +106,7 @@ async function searchTable(
       const { data } = await supabase
         .from("clientes")
         .select("id, nome, created_at, updated_at")
-        .eq("user_id", userId)
+        .eq("workspace_id", workspaceId!)
         .or(orFilter(["nome", "telefone", "email", "instagram", "observacoes"]))
         .limit(perTable);
       return (data ?? []).map((r) =>
@@ -113,7 +122,7 @@ async function searchTable(
       const { data } = await supabase
         .from("orcamentos")
         .select("id, tipo_evento, local, created_at, updated_at, data_evento")
-        .eq("user_id", userId)
+        .eq("workspace_id", workspaceId!)
         .or(orFilter(["tipo_evento", "local", "status", "observacoes"]))
         .limit(perTable);
       return (data ?? []).map((r) =>
@@ -145,7 +154,7 @@ async function searchTable(
       const { data } = await supabase
         .from("alvesz_eventos")
         .select("id, titulo, data_evento, created_at, updated_at")
-        .eq("user_id", userId)
+        .eq("workspace_id", workspaceId!)
         .or(orFilter(["titulo", "local"]))
         .limit(perTable);
       return (data ?? []).map((r) =>
@@ -339,9 +348,19 @@ export async function runGlobalSearch(
   const entities = entitiesForFilter(filter);
 
   try {
+    const workspaceId =
+      ctx.activeContext === "workspace" ? ctx.activeWorkspaceId : null;
+
     const batches = await Promise.all(
       entities.map((entity) =>
-        searchTable(ctx.supabase, ctx.userId, entity, pattern, perTable)
+        searchTable(
+          ctx.supabase,
+          ctx.userId,
+          workspaceId,
+          entity,
+          pattern,
+          perTable
+        )
       )
     );
 
