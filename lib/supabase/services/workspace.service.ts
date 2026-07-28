@@ -6,11 +6,11 @@ import {
   type WorkspaceRole,
 } from "@/lib/workspace/constants";
 import {
-  buildInviteUrl,
   generateInviteToken,
   hashInviteToken,
   inviteExpiresAt,
 } from "@/lib/workspace/invite-token";
+import { buildPublicInviteUrl } from "@/lib/site-url";
 import type { WorkspaceInvite, WorkspaceMember } from "@/types/database";
 import {
   getDataContext,
@@ -210,7 +210,7 @@ export async function createWorkspaceInvite(params: {
   return {
     data,
     error: null,
-    inviteUrl: buildInviteUrl(params.origin, token),
+    inviteUrl: buildPublicInviteUrl(params.origin, token),
   };
 }
 

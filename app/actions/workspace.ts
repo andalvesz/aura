@@ -10,6 +10,11 @@ import {
   setActiveContext,
   updateWorkspaceMemberRole,
 } from "@/lib/supabase/services/workspace.service";
+import {
+  PublicSiteUrlError,
+  resolvePublicSiteUrl,
+  siteUrlInputFromHeaders,
+} from "@/lib/site-url";
 import type { WorkspaceRole } from "@/types/database";
 
 export type WorkspaceActionState = {
@@ -40,6 +45,8 @@ function mapError(code: string | null | undefined): string {
       return "Este convite já foi utilizado.";
     case "invite_email_mismatch":
       return "Este convite é para outro e-mail.";
+    case "public_site_url":
+      return "URL pública do site não configurada. Defina NEXT_PUBLIC_SITE_URL na Vercel.";
     default:
       return code || "Erro inesperado.";
   }
@@ -69,12 +76,19 @@ export async function createInviteAction(
   const role = String(formData.get("role") ?? "member") as "admin" | "member";
   const workspaceId = String(formData.get("workspaceId") ?? "") || undefined;
 
-  const hdrs = await headers();
-  const host = hdrs.get("x-forwarded-host") ?? hdrs.get("host");
-  const proto = hdrs.get("x-forwarded-proto") ?? "https";
-  const origin =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (host ? `${proto}://${host}` : "http://localhost:3000");
+  let origin: string;
+  try {
+    const hdrs = await headers();
+    origin = resolvePublicSiteUrl(siteUrlInputFromHeaders(hdrs));
+  } catch (err) {
+    const message =
+      err instanceof PublicSiteUrlError ? err.message : mapError("public_site_url");
+    console.error("[workspace] invite site-url failed", {
+      env: process.env.NODE_ENV,
+      error: message,
+    });
+    return { error: message };
+  }
 
   const result = await createWorkspaceInvite({
     email,
