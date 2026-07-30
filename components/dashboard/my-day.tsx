@@ -13,7 +13,7 @@ import { getMyDaySummary } from "@/lib/supabase/services/my-day.service";
 import { getMissionEngine } from "@/lib/supabase/services/mission.service";
 import { formatOptionalMetric } from "@/lib/dashboard/context-dashboard";
 import { formatBRL } from "@/utils/format";
-import { resolveDashboardDisplayName } from "@/components/dashboard/dashboard-user-context";
+import { resolveDashboardDisplayName } from "@/lib/dashboard/display-name";
 import { getDataContext } from "@/lib/supabase/services/context";
 import { DiscoveryDashboardSummary } from "@/components/dashboard/discovery/discovery-dashboard-summary";
 

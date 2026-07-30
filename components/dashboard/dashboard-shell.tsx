@@ -3,10 +3,8 @@
 import { useState } from "react";
 import { AuraContextProvider } from "@/components/dashboard/aura-context-provider";
 import { DashboardOffline } from "@/components/dashboard/dashboard-offline";
-import {
-  DashboardUserProvider,
-  resolveDashboardDisplayName,
-} from "@/components/dashboard/dashboard-user-context";
+import { DashboardUserProvider } from "@/components/dashboard/dashboard-user-context";
+import { resolveDashboardDisplayName } from "@/lib/dashboard/display-name";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { MobileSidebar } from "@/components/dashboard/mobile-sidebar";
 import { Sidebar } from "@/components/dashboard/sidebar";
