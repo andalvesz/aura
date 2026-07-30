@@ -45,6 +45,8 @@ function mapError(code: string | null | undefined): string {
       return "Este convite já foi utilizado.";
     case "invite_email_mismatch":
       return "Este convite é para outro e-mail.";
+    case "last_owner_protected":
+      return "Não é possível remover o último owner do workspace.";
     case "public_site_url":
       return "URL pública do site não configurada. Defina NEXT_PUBLIC_SITE_URL na Vercel.";
     default:

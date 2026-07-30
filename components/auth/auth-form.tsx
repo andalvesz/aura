@@ -41,15 +41,15 @@ export function AuthForm({ mode, action, redirectTo, notice }: AuthFormProps) {
             href="/"
             className="mb-2 inline-block text-2xl font-semibold tracking-tight text-white"
           >
-            Aura
+            Aura Brain
           </Link>
           <CardTitle className="text-xl">
             {isLogin ? "Bem-vindo de volta" : "Crie sua conta"}
           </CardTitle>
           <CardDescription>
             {isLogin
-              ? "Entre para acessar seu dashboard"
-              : "Comece a usar o Aura em segundos"}
+              ? "Entre para acessar seu sistema operacional"
+              : "Comece a usar o Aura Brain em segundos"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -109,6 +109,16 @@ export function AuthForm({ mode, action, redirectTo, notice }: AuthFormProps) {
               {isLogin ? "Entrar" : "Criar conta"}
             </Button>
           </form>
+          {isLogin ? (
+            <p className="mt-4 text-center text-sm text-zinc-400">
+              <Link
+                href="/recuperar-senha"
+                className="font-medium text-violet-300 hover:text-violet-200"
+              >
+                Esqueceu a senha?
+              </Link>
+            </p>
+          ) : null}
           <p className="mt-6 text-center text-sm text-zinc-400">
             {isLogin ? "Não tem conta?" : "Já tem conta?"}{" "}
             <Link

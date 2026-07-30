@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { safeDashboardPath } from "@/lib/redirect";
+import { safeAuthNextPath } from "@/lib/redirect";
 import {
   logProfileCreationCheck,
   maskEmail,
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   }
 
   const code = searchParams.get("code");
-  const next = safeDashboardPath(searchParams.get("next"));
+  const next = safeAuthNextPath(searchParams.get("next"));
   const errorParam = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
   const errorCode = searchParams.get("error_code");

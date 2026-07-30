@@ -19,7 +19,7 @@ export function Sidebar() {
           href="/dashboard"
           className="text-[13px] font-semibold tracking-tight text-zinc-200 transition-colors duration-200 hover:text-white"
         >
-          Aura
+          Aura Brain
         </Link>
         <p className="text-[10px] text-zinc-600">{subtitle}</p>
       </div>

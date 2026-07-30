@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  // Playwright / local smoke uses localhost or 127.0.0.1
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   serverExternalPackages: ["pdf-parse"],
 };
 

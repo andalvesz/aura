@@ -5,7 +5,8 @@ export type GlobalSearchFilter =
   | "conteudo"
   | "saude"
   | "financeiro"
-  | "ia";
+  | "ia"
+  | "aura";
 
 export type GlobalSearchModuleKey =
   | "crescimento"
@@ -14,7 +15,8 @@ export type GlobalSearchModuleKey =
   | "saude"
   | "social-media"
   | "financeiro"
-  | "aura-central";
+  | "aura-central"
+  | "aura-brain";
 
 export type GlobalSearchEntity =
   | "growth_leads"
@@ -32,7 +34,18 @@ export type GlobalSearchEntity =
   | "ai_messages"
   | "financial_income"
   | "gastos"
-  | "financial_goals";
+  | "financial_goals"
+  | "aura_memories"
+  | "aura_entities"
+  | "aura_insights"
+  | "aura_discoveries"
+  | "aura_attachments"
+  | "aura_projects"
+  | "aura_businesses"
+  | "aura_knowledge"
+  | "aura_decisions"
+  | "aura_scenarios"
+  | "aura_priorities";
 
 export type GlobalSearchResult = {
   id: string;
@@ -61,6 +74,7 @@ export const GLOBAL_SEARCH_FILTERS: { id: GlobalSearchFilter; label: string }[] 
   { id: "saude", label: "Saúde" },
   { id: "financeiro", label: "Financeiro" },
   { id: "ia", label: "IA" },
+  { id: "aura", label: "Aura Brain" },
 ];
 
 export const GLOBAL_SEARCH_DEBOUNCE_MS = 300;
@@ -71,6 +85,7 @@ export const GLOBAL_SEARCH_PER_TABLE = 10;
 export const GLOBAL_SEARCH_MIN_CHARS = 2;
 
 export const GLOBAL_SEARCH_MODULE_ORDER: GlobalSearchModuleKey[] = [
+  "aura-brain",
   "crescimento",
   "alvesz",
   "calendario",
@@ -202,6 +217,83 @@ const ENTITY_META: Record<
     moduleHref: "/dashboard/financeiro",
     filter: "financeiro",
   },
+  aura_memories: {
+    typeLabel: "Memória",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/settings/memory",
+    filter: "aura",
+  },
+  aura_entities: {
+    typeLabel: "Entidade",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/settings/world-model",
+    filter: "aura",
+  },
+  aura_insights: {
+    typeLabel: "Insight",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/settings/insights",
+    filter: "aura",
+  },
+  aura_discoveries: {
+    typeLabel: "Descoberta",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/discovery",
+    filter: "aura",
+  },
+  aura_attachments: {
+    typeLabel: "Anexo",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/attachments",
+    filter: "aura",
+  },
+  aura_projects: {
+    typeLabel: "Projeto",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/projects",
+    filter: "aura",
+  },
+  aura_businesses: {
+    typeLabel: "Empresa",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/business",
+    filter: "aura",
+  },
+  aura_knowledge: {
+    typeLabel: "Conhecimento",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/knowledge",
+    filter: "aura",
+  },
+  aura_decisions: {
+    typeLabel: "Decisão",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/decisions",
+    filter: "aura",
+  },
+  aura_scenarios: {
+    typeLabel: "Cenário",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/scenarios",
+    filter: "aura",
+  },
+  aura_priorities: {
+    typeLabel: "Prioridade",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/priorities",
+    filter: "aura",
+  },
 };
 
 const FILTER_ENTITIES: Record<GlobalSearchFilter, GlobalSearchEntity[] | "all"> = {
@@ -212,6 +304,19 @@ const FILTER_ENTITIES: Record<GlobalSearchFilter, GlobalSearchEntity[] | "all"> 
   saude: ["health_habits", "health_workouts", "health_meals", "health_sessions"],
   financeiro: ["financial_income", "gastos", "financial_goals"],
   ia: ["ai_messages"],
+  aura: [
+    "aura_memories",
+    "aura_entities",
+    "aura_insights",
+    "aura_discoveries",
+    "aura_attachments",
+    "aura_projects",
+    "aura_businesses",
+    "aura_knowledge",
+    "aura_decisions",
+    "aura_scenarios",
+    "aura_priorities",
+  ],
 };
 
 const SEARCH_VERB_PREFIX =

@@ -63,7 +63,7 @@ export function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               onClick={onClose}
               className="text-[13px] font-semibold tracking-tight text-zinc-200"
             >
-              Aura
+              Aura Brain
             </Link>
             <p className="text-[10px] text-zinc-600">{subtitle}</p>
           </div>

@@ -5,6 +5,7 @@ import {
   pushEventoToGoogle,
 } from "@/lib/google-calendar";
 import type { TableInsert, TableUpdate } from "@/types/database";
+import { invalidateAuraIntelligenceCache } from "@/lib/intelligence";
 import { getDataContext } from "./context";
 import { awardAuraXp } from "./xp.service";
 
@@ -32,6 +33,7 @@ export async function createEvento(payload: Omit<TableInsert<"eventos">, "user_i
   const { supabase, userId } = await getDataContext();
   const result = await new EventosRepository(supabase, userId).create(payload);
   if (result.data?.id) {
+    invalidateAuraIntelligenceCache({ userId, reason: "evento" });
     void syncEventoToGoogleIfConnected(result.data.id);
     await awardAuraXp("criar_evento");
   }

@@ -141,14 +141,16 @@ export function getAuthCallbackUrl(input: SiteUrlResolveInput = {}): string {
 }
 
 export function getPasswordRecoveryRedirectUrl(
-  input: SiteUrlResolveInput = {}
+  input: SiteUrlResolveInput = {},
+  nextPath = "/redefinir-senha"
 ): string {
   const base = resolvePublicSiteUrl(input);
-  const route = `${base}/auth/callback?next=/dashboard`;
+  const next = nextPath.startsWith("/") ? nextPath : `/${nextPath}`;
+  const route = `${base}/auth/callback?next=${encodeURIComponent(next)}`;
   console.info("[site-url]", {
     baseUrl: base,
     env: isProductionRuntime() ? "production" : process.env.NODE_ENV || "development",
-    route: "/auth/callback?next=/dashboard",
+    route: "/auth/callback?next=/redefinir-senha",
   });
   return route;
 }

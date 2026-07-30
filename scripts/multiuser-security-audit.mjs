@@ -59,6 +59,15 @@ const migrationPath = resolve(
   process.cwd(),
   "supabase/migrations/20260727120000_multiuser_workspaces_v1.sql"
 );
+const hardeningPath = resolve(
+  process.cwd(),
+  "supabase/migrations/20260728120000_multiuser_rls_hardening_v1.sql"
+);
+const integrityReportPath = resolve(
+  process.cwd(),
+  "supabase/reports/20260728_multiuser_integrity_readonly.sql"
+);
+
 if (!existsSync(migrationPath)) {
   fail("Migration multiuser_workspaces_v1 ausente");
 } else {
@@ -78,6 +87,84 @@ if (!existsSync(migrationPath)) {
     fail("Convite parece armazenar token em texto puro");
   }
   ok("Migration Sprint 1 presente e contém artefatos esperados");
+}
+
+if (!existsSync(hardeningPath)) {
+  fail("Migration multiuser_rls_hardening_v1 ausente");
+} else {
+  const sql = readFileSync(hardeningPath, "utf8");
+  for (const needle of [
+    "prevent_workspace_id_change",
+    "protect_last_workspace_owner",
+    "last_owner_protected",
+    "workspace_id_immutable",
+  ]) {
+    if (!sql.includes(needle)) fail(`Hardening migration sem: ${needle}`);
+  }
+  ok("Migration RLS hardening presente");
+}
+
+if (!existsSync(integrityReportPath)) {
+  warn("Relatório SQL de integridade ausente");
+} else {
+  ok("Relatório SQL somente leitura presente");
+}
+
+// --- Static: proposta PDF must require workspace context + signed URLs ---
+{
+  const pdfRoute = resolve(process.cwd(), "app/api/alvesz-proposta-pdf/route.ts");
+  if (existsSync(pdfRoute)) {
+    const raw = readFileSync(pdfRoute, "utf8");
+    if (!raw.includes("requireWorkspaceContext")) {
+      fail("alvesz-proposta-pdf POST sem requireWorkspaceContext");
+    } else if (!raw.includes("workspace_id")) {
+      fail("alvesz-proposta-pdf POST sem workspace_id");
+    } else {
+      ok("alvesz-proposta-pdf POST escopado por workspace");
+    }
+    if (raw.includes("getPublicUrl")) {
+      fail("alvesz-proposta-pdf POST ainda usa getPublicUrl");
+    }
+    if (!raw.includes("createSignedUrl")) {
+      fail("alvesz-proposta-pdf POST sem createSignedUrl");
+    } else {
+      ok("alvesz-proposta-pdf POST usa URLs assinadas");
+    }
+    if (!raw.includes("storage_path não pode ser escolhido")) {
+      fail("alvesz-proposta-pdf POST não rejeita storage_path do cliente");
+    } else {
+      ok("alvesz-proposta-pdf POST rejeita path manipulado pelo cliente");
+    }
+  }
+
+  const storageMig = resolve(
+    process.cwd(),
+    "supabase/migrations/20260728140000_alvesz_pdfs_private_storage_v1.sql"
+  );
+  if (!existsSync(storageMig)) {
+    fail("Migration alvesz_pdfs_private_storage_v1 ausente");
+  } else {
+    const sql = readFileSync(storageMig, "utf8");
+    if (!sql.includes("public = false")) fail("Bucket alvesz-pdfs não forçado a privado");
+    if (!sql.includes('drop policy if exists "alvesz_pdfs_select_public"')) {
+      fail("Migration storage sem drop da policy pública");
+    }
+    if (!sql.includes("alvesz_pdfs_select_member")) {
+      fail("Migration storage sem policy de membro");
+    } else {
+      ok("Migration storage alvesz-pdfs privada presente");
+    }
+  }
+
+  const commMig = resolve(
+    process.cwd(),
+    "supabase/migrations/20260728150000_communication_logs_workspace_refs_v1.sql"
+  );
+  if (!existsSync(commMig)) {
+    fail("Migration communication_logs_workspace_refs ausente");
+  } else {
+    ok("Migration communication_logs refs presente");
+  }
 }
 
 // --- Static: service role not in client ---

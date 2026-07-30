@@ -15,6 +15,7 @@ import type {
 } from "@/types/database";
 import { isDateInGoalRange } from "@/utils/goals";
 import { getConteudoPublishedDate, normalizeConteudoStatus } from "@/utils/social";
+import { invalidateAuraIntelligenceCache } from "@/lib/intelligence";
 import { getOptionalDataContext } from "./context";
 
 type SyncContext = {
@@ -157,6 +158,7 @@ export async function createGoal(
   });
 
   if (error) return { goal: null, error };
+  invalidateAuraIntelligenceCache({ userId: ctx.userId, reason: "objetivo" });
   await syncGoalsProgress();
   const { goals } = await listGoals();
   const created = goals.find((g) => g.id === data?.id) ?? data;
@@ -176,6 +178,7 @@ export async function updateGoal(
   const { data, error } = await repo.update(id, patch);
   if (error) return { goal: null, error };
 
+  invalidateAuraIntelligenceCache({ userId: ctx.userId, reason: "objetivo" });
   await syncGoalsProgress();
   const { goals } = await listGoals();
   const updated = goals.find((g) => g.id === id) ?? data;

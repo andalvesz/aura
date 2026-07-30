@@ -11,7 +11,7 @@ import {
   supabaseServerAuthOptions,
 } from "@/lib/supabase/cookie-options";
 
-const AUTH_ROUTES = new Set(["/login", "/cadastro"]);
+const AUTH_ROUTES = new Set(["/login", "/cadastro", "/recuperar-senha"]);
 const PROTECTED_PREFIX = "/dashboard";
 const AUTH_CALLBACK = "/auth/callback";
 

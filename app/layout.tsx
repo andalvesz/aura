@@ -14,15 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aura OS",
+  title: "Aura Brain",
   description:
-    "Sistema operacional pessoal — Calendário, Crescimento, Alvesz, Saúde, Social Media e Financeiro.",
-  applicationName: "Aura OS",
+    "Seu sistema operacional para vida e negócios — calendário, saúde, finanças, crescimento e mais.",
+  applicationName: "Aura Brain",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Aura",
+    title: "Aura Brain",
   },
   icons: {
     icon: [

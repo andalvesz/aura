@@ -1,4 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireWorkspaceContext } from "@/lib/supabase/services/context";
+import {
+  ALVESZ_PDF_BUCKET,
+  ALVESZ_PDF_SIGNED_URL_TTL_SECONDS,
+  buildAlveszPdfStoragePath,
+} from "@/lib/workspace/alvesz-pdf-storage";
 import type { Json } from "@/types/database";
 import type { AlveszPropostaPdfMeta } from "@/utils/alvesz-proposta";
 import { parseRequestJson } from "@/utils/safe-json";
@@ -6,8 +12,6 @@ import { parseRequestJson } from "@/utils/safe-json";
 function toPdfMetaJson(meta: AlveszPropostaPdfMeta): Json {
   return meta as unknown as Json;
 }
-
-const BUCKET = "alvesz-pdfs";
 
 function decodeBase64Pdf(base64: string): Uint8Array {
   const raw = base64.includes(",") ? base64.split(",")[1]! : base64;
@@ -17,14 +21,21 @@ function decodeBase64Pdf(base64: string): Uint8Array {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
+    let ctx;
+    try {
+      ctx = await requireWorkspaceContext();
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "auth";
+      if (code === "workspace_required" || code === "workspace_access_denied") {
+        return Response.json(
+          { error: "Workspace ativo necessário para publicar proposta." },
+          { status: 403 }
+        );
+      }
       return Response.json({ error: "Não autenticado." }, { status: 401 });
     }
+
+    const { supabase, userId, activeWorkspaceId } = ctx;
 
     const { data: body, error: bodyError } = await parseRequestJson<{
       orcamento_id?: string;
@@ -33,10 +44,19 @@ export async function POST(req: Request) {
       melhorada_ia?: boolean;
       pdf_base64?: string;
       pdf_meta?: AlveszPropostaPdfMeta;
+      /** Ignored — path is always server-built to prevent cross-workspace writes. */
+      storage_path?: string;
     }>(req);
 
     if (bodyError || !body) {
       return Response.json({ error: bodyError ?? "Requisição inválida." }, { status: 400 });
+    }
+
+    if (body.storage_path?.trim()) {
+      return Response.json(
+        { error: "storage_path não pode ser escolhido pelo cliente." },
+        { status: 400 }
+      );
     }
 
     const orcamentoId = body.orcamento_id?.trim();
@@ -50,6 +70,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // IDOR: orçamento must belong to the validated workspace
+    const { data: orcamento, error: orcamentoError } = await supabase
+      .from("orcamentos")
+      .select("id")
+      .eq("id", orcamentoId)
+      .eq("workspace_id", activeWorkspaceId)
+      .maybeSingle();
+
+    if (orcamentoError || !orcamento) {
+      return Response.json({ error: "Orçamento não encontrado neste workspace." }, { status: 404 });
+    }
+
     const pdfBytes = decodeBase64Pdf(pdfBase64);
     if (pdfBytes.length < 100) {
       return Response.json({ error: "PDF inválido." }, { status: 400 });
@@ -57,11 +89,68 @@ export async function POST(req: Request) {
 
     const pdfMeta = (body.pdf_meta ?? {}) as AlveszPropostaPdfMeta;
     const version = pdfMeta.version ?? 1;
-    const propostaId = body.proposta_id?.trim();
-    const storagePath = `${user.id}/${orcamentoId}/proposta-v${version}.pdf`;
+    let savedPropostaId = body.proposta_id?.trim() || null;
+
+    if (savedPropostaId) {
+      const { data: existing, error: existingError } = await supabase
+        .from("alvesz_propostas")
+        .select("id")
+        .eq("id", savedPropostaId)
+        .eq("workspace_id", activeWorkspaceId)
+        .maybeSingle();
+
+      if (existingError || !existing) {
+        return Response.json({ error: "Proposta não encontrada neste workspace." }, { status: 404 });
+      }
+
+      const { error: updateError } = await supabase
+        .from("alvesz_propostas")
+        .update({
+          conteudo,
+          melhorada_ia: Boolean(body.melhorada_ia),
+        })
+        .eq("id", savedPropostaId)
+        .eq("workspace_id", activeWorkspaceId);
+
+      if (updateError) {
+        return Response.json({ error: updateError.message }, { status: 500 });
+      }
+    } else {
+      const { data: inserted, error: insertError } = await supabase
+        .from("alvesz_propostas")
+        .insert({
+          user_id: userId,
+          workspace_id: activeWorkspaceId,
+          orcamento_id: orcamentoId,
+          conteudo,
+          melhorada_ia: Boolean(body.melhorada_ia),
+          pdf_meta: toPdfMetaJson({ ready: false, version }),
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !inserted?.id) {
+        return Response.json(
+          { error: insertError?.message ?? "Falha ao criar proposta." },
+          { status: 500 }
+        );
+      }
+      savedPropostaId = inserted.id;
+    }
+
+    let storagePath: string;
+    try {
+      storagePath = buildAlveszPdfStoragePath({
+        workspaceId: activeWorkspaceId,
+        proposalId: savedPropostaId,
+        version,
+      });
+    } catch {
+      return Response.json({ error: "IDs inválidos para path de storage." }, { status: 400 });
+    }
 
     const { error: uploadError } = await supabase.storage
-      .from(BUCKET)
+      .from(ALVESZ_PDF_BUCKET)
       .upload(storagePath, pdfBytes, {
         contentType: "application/pdf",
         upsert: true,
@@ -76,73 +165,41 @@ export async function POST(req: Request) {
     }
 
     const origin = new URL(req.url).origin;
+    const apiPdfUrl = `${origin}/api/alvesz-proposta-pdf/${savedPropostaId}`;
 
-    const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
-    const pdfUrl = publicData.publicUrl;
+    const { data: signed, error: signedError } = await supabase.storage
+      .from(ALVESZ_PDF_BUCKET)
+      .createSignedUrl(storagePath, ALVESZ_PDF_SIGNED_URL_TTL_SECONDS);
+
+    if (signedError) {
+      console.error("[alvesz-proposta-pdf] signedUrl", signedError);
+    }
+
+    const signedUrl = signed?.signedUrl ?? null;
 
     const finalMeta: AlveszPropostaPdfMeta = {
       ...pdfMeta,
       ready: true,
       version,
       exportedAt: pdfMeta.exportedAt ?? new Date().toISOString(),
-      pdfUrl,
+      // Prefer authenticated API URL over permanent public storage URLs
+      pdfUrl: apiPdfUrl,
       storagePath,
+      propostaId: savedPropostaId,
       templateId: pdfMeta.templateId ?? "alvesz-premium-v1",
     };
 
-    let savedPropostaId = propostaId;
-
-    if (propostaId) {
-      const { error: updateError } = await supabase
-        .from("alvesz_propostas")
-        .update({
-          conteudo,
-          melhorada_ia: Boolean(body.melhorada_ia),
-          pdf_meta: toPdfMetaJson(finalMeta),
-        })
-        .eq("id", propostaId)
-        .eq("user_id", user.id);
-
-      if (updateError) {
-        return Response.json({ error: updateError.message }, { status: 500 });
-      }
-    } else {
-      const { data: inserted, error: insertError } = await supabase
-        .from("alvesz_propostas")
-        .insert({
-          user_id: user.id,
-          orcamento_id: orcamentoId,
-          conteudo,
-          melhorada_ia: Boolean(body.melhorada_ia),
-          pdf_meta: toPdfMetaJson(finalMeta),
-        })
-        .select("id")
-        .single();
-
-      if (insertError) {
-        return Response.json({ error: insertError.message }, { status: 500 });
-      }
-      savedPropostaId = inserted?.id ?? null;
-    }
-
-    if (savedPropostaId) {
-      finalMeta.propostaId = savedPropostaId;
-      finalMeta.pdfUrl = pdfUrl;
-      await supabase
-        .from("alvesz_propostas")
-        .update({ pdf_meta: toPdfMetaJson(finalMeta) })
-        .eq("id", savedPropostaId)
-        .eq("user_id", user.id);
-    }
-
-    const apiPdfUrl = savedPropostaId
-      ? `${origin}/api/alvesz-proposta-pdf/${savedPropostaId}`
-      : null;
+    await supabase
+      .from("alvesz_propostas")
+      .update({ pdf_meta: toPdfMetaJson(finalMeta) })
+      .eq("id", savedPropostaId)
+      .eq("workspace_id", activeWorkspaceId);
 
     return Response.json({
       propostaId: savedPropostaId,
-      pdfUrl,
-      publicUrl: pdfUrl,
+      pdfUrl: apiPdfUrl,
+      signedUrl,
+      signedUrlExpiresIn: ALVESZ_PDF_SIGNED_URL_TTL_SECONDS,
       apiPdfUrl,
       pdf_meta: finalMeta,
     });

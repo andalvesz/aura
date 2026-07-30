@@ -34,6 +34,7 @@ import {
   Settings,
   Share2,
   Sparkles,
+  Compass,
   Stethoscope,
   ScrollText,
   Star,
@@ -45,6 +46,7 @@ import {
   Gift,
   ShieldCheck,
   ImageIcon,
+  FolderKanban,
 } from "lucide-react";
 
 export type ModuleId =
@@ -62,6 +64,7 @@ export type ModuleId =
   | "creator"
   | "smart-launch"
   | "mission"
+  | "missions"
   | "money"
   | "revenue"
   | "revenue-ai"
@@ -122,6 +125,22 @@ export type ModuleConfig = {
 };
 
 export const MODULES: ModuleConfig[] = [
+  {
+    id: "missions",
+    href: "/dashboard/missions",
+    label: "Missões",
+    shortLabel: "Missões",
+    description:
+      "Organize a vida por missões — fases, marcos, riscos e progresso.",
+    icon: Crosshair,
+    accent: "text-amber-400",
+    context: "vida",
+    overview: {
+      metric: "Ativas",
+      value: "—",
+      hint: "Nenhuma missão criada",
+    },
+  },
   {
     id: "financeiro",
     href: "/dashboard/financeiro",
@@ -725,17 +744,17 @@ export const MODULES: ModuleConfig[] = [
   {
     id: "knowledge",
     href: "/dashboard/knowledge",
-    label: "Aura Knowledge & Connect",
-    shortLabel: "Configurações IA",
+    label: "Knowledge Hub",
+    shortLabel: "Knowledge",
     description:
-      "Aprenda com fontes externas — campanhas, produtos, copies e mercados vencedores com Executive Memory.",
+      "Repositório inteligente de documentos, notas, links e arquivos — indexados para Memory, World, Cognitive e Discovery.",
     icon: BookOpen,
     accent: "text-amber-400",
     context: "aura",
     overview: {
-      metric: "Entradas",
-      value: "0",
-      hint: "Conecte fontes e sincronize aprendizado",
+      metric: "Documentos",
+      value: "—",
+      hint: "Centralize conhecimento do workspace",
     },
   },
 ];
@@ -910,6 +929,7 @@ export const OS_NAV: OsNavSection[] = [
     label: "Vida",
     icon: Heart,
     items: [
+      navFromModule("missions"),
       navFromModule("financeiro"),
       {
         ...navFromModule("saude"),
@@ -996,16 +1016,99 @@ export const OS_NAV: OsNavSection[] = [
   },
   {
     id: "aura",
-    label: "Aura",
+    label: "Aura Brain",
     icon: Sparkles,
     items: [
-      navFromModule("knowledge", "Configurações IA"),
+      {
+        id: "inbox",
+        href: "/dashboard/inbox",
+        label: "Inbox",
+        icon: Mail,
+        accent: "text-cyan-300",
+      },
+      {
+        id: "feed",
+        href: "/dashboard/feed",
+        label: "Feed",
+        icon: Layers,
+        accent: "text-sky-300",
+      },
+      {
+        id: "favorites",
+        href: "/dashboard/favorites",
+        label: "Favoritos",
+        icon: Star,
+        accent: "text-amber-300",
+      },
+      {
+        id: "projects",
+        href: "/dashboard/projects",
+        label: "Projetos",
+        icon: FolderKanban,
+        accent: "text-emerald-300",
+      },
+      {
+        id: "business",
+        href: "/dashboard/business",
+        label: "Business Hub",
+        icon: Building2,
+        accent: "text-violet-300",
+      },
+      {
+        id: "knowledge-hub",
+        href: "/dashboard/knowledge",
+        label: "Knowledge Hub",
+        icon: BookOpen,
+        accent: "text-amber-300",
+      },
+      {
+        id: "decisions",
+        href: "/dashboard/decisions",
+        label: "Decision Center",
+        icon: Crosshair,
+        accent: "text-orange-300",
+      },
+      {
+        id: "scenarios",
+        href: "/dashboard/scenarios",
+        label: "Scenario Center",
+        icon: Compass,
+        accent: "text-sky-300",
+      },
+      {
+        id: "priorities",
+        href: "/dashboard/priorities",
+        label: "Priority Center",
+        icon: Target,
+        accent: "text-lime-300",
+      },
+      {
+        id: "discovery",
+        href: "/dashboard/discovery",
+        label: "Descobertas",
+        icon: Compass,
+        accent: "text-rose-300",
+      },
+      {
+        id: "knowledge-connect",
+        href: "/dashboard/knowledge/connect",
+        label: "Knowledge Connect",
+        icon: BookOpen,
+        accent: "text-amber-400",
+      },
       {
         id: "memoria",
         href: MEMORY_NAV.href,
         label: "Memória",
         icon: MEMORY_NAV.icon,
         accent: "text-violet-400",
+      },
+      {
+        id: "aura-settings",
+        href: "/dashboard/settings/aura-brain",
+        label: "Preferências Brain",
+        icon: Settings,
+        accent: "text-zinc-400",
       },
       navFromModule("integrations", "Integrações"),
       navFromModule("knowledge-sources", "Google Drive"),
@@ -1058,6 +1161,20 @@ export const OS_NAV: OsNavSection[] = [
     label: "Configurações",
     icon: Settings,
     items: [
+      {
+        id: "settings-hub",
+        href: "/dashboard/settings",
+        label: "Central",
+        icon: Settings,
+        accent: "text-zinc-300",
+      },
+      {
+        id: "perfil",
+        href: "/dashboard/perfil",
+        label: "Perfil",
+        icon: Crown,
+        accent: "text-amber-300",
+      },
       {
         id: "workspace",
         href: "/dashboard/workspace",

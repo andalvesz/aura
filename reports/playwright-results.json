@@ -1,0 +1,344 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Users\\Anderson\\Desktop\\aura pessoal\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "e2e/missions.spec.ts",
+      "--project=chromium-desktop"
+    ],
+    "configFile": "C:\\Users\\Anderson\\Desktop\\aura pessoal\\playwright.config.ts",
+    "rootDir": "C:/Users/Anderson/Desktop/aura pessoal/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "isProductionTarget": false,
+      "destructiveAllowed": true,
+      "actualWorkers": 2
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Users/Anderson/Desktop/aura pessoal/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "isProductionTarget": false,
+          "destructiveAllowed": true,
+          "actualWorkers": 2
+        },
+        "id": "chromium-desktop",
+        "name": "chromium-desktop",
+        "testDir": "C:/Users/Anderson/Desktop/aura pessoal/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "C:/Users/Anderson/Desktop/aura pessoal/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "isProductionTarget": false,
+          "destructiveAllowed": true,
+          "actualWorkers": 2
+        },
+        "id": "chromium-tablet",
+        "name": "chromium-tablet",
+        "testDir": "C:/Users/Anderson/Desktop/aura pessoal/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/smoke|nav|responsive/"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "C:/Users/Anderson/Desktop/aura pessoal/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "isProductionTarget": false,
+          "destructiveAllowed": true,
+          "actualWorkers": 2
+        },
+        "id": "chromium-mobile",
+        "name": "chromium-mobile",
+        "testDir": "C:/Users/Anderson/Desktop/aura pessoal/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/smoke|nav|responsive/"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "open": "never",
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "reports/playwright-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.0",
+    "workers": 2,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:3000",
+      "reuseExistingServer": true,
+      "timeout": 180000
+    }
+  },
+  "suites": [
+    {
+      "title": "missions.spec.ts",
+      "file": "missions.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Mission Engine V1",
+          "file": "missions.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "/missions redirects to dashboard missions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8674,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-28T17:56:24.590Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3da627105cb0fc597f2d-da494cb11bf482fa0ded",
+              "file": "missions.spec.ts",
+              "line": 5,
+              "column": 7
+            },
+            {
+              "title": "missions page loads when authenticated",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "E2E_OWNER_* missing — configure .env.e2e locally (never commit)",
+                      "location": {
+                        "file": "C:\\Users\\Anderson\\Desktop\\aura pessoal\\e2e\\missions.spec.ts",
+                        "line": 14,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 996,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-28T17:56:24.624Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "E2E_OWNER_* missing — configure .env.e2e locally (never commit)",
+                          "location": {
+                            "file": "C:\\Users\\Anderson\\Desktop\\aura pessoal\\e2e\\missions.spec.ts",
+                            "line": 14,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3da627105cb0fc597f2d-6111152daa32156931a3",
+              "file": "missions.spec.ts",
+              "line": 13,
+              "column": 7
+            },
+            {
+              "title": "create mission plans structure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "E2E_OWNER_* missing",
+                      "location": {
+                        "file": "C:\\Users\\Anderson\\Desktop\\aura pessoal\\e2e\\missions.spec.ts",
+                        "line": 28,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 543,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-28T17:56:25.992Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "E2E_OWNER_* missing",
+                          "location": {
+                            "file": "C:\\Users\\Anderson\\Desktop\\aura pessoal\\e2e\\missions.spec.ts",
+                            "line": 28,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3da627105cb0fc597f2d-dd4113aa66a5ea4a255a",
+              "file": "missions.spec.ts",
+              "line": 27,
+              "column": 7
+            },
+            {
+              "title": "Meu Dia shows mission of the day block",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "description": "E2E_OWNER_* missing",
+                      "location": {
+                        "file": "C:\\Users\\Anderson\\Desktop\\aura pessoal\\e2e\\missions.spec.ts",
+                        "line": 47,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium-desktop",
+                  "projectName": "chromium-desktop",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "skipped",
+                      "duration": 182,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-07-28T17:56:26.563Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "description": "E2E_OWNER_* missing",
+                          "location": {
+                            "file": "C:\\Users\\Anderson\\Desktop\\aura pessoal\\e2e\\missions.spec.ts",
+                            "line": 47,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3da627105cb0fc597f2d-ff22452fda81adc882d8",
+              "file": "missions.spec.ts",
+              "line": 46,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-28T17:56:00.369Z",
+    "duration": 37676.643000000004,
+    "expected": 1,
+    "skipped": 3,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

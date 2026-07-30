@@ -1,3 +1,5 @@
+import type { AuraBrainTables } from "@/types/aura-brain-database";
+
 export type Json =
   | string
   | number
@@ -2821,7 +2823,8 @@ export type NotificationType =
   | "autopilot_action_required"
   | "autopilot_rule_triggered"
   | "autopilot_campaign_paused"
-  | "autopilot_opportunity_found";
+  | "autopilot_opportunity_found"
+  | "aura_brain_critical";
 
 export type NotificationStatus = "unread" | "read";
 
@@ -6858,12 +6861,20 @@ export type Database = {
           updated_at?: string;
         }
       >;
-    };
+    } & AuraBrainTables;
     Views: Record<string, never>;
     Functions: {
       seed_demo_data: { Args: Record<string, never>; Returns: undefined };
       mark_communication_opened: { Args: { p_token: string }; Returns: boolean };
       accept_workspace_invite: { Args: { p_token_hash: string }; Returns: string };
+      aura_brain_visibility_readable: {
+        Args: {
+          p_user_id: string;
+          p_workspace_id: string;
+          p_visibility_scope: string;
+        };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
@@ -7025,7 +7036,19 @@ export type UserScopedTable =
   | "revenue_metrics"
   | "revenue_forecasts"
   | "market_opportunities"
-  | "market_watchlist";
+  | "market_watchlist"
+  | "aura_identity_claims"
+  | "aura_identity_audit"
+  | "aura_experiences"
+  | "aura_memories"
+  | "aura_world_entities"
+  | "aura_world_relationships"
+  | "aura_cognitive_artifacts"
+  | "aura_discovery_artifacts"
+  | "aura_discovery_feedback"
+  | "aura_discovery_suppressions"
+  | "aura_discovery_runs"
+  | "aura_discovery_audit";
 
 /** Tables owned by a workspace (Alvesz V1). */
 export type WorkspaceScopedTable =

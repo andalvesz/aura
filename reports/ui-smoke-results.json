@@ -1,0 +1,291 @@
+{
+  "generatedAt": "2026-07-28T17:55:34.426Z",
+  "results": [
+    {
+      "route": "/",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/login",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/cadastro",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/missions",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/financeiro",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/saude",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/calendario",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/viagens",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/idiomas",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/metas",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/ceo",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/opportunities",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/master-flow",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/creator/factory",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/expert-brain",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/social-media",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/crescimento",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/money",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/alvesz",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/memoria",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/integrations",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/diagnostico",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/logs",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/workspace",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    },
+    {
+      "route": "/dashboard/comunicacao",
+      "status": 200,
+      "blank": false,
+      "hydrationError": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "httpFailures": [],
+      "title": "Aura Brain",
+      "production": false
+    }
+  ]
+}

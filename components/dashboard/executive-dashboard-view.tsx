@@ -308,7 +308,7 @@ export function ExecutiveDashboardView() {
             <LayoutDashboard className="size-5 shrink-0 text-violet-400" />
             <h1 className="text-xl font-semibold text-zinc-100 sm:text-2xl">Visão Geral</h1>
           </div>
-          <p className="mt-0.5 text-sm text-zinc-500">Centro de comando · Aura OS</p>
+          <p className="mt-0.5 text-sm text-zinc-500">Centro de comando · Aura Brain</p>
         </div>
         <Link
           href="/dashboard/crescimento"
@@ -591,7 +591,7 @@ export function ExecutiveDashboardView() {
       {/* Seção 7 — Estado vazio global */}
       {!dashboard.hasData && (
         <EmptyState
-          title="Bem-vindo à Aura OS"
+          title="Bem-vindo ao Aura Brain"
           description="Seu centro de comando está pronto. Comece cadastrando um lead, evento ou conteúdo usando as ações rápidas acima."
         />
       )}

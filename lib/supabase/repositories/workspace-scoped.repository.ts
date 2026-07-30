@@ -146,8 +146,11 @@ export class WorkspaceScopedRepository<T extends WorkspaceScopedTable> {
     id: string,
     payload: TableUpdate<T>
   ): Promise<WorkspaceRepositoryResult<TableRow<T>>> {
+    const { workspace_id: _ignoredWs, user_id: _ignoredUser, ...safePayload } =
+      payload as TableUpdate<T> & { workspace_id?: string; user_id?: string };
+
     const { data, error } = await this.query()
-      .update(payload as Record<string, unknown>)
+      .update(safePayload as Record<string, unknown>)
       .eq("workspace_id", this.workspaceId)
       .eq("id", id)
       .select()

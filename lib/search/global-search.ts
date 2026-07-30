@@ -313,6 +313,258 @@ async function searchTable(
   }
 }
 
+async function searchAuraKernel(
+  term: string,
+  filter: GlobalSearchFilter,
+  perTable: number
+): Promise<GlobalSearchResult[]> {
+  if (filter !== "todos" && filter !== "aura" && filter !== "ia") {
+    return [];
+  }
+  const results: GlobalSearchResult[] = [];
+  const q = term.toLowerCase();
+
+  try {
+    const { searchMemories } = await import(
+      "@/lib/supabase/services/memory-engine.service"
+    );
+    const { items: mems } = await searchMemories({
+      query: term,
+      limit: perTable,
+    });
+    for (const m of mems) {
+      results.push(
+        buildSearchResult(
+          "aura_memories",
+          m.id,
+          m.title,
+          m.createdAt.slice(0, 10)
+        )
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchWorldEntities } = await import(
+      "@/lib/supabase/services/world-model.service"
+    );
+    const { items } = await searchWorldEntities({
+      query: term,
+      limit: perTable,
+    });
+    for (const e of items) {
+      results.push(
+        buildSearchResult(
+          "aura_entities",
+          e.id,
+          e.displayName,
+          e.createdAt.slice(0, 10)
+        )
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchCognitiveArtifacts } = await import(
+      "@/lib/supabase/services/cognitive-engine.service"
+    );
+    const arts = await searchCognitiveArtifacts(term, perTable);
+    for (const a of arts) {
+      results.push(
+        buildSearchResult(
+          "aura_insights",
+          a.id,
+          a.title,
+          a.createdAt.slice(0, 10)
+        )
+      );
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchDiscoveries } = await import(
+      "@/lib/supabase/services/discovery-engine.service"
+    );
+    const discs = await searchDiscoveries(term, perTable);
+    for (const d of discs) {
+      const row = buildSearchResult(
+        "aura_discoveries",
+        d.id,
+        d.title,
+        d.createdAt.slice(0, 10)
+      );
+      results.push({
+        ...row,
+        moduleHref: `/dashboard/discovery?id=${d.id}`,
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchMemoryAttachments } = await import(
+      "@/lib/supabase/services/smart-capture.service"
+    );
+    const hits = await searchMemoryAttachments(term);
+    for (const h of hits.slice(0, perTable)) {
+      const row = buildSearchResult(
+        "aura_attachments",
+        h.attachmentId,
+        `${h.fileName} · ${h.matchField}`,
+        new Date().toISOString().slice(0, 10)
+      );
+      results.push({
+        ...row,
+        moduleHref: h.memoryId
+          ? `/dashboard/inbox?id=${h.memoryId}`
+          : "/dashboard/attachments",
+        title: h.snippet
+          ? `${h.fileName}: ${h.snippet.slice(0, 80)}`
+          : h.fileName,
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchProjectsAndBusiness } = await import(
+      "@/lib/supabase/services/projects.service"
+    );
+    const found = await searchProjectsAndBusiness(term);
+    for (const p of found.projects.slice(0, perTable)) {
+      results.push({
+        ...buildSearchResult(
+          "aura_projects",
+          p.id,
+          p.name,
+          p.updatedAt.slice(0, 10)
+        ),
+        moduleHref: `/dashboard/projects/${p.id}`,
+      });
+    }
+    for (const b of found.businesses.slice(0, perTable)) {
+      results.push({
+        ...buildSearchResult(
+          "aura_businesses",
+          b.id,
+          b.name,
+          b.updatedAt.slice(0, 10)
+        ),
+        moduleHref: "/dashboard/business",
+      });
+    }
+    for (const d of found.documents.slice(0, perTable)) {
+      results.push({
+        ...buildSearchResult(
+          "aura_attachments",
+          d.id,
+          d.title,
+          d.createdAt.slice(0, 10)
+        ),
+        moduleHref: `/dashboard/projects/${d.projectId}/documents`,
+        typeLabel: "Documento do projeto",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchKnowledge } = await import(
+      "@/lib/supabase/services/knowledge-hub.service"
+    );
+    const found = await searchKnowledge(term, { limit: perTable });
+    for (const hit of found.hits) {
+      results.push({
+        ...buildSearchResult(
+          "aura_knowledge",
+          hit.document.id,
+          hit.document.title,
+          hit.document.updatedAt.slice(0, 10)
+        ),
+        moduleHref: `/dashboard/knowledge/${hit.document.id}`,
+        typeLabel: "Knowledge",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchDecisionCards } = await import(
+      "@/lib/supabase/services/decision-support.service"
+    );
+    const found = await searchDecisionCards(term, perTable);
+    for (const d of found) {
+      results.push({
+        ...buildSearchResult(
+          "aura_decisions",
+          d.id,
+          d.title,
+          d.updatedAt.slice(0, 10)
+        ),
+        moduleHref: `/dashboard/decisions/${d.id}`,
+        typeLabel: "Decisão",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchScenarioCards } = await import(
+      "@/lib/supabase/services/scenario.service"
+    );
+    const found = await searchScenarioCards(term, perTable);
+    for (const s of found) {
+      results.push({
+        ...buildSearchResult(
+          "aura_scenarios",
+          s.id,
+          s.title,
+          s.updatedAt.slice(0, 10)
+        ),
+        moduleHref: `/dashboard/scenarios/${s.id}`,
+        typeLabel: "Cenário",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchPriorityItems } = await import(
+      "@/lib/supabase/services/prioritization.service"
+    );
+    const found = await searchPriorityItems(term, perTable);
+    for (const p of found) {
+      results.push({
+        ...buildSearchResult(
+          "aura_priorities",
+          p.id,
+          p.title,
+          p.updatedAt.slice(0, 10)
+        ),
+        moduleHref: `/dashboard/priorities/${p.id}`,
+        typeLabel: "Prioridade",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  void q;
+  return results;
+}
+
 export async function runGlobalSearch(
   query: string,
   options: GlobalSearchOptions = {}
@@ -345,7 +597,22 @@ export async function runGlobalSearch(
   const perTable = options.perTable ?? GLOBAL_SEARCH_PER_TABLE;
   const pattern = `%${escapeIlikePattern(term)}%`;
 
-  const entities = entitiesForFilter(filter);
+  const entities = entitiesForFilter(filter).filter(
+    (e) =>
+      ![
+        "aura_memories",
+        "aura_entities",
+        "aura_insights",
+        "aura_discoveries",
+        "aura_attachments",
+        "aura_projects",
+        "aura_businesses",
+        "aura_knowledge",
+        "aura_decisions",
+        "aura_scenarios",
+        "aura_priorities",
+      ].includes(e)
+  );
 
   try {
     const workspaceId =
@@ -364,7 +631,8 @@ export async function runGlobalSearch(
       )
     );
 
-    const merged = sortSearchResults(batches.flat());
+    const kernel = await searchAuraKernel(term, filter, perTable);
+    const merged = sortSearchResults([...batches.flat(), ...kernel]);
     const groups = groupSearchResults(merged);
     const { slice, total, hasMore } = paginateSearchResults(merged, page, pageSize);
 

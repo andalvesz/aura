@@ -75,6 +75,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   autopilot_rule_triggered: "Autopilot: regra acionada",
   autopilot_campaign_paused: "Autopilot: campanha pausada",
   autopilot_opportunity_found: "Autopilot: oportunidade encontrada",
+  aura_brain_critical: "Aura Brain: prioridade crítica",
 };
 
 export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
@@ -92,6 +93,7 @@ export const NOTIFICATION_MODULE_HREFS: Record<ModuleId, string> = {
   creator: "/dashboard/creator",
   "smart-launch": "/dashboard/smart-launch",
   mission: "/dashboard/mission",
+  missions: "/dashboard/missions",
   money: "/dashboard/money",
   revenue: "/dashboard/revenue",
   "revenue-ai": "/dashboard/revenue-ai",

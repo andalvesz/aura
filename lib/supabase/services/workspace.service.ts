@@ -253,6 +253,18 @@ export async function removeWorkspaceMember(memberId: string, workspaceId?: stri
     return { error: "forbidden" };
   }
 
+  if (target.role === "owner" && target.status === "active") {
+    const { count } = await ctx.supabase
+      .from("workspace_members")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", ctx.activeWorkspaceId)
+      .eq("role", "owner")
+      .eq("status", "active");
+    if ((count ?? 0) <= 1) {
+      return { error: "last_owner_protected" };
+    }
+  }
+
   const { error } = await ctx.supabase
     .from("workspace_members")
     .delete()
@@ -289,6 +301,22 @@ export async function updateWorkspaceMemberRole(params: {
     })
   ) {
     return { error: "forbidden" };
+  }
+
+  if (
+    target.role === "owner" &&
+    target.status === "active" &&
+    params.role !== "owner"
+  ) {
+    const { count } = await ctx.supabase
+      .from("workspace_members")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", ctx.activeWorkspaceId)
+      .eq("role", "owner")
+      .eq("status", "active");
+    if ((count ?? 0) <= 1) {
+      return { error: "last_owner_protected" };
+    }
   }
 
   const { error } = await ctx.supabase

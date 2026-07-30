@@ -1,5 +1,6 @@
 import { GastosRepository } from "@/lib/supabase/repositories";
 import type { TableInsert, TableUpdate } from "@/types/database";
+import { invalidateAuraIntelligenceCache } from "@/lib/intelligence";
 import { getDataContext } from "./context";
 import { awardAuraXp } from "./xp.service";
 
@@ -17,6 +18,7 @@ export async function createGasto(payload: Omit<TableInsert<"gastos">, "user_id"
   const { supabase, userId } = await getDataContext();
   const result = await new GastosRepository(supabase, userId).create(payload);
   if (!result.error) {
+    invalidateAuraIntelligenceCache({ userId, reason: "gasto" });
     await awardAuraXp("registrar_despesa");
   }
   return result;

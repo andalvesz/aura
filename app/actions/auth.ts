@@ -14,6 +14,7 @@ import {
 } from "@/lib/supabase/auth-debug";
 import {
   getAuthCallbackUrl,
+  getPasswordRecoveryRedirectUrl,
   PublicSiteUrlError,
   resolvePublicSiteUrl,
   siteUrlInputFromHeaders,
@@ -238,6 +239,92 @@ export async function signup(
   redirect("/login?message=confirm-email");
 }
 
+export async function requestPasswordReset(
+  _prev: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  const emailRaw = String(formData.get("email") ?? "");
+  const emailNorm = auditEmailNormalization(emailRaw);
+  const email = emailNorm.sentToSupabase;
+
+  if (!email) {
+    return { error: "Informe seu email." };
+  }
+
+  let redirectTo: string;
+  try {
+    const hdrs = await headers();
+    redirectTo = getPasswordRecoveryRedirectUrl(
+      siteUrlInputFromHeaders(hdrs),
+      "/redefinir-senha"
+    );
+  } catch (err) {
+    const message =
+      err instanceof PublicSiteUrlError
+        ? err.message
+        : "URL pública do site não configurada.";
+    return { error: message };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  });
+
+  console.info("[auth-audit] password_reset:request", {
+    emailMasked: maskEmail(email),
+    supabaseError: serializeAuthError(error),
+    hasRedirectTo: Boolean(redirectTo),
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return {
+    success:
+      "Se existir uma conta com este email, enviamos um link para redefinir a senha.",
+  };
+}
+
+export async function updatePassword(
+  _prev: AuthState,
+  formData: FormData
+): Promise<AuthState> {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (!password || password.length < 6) {
+    return { error: "A senha deve ter pelo menos 6 caracteres." };
+  }
+  if (password !== confirm) {
+    return { error: "As senhas não coincidem." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "Sessão expirada. Use o link do email novamente." };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  console.info("[auth-audit] password_reset:update", {
+    userId: user.id,
+    supabaseError: serializeAuthError(error),
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
+}
+
 export async function logout() {
   const supabase = await createClient();
   const {
@@ -248,6 +335,17 @@ export async function logout() {
     userId: user?.id ?? null,
     emailMasked: maskEmail(user?.email),
   });
+
+  // Clear active context so the next session starts in personal (no stale workspace UI).
+  if (user?.id) {
+    await supabase
+      .from("profiles")
+      .update({
+        active_context: "personal",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+  }
 
   await supabase.auth.signOut();
 

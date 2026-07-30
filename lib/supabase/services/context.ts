@@ -64,6 +64,15 @@ async function loadWorkspaceContext(
       userId,
       requestedWorkspaceId,
     });
+    // Soft-heal profile so dashboard doesn't keep a broken context
+    await supabase
+      .from("profiles")
+      .update({
+        active_workspace_id: null,
+        active_context: "personal",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
     return {
       activeWorkspaceId: null,
       activeContext: "personal",

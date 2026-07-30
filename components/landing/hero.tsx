@@ -21,7 +21,7 @@ export function Hero() {
         <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl lg:text-7xl">
           Clareza e foco com{" "}
           <span className="bg-gradient-to-r from-violet-300 via-fuchsia-300 to-violet-200 bg-clip-text text-transparent">
-            Aura
+            Aura Brain
           </span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-400 sm:text-xl">

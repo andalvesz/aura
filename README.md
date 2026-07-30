@@ -70,14 +70,20 @@ Acesse [http://localhost:3000](http://localhost:3000).
 
 ## 4. Como fazer deploy na Vercel
 
+Guia completo RC4.2: [`docs/deployment/go-live.md`](docs/deployment/go-live.md) · envs: [`docs/deployment/vercel-env.md`](docs/deployment/vercel-env.md)
+
 1. Faça push do repositório para GitHub.
 2. Em [vercel.com](https://vercel.com), **Add New Project** e importe o repo.
 3. Framework preset: **Next.js** (detectado automaticamente).
-4. Adicione as envs `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` em **Environment Variables**.
+4. Adicione as envs `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `NEXT_PUBLIC_SITE_URL` em **Environment Variables**.
 5. Deploy.
 6. No Supabase, atualize **Site URL** e **Redirect URLs** com o domínio `.vercel.app` (ou domínio customizado).
 
 ```bash
+npm run test:production
+npm run typecheck
+npm run build
+
 # Alternativa via CLI
 npx vercel
 npx vercel --prod

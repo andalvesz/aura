@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Building2,
   CalendarDays,
+  Compass,
   Dumbbell,
   Loader2,
   Rocket,
@@ -26,8 +27,10 @@ import {
   type GlobalSearchResult,
 } from "@/utils/global-search";
 import { parseJsonResponse } from "@/utils/safe-json";
+import { listFavoritesAction } from "@/app/actions/daily";
 
 const MODULE_ICONS: Record<GlobalSearchModuleKey, LucideIcon> = {
+  "aura-brain": Compass,
   crescimento: Rocket,
   alvesz: Building2,
   calendario: CalendarDays,
@@ -47,6 +50,9 @@ export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pinned, setPinned] = useState<
+    Array<{ id: string; title: string; href: string }>
+  >([]);
 
   const fetchSearch = useCallback(async (q: string, f: GlobalSearchFilter) => {
     if (q.trim().length < GLOBAL_SEARCH_MIN_CHARS) {
@@ -97,6 +103,19 @@ export function GlobalSearch() {
 
   useEffect(() => {
     if (!open) return;
+    void listFavoritesAction()
+      .then((items) => {
+        setPinned(
+          items
+            .filter((f) => (f.pins ?? []).includes("search"))
+            .map((f) => ({ id: f.id, title: f.title, href: f.href }))
+        );
+      })
+      .catch(() => setPinned([]));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const t = window.setTimeout(() => {
       void fetchSearch(query, filter);
     }, GLOBAL_SEARCH_DEBOUNCE_MS);
@@ -113,14 +132,33 @@ export function GlobalSearch() {
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setOpen(true);
+        const input = rootRef.current?.querySelector("input");
+        input?.focus();
+      }
+      if (e.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function handleFilterChange(id: GlobalSearchFilter) {
     setFilter(id);
   }
 
-  const showPanel = open && query.trim().length >= GLOBAL_SEARCH_MIN_CHARS;
+  const showPanel =
+    open &&
+    (query.trim().length >= GLOBAL_SEARCH_MIN_CHARS || pinned.length > 0);
   const resultCount = groups.reduce((n, g) => n + g.results.length, 0);
   const empty =
-    !loading && !error && query.trim().length >= GLOBAL_SEARCH_MIN_CHARS && resultCount === 0;
+    !loading &&
+    !error &&
+    query.trim().length >= GLOBAL_SEARCH_MIN_CHARS &&
+    resultCount === 0;
 
   return (
     <div ref={rootRef} className="relative min-w-0 flex-1 md:max-w-md">
@@ -130,8 +168,9 @@ export function GlobalSearch() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setOpen(true)}
-        placeholder="Pesquisar na Aura..."
-        aria-label="Pesquisar na Aura"
+        placeholder="Pesquisar… (Ctrl+K)"
+        aria-label="Pesquisar na Aura (Ctrl+K)"
+        data-testid="global-search-input"
         aria-expanded={showPanel}
         aria-controls={listId}
         className="h-9 w-full rounded-md border border-white/[0.06] bg-white/[0.02] pl-8 pr-3 text-[12px] text-zinc-200 placeholder:text-zinc-600 transition-colors duration-200 focus:border-white/[0.12] focus:bg-white/[0.04] focus:outline-none md:h-8"
@@ -161,6 +200,30 @@ export function GlobalSearch() {
           </div>
 
           <div className="overflow-y-auto p-1">
+            {pinned.length > 0 && query.trim().length < GLOBAL_SEARCH_MIN_CHARS ? (
+              <div className="mb-1" data-testid="search-pinned">
+                <p className="px-3 py-2 text-[11px] font-medium text-amber-200/80">
+                  Fixados na Busca
+                </p>
+                <ul>
+                  {pinned.map((p) => (
+                    <li key={p.id}>
+                      <Link
+                        href={p.href}
+                        role="option"
+                        onClick={() => setOpen(false)}
+                        className="block rounded-md px-3 py-2 transition-colors hover:bg-white/[0.04]"
+                      >
+                        <p className="truncate text-[13px] text-zinc-200">
+                          {p.title}
+                        </p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             {loading && (
               <div className="flex items-center gap-2 px-3 py-4 text-[12px] text-zinc-500">
                 <Loader2 className="size-3.5 animate-spin" />
@@ -174,7 +237,8 @@ export function GlobalSearch() {
 
             {empty && (
               <p className="px-3 py-4 text-center text-[12px] text-zinc-500">
-                Nenhum resultado encontrado.
+                Nenhum resultado. Tente outro termo ou registre uma memória para
+                enriquecer a busca.
               </p>
             )}
 

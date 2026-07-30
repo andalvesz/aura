@@ -1,7 +1,7 @@
 {
-  "name": "Aura OS",
-  "short_name": "Aura",
-  "description": "Sistema operacional pessoal de Anderson Alves — Calendário, Crescimento, Alvesz, Saúde e mais.",
+  "name": "Aura Brain",
+  "short_name": "Aura Brain",
+  "description": "Seu sistema operacional para vida e negócios.",
   "start_url": "/login",
   "scope": "/",
   "display": "standalone",
@@ -9,6 +9,22 @@
   "background_color": "#09090b",
   "theme_color": "#8b5cf6",
   "lang": "pt-BR",
+  "share_target": {
+    "action": "/api/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "media",
+          "accept": ["image/*", "application/pdf", "audio/*", "text/*"]
+        }
+      ]
+    }
+  },
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -26,7 +42,7 @@
       "src": "/icons/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon.svg",
