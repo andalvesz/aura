@@ -6,17 +6,20 @@ import { BugReportButton } from "@/components/dashboard/beta-ops/bug-report-butt
 import { NotificationsBell } from "@/components/dashboard/notifications-panel";
 import { OfflineBadge } from "@/components/dashboard/offline-badge";
 import { ResetTestDataButton } from "@/components/dashboard/reset-test-data-button";
+import { clearClientPersonalState } from "@/lib/client/session-reset";
 
 type DashboardHeaderToolbarProps = {
   email: string;
   displayName: string;
   showResetTestData?: boolean;
+  userId?: string | null;
 };
 
 export function DashboardHeaderToolbar({
   email,
   displayName,
   showResetTestData = false,
+  userId = null,
 }: DashboardHeaderToolbarProps) {
   const initial = displayName.charAt(0).toUpperCase();
 
@@ -36,7 +39,11 @@ export function DashboardHeaderToolbar({
         {initial}
       </div>
       <ResetTestDataButton visible={showResetTestData} />
-      <form action={logout} className="shrink-0">
+      <form
+        action={logout}
+        className="shrink-0"
+        onSubmit={() => clearClientPersonalState({ currentUserId: userId })}
+      >
         <button
           type="submit"
           className="min-h-11 rounded-md border border-white/[0.08] px-3 text-[12px] text-zinc-400 transition-colors duration-200 hover:border-white/[0.12] hover:bg-white/[0.04] hover:text-zinc-200 md:h-8 md:min-h-0 md:px-2.5"

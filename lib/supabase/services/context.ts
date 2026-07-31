@@ -1,4 +1,8 @@
 import { getUser, requireUser } from "@/lib/auth";
+import {
+  buildResolvedUserContext,
+  type ResolvedUserContext,
+} from "@/lib/context/resolved-user-context";
 import { createClient } from "@/lib/supabase/server";
 import type { AuraActiveContext, Workspace, WorkspaceMember, WorkspaceRole } from "@/types/database";
 import type { User } from "@supabase/supabase-js";
@@ -13,6 +17,8 @@ export type AuraAuditContext = {
   activeWorkspaceId: string | null;
   activeContext: AuraActiveContext;
   workspaceRole: WorkspaceRole | null;
+  /** Immutable multiuser isolation context (actor = subject by default). */
+  resolved: ResolvedUserContext;
 };
 
 declare global {
@@ -91,19 +97,45 @@ export async function getDataContext(): Promise<AuraAuditContext> {
   const user = await requireUser();
   const supabase = await createClient();
   const ws = await loadWorkspaceContext(supabase, user.id);
-  return { user, supabase, userId: user.id, ...ws };
+  const resolved = buildResolvedUserContext({
+    actorUserId: user.id,
+    workspaceId: ws.activeWorkspaceId,
+    contextType: ws.activeContext === "workspace" ? "workspace" : "personal",
+    role: ws.workspaceRole,
+  });
+  return { user, supabase, userId: user.id, ...ws, resolved };
 }
 
 export async function getOptionalDataContext(): Promise<AuraAuditContext | null> {
   if (globalThis.__AURA_AUDIT_CTX__) {
-    return globalThis.__AURA_AUDIT_CTX__;
+    const g = globalThis.__AURA_AUDIT_CTX__;
+    if (g.resolved) return g;
+    // Certification/audit scripts may inject a partial ctx — normalize isolation fields.
+    return {
+      ...g,
+      activeWorkspaceId: g.activeWorkspaceId ?? null,
+      activeContext: g.activeContext ?? "personal",
+      workspaceRole: g.workspaceRole ?? null,
+      resolved: buildResolvedUserContext({
+        actorUserId: g.userId,
+        workspaceId: g.activeWorkspaceId ?? null,
+        contextType: g.activeContext === "workspace" ? "workspace" : "personal",
+        role: g.workspaceRole ?? null,
+      }),
+    };
   }
 
   const user = await getUser();
   if (!user) return null;
   const supabase = await createClient();
   const ws = await loadWorkspaceContext(supabase, user.id);
-  return { user, supabase, userId: user.id, ...ws };
+  const resolved = buildResolvedUserContext({
+    actorUserId: user.id,
+    workspaceId: ws.activeWorkspaceId,
+    contextType: ws.activeContext === "workspace" ? "workspace" : "personal",
+    role: ws.workspaceRole,
+  });
+  return { user, supabase, userId: user.id, ...ws, resolved };
 }
 
 /**
@@ -148,6 +180,13 @@ export async function requireWorkspaceContext(
     activeWorkspaceId: targetId,
     activeContext: "workspace",
     workspaceRole: membership.role as WorkspaceRole,
+    resolved: buildResolvedUserContext({
+      actorUserId: ctx.userId,
+      workspaceId: targetId,
+      contextType: "workspace",
+      role: membership.role as WorkspaceRole,
+      correlationId: ctx.resolved.correlationId,
+    }),
   };
 }
 

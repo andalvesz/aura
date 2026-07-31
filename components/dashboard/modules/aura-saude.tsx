@@ -59,14 +59,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     label: "Recuperação leve",
     icon: HeartPulse,
     mode: "chat",
-    prompt: "Plano de recuperação leve para o ombro",
+    prompt: "Quero um plano de recuperação leve — pergunte minhas restrições antes de montar",
   },
   {
     id: "rotina-atleta",
-    label: "Rotina de atleta",
+    label: "Rotina de treino",
     icon: Trophy,
     mode: "chat",
-    prompt: "Montar rotina de atleta adaptada",
+    prompt: "Montar rotina de treino adaptada ao meu perfil",
   },
 ];
 
@@ -149,7 +149,7 @@ export function AuraSaude({
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Olá, Anderson. Sou a Aura Saúde — sua assistente para treinos, hábitos, dieta, leitura e meditação. Uso seus dados reais e nunca substituo um profissional de saúde.",
+      text: "Olá. Sou a Aura Saúde — sua assistente para treinos, hábitos, dieta, leitura e meditação. Uso somente seus dados reais e nunca substituo um profissional de saúde. Sem perfil cadastrado, pergunto metas e restrições antes de montar treino.",
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -304,13 +304,18 @@ export function AuraSaude({
           <div>
             <PanelTitle>Aura Saúde</PanelTitle>
             <p className="text-[10px] text-zinc-600">
-              IA real · Treinos · Hábitos · Dieta · Leitura · Meditação
+              Pessoal · dados privados só seus · Treinos · Hábitos · Dieta
             </p>
           </div>
         </div>
       </PanelHeader>
 
       <PanelContent className="pt-0">
+        <p className="mb-3 rounded-md border border-rose-500/10 bg-rose-500/[0.04] px-2.5 py-1.5 text-[11px] text-zinc-500">
+          Estes dados são privados e pertencem somente a você. Antes de montar
+          treino sem perfil, a Aura pergunta metas e restrições — nunca assume
+          lesões de outra pessoa.
+        </p>
         <div className="mb-3 flex flex-wrap gap-1.5">
           {QUICK_ACTIONS.map((action) => {
             const Icon = action.icon;
@@ -357,7 +362,7 @@ export function AuraSaude({
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ex: treino leve para ombro, dieta do dia, hábitos..."
+            placeholder="Ex: treino para hoje, dieta do dia, hábitos da semana..."
             disabled={loading}
             className="h-10 flex-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 text-[13px] text-zinc-200 placeholder:text-zinc-600 focus:border-rose-400/40 focus:outline-none disabled:opacity-50"
           />

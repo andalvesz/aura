@@ -47,7 +47,7 @@ const MILESTONE_STATUS_STYLES = {
 };
 
 export function LegadoView() {
-  const { data, loading, error, seeding, seedInitial, refresh } = useLegacy();
+  const { data, loading, error, seeding, refresh } = useLegacy();
   const [filterAno, setFilterAno] = useState<number | "all">("all");
   const [filterCategoria, setFilterCategoria] = useState<LegacyCategoria | "all">("all");
   const [iaInput, setIaInput] = useState("");
@@ -55,11 +55,10 @@ export function LegadoView() {
   const [iaMessages, setIaMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([
     {
       role: "assistant",
-      text: "Sou a Aura Legado — conheço sua trajetória desde 2016. Pergunte sobre conquistas, evolução ou padrões da sua história.",
+      text: "Sou a Aura Legado. Com dados cadastrados, conto sua trajetória. Sem dados, comece vazia — sem biografia de terceiros.",
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [autoSeeded, setAutoSeeded] = useState(false);
 
   const metrics = useMemo(() => computeLegacyMetrics(data), [data]);
   const timelineYears = useMemo(() => buildTimelineYears(data.timeline), [data.timeline]);
@@ -77,16 +76,8 @@ export function LegadoView() {
     return { achievements, certificates };
   }, [data, filterAno, filterCategoria]);
 
-  useEffect(() => {
-    if (!loading && !autoSeeded && isLegacyEmpty(data)) {
-      setAutoSeeded(true);
-      void seedInitial().then((res) => {
-        if (!res.error && res.seeded) {
-          toast.success("Trajetória de Anderson Alves importada.");
-        }
-      });
-    }
-  }, [loading, data, autoSeeded, seedInitial]);
+  // Auto-seed of Anderson biography removed (multiuser isolation).
+  // Users must explicitly import only their own biography if needed.
 
   function scrollToBottom() {
     requestAnimationFrame(() => {
@@ -190,16 +181,7 @@ export function LegadoView() {
           {timelineYears.every((y) => y.items.length === 0) ? (
             <EmptyState
               title="Timeline vazia"
-              description="Importe a trajetória inicial ou cadastre eventos."
-              action={
-                <button
-                  type="button"
-                  onClick={() => void seedInitial()}
-                  className="text-[11px] text-amber-300 underline"
-                >
-                  Importar trajetória Anderson Alves
-                </button>
-              }
+              description="Cadastre eventos da sua própria trajetória. Importação automática de biografia de terceiros está desativada."
             />
           ) : (
             timelineYears.map(({ year, items }) =>

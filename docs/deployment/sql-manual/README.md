@@ -21,5 +21,16 @@ Abra **um arquivo por vez** no SQL Editor do Supabase. Não rode tudo de uma vez
 | 15 | `15__20260729230000_sprint7_decision_support.sql` | Decision Support |
 | 16 | `16__20260729240000_sprint7_1_scenario_engine.sql` | Scenario |
 | 17 | `17__20260729250000_sprint7_2_prioritization.sql` | Prioritization |
+| 18 | `18__20260731320000_sprint10_0_saas_skills_platform.sql` | Sprint 10.0 SaaS |
+| 19 | `19__20260731330000_sprint10_1_public_beta_readiness.sql` | Sprint 10.1 Beta |
+| 20 | `20__20260731340000_sprint10_2_private_beta_operations.sql` | Sprint 10.2 Ops |
+
+## Gap (recomendação → learning + isolamento)
+
+Se você já rodou até a **17** (ou até a **20** parcialmente), use o pacote separado:
+
+→ [`docs/deployment/sql-pending-manual/`](../sql-pending-manual/README.md)
+
+Lá estão **12 arquivos**, um por migration, na ordem correta (PDF storage → … → Sprint 10.2 + isolamento multiusuário).
 
 Se alguma migration antiga já estiver aplicada, pule e continue da próxima.

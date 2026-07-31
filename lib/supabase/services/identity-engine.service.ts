@@ -39,6 +39,10 @@ import type {
 } from "@/lib/identity/types";
 import { confidenceBand } from "@/lib/identity/confidence";
 import { getAuraBrainSettings } from "@/lib/aura-brain/context";
+import {
+  assertPersonalSubject,
+  shortUserIdHash,
+} from "@/lib/context/resolved-user-context";
 import { getDataContext } from "@/lib/supabase/services/context";
 import { listStoredMissions } from "@/lib/missions/mission-store";
 
@@ -441,15 +445,21 @@ export async function getIdentityAuditLog(
 /** For Aura Brain Core — confirmed hints only; never executes. */
 export async function getIdentityHintsForBrain(): Promise<{
   profile: IdentityProfile;
+  subjectUserId: string;
+  resolvedForUserIdHash: string;
   decisionSafeKeys: string[];
   communicationTone: string | null;
   preferenceLabels: string[];
   /** Explicit: identity never drives Execution in Architecture v1.0 */
   executionInfluence: "none";
 }> {
+  const ctx = await getDataContext();
+  assertPersonalSubject(ctx.resolved);
   const profile = await getIdentityProfile({ skipCache: false });
   return {
     profile,
+    subjectUserId: ctx.resolved.subjectUserId,
+    resolvedForUserIdHash: shortUserIdHash(ctx.resolved.subjectUserId),
     decisionSafeKeys: profile.confirmed.map((v) => v.claim.key),
     communicationTone: profile.summary.communicationTone,
     preferenceLabels: profile.summary.preferenceHints,

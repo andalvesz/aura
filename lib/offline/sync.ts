@@ -13,8 +13,25 @@ import {
   type OfflineSyncOp,
 } from "@/lib/offline/storage";
 
+type EqChain = {
+  eq: (column: string, value: string) => EqChain;
+  select: () => {
+    single: () => Promise<{
+      data: unknown;
+      error: { message: string } | null;
+    }>;
+  };
+  then?: never;
+};
+
 type CrudQuery = {
   select: (columns?: string) => {
+    eq: (column: string, value: string) => {
+      order: (
+        column: string,
+        options?: { ascending?: boolean }
+      ) => Promise<{ data: unknown[] | null; error: { message: string } | null }>;
+    };
     order: (
       column: string,
       options?: { ascending?: boolean }
@@ -28,24 +45,12 @@ type CrudQuery = {
       }>;
     };
   };
-  update: (values: Record<string, unknown>) => {
+  update: (values: Record<string, unknown>) => EqChain;
+  delete: () => EqChain & {
     eq: (
       column: string,
       value: string
-    ) => {
-      select: () => {
-        single: () => Promise<{
-          data: unknown;
-          error: { message: string } | null;
-        }>;
-      };
-    };
-  };
-  delete: () => {
-    eq: (
-      column: string,
-      value: string
-    ) => Promise<{ error: { message: string } | null }>;
+    ) => Promise<{ error: { message: string } | null }> & EqChain;
   };
 };
 
@@ -80,16 +85,39 @@ async function applySyncOp(
   }
 
   if (op.type === "update") {
-    const { error } = await getQuery(supabase, op.table)
+    const { error } = await (supabase.from(op.table) as unknown as {
+      update: (v: Record<string, unknown>) => {
+        eq: (c: string, v: string) => {
+          eq: (c: string, v: string) => {
+            select: () => {
+              single: () => Promise<{ error: { message: string } | null }>;
+            };
+          };
+        };
+      };
+    })
       .update(op.payload)
       .eq("id", op.id)
+      .eq("user_id", userId)
       .select()
       .single();
     if (error) throw new Error(error.message);
     return;
   }
 
-  const { error } = await getQuery(supabase, op.table).delete().eq("id", op.id);
+  const { error } = await (supabase.from(op.table) as unknown as {
+    delete: () => {
+      eq: (c: string, v: string) => {
+        eq: (
+          c: string,
+          v: string
+        ) => Promise<{ error: { message: string } | null }>;
+      };
+    };
+  })
+    .delete()
+    .eq("id", op.id)
+    .eq("user_id", userId);
   if (error) throw new Error(error.message);
 }
 
@@ -99,8 +127,21 @@ async function refreshTableCache(
   table: OfflineEnabledTable
 ): Promise<void> {
   const { column, ascending } = TABLE_ORDER_BY[table];
-  const { data: rows, error } = await getQuery(supabase, table)
+  const { data: rows, error } = await (supabase.from(table) as unknown as {
+    select: (columns?: string) => {
+      eq: (c: string, v: string) => {
+        order: (
+          col: string,
+          options?: { ascending?: boolean }
+        ) => Promise<{
+          data: unknown[] | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+  })
     .select("*")
+    .eq("user_id", userId)
     .order(column, { ascending });
   if (error) throw new Error(error.message);
   setOfflineTableRows(userId, table, (rows ?? []) as Record<string, unknown>[]);

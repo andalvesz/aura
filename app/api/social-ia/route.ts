@@ -69,7 +69,7 @@ const ACTION_DEFAULTS: Record<
   "ideias-marca-pessoal": {
     mode: "ideias",
     message:
-      "Gere 5 ideias de conteúdo para a marca pessoal Anderson Alves: dança, ginástica, teatro, recuperação do ombro, rotina, Disney/NBA.",
+      "Gere 5 ideias de conteúdo para a marca pessoal do usuário autenticado. Use somente o perfil cadastrado; se faltar contexto, peça detalhes. Não invente lesões ou biografia de terceiros.",
   },
   "lead-para-conteudo": {
     mode: "ideias",

@@ -242,7 +242,7 @@ export async function generateExecutiveReportAnalysis(
   }
 
   try {
-    const systemPrompt = await injectIdentityIntoPrompt(`Você é a Aura Central analisando relatórios executivos de Anderson Alves.
+    const systemPrompt = await injectIdentityIntoPrompt(`Você é a Aura Central analisando relatórios executivos do usuário autenticado.
 Use APENAS o relatório e contexto fornecidos. Português do Brasil, tom executivo e direto.
 Considere a trajetória pessoal (legado) ao identificar oportunidades e prioridades.
 Responda APENAS JSON:

@@ -106,7 +106,7 @@ export async function buildMemoryRecallSection(
       sections.push("## MEMÓRIA\nNão há conversas salvas de ontem.");
     } else {
       const lines = dayMessages.slice(-12).map((m) => {
-        const label = m.role === "user" ? "Anderson" : "Aura";
+        const label = m.role === "user" ? "Usuário" : "Aura";
         const mod = AI_MODULE_LABELS[m.module as AiModule] ?? m.module;
         return `* [${mod}] ${label}: ${truncatePreview(m.content, 200)}`;
       });
@@ -185,7 +185,7 @@ export async function buildMemoryRecallSection(
     if (recent.length) {
       const lines = recent.map(
         (m) =>
-          `* ${m.role === "user" ? "Anderson" : "Aura"}: ${truncatePreview(m.content, 140)}`
+          `* ${m.role === "user" ? "Usuário" : "Aura"}: ${truncatePreview(m.content, 140)}`
       );
       sections.push(`## MEMÓRIA RECENTE\n${lines.join("\n")}`);
     }
@@ -215,7 +215,7 @@ export async function getAuraEvolutionContext(): Promise<string | null> {
     finance.context ? `### Finanças\n${finance.context}` : "",
     health.context ? `### Saúde\n${health.context}` : "",
     social.context ? `### Conteúdo\n${social.context}` : "",
-    "Resuma a evolução de Anderson de forma integrada e sugira 3 próximos passos concretos.",
+    "Resuma a evolução do usuário de forma integrada e sugira 3 próximos passos concretos.",
   ].filter(Boolean);
 
   return parts.join("\n\n");

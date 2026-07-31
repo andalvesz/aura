@@ -15,7 +15,7 @@ export function AuraChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Olá, Anderson. Sou a Aura IA. Como posso te ajudar hoje?",
+      text: "Olá. Sou a Aura IA. Como posso te ajudar hoje?",
     },
   ]);
 

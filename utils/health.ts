@@ -37,18 +37,24 @@ export const HEALTH_SESSION_TIPOS = [
   { id: "meditacao", label: "Meditação" },
 ] as const;
 
-export const HEALTH_COACH_CONTEXT = `Contexto do usuário — Anderson Alves:
-- Ginástica desde 2016
-- Dança desde 2021
-- Teatro desde 2022
-- Em recuperação de lesão no ombro direito
-- Objetivos: evoluir físico, energia, rotina consistente e performance
-- Não é profissional de saúde avaliando o usuário
+/**
+ * Generic health coach system rules — NEVER hardcode another person's injuries,
+ * sports history, or medical status. Personal facts come only from the
+ * authenticated user's Supabase rows (see buildHealthCoachDataContext).
+ */
+export const HEALTH_COACH_CONTEXT = `Você é a Aura Saúde — assistente de bem-estar do usuário autenticado.
+
+ISOLAMENTO (obrigatório):
+- Use SOMENTE dados pessoais do usuário autenticado fornecidos em ## DADOS REAIS
+- Nunca assuma lesões, restrições, esportes, objetivos ou histórico de outra pessoa
+- Se ## DADOS REAIS estiver vazio ou sem restrições, PERGUNTE antes de montar treino/dieta:
+  objetivos, experiência, restrições/lesões, equipamentos e frequência
+- Nunca invente lesões (ex.: ombro) nem copie perfil de outro membro do workspace
 
 REGRAS DE SEGURANÇA (obrigatório):
 - Não substitua médico, fisioterapeuta ou nutricionista
 - Não prescreva diagnósticos médicos nem medicamentos
-- Para lesão no ombro: priorize progressão leve, mobilidade segura, evitar cargas dolorosas no ombro direito
+- Só aplique cuidados de lesão/restrição se o próprio usuário confirmar ou se constar nos dados reais dele
 - Se houver dor aguda ou piora, recomende parar e procurar fisioterapeuta ou médico
 - Treinos, dietas e hábitos são sugestões educativas, não tratamento clínico
 - Use os dados reais do Supabase quando disponíveis — nunca invente registros`;
@@ -263,7 +269,24 @@ export function buildHealthCoachDataContext(
           .join("\n")
       : "* Nenhuma sessão de leitura/mediatação na semana";
 
+  const isEmptyProfile =
+    habits.length === 0 &&
+    workouts.length === 0 &&
+    meals.length === 0 &&
+    sessions.length === 0;
+
+  const emptyGuidance = isEmptyProfile
+    ? `
+
+### Perfil de saúde
+* Nenhum dado pessoal cadastrado para este usuário.
+* Antes de montar treino ou dieta, pergunte: objetivo, experiência, restrições/lesões, equipamentos e frequência.
+* NÃO assuma lesões, esportes ou histórico de terceiros.`
+    : "";
+
   return `## DADOS REAIS DO SUPABASE (${hoje})
+Escopo: PERSONAL — somente o usuário autenticado. Não misturar workspace/owner.
+${emptyGuidance}
 
 ### Hábitos de hoje
 ${habitLines}
@@ -284,5 +307,23 @@ ${sessionLines}
 * Score: ${progress.score}/100
 * Hábitos: ${progress.habitsWeek} · Treinos: ${progress.workoutsWeek} · Sessões: ${progress.sessionsWeek} · Refeições: ${progress.mealsWeek}
 
-Use estes dados reais nas respostas. Se estiver vazio, informe e sugira cadastro.`;
+Use estes dados reais nas respostas. Se estiver vazio, informe e pergunte metas/restrições — nunca invente lesões.`;
+}
+
+/** Detect leaked hardcodes of another person's injury in health prompts (audit/tests). */
+export function healthPromptContainsForeignInjuryAssumption(text: string): boolean {
+  const n = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  // Patterns split to avoid self-matching this detector source in static audits
+  const p1 = ["lesao", "no", "ombro"].join(" ");
+  const p2 = ["ombro", "direito", "lesionado"].join(" ");
+  const p3 = ["recuperacao", "do", "ombro"].join(" ");
+  return (
+    n.includes(p1) ||
+    n.includes(p2) ||
+    n.includes(p3) ||
+    (n.includes("anderson") && n.includes("ombro"))
+  );
 }

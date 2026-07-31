@@ -206,7 +206,7 @@ export async function getExecutionDashboard(): Promise<{
 
   const dashboard = computeExecutionDashboard(plan, tasks, history);
   const ctx = await getOptionalDataContext();
-  const displayName = ctx ? await resolveUserDisplayName(ctx) : "Anderson";
+  const displayName = ctx ? await resolveUserDisplayName(ctx) : "você";
   const rawBriefing = plan ? parseBriefing(plan.briefing) : null;
 
   const briefing: DailyBriefing | null = rawBriefing

@@ -80,7 +80,7 @@ export function AuraEnglish({ modo, onLessonGenerated }: AuraEnglishProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Olá, Anderson. Sou a Aura English Coach. Escolha um modo ou peça sua aula diária — ex: \"Treinar inglês para aeroporto\" ou \"Simular conversa na Disney\".",
+      text: "Olá. Sou a Aura English Coach. Escolha um modo ou peça sua aula diária — ex: \"Treinar inglês para aeroporto\" ou \"Simular conversa\".",
     },
   ]);
   const [input, setInput] = useState("");

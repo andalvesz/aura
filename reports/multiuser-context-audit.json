@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-07-31T22:40:01.974Z",
+  "scanned": 1690,
+  "critical": 0,
+  "warn": 1,
+  "findings": [
+    {
+      "severity": "ok",
+      "message": "Artefato presente: lib/context/resolved-user-context.ts"
+    },
+    {
+      "severity": "ok",
+      "message": "Artefato presente: lib/client/session-reset.ts"
+    },
+    {
+      "severity": "ok",
+      "message": "Artefato presente: utils/multiuser-isolation.test.ts"
+    },
+    {
+      "severity": "ok",
+      "message": "HEALTH_COACH_CONTEXT sem perfil Anderson+ombro"
+    },
+    {
+      "severity": "ok",
+      "message": "health-coach usa assertPersonalSubject"
+    },
+    {
+      "severity": "ok",
+      "message": "AuraAuditContext inclui resolved"
+    },
+    {
+      "severity": "warn",
+      "message": "globalThis.__AURA_AUDIT_CTX__ ainda existe (somente auditoria/certificação — risco se setado em request real)"
+    }
+  ],
+  "status": "PASS"
+}

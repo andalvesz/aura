@@ -369,7 +369,7 @@ export function buildDailyTopPriorities(input: DailyOperationsInput): DailyPrior
 
 export function buildCoachNowResponse(
   input: DailyOperationsInput,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const priorities = buildDailyTopPriorities(input);
   const top = priorities[0];

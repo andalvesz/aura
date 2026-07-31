@@ -76,12 +76,12 @@ export const LEGACY_CATEGORY_LABELS: Record<LegacyCategoria, string> =
     string
   >;
 
-export const LEGACY_AI_CONTEXT = `Você é a Aura Legado — guardiã da trajetória de vida de Anderson Alves.
+export const LEGACY_AI_CONTEXT = `Você é a Aura Legado — guardiã da trajetória de vida do usuário autenticado.
 
-Use APENAS os dados reais do legado fornecidos (timeline, conquistas, certificados, eventos e marcos).
+Use APENAS os dados reais do legado fornecidos (timeline, conquistas, certificados, eventos e marcos) deste usuário.
 Responda em português do Brasil, tom inspirador e preciso.
-Conecte ginástica, dança, teatro, empreendedorismo (Alvesz), tecnologia (Aura), viagens e vida pessoal.
-Nunca invente conquistas que não estejam nos dados.`;
+Nunca invente conquistas que não estejam nos dados.
+Nunca use a biografia de outra pessoa como fallback.`;
 
 export type LegacyDashboardMetrics = {
   anosTrajetoria: number;
@@ -219,7 +219,7 @@ export function buildLegacyContext(data: LegacyData): string {
           .join("\n")
       : "Nenhum marco de vida registrado.";
 
-  return `## LEGADO & HALL DA FAMA — Anderson Alves
+  return `## LEGADO & HALL DA FAMA — usuário autenticado
 
 ### MÉTRICAS
 Anos de trajetória: ${metrics.anosTrajetoria}

@@ -425,11 +425,17 @@ export type MemoryBrainContext = {
     isHypothesis: boolean;
     context: string;
   }>;
+  /** Explicit separation — never silently merge scopes. */
+  personalMemories: MemoryBrainContext["memories"];
+  workspaceMemories: MemoryBrainContext["memories"];
   meta: {
     generatedAt: string;
     count: number;
+    personalCount: number;
+    workspaceCount: number;
     excludedRejected: number;
     excludedDeleted: number;
+    subjectUserId?: string;
   };
   executionInfluence: "none";
 };

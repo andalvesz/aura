@@ -169,7 +169,7 @@ export function AuraMentor() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Olá, Anderson. Sou o Aura Mentor — assistente central da Aura OS. Pergunte o que fazer hoje, peça seu resumo do dia, prioridades ou agenda. Integro automaticamente Calendário, Crescimento, Alvesz, Saúde, Social Media e Financeiro com seus dados reais.",
+      text: "Olá. Sou o Aura Mentor — assistente central da Aura OS. Pergunte o que fazer hoje, peça seu resumo do dia, prioridades ou agenda. Integro automaticamente Calendário, Crescimento, Alvesz, Saúde, Social Media e Financeiro com seus dados reais.",
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);

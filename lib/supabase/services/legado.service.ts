@@ -7,7 +7,6 @@ import type {
   LegacyTimeline,
 } from "@/types/database";
 import {
-  buildAndersonLegacySeed,
   buildLegacyContext,
   isLegacyEmpty,
   type LegacyData,
@@ -118,6 +117,8 @@ export async function seedLegacyForUser(): Promise<{
     return { seeded: false, error: "Usuário não autenticado." };
   }
 
+  // Explicit opt-in only — never bootstrap Anderson's biography onto new accounts.
+  // Callers must come from the Legado UI action that the user confirms.
   const { supabase, userId } = ctx;
   const { data: existing } = await loadLegacyData();
 
@@ -125,24 +126,13 @@ export async function seedLegacyForUser(): Promise<{
     return { seeded: false, error: null };
   }
 
-  const seed = buildAndersonLegacySeed(userId);
-
-  const inserts = await Promise.all([
-    supabase.from("legacy_timeline").insert(seed.timeline),
-    supabase.from("legacy_achievements").insert(seed.achievements),
-    supabase.from("legacy_certificates").insert(seed.certificates),
-    supabase.from("legacy_life_events").insert(seed.lifeEvents),
-    supabase.from("legacy_milestones").insert(seed.milestones),
-  ]);
-
-  for (const res of inserts) {
-    if (res.error) {
-      if (isMissingSupabaseTableError(res.error.message)) {
-        return { seeded: false, error: "Tabelas de legado não disponíveis." };
-      }
-      return { seeded: false, error: res.error.message };
-    }
-  }
-
-  return { seeded: true, error: null };
+  // Multiuser isolation: do not auto-seed personal biography templates.
+  // Return without writing unless an explicit admin/legacy import path is used.
+  void supabase;
+  void userId;
+  return {
+    seeded: false,
+    error:
+      "Seed automático de trajetória pessoal desativado (isolamento multiusuário). Use importação explícita apenas se for a sua própria biografia.",
+  };
 }

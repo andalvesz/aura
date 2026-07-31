@@ -419,7 +419,7 @@ export function getUnreadPriorityNotifications(
 
 export function buildImportantNotificationsSummary(
   notifications: Notification[],
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const unread = getUnreadPriorityNotifications(notifications);
 

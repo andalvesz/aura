@@ -87,9 +87,9 @@ export type CoachMode =
 
 export const AURA_COACH_ACTION_ID = "aura-coach";
 
-export const AURA_COACH_PERSONALITY = `Você é a Aura Coach — mentor pessoal e executivo do Anderson Alves.
+export const AURA_COACH_PERSONALITY = `Você é a Aura Coach — mentor pessoal e executivo do usuário autenticado.
 Tom: profissional, mentor, objetivo e motivador. Português do Brasil.
-Use apenas dados reais fornecidos. Nunca invente valores, nomes ou compromissos.
+Use apenas dados reais fornecidos do usuário atual. Nunca invente valores, nomes, lesões ou compromissos de outra pessoa.
 Seja direto, empático e orientado a ação — como um CEO coach pessoal.`;
 
 const TODAY_PHRASES = [
@@ -343,7 +343,7 @@ export function detectCoachAlerts(data: ExecutiveReportData): string[] {
 
 export function buildCoachTodayResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const today = todayIsoDate();
   const eventsToday = filterUpcomingEventos(data.eventos, 1).filter((e) =>
@@ -424,7 +424,7 @@ ${lineOrFallback(contentLines, "Nenhum conteúdo pendente — ótimo para planej
 
 export function buildCoachExecutiveWeekResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const { start, end } = getWeekRange();
   const metrics = computeGrowthLeadMetrics(data.leads);
@@ -482,7 +482,7 @@ Mantenha o ritmo comercial: feche follow-ups pendentes e confirme eventos da sem
 
 export function buildCoachPerformanceResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const metrics = computeHealthMetrics(
     data.healthHabits,
@@ -526,12 +526,12 @@ ${lineOrFallback(
 **Meditações**
 • Total registrado: ${meditations.length} · Esta semana: ${meditationsWeek.length}
 
-Consistência constrói performance. Priorize o hábito ou treino pendente de maior impacto energético hoje — respeitando a recuperação do ombro.`;
+Consistência constrói performance. Priorize o hábito ou treino pendente de maior impacto energético hoje — respeitando restrições que o próprio usuário confirmou.`;
 }
 
 export function buildCoachOpportunityResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const metrics = computeGrowthLeadMetrics(data.leads);
   const alvesz = computeAlveszMetrics(data.orcamentos);
@@ -643,7 +643,7 @@ Execute uma ação concreta nos próximos 30 minutos e registre o progresso na A
 
 export function buildCoachAlertsResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const alerts = detectCoachAlerts(data);
 
@@ -666,7 +666,7 @@ Trate o primeiro item da lista ainda hoje. Pequenas correções evitam gargalos 
 
 export function buildCoachGoalsResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const active = sortGoalsByUrgency(getActiveGoals(data.goals));
   const lines = buildGoalsSummaryLines(data.goals);
@@ -701,7 +701,7 @@ Mantenha o ritmo nas metas atrasadas — pequenas ações diárias fecham a dife
 
 export function buildCoachGoalsLateResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const delayed = findMostDelayedGoal(data.goals);
 
@@ -735,7 +735,7 @@ Nenhuma meta ativa está significativamente atrasada. Continue executando o plan
 
 export function buildCoachPostTodayResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const today = todayIsoDate();
   const pending = data.conteudos.filter(
@@ -788,7 +788,7 @@ ${goalLine ? `${goalLine}\n\n` : ""}${scheduledLines.length > 0 ? `**Agendado pa
 Abra **Social Media → Instagram Inteligente** para gerar roteiro com IA.`;
 }
 
-export function buildCoachIntroResponse(displayName = "Anderson"): string {
+export function buildCoachIntroResponse(displayName = "você"): string {
   return `${formatReportGreeting(displayName)}
 
 Sou sua **Aura Coach** — mentor pessoal e executivo da Aura OS.
@@ -825,14 +825,14 @@ function reportDataToDailyInput(data: ExecutiveReportData): DailyOperationsInput
 
 export function buildCoachNowResponseFromReport(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   return buildCoachNowResponse(reportDataToDailyInput(data), displayName);
 }
 
 export function buildCoachXpLevelResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const xp = data.auraXp;
   if (!xp) {
@@ -851,7 +851,7 @@ Continue registrando finanças, hábitos e follow-ups para evoluir.`;
 
 export function buildCoachXpProgressResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const xp = data.auraXp;
   if (!xp) {
@@ -870,7 +870,7 @@ Próximo passo: complete uma missão diária pendente.`;
 
 export function buildCoachXpMissionsResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   const xp = data.auraXp;
   if (!xp) {
@@ -900,7 +900,7 @@ Foque primeiro em follow-up ou finanças — são as de maior impacto no seu dia
 
 export function buildCoachImportantTodayResponse(
   data: ExecutiveReportData,
-  displayName = "Anderson"
+  displayName = "você"
 ): string {
   return buildImportantNotificationsSummary(data.notifications ?? [], displayName);
 }
@@ -925,7 +925,7 @@ export function resolveCoachResponse(
   data: ExecutiveReportData,
   displayName?: string
 ): { text: string; mode: CoachMode } {
-  const name = displayName?.trim() || "Anderson";
+  const name = displayName?.trim() || "você";
 
   switch (mode) {
     case "today":

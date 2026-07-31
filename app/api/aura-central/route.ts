@@ -245,7 +245,7 @@ const MODULE_INSTRUCTIONS: Record<AuraCentralModule, string> = {
   alvesz:
     "Foque em Alvesz Experience: orçamentos, clientes, eventos e pipeline comercial.",
   saude:
-    "Foque em treinos, hábitos e rotina. Respeite lesão no ombro direito. Não substitua profissionais de saúde.",
+    "Foque em treinos, hábitos e rotina do usuário autenticado. Use somente restrições/lesões presentes nos dados pessoais dele — nunca assuma lesão de outra pessoa. Não substitua profissionais de saúde.",
   "social-media":
     "Foque em conteúdo para @and.alvesz, Alvesz Experience e Consórcios. Ganchos fortes e CTAs.",
   financeiro:
@@ -380,7 +380,7 @@ export async function GET(req: Request) {
     }
 
     const ctx = await getOptionalDataContext();
-    const displayName = ctx ? await resolveUserDisplayName(ctx) : "Anderson";
+    const displayName = ctx ? await resolveUserDisplayName(ctx) : "você";
     const firstName = displayName.split(" ")[0] ?? displayName;
     return Response.json({
       greeting: `Olá, ${firstName}.`,
@@ -1277,7 +1277,7 @@ export async function POST(req: Request) {
     if (coachMode) {
       if (coachMode === "intro") {
         const ctx = await getOptionalDataContext();
-        const displayName = ctx ? await resolveUserDisplayName(ctx) : "Anderson";
+        const displayName = ctx ? await resolveUserDisplayName(ctx) : "você";
         const { text } = resolveCoachResponse("intro", {
           clientes: [],
           orcamentos: [],
@@ -1325,7 +1325,7 @@ export async function POST(req: Request) {
       }
 
       const ctx = await getOptionalDataContext();
-      const displayName = ctx ? await resolveUserDisplayName(ctx) : "Anderson";
+      const displayName = ctx ? await resolveUserDisplayName(ctx) : "você";
       const { text: coachText, mode: coachModeResolved } = resolveCoachResponse(
         coachMode,
         coachData,

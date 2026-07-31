@@ -78,7 +78,7 @@ export type ExecutiveFeedItem = {
   text: string;
 };
 
-export function getExecutiveGreeting(name = "Anderson"): string {
+export function getExecutiveGreeting(name = "você"): string {
   const hour = new Date().getHours();
   if (hour < 12) return `Bom dia, ${name}.`;
   if (hour < 18) return `Boa tarde, ${name}.`;

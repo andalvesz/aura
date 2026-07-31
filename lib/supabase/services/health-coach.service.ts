@@ -1,4 +1,8 @@
 import { BaseRepository } from "@/lib/supabase/repositories";
+import {
+  assertPersonalSubject,
+  logContextResolved,
+} from "@/lib/context/resolved-user-context";
 import type {
   HealthHabit,
   HealthMeal,
@@ -50,6 +54,8 @@ export async function getHealthCoachMentorContext(): Promise<{
     return { context: null, error: "Usuário não autenticado." };
   }
 
+  assertPersonalSubject(ctx.resolved);
+
   const { supabase, userId } = ctx;
 
   const [habitsLoad, workoutsLoad, mealsLoad, sessionsLoad] = await Promise.all([
@@ -82,6 +88,13 @@ export async function getHealthCoachMentorContext(): Promise<{
   const workouts = workoutsLoad.data as HealthWorkout[];
   const meals = mealsLoad.data as HealthMeal[];
   const sessions = sessionsLoad.data as HealthSession[];
+
+  logContextResolved(ctx.resolved, {
+    personalRecordsLoadedCount:
+      habits.length + workouts.length + meals.length + sessions.length,
+    workspaceRecordsLoadedCount: 0,
+    cacheNamespace: "aura:health:coach-context",
+  });
 
   return {
     context: buildHealthCoachDataContext(habits, workouts, meals, sessions),

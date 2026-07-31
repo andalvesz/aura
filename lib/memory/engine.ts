@@ -1375,33 +1375,48 @@ export function getMemoryContextForBrainPure(
     return true;
   });
 
-  const selected = eligible
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, limit);
+  const mapRow = (m: (typeof eligible)[number]) => ({
+    id: m.id,
+    memoryType: m.memoryType,
+    title: m.title,
+    content: m.content,
+    status: m.status,
+    confidence: m.confidence,
+    confidenceBand: m.confidenceBand,
+    importance: m.importance,
+    sourceType: m.sourceType,
+    isFact: m.status === "CONFIRMED" || m.memoryType === "SEMANTIC",
+    isHypothesis:
+      m.status === "PENDING_REVIEW" ||
+      m.memoryType === "REFLECTIVE" ||
+      m.confidence < 40,
+    context: m.context,
+  });
+
+  const personalEligible = eligible
+    .filter((m) => !m.workspaceId)
+    .sort((a, b) => b.weight - a.weight);
+  const workspaceEligible = eligible
+    .filter((m) => Boolean(m.workspaceId))
+    .sort((a, b) => b.weight - a.weight);
+
+  const personalMemories = personalEligible.slice(0, limit).map(mapRow);
+  const workspaceMemories = workspaceEligible.slice(0, limit).map(mapRow);
+  // Combined list keeps personal first, then workspace — never silent merge of ownership
+  const memories = [...personalMemories, ...workspaceMemories].slice(0, limit);
 
   return {
-    memories: selected.map((m) => ({
-      id: m.id,
-      memoryType: m.memoryType,
-      title: m.title,
-      content: m.content,
-      status: m.status,
-      confidence: m.confidence,
-      confidenceBand: m.confidenceBand,
-      importance: m.importance,
-      sourceType: m.sourceType,
-      isFact: m.status === "CONFIRMED" || m.memoryType === "SEMANTIC",
-      isHypothesis:
-        m.status === "PENDING_REVIEW" ||
-        m.memoryType === "REFLECTIVE" ||
-        m.confidence < 40,
-      context: m.context,
-    })),
+    memories,
+    personalMemories,
+    workspaceMemories,
     meta: {
       generatedAt: new Date().toISOString(),
-      count: selected.length,
+      count: memories.length,
+      personalCount: personalMemories.length,
+      workspaceCount: workspaceMemories.length,
       excludedRejected,
       excludedDeleted,
+      subjectUserId: userId,
     },
     executionInfluence: "none",
   };

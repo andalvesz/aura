@@ -29,13 +29,13 @@ export const INSTAGRAM_MARCAS: {
   {
     id: "marca_pessoal",
     label: "Marca pessoal",
-    description: "Anderson Alves · @and.alvesz",
+    description: "Marca pessoal do usuário autenticado",
     themes: [
       "ginástica",
       "dança",
       "Disney/NBA",
-      "recuperação do ombro",
       "rotina",
+      "storytelling",
     ],
   },
   {

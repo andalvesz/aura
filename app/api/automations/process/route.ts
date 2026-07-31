@@ -58,6 +58,19 @@ export async function GET(req: Request) {
     );
   }
 
+  // Defense-in-depth: optional allowlist (comma-separated) so CRON_SECRET alone
+  // cannot process an arbitrary user's automation store.
+  const allowlist = (process.env.CRON_AUTOMATION_USER_ALLOWLIST ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (allowlist.length > 0 && !allowlist.includes(userId)) {
+    return NextResponse.json(
+      { error: "userId_not_allowlisted" },
+      { status: 403 }
+    );
+  }
+
   ensureBuiltinActions();
   const workspaceId = url.searchParams.get("workspaceId");
   const key = automationStoreKey(userId, workspaceId);

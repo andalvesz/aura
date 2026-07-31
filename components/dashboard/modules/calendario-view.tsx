@@ -68,7 +68,7 @@ export function CalendarioView() {
   >([
     {
       role: "assistant",
-      text: 'Olá, Anderson. Diga o que deseja marcar — ex: "Reunião com João amanhã às 15h". Eu sugiro o evento e você confirma antes de salvar.',
+      text: 'Olá. Diga o que deseja marcar — ex: "Reunião com João amanhã às 15h". Eu sugiro o evento e você confirma antes de salvar.',
     },
   ]);
 

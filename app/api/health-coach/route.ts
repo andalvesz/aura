@@ -6,7 +6,14 @@ import {
 import { getHealthCoachMentorContext } from "@/lib/supabase/services/health-coach.service";
 import { resolveMergedHistory } from "@/lib/supabase/services/memory.service";
 import {
+  assertPersonalSubject,
+  buildResolvedUserContext,
+  logContextResolved,
+} from "@/lib/context/resolved-user-context";
+import { getOptionalDataContext } from "@/lib/supabase/services/context";
+import {
   HEALTH_COACH_CONTEXT,
+  healthPromptContainsForeignInjuryAssumption,
   isHealthCoachAction,
   todayIsoDate,
 } from "@/utils/health";
@@ -28,27 +35,27 @@ const ACTION_DEFAULTS: Record<
   "criar-treino-hoje": {
     mode: "treino",
     message:
-      "Crie um treino seguro para hoje, considerando ginástica, dança e lesão no ombro direito. Inclua aquecimento, bloco principal e alongamento.",
+      "Monte um treino seguro para mim hoje. Use somente meus dados de saúde. Se eu não tiver restrições cadastradas, pergunte objetivo, experiência, lesões/restrições, equipamentos e frequência antes de assumir qualquer limitação. Inclua aquecimento, bloco principal e alongamento.",
   },
   "criar-dieta-simples": {
     mode: "dieta",
     message:
-      "Monte uma dieta simples e prática para o dia de hoje, focada em energia e recuperação muscular. Inclua café da manhã, almoço, lanche e jantar.",
+      "Monte uma dieta simples e prática para o dia de hoje, focada em energia. Inclua café da manhã, almoço, lanche e jantar. Use somente minhas restrições alimentares se estiverem cadastradas; caso contrário, pergunte.",
   },
   "organizar-habitos": {
     mode: "habitos",
     message:
-      "Organize hábitos saudáveis para esta semana: sono, hidratação, mobilidade de ombro, leitura e meditação. Considere rotina de atleta em recuperação.",
+      "Organize hábitos saudáveis para esta semana: sono, hidratação, movimento, leitura e meditação. Adapte à minha rotina cadastrada — não assuma lesões ou esportes de outra pessoa.",
   },
   "plano-recuperacao": {
     mode: "chat",
     message:
-      "Monte um plano de recuperação leve para lesão no ombro direito, com mobilidade, progressão segura e sinais de alerta para parar.",
+      "Quero um plano de recuperação leve. Pergunte quais restrições ou lesões eu tenho (se não estiverem nos meus dados) e só então sugira mobilidade, progressão segura e sinais de alerta.",
   },
   "rotina-atleta": {
     mode: "chat",
     message:
-      "Sugira uma rotina de atleta adaptada: ginástica, dança, teatro e treino funcional, respeitando o ombro em recuperação. Inclua descanso e hábitos.",
+      "Sugira uma rotina de treino adaptada ao meu perfil. Se eu não tiver esportes/restrições cadastrados, pergunte antes de montar. Inclua descanso e hábitos.",
   },
 };
 
@@ -128,6 +135,19 @@ export async function POST(req: Request) {
       );
     }
 
+    const authCtx = await getOptionalDataContext();
+    if (!authCtx) {
+      return Response.json({ error: "Faça login para usar a Aura Saúde." }, { status: 401 });
+    }
+
+    const resolved = buildResolvedUserContext({
+      actorUserId: authCtx.userId,
+      workspaceId: null,
+      contextType: "personal",
+      role: authCtx.workspaceRole,
+    });
+    assertPersonalSubject(resolved);
+
     const { context: dataContext, error: dataError } =
       await getHealthCoachMentorContext();
 
@@ -140,7 +160,27 @@ export async function POST(req: Request) {
     }
 
     const systemPrompt = buildSystemPrompt(dataContext);
+    if (healthPromptContainsForeignInjuryAssumption(systemPrompt)) {
+      console.error("[health-coach] cross_user_blocked: foreign injury hardcode in prompt");
+      logContextResolved(resolved, { crossUserBlocked: true, cacheNamespace: "health-coach" });
+      return Response.json(
+        { error: "Contexto de saúde inválido bloqueado por isolamento multiusuário." },
+        { status: 500 }
+      );
+    }
+
+    logContextResolved(resolved, {
+      personalRecordsLoadedCount: dataContext ? 1 : 0,
+      workspaceRecordsLoadedCount: 0,
+      cacheNamespace: "aura:health:coach",
+    });
+
     const mergedHistory = await resolveMergedHistory("saude", history);
+
+    const emptyHealth =
+      !dataContext ||
+      dataContext.includes("Nenhum dado pessoal cadastrado") ||
+      dataContext.includes("Nenhum treino na semana");
 
     if (mode === "treino") {
       const response = await openai.chat.completions.create({
@@ -156,9 +196,15 @@ Responda APENAS JSON:
   "grupo_muscular": "string",
   "duracao_min": number,
   "exercicios": [{"nome":"string","series":"string","reps":"string","observacao":"string"}],
-  "observacoes": "string ou null"
+  "observacoes": "string ou null",
+  "needs_intake": boolean,
+  "intake_questions": ["string"]
 }
-Evite exercícios que sobrecarreguem o ombro direito lesionado.`,
+${
+  emptyHealth
+    ? "Perfil incompleto: se faltar objetivo/restrições, defina needs_intake=true e liste perguntas em intake_questions. NÃO invente lesões."
+    : "Respeite somente restrições presentes nos DADOS REAIS deste usuário. Nunca assuma lesão de terceiros."
+}`,
           },
           { role: "user", content: message },
         ],
@@ -268,7 +314,7 @@ Use datas a partir de ${todayIsoDate()} para a semana atual.`,
       userMessage: message,
       systemPrompt: `${systemPrompt}
 Você é a Aura Saúde, assistente central do módulo Saúde. Responda em português do Brasil, com plano prático e seguro.
-Para lesão no ombro: cuidado, progressão leve, encaminhar a profissional se houver dor.`,
+Só mencione lesões/restrições se o usuário confirmar ou se constarem nos DADOS REAIS dele. Em dor aguda, encaminhe a profissional.`,
       clientHistory: history,
       mergedHistory,
     });

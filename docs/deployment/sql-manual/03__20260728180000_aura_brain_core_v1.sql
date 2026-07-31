@@ -21,6 +21,9 @@ create table if not exists public.aura_brain_settings (
 
 alter table public.aura_brain_settings enable row level security;
 
+drop policy if exists "aura_brain_settings_select_own" on public.aura_brain_settings;
+drop policy if exists "aura_brain_settings_insert_own" on public.aura_brain_settings;
+drop policy if exists "aura_brain_settings_update_own" on public.aura_brain_settings;
 create policy "aura_brain_settings_select_own"
   on public.aura_brain_settings for select using (auth.uid() = user_id);
 create policy "aura_brain_settings_insert_own"
@@ -52,6 +55,9 @@ create index if not exists aura_brain_plans_user_idx
 
 alter table public.aura_brain_plans enable row level security;
 
+drop policy if exists "aura_brain_plans_select_own" on public.aura_brain_plans;
+drop policy if exists "aura_brain_plans_insert_own" on public.aura_brain_plans;
+drop policy if exists "aura_brain_plans_update_own" on public.aura_brain_plans;
 create policy "aura_brain_plans_select_own"
   on public.aura_brain_plans for select using (auth.uid() = user_id);
 create policy "aura_brain_plans_insert_own"
@@ -83,6 +89,8 @@ create index if not exists aura_brain_audit_user_idx
 
 alter table public.aura_brain_audit_logs enable row level security;
 
+drop policy if exists "aura_brain_audit_select_own" on public.aura_brain_audit_logs;
+drop policy if exists "aura_brain_audit_insert_own" on public.aura_brain_audit_logs;
 create policy "aura_brain_audit_select_own"
   on public.aura_brain_audit_logs for select using (auth.uid() = user_id);
 create policy "aura_brain_audit_insert_own"
@@ -105,6 +113,8 @@ create index if not exists aura_brain_feedback_user_idx
 
 alter table public.aura_brain_feedback enable row level security;
 
+drop policy if exists "aura_brain_feedback_select_own" on public.aura_brain_feedback;
+drop policy if exists "aura_brain_feedback_insert_own" on public.aura_brain_feedback;
 create policy "aura_brain_feedback_select_own"
   on public.aura_brain_feedback for select using (auth.uid() = user_id);
 create policy "aura_brain_feedback_insert_own"
@@ -127,6 +137,9 @@ create index if not exists aura_brain_automations_user_idx
 
 alter table public.aura_brain_automations enable row level security;
 
+drop policy if exists "aura_brain_automations_select_own" on public.aura_brain_automations;
+drop policy if exists "aura_brain_automations_insert_own" on public.aura_brain_automations;
+drop policy if exists "aura_brain_automations_update_own" on public.aura_brain_automations;
 create policy "aura_brain_automations_select_own"
   on public.aura_brain_automations for select using (auth.uid() = user_id);
 create policy "aura_brain_automations_insert_own"
