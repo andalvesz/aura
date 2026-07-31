@@ -45,7 +45,11 @@ export type GlobalSearchEntity =
   | "aura_knowledge"
   | "aura_decisions"
   | "aura_scenarios"
-  | "aura_priorities";
+  | "aura_priorities"
+  | "aura_recommendations"
+  | "aura_plans"
+  | "aura_automations"
+  | "aura_agents";
 
 export type GlobalSearchResult = {
   id: string;
@@ -294,6 +298,34 @@ const ENTITY_META: Record<
     moduleHref: "/dashboard/priorities",
     filter: "aura",
   },
+  aura_recommendations: {
+    typeLabel: "Recomendação",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/recommendations",
+    filter: "aura",
+  },
+  aura_plans: {
+    typeLabel: "Plano",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/plans",
+    filter: "aura",
+  },
+  aura_automations: {
+    typeLabel: "Automação",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/automations",
+    filter: "aura",
+  },
+  aura_agents: {
+    typeLabel: "Agente",
+    moduleKey: "aura-brain",
+    moduleLabel: "Aura Brain",
+    moduleHref: "/dashboard/agents",
+    filter: "aura",
+  },
 };
 
 const FILTER_ENTITIES: Record<GlobalSearchFilter, GlobalSearchEntity[] | "all"> = {
@@ -316,6 +348,10 @@ const FILTER_ENTITIES: Record<GlobalSearchFilter, GlobalSearchEntity[] | "all"> 
     "aura_decisions",
     "aura_scenarios",
     "aura_priorities",
+    "aura_recommendations",
+    "aura_plans",
+    "aura_automations",
+    "aura_agents",
   ],
 };
 

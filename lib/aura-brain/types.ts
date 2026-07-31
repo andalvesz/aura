@@ -40,6 +40,10 @@ export type AuraBrainSettings = {
   requireConfirmationForExternalCommunication: boolean;
   requireConfirmationForDeletion: boolean;
   automationsEnabled: boolean;
+  /** Sprint 8.1 — allow AUTO_SAFE execution for LOW eligible actions */
+  allowAutoSafe: boolean;
+  /** Sprint 8.1 — pause all automations (kill switch) */
+  pauseAllAutomations: boolean;
   updatedAt: string;
 };
 
@@ -56,6 +60,8 @@ export const DEFAULT_AURA_BRAIN_SETTINGS: Omit<
   requireConfirmationForExternalCommunication: true,
   requireConfirmationForDeletion: true,
   automationsEnabled: true,
+  allowAutoSafe: false,
+  pauseAllAutomations: false,
 };
 
 export type AuraBrainPlanStep = {

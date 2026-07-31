@@ -65,6 +65,22 @@ export async function switchAuraContextAction(formData: FormData): Promise<void>
 
   if (result.error) {
     console.warn("[workspace] switch context failed", result.error);
+  } else {
+    try {
+      const { getDataContext } = await import("@/lib/supabase/services/context");
+      const { switchWorkspaceContext, clearOrchestratorCache } = await import(
+        "@/lib/orchestrator"
+      );
+      const ctx = await getDataContext();
+      switchWorkspaceContext(ctx.userId, {
+        contextMode: context === "workspace" ? "workspace" : "personal",
+        workspaceId,
+        resetFocus: true,
+      });
+      clearOrchestratorCache();
+    } catch {
+      /* orchestrator session optional */
+    }
   }
 
   revalidatePath("/", "layout");

@@ -109,6 +109,35 @@ test("buildPublicInviteUrl format without logging token content in path check", 
   });
 });
 
+test("production: uses VERCEL_URL when site env missing", () => {
+  withEnv(
+    {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_SITE_URL: undefined,
+      SITE_URL: undefined,
+      APP_URL: undefined,
+      VERCEL_URL: "aura-ten-rose.vercel.app",
+    },
+    () => {
+      assert.equal(resolvePublicSiteUrl(), "https://aura-ten-rose.vercel.app");
+    }
+  );
+});
+
+test("production: prefers SITE_URL alias", () => {
+  withEnv(
+    {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_SITE_URL: undefined,
+      SITE_URL: "https://aura-ten-rose.vercel.app",
+      VERCEL_URL: undefined,
+    },
+    () => {
+      assert.equal(resolvePublicSiteUrl(), "https://aura-ten-rose.vercel.app");
+    }
+  );
+});
+
 test("production refuses invite URL with localhost origin", () => {
   withEnv({ NODE_ENV: "production" }, () => {
     assert.throws(

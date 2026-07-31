@@ -108,6 +108,10 @@ export const PRODUCTION_ROUTE_SMOKE = [
   "/dashboard/decisions",
   "/dashboard/scenarios",
   "/dashboard/priorities",
+  "/dashboard/recommendations",
+  "/dashboard/plans",
+  "/dashboard/automations",
+  "/dashboard/agents",
   "/dashboard/inbox",
   "/dashboard/attachments",
 ] as const;
@@ -150,12 +154,20 @@ export function assertProductionEnvShape(env: NodeJS.ProcessEnv = process.env): 
   const missing = missingRequiredEnv(env);
   const warnings: string[] = [];
   const site = env.NEXT_PUBLIC_SITE_URL?.trim() ?? "";
-  if (
-    env.NODE_ENV === "production" &&
-    site &&
-    /localhost|127\.0\.0\.1/i.test(site)
-  ) {
-    warnings.push("NEXT_PUBLIC_SITE_URL não pode ser localhost em produção");
+  if (env.NODE_ENV === "production") {
+    if (!site) {
+      warnings.push(
+        "NEXT_PUBLIC_SITE_URL ausente em produção — defina https://aura-ten-rose.vercel.app"
+      );
+    } else if (/localhost|127\.0\.0\.1/i.test(site)) {
+      warnings.push("NEXT_PUBLIC_SITE_URL não pode ser localhost em produção");
+    }
+    for (const key of ["SITE_URL", "APP_URL", "GMAIL_REDIRECT_URI", "GOOGLE_REDIRECT_URI", "META_REDIRECT_URI"] as const) {
+      const v = env[key]?.trim();
+      if (v && /localhost|127\.0\.0\.1/i.test(v)) {
+        warnings.push(`${key} não pode ser localhost em produção`);
+      }
+    }
   }
   if (env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.includes("service_role")) {
     warnings.push("NEXT_PUBLIC_SUPABASE_ANON_KEY parece service_role — perigo");

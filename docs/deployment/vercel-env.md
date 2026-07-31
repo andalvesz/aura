@@ -57,7 +57,11 @@ Sem essas três, login, convites, recovery e redirects quebram.
   - `https://<seu-dominio>/auth/callback`
   - `https://<seu-dominio>/auth/callback?next=/dashboard`
   - `https://<seu-dominio>/auth/callback?next=/redefinir-senha`
+  - `https://<seu-dominio>/convite/*` (se necessário no allowlist)
+  - `https://<seu-dominio>/beta/invite/*`
   - (Preview) URLs `*.vercel.app` se usar previews
+
+**OAuth Google / Meta (consoles externos):** redirect = `{NEXT_PUBLIC_SITE_URL}/api/.../callback` — ver `reports/production-url-audit.md`.
 
 **Providers → Email:** habilitado. Confirmação de email conforme política do time.
 

@@ -14,6 +14,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL?.startsWith("http") &&
+      !/localhost|127\.0\.0\.1/i.test(process.env.NEXT_PUBLIC_SITE_URL)
+      ? process.env.NEXT_PUBLIC_SITE_URL
+      : "https://aura-ten-rose.vercel.app"
+  ),
   title: "Aura Brain",
   description:
     "Seu sistema operacional para vida e negócios — calendário, saúde, finanças, crescimento e mais.",
@@ -23,6 +29,14 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Aura Brain",
+  },
+  openGraph: {
+    title: "Aura Brain",
+    description:
+      "Seu sistema operacional para vida e negócios — calendário, saúde, finanças, crescimento e mais.",
+    type: "website",
+    locale: "pt_BR",
+    siteName: "Aura Brain",
   },
   icons: {
     icon: [

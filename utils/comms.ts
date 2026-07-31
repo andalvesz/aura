@@ -1,4 +1,5 @@
 import type { CommunicationLog } from "@/types/database";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 export type CommsChannel = "email" | "whatsapp" | "instagram";
 export type CommsStatus = "pending" | "sent" | "opened" | "failed";
@@ -57,10 +58,7 @@ export function formatGmailFrom(from: string): string {
 }
 
 export function buildTrackingPixelUrl(token: string, siteUrl?: string): string {
-  const base = (siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    ""
-  );
+  const base = (siteUrl ?? getPublicSiteUrl()).replace(/\/$/, "");
   return `${base}/api/comms/track/${token}`;
 }
 

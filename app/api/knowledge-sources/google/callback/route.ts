@@ -9,10 +9,11 @@ import {
 import { getGoogleAccountConnection } from "@/lib/google/token.service";
 import { fetchGoogleUserEmail, fetchGoogleUserProfile } from "@/lib/google-calendar/oauth";
 import { saveGoogleDriveConnection } from "@/lib/supabase/services/knowledge-sources.service";
+import { resolveSiteUrlFromRequest } from "@/lib/site-url";
 
 export async function GET(request: Request) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
-  const redirectBase = `${siteUrl.replace(/\/$/, "")}/dashboard/knowledge-sources`;
+  const siteUrl = resolveSiteUrlFromRequest(request);
+  const redirectBase = `${siteUrl}/dashboard/knowledge-sources`;
 
   try {
     await requireUser();

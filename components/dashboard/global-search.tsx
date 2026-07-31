@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Building2,
   CalendarDays,
@@ -28,6 +29,12 @@ import {
 } from "@/utils/global-search";
 import { parseJsonResponse } from "@/utils/safe-json";
 import { listFavoritesAction } from "@/app/actions/daily";
+import {
+  isCommandLikeQuery,
+  listCommandSuggestions,
+  parseCommandIntent,
+  type CommandIntent,
+} from "@/lib/orchestrator";
 
 const MODULE_ICONS: Record<GlobalSearchModuleKey, LucideIcon> = {
   "aura-brain": Compass,
@@ -41,6 +48,7 @@ const MODULE_ICONS: Record<GlobalSearchModuleKey, LucideIcon> = {
 };
 
 export function GlobalSearch() {
+  const router = useRouter();
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
@@ -53,6 +61,22 @@ export function GlobalSearch() {
   const [pinned, setPinned] = useState<
     Array<{ id: string; title: string; href: string }>
   >([]);
+
+  const commands = useMemo(() => {
+    if (!query.trim()) return listCommandSuggestions("", 6);
+    if (isCommandLikeQuery(query) || query.trim().length >= 2) {
+      return listCommandSuggestions(query, 6);
+    }
+    return [] as CommandIntent[];
+  }, [query]);
+
+  const primaryCommand = useMemo(() => {
+    if (!query.trim()) return null;
+    const intent = parseCommandIntent(query);
+    return intent.kind !== "unknown" && intent.kind !== "search_nl"
+      ? intent
+      : null;
+  }, [query]);
 
   const fetchSearch = useCallback(async (q: string, f: GlobalSearchFilter) => {
     if (q.trim().length < GLOBAL_SEARCH_MIN_CHARS) {
@@ -116,11 +140,14 @@ export function GlobalSearch() {
 
   useEffect(() => {
     if (!open) return;
+    if (primaryCommand && query.trim().length < 24) {
+      // Prefer command UX for short imperative queries; still allow search
+    }
     const t = window.setTimeout(() => {
       void fetchSearch(query, filter);
     }, GLOBAL_SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(t);
-  }, [query, filter, open, fetchSearch]);
+  }, [query, filter, open, fetchSearch, primaryCommand]);
 
   useEffect(() => {
     function onPointerDown(e: MouseEvent) {
@@ -141,10 +168,15 @@ export function GlobalSearch() {
         input?.focus();
       }
       if (e.key === "Escape") setOpen(false);
+      if (e.key === "Enter" && open && primaryCommand) {
+        e.preventDefault();
+        setOpen(false);
+        router.push(primaryCommand.href);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [open, primaryCommand, router]);
 
   function handleFilterChange(id: GlobalSearchFilter) {
     setFilter(id);
@@ -152,13 +184,17 @@ export function GlobalSearch() {
 
   const showPanel =
     open &&
-    (query.trim().length >= GLOBAL_SEARCH_MIN_CHARS || pinned.length > 0);
+    (query.trim().length >= 1 ||
+      query.trim().length >= GLOBAL_SEARCH_MIN_CHARS ||
+      pinned.length > 0 ||
+      commands.length > 0);
   const resultCount = groups.reduce((n, g) => n + g.results.length, 0);
   const empty =
     !loading &&
     !error &&
     query.trim().length >= GLOBAL_SEARCH_MIN_CHARS &&
-    resultCount === 0;
+    resultCount === 0 &&
+    !primaryCommand;
 
   return (
     <div ref={rootRef} className="relative min-w-0 flex-1 md:max-w-md">
@@ -168,8 +204,8 @@ export function GlobalSearch() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setOpen(true)}
-        placeholder="Pesquisar… (Ctrl+K)"
-        aria-label="Pesquisar na Aura (Ctrl+K)"
+        placeholder="Comandos ou busca… (Ctrl+K)"
+        aria-label="Command Palette e busca Aura (Ctrl+K)"
         data-testid="global-search-input"
         aria-expanded={showPanel}
         aria-controls={listId}
@@ -181,6 +217,7 @@ export function GlobalSearch() {
           id={listId}
           role="listbox"
           className="absolute left-0 right-0 top-full z-50 mt-1 max-h-[min(70vh,480px)] overflow-hidden rounded-lg border border-white/[0.08] bg-zinc-950 shadow-xl"
+          data-testid="command-palette-v2"
         >
           <div className="flex gap-1 overflow-x-auto border-b border-white/[0.06] p-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {GLOBAL_SEARCH_FILTERS.map((f) => (
@@ -200,6 +237,34 @@ export function GlobalSearch() {
           </div>
 
           <div className="overflow-y-auto p-1">
+            {commands.length > 0 ? (
+              <div className="mb-1" data-testid="command-palette-commands">
+                <p className="px-3 py-2 text-[11px] font-medium text-cyan-200/80">
+                  Comandos
+                </p>
+                <ul>
+                  {commands.map((c) => (
+                    <li key={`${c.kind}-${c.href}`}>
+                      <button
+                        type="button"
+                        role="option"
+                        onClick={() => {
+                          setOpen(false);
+                          router.push(c.href);
+                        }}
+                        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-white/[0.04]"
+                      >
+                        <span className="truncate text-[13px] text-zinc-200">
+                          {c.label}
+                        </span>
+                        <span className="text-[10px] text-zinc-600">↵</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             {pinned.length > 0 && query.trim().length < GLOBAL_SEARCH_MIN_CHARS ? (
               <div className="mb-1" data-testid="search-pinned">
                 <p className="px-3 py-2 text-[11px] font-medium text-amber-200/80">
@@ -237,8 +302,8 @@ export function GlobalSearch() {
 
             {empty && (
               <p className="px-3 py-4 text-center text-[12px] text-zinc-500">
-                Nenhum resultado. Tente outro termo ou registre uma memória para
-                enriquecer a busca.
+                Nenhum resultado. Tente &quot;abrir projeto&quot;, &quot;documentos
+                sobre Disney&quot; ou registre uma memória.
               </p>
             )}
 

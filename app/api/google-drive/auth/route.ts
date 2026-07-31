@@ -5,6 +5,7 @@ import {
   getExpertBrainGoogleDriveOAuthConfig,
   GOOGLE_DRIVE_EXPERT_OAUTH_STATE_COOKIE,
 } from "@/lib/google-drive";
+import { absolutePublicUrl } from "@/lib/site-url";
 
 export async function GET() {
   try {
@@ -32,8 +33,6 @@ export async function GET() {
 
     return response;
   } catch {
-    return NextResponse.redirect(
-      new URL("/login", process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000")
-    );
+    return NextResponse.redirect(absolutePublicUrl("/login"));
   }
 }

@@ -9,9 +9,10 @@ import {
   saveGoogleCalendarConnection,
 } from "@/lib/google-calendar";
 import { GOOGLE_OAUTH_STATE_COOKIE } from "@/lib/google-calendar/config";
+import { resolveSiteUrlFromRequest } from "@/lib/site-url";
 
 export async function GET(request: Request) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
+  const siteUrl = resolveSiteUrlFromRequest(request);
   const calendarioUrl = `${siteUrl}/dashboard/calendario`;
 
   try {

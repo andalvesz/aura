@@ -1,3 +1,5 @@
+import { assertPublicRedirectUri, getPublicSiteUrl } from "@/lib/site-url";
+
 export const META_OAUTH_SCOPES = [
   "ads_read",
   "ads_management",
@@ -12,10 +14,9 @@ export const META_GRAPH_VERSION = "v21.0";
 
 export function getMetaRedirectUri(): string {
   const explicit = process.env.META_REDIRECT_URI?.trim();
-  if (explicit) return explicit;
+  if (explicit) return assertPublicRedirectUri(explicit, "META_REDIRECT_URI");
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
-  return `${site.replace(/\/$/, "")}/api/meta/callback`;
+  return `${getPublicSiteUrl()}/api/meta/callback`;
 }
 
 export function getMetaOAuthConfig() {

@@ -12,9 +12,10 @@ import {
   connectMetaBusiness,
   importMetaOAuthEntities,
 } from "@/lib/supabase/services/meta-connect.service";
+import { resolveSiteUrlFromRequest } from "@/lib/site-url";
 
 export async function GET(request: Request) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
+  const siteUrl = resolveSiteUrlFromRequest(request);
   const metaUrl = `${siteUrl}/dashboard/platforms/meta`;
 
   try {

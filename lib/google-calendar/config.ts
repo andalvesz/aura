@@ -1,3 +1,5 @@
+import { assertPublicRedirectUri, getPublicSiteUrl } from "@/lib/site-url";
+
 export const GOOGLE_CALENDAR_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/userinfo.email",
@@ -8,10 +10,9 @@ export const GOOGLE_CALENDAR_TIMEZONE = "America/Sao_Paulo";
 
 export function getGoogleRedirectUri(): string {
   const explicit = process.env.GOOGLE_REDIRECT_URI?.trim();
-  if (explicit) return explicit;
+  if (explicit) return assertPublicRedirectUri(explicit, "GOOGLE_REDIRECT_URI");
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
-  return `${site.replace(/\/$/, "")}/api/google-calendar/callback`;
+  return `${getPublicSiteUrl()}/api/google-calendar/callback`;
 }
 
 export function getGoogleOAuthConfig() {

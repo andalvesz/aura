@@ -561,7 +561,96 @@ async function searchAuraKernel(
     /* ignore */
   }
 
-  void q;
+  try {
+    const { searchRecommendationItems } = await import(
+      "@/lib/supabase/services/recommendation.service"
+    );
+    const found = await searchRecommendationItems(term, perTable);
+    for (const r of found) {
+      results.push({
+        ...buildSearchResult(
+          "aura_recommendations",
+          r.id,
+          r.title,
+          r.updatedAt.slice(0, 10)
+        ),
+        moduleHref: `/dashboard/recommendations/${r.id}`,
+        typeLabel: "Recomendação",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchPlanItems } = await import(
+      "@/lib/supabase/services/planner.service"
+    );
+    const found = await searchPlanItems(term, perTable);
+    for (const p of found) {
+      results.push({
+        ...buildSearchResult(
+          "aura_plans",
+          p.id,
+          p.title,
+          p.updatedAt.slice(0, 10)
+        ),
+        moduleHref: `/dashboard/plans/${p.id}`,
+        typeLabel: "Plano",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { searchAutomationItems } = await import(
+      "@/lib/supabase/services/automation.service"
+    );
+    const found = await searchAutomationItems(term);
+    for (const a of found.slice(0, perTable)) {
+      results.push({
+        ...buildSearchResult(
+          "aura_automations",
+          a.id,
+          a.title,
+          a.status
+        ),
+        moduleHref: `/dashboard/automations/${a.id}`,
+        typeLabel: "Automação",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const { listAgentSessions } = await import(
+      "@/lib/supabase/services/agent-runtime.service"
+    );
+    const { items } = await listAgentSessions({ limit: 50 });
+    for (const s of items
+      .filter(
+        (a) =>
+          a.objective.toLowerCase().includes(q) ||
+          a.agentId.toLowerCase().includes(q)
+      )
+      .slice(0, perTable)) {
+      results.push({
+        ...buildSearchResult(
+          "aura_agents",
+          s.id,
+          s.objective,
+          s.updatedAt ?? s.createdAt
+        ),
+        moduleHref: `/dashboard/agents/${s.id}`,
+        typeLabel: "Agente",
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+
   return results;
 }
 
@@ -595,31 +684,44 @@ export async function runGlobalSearch(
   const page = Math.max(0, options.page ?? 0);
   const pageSize = options.limit ?? GLOBAL_SEARCH_PAGE_SIZE;
   const perTable = options.perTable ?? GLOBAL_SEARCH_PER_TABLE;
-  const pattern = `%${escapeIlikePattern(term)}%`;
-
-  const entities = entitiesForFilter(filter).filter(
-    (e) =>
-      ![
-        "aura_memories",
-        "aura_entities",
-        "aura_insights",
-        "aura_discoveries",
-        "aura_attachments",
-        "aura_projects",
-        "aura_businesses",
-        "aura_knowledge",
-        "aura_decisions",
-        "aura_scenarios",
-        "aura_priorities",
-      ].includes(e)
-  );
 
   try {
+    const { resolveSearchQueryForIndex } = await import("@/lib/orchestrator");
+    const resolved = resolveSearchQueryForIndex(term);
+    const effectiveTerm = resolved.query || term;
+    const effectiveFilter =
+      filter === "todos" && resolved.filter !== "todos"
+        ? resolved.filter
+        : filter;
+    const pattern = `%${escapeIlikePattern(effectiveTerm)}%`;
+
     const workspaceId =
       ctx.activeContext === "workspace" ? ctx.activeWorkspaceId : null;
 
+    const AURA_KERNEL_ENTITIES = new Set([
+      "aura_memories",
+      "aura_entities",
+      "aura_insights",
+      "aura_discoveries",
+      "aura_attachments",
+      "aura_projects",
+      "aura_businesses",
+      "aura_knowledge",
+      "aura_decisions",
+      "aura_scenarios",
+      "aura_priorities",
+      "aura_recommendations",
+      "aura_plans",
+      "aura_automations",
+      "aura_agents",
+    ]);
+
+    const entitiesResolved = entitiesForFilter(effectiveFilter).filter(
+      (e) => !AURA_KERNEL_ENTITIES.has(e)
+    );
+
     const batches = await Promise.all(
-      entities.map((entity) =>
+      entitiesResolved.map((entity) =>
         searchTable(
           ctx.supabase,
           ctx.userId,
@@ -631,7 +733,7 @@ export async function runGlobalSearch(
       )
     );
 
-    const kernel = await searchAuraKernel(term, filter, perTable);
+    const kernel = await searchAuraKernel(effectiveTerm, effectiveFilter, perTable);
     const merged = sortSearchResults([...batches.flat(), ...kernel]);
     const groups = groupSearchResults(merged);
     const { slice, total, hasMore } = paginateSearchResults(merged, page, pageSize);

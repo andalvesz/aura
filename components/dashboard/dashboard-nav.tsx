@@ -10,6 +10,11 @@ import {
   type OsNavLink,
   type OsNavSection,
 } from "@/lib/modules";
+import {
+  buildDynamicNavigation,
+  getPlatformState,
+  type ResolveContext,
+} from "@/lib/capabilities";
 import { cn } from "@/utils/cn";
 import { useAuraContext } from "@/components/dashboard/aura-context-provider";
 
@@ -203,22 +208,45 @@ export function DashboardNav({
   linkClassName,
 }: DashboardNavProps) {
   const pathname = usePathname();
-  const { activeContext, workspaces } = useAuraContext();
+  const { activeContext, workspaces, activeWorkspaceId, workspaceRole } =
+    useAuraContext();
   const hasWorkspace = workspaces.length > 0;
 
+  const resolveCtx = useMemo((): ResolveContext => {
+    let workspaceId: string | null = null;
+    let workspaceSlug: string | null = null;
+    if (activeContext === "workspace" && hasWorkspace) {
+      const alvesz = workspaces.find((w) => w.slug === "alvesz");
+      if (alvesz) {
+        workspaceSlug = "alvesz";
+        workspaceId = activeWorkspaceId ?? alvesz.id;
+      } else {
+        workspaceId = activeWorkspaceId;
+        workspaceSlug =
+          workspaces.find((w) => w.id === activeWorkspaceId)?.slug ?? null;
+      }
+    }
+    return {
+      userId: "local",
+      workspaceId,
+      workspaceSlug,
+      role: workspaceRole ?? "owner",
+      isWorkspaceMember: activeContext === "workspace" && hasWorkspace,
+    };
+  }, [
+    activeContext,
+    workspaces,
+    activeWorkspaceId,
+    workspaceRole,
+    hasWorkspace,
+  ]);
+
   const visibleNav = useMemo(() => {
-    return OS_NAV.filter((section) => {
-      if (section.id === "alvesz") {
-        return activeContext === "workspace" && hasWorkspace;
-      }
-      if (section.id === "vida") {
-        return activeContext === "personal";
-      }
-      // Negócios / Aura / Configurações remain reachable; workspace focus hides neither
-      // except Alvesz exclusive section above.
-      return true;
+    return buildDynamicNavigation(resolveCtx, getPlatformState(), OS_NAV, {
+      activeContext,
+      hasWorkspace,
     });
-  }, [activeContext, hasWorkspace]);
+  }, [resolveCtx, activeContext, hasWorkspace]);
 
   const openByPath = useMemo(() => {
     const set = new Set<string>();

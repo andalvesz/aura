@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { getGoogleOAuthConfig } from "@/lib/google-calendar/config";
 import { GMAIL_ALL_SCOPES, GMAIL_OAUTH_STATE_COOKIE, getGmailRedirectUri } from "@/lib/gmail/config";
+import { absolutePublicUrl } from "@/lib/site-url";
 
 export async function GET() {
   try {
@@ -40,8 +41,6 @@ export async function GET() {
 
     return response;
   } catch {
-    return NextResponse.redirect(
-      new URL("/login", process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000")
-    );
+    return NextResponse.redirect(absolutePublicUrl("/login"));
   }
 }

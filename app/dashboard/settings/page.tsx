@@ -3,6 +3,41 @@ import { PageBreadcrumb } from "@/components/dashboard/page-breadcrumb";
 
 const LINKS = [
   {
+    href: "/dashboard/settings/capabilities",
+    title: "Capabilities",
+    desc: "Módulos, ordem de nav, export/import",
+  },
+  {
+    href: "/dashboard/skills",
+    title: "Skill Center",
+    desc: "Instalar e gerenciar skills",
+  },
+  {
+    href: "/dashboard/settings/privacy",
+    title: "Privacy Center",
+    desc: "Learning, providers, analytics e exclusão",
+  },
+  {
+    href: "/dashboard/settings/diagnostics",
+    title: "Diagnóstico",
+    desc: "Versão, flags, erros e correlationIds sanitizados",
+  },
+  {
+    href: "/dashboard/feedback",
+    title: "Feedback",
+    desc: "Bugs, ideias e acompanhamento",
+  },
+  {
+    href: "/dashboard/changelog",
+    title: "Changelog",
+    desc: "Novidades, correções e problemas conhecidos",
+  },
+  {
+    href: "/dashboard/onboarding",
+    title: "Onboarding",
+    desc: "Retomar configuração inicial",
+  },
+  {
     href: "/dashboard/settings/aura-brain",
     title: "Aura Brain",
     desc: "Autonomia, auditoria e transparência",

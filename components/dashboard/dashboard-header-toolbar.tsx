@@ -2,6 +2,7 @@
 
 import { logout } from "@/app/actions/auth";
 import { AvatarStack } from "@/components/dashboard/avatar-stack";
+import { BugReportButton } from "@/components/dashboard/beta-ops/bug-report-button";
 import { NotificationsBell } from "@/components/dashboard/notifications-panel";
 import { OfflineBadge } from "@/components/dashboard/offline-badge";
 import { ResetTestDataButton } from "@/components/dashboard/reset-test-data-button";
@@ -22,6 +23,7 @@ export function DashboardHeaderToolbar({
   return (
     <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2 md:flex-none">
       <OfflineBadge />
+      <BugReportButton />
       <AvatarStack max={3} size="sm" className="hidden lg:flex" />
       <NotificationsBell />
       <div className="hidden min-w-0 text-right sm:block">

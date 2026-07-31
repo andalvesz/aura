@@ -1,5 +1,6 @@
 /**
- * Action Registry — types for Aura Brain actions.
+ * Extend Action Registry types for Sprint 8.1 contracts.
+ * Consolidates — does not create a second registry.
  */
 
 import type {
@@ -12,6 +13,7 @@ export type ActionReversibility = "none" | "soft" | "hard";
 
 export type AuraBrainActionDefinition = {
   id: string;
+  version: string;
   name: string;
   module: string;
   description: string;
@@ -19,16 +21,34 @@ export type AuraBrainActionDefinition = {
   reversibility: ActionReversibility;
   allowedContexts: AuraBrainContextMode[];
   requiredRole: "any" | "member" | "admin" | "owner" | null;
+  /** @deprecated use supportedAutonomyLevels — kept for backward compatibility */
   autonomySupport: AutonomyLevel;
+  supportedAutonomyLevels: AutonomyLevel[];
+  requiresConfirmation: boolean;
+  dailyLimit: number;
+  cooldownMs: number;
+  timeoutMs: number;
+  inputSchema: Record<string, unknown>;
+  outputSchema: Record<string, unknown>;
   isFinancial?: boolean;
   isExternalComm?: boolean;
   isDeletion?: boolean;
+  isPermissionChange?: boolean;
+  /** Final financial posting (not draft) — never AUTO_SAFE */
+  isFinancialFinal?: boolean;
+  autoSafeEligible?: boolean;
   validate: (input: Record<string, unknown>) => {
     ok: boolean;
     error: string | null;
   };
+  prepare?: (
+    input: Record<string, unknown>
+  ) => Promise<{ ok: boolean; output: Record<string, unknown>; error: string | null }>;
   execute: (ctx: ActionExecuteContext) => Promise<ActionExecuteResult>;
   undo?: (ctx: ActionExecuteContext) => Promise<ActionExecuteResult>;
+  sanitizeForAudit?: (
+    input: Record<string, unknown>
+  ) => Record<string, unknown>;
 };
 
 export type ActionExecuteContext = {
@@ -37,7 +57,6 @@ export type ActionExecuteContext = {
   context: AuraBrainContextMode;
   input: Record<string, unknown>;
   confirmed: boolean;
-  /** Injected adapters — keep pure registry testable */
   adapters?: ActionAdapters;
 };
 
@@ -53,6 +72,7 @@ export type ActionAdapters = {
     type: string;
     related_id: string;
   }) => Promise<boolean>;
+  archiveNotification?: (id: string) => Promise<{ ok: boolean; error: string | null }>;
 };
 
 export type ActionExecuteResult = {

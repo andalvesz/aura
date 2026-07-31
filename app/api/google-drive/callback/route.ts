@@ -14,10 +14,11 @@ import {
   saveGoogleDriveExpertConnection,
 } from "@/lib/supabase/services/google-drive.service";
 import { processExpertBrainIngestionQueue } from "@/lib/supabase/services/expert-brain-ingestion.service";
+import { resolveSiteUrlFromRequest } from "@/lib/site-url";
 
 export async function GET(request: Request) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://localhost:3000";
-  const redirectBase = `${siteUrl.replace(/\/$/, "")}/dashboard/expert-brain`;
+  const siteUrl = resolveSiteUrlFromRequest(request);
+  const redirectBase = `${siteUrl}/dashboard/expert-brain`;
 
   try {
     await requireUser();

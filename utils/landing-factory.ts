@@ -1,5 +1,6 @@
 import type { CreatorLanding, LandingPage, LandingPageStatus } from "@/types/database";
 import type { CreatorProductBundle } from "@/utils/creator";
+import { getPublicSiteUrl } from "@/lib/site-url";
 
 export const LANDING_FACTORY_SAFE_MODE = {
   active: true,
@@ -69,7 +70,7 @@ export type LandingFactoryDashboardMetrics = {
 };
 
 export function getSiteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  return getPublicSiteUrl();
 }
 
 export function buildLandingSlugBase(title: string): string {

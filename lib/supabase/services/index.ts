@@ -81,3 +81,6 @@ export * from "./discovery-engine.service";
 export * from "./knowledge-hub.service";
 export * from "./decision-support.service";
 export * from "./scenario.service";
+export * from "./orchestrator.service";
+export * from "./conversation.service";
+export * from "./learning.service";
