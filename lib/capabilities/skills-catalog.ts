@@ -218,4 +218,37 @@ export const BUILTIN_SKILLS: SkillDefinition[] = [
     allowedWorkspaceSlugs: ["alvesz"],
     uninstallable: true,
   },
+  {
+    id: "skill.business-expert",
+    slug: "business-expert",
+    name: "Business Expert",
+    description:
+      "Especialização oficial em negócios digitais, locais e empreendedorismo (B1.0 Foundation)",
+    version: "1.0.0",
+    category: "Business Intelligence",
+    authorType: "SYSTEM",
+    authorId: "system",
+    visibility: "SYSTEM",
+    status: "STABLE",
+    capabilities: [
+      "module.business-expert",
+      "core.planner",
+      "core.decision-support",
+      "module.learning",
+    ],
+    requiredCapabilities: [
+      "core.orchestrator",
+      "core.conversation",
+      "core.auth",
+    ],
+    permissions: ["capability.install"],
+    riskLevel: "LOW",
+    configSchema: {
+      focusValidation: { type: "boolean", default: true },
+    },
+    defaultConfig: { focusValidation: true },
+    icon: "briefcase",
+    documentation: "/docs/business-expert/foundation.md",
+    uninstallable: true,
+  },
 ];

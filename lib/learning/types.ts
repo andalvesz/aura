@@ -54,7 +54,8 @@ export type LearningSourceLayer =
   | "projects"
   | "knowledge"
   | "daily"
-  | "aura-brain";
+  | "aura-brain"
+  | "business-expert";
 
 export type LearningProposalType =
   | "PREFERENCE_UPDATE"

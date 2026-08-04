@@ -507,6 +507,34 @@ export const BUILTIN_CAPABILITIES: CapabilityDefinition[] = [
       },
     ],
   }),
+  optional({
+    id: "module.business-expert",
+    version: "1.0.0",
+    name: "Business Expert",
+    description:
+      "Especialização empresarial (B1.0) sobre o Aura Brain Kernel — validação, monetização e operação",
+    category: "Business Intelligence",
+    capabilityType: "SKILL",
+    scope: "USER",
+    defaultEnabled: true,
+    routes: ["/dashboard/business-expert"],
+    dependencies: [
+      { capabilityId: "core.auth" },
+      { capabilityId: "core.planner" },
+      { capabilityId: "core.decision-support" },
+      { capabilityId: "core.conversation" },
+    ],
+    navigationItems: [
+      {
+        id: "business-expert",
+        href: "/dashboard/business-expert",
+        label: "Business Expert",
+        section: "negocios",
+      },
+    ],
+    actions: ["business_expert_advise", "business_expert_plan_draft"],
+    featureFlags: ["business_expert_b1"],
+  }),
 
   // —— Private workspace: Alvesz (never generic) ——
   optional({
@@ -565,6 +593,7 @@ export const CAPABILITY_AUDIT_MATRIX: import("@/lib/capabilities/types").Capabil
     { capability: "Knowledge Hub", core: false, optional: true, customizable: true, shareable: true, disableable: true },
     { capability: "Projects", core: false, optional: true, customizable: true, shareable: true, disableable: true },
     { capability: "Business", core: false, optional: true, customizable: true, shareable: true, disableable: true },
+    { capability: "Business Expert", core: false, optional: true, customizable: true, shareable: false, disableable: true },
     { capability: "Expert Brain", core: false, optional: true, customizable: true, shareable: false, disableable: true },
     { capability: "Scenarios", core: false, optional: true, customizable: true, shareable: true, disableable: true },
     { capability: "Prioritization", core: false, optional: true, customizable: true, shareable: true, disableable: true },

@@ -6,6 +6,7 @@ import { dependencyDetector } from "@/lib/discovery/detectors/dependency";
 import { duplicateDetector } from "@/lib/discovery/detectors/duplicate";
 import { gapDetector } from "@/lib/discovery/detectors/gap";
 import { opportunityDetector } from "@/lib/discovery/detectors/opportunity";
+import { businessExpertOpportunityDetector } from "@/lib/discovery/detectors/business-expert";
 import { riskDetector } from "@/lib/discovery/detectors/risk";
 import { stagnationDetector } from "@/lib/discovery/detectors/stagnation";
 import { unknownDetector } from "@/lib/discovery/detectors/unknown";
@@ -47,6 +48,7 @@ export function clearDiscoveryRegistry(): void {
 export function ensureBuiltinDiscoveryDetectors(): void {
   const builtins = [
     opportunityDetector,
+    businessExpertOpportunityDetector,
     riskDetector,
     gapDetector,
     dependencyDetector,

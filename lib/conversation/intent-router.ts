@@ -140,6 +140,34 @@ const RULES: Rule[] = [
   {
     kind: "ASK_STATUS",
     patterns: [
+      /\bquero\s+abrir\s+(um\s+)?neg[oó]cio\b/i,
+      /\bquero\s+empreender\b/i,
+      /\bquero\s+ganhar\s+dinheiro\b/i,
+      /\bquero\s+validar\s+(uma\s+)?ideia\b/i,
+      /\bquero\s+criar\s+(uma\s+)?empresa\b/i,
+      /\bquero\s+criar\s+(um\s+)?curso\b/i,
+      /\bquero\s+vender\s+online\b/i,
+      /\bquero\s+viver\s+de\s+internet\b/i,
+      /\bquero\s+vender\s+como\s+afiliad/i,
+      /\bquero\s+criar\s+(um\s+)?produto\b/i,
+      /\bqual\s+melhor\s+plataforma\b/i,
+      /\bcomo\s+criar\s+(um\s+)?produto\b/i,
+      /\bcomo\s+vender\s+como\s+afiliad/i,
+      /\bcomo\s+montar\s+(uma\s+)?oferta\b/i,
+      /\bcomo\s+encontrar\s+clientes\b/i,
+      /\bcomo\s+validar\s+(uma\s+)?ideia\b/i,
+      /\bkiwify\s+(ou|vs\.?|versus)\s+hotmart\b/i,
+      /\bhotmart\s+(ou|vs\.?|versus)\s+kiwify\b/i,
+      /\be\s+se\s+eu\s+(vender|criar|abrir)\b/i,
+    ],
+    targetType: "business",
+    actionability: "none",
+    href: ROUTE_REGISTRY["business-expert"],
+    handlers: ["business_expert"],
+  },
+  {
+    kind: "ASK_STATUS",
+    patterns: [
       /\bo\s+que\s+(?:meu\s+s[oó]cio|mudou|atualizou)\b/i,
       /\bquais\s+riscos?\b/i,
       /\bstatus\b/i,
@@ -235,7 +263,12 @@ function inferTarget(query: string): {
     return { targetType: "workspace", href: ROUTE_REGISTRY.home };
   if (/\bdia\b|aten[cç][aã]o/.test(q)) return { targetType: "day", href: ROUTE_REGISTRY.home };
   if (/\bsemana\b/.test(q)) return { targetType: "week", href: ROUTE_REGISTRY.home };
-  if (/empresa|business/.test(q))
+  if (/business\s+expert|especialista\s+em\s+neg[oó]cios/.test(q))
+    return {
+      targetType: "business",
+      href: ROUTE_REGISTRY["business-expert"],
+    };
+  if (/empresa|business|neg[oó]cio/.test(q))
     return { targetType: "business", href: ROUTE_REGISTRY.business };
   return { targetType: "none", href: null };
 }

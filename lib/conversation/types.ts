@@ -312,6 +312,7 @@ export const ROUTE_REGISTRY: Record<string, string> = {
   brain: "/dashboard/brain",
   projects: "/dashboard/projects",
   business: "/dashboard/business",
+  "business-expert": "/dashboard/business-expert",
   missions: "/dashboard/missions",
   plans: "/dashboard/plans",
   automations: "/dashboard/automations",

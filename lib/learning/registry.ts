@@ -209,6 +209,27 @@ export function ensureBuiltinLearningAdapters(): void {
       dedupePolicy: "idempotency_key",
       retentionDays: 180,
     },
+    {
+      sourceLayer: "business-expert",
+      supportedEvents: [
+        "intent:open_business",
+        "intent:start_entrepreneurship",
+        "intent:make_money",
+        "intent:validate_idea",
+        "intent:create_company",
+        "intent:advise",
+        "intent:plan",
+        "profile_updated",
+        "plan_drafted",
+        "*",
+      ],
+      normalizationSchema: "business_expert_signal_v1",
+      defaultWeight: 1,
+      sensitivity: "low",
+      scope: "PERSONAL",
+      dedupePolicy: "idempotency_key",
+      retentionDays: 365,
+    },
   ];
   for (const d of defs) registerLearningAdapter(d);
 }

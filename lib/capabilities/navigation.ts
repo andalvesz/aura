@@ -24,6 +24,7 @@ export const NAV_CAPABILITY_MAP: Record<string, string> = {
   "knowledge-hub": "module.knowledge",
   projects: "module.projects",
   business: "module.business",
+  "business-expert": "module.business-expert",
   "expert-brain": "module.expert-brain",
   "expert-brain-queue": "module.expert-brain",
   scenarios: "module.scenarios",

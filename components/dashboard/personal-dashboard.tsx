@@ -28,6 +28,7 @@ import { GlobalTimelinePanel } from "@/components/dashboard/orchestrator/global-
 import { SmartLinksPanel } from "@/components/dashboard/orchestrator/smart-links-panel";
 import { ConversationHomeWidget } from "@/components/dashboard/conversation/conversation-home-widget";
 import { LearningHomeWidget } from "@/components/dashboard/learning/learning-home-widget";
+import { BusinessExpertHomeWidget } from "@/components/dashboard/business-expert/business-expert-home-widget";
 import { buildSmartLinks } from "@/lib/orchestrator/smart-links";
 import type { AuraHomeWidgetId } from "@/lib/orchestrator/types";
 
@@ -306,6 +307,12 @@ export async function PersonalDashboard() {
             Business
           </Link>
           <Link
+            href="/dashboard/business-expert"
+            className="inline-flex min-h-11 items-center rounded border border-emerald-500/30 px-2.5 py-1 text-emerald-100 md:min-h-0"
+          >
+            Business Expert
+          </Link>
+          <Link
             href="/dashboard/feed"
             className="inline-flex min-h-11 items-center rounded border border-white/10 px-2.5 py-1 text-zinc-400 hover:text-zinc-200 md:min-h-0"
           >
@@ -354,6 +361,10 @@ export async function PersonalDashboard() {
 
       <div style={{ order: widgetScore("quick-actions") + 2 }}>
         <LearningHomeWidget />
+      </div>
+
+      <div style={{ order: widgetScore("quick-actions") + 3 }}>
+        <BusinessExpertHomeWidget />
       </div>
 
       {auraHome?.context.slice.nextActions.length ||

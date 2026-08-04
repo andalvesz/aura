@@ -3,6 +3,7 @@
  */
 
 export { opportunityDetector } from "@/lib/discovery/detectors/opportunity";
+export { businessExpertOpportunityDetector } from "@/lib/discovery/detectors/business-expert";
 export { riskDetector } from "@/lib/discovery/detectors/risk";
 export { gapDetector } from "@/lib/discovery/detectors/gap";
 export { dependencyDetector } from "@/lib/discovery/detectors/dependency";

@@ -16,6 +16,7 @@ const WIDGET_CAPABILITY: Record<string, string> = {
   saude: "module.saude",
   missions: "module.missions",
   business: "module.business",
+  "business-expert": "module.business-expert",
   recommendations: "module.recommendations",
   alvesz: "workspace.alvesz",
   skills: "module.platform-skills",

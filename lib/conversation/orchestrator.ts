@@ -39,6 +39,7 @@ import {
   handlePlatformCommand,
 } from "@/lib/capabilities";
 import { handleBetaOpsCommand } from "@/lib/beta-ops/command-center";
+import { handleBusinessExpertCommand } from "@/lib/business-expert/command-center";
 import type {
   ConversationAuditEntry,
   ConversationMessage,
@@ -445,6 +446,27 @@ export function handleAuraConversationPure(
       ]
         .filter(Boolean)
         .join("\n");
+    } else if (
+      /quero\s+abrir\s+(um\s+)?neg[oó]cio|quero\s+empreender|quero\s+ganhar\s+dinheiro|quero\s+validar\s+(uma\s+)?ideia|quero\s+criar\s+(uma\s+)?empresa|quero\s+criar\s+(um\s+)?curso|quero\s+vender\s+online|quero\s+viver\s+de\s+internet|quero\s+vender\s+como\s+afiliad|quero\s+criar\s+(um\s+)?produto|qual\s+melhor\s+plataforma|como\s+criar\s+(um\s+)?produto|como\s+vender\s+como\s+afiliad|como\s+montar\s+(uma\s+)?oferta|como\s+encontrar\s+clientes|kiwify\s+(ou|vs)|hotmart\s+(ou|vs)|e\s+se\s+eu\s+(vender|criar|abrir)/i.test(
+        intent.query
+      )
+    ) {
+      const be = handleBusinessExpertCommand(
+        intent.query,
+        input.viewer.userId
+      );
+      content = [
+        be.message || "Business Expert B1.0 reconheceu sua intenção empresarial.",
+        "",
+        `Business Expert: ${ROUTE_REGISTRY["business-expert"]}`,
+        be.planTitle
+          ? `Plano (draft para core Planner): ${be.planTitle}`
+          : "",
+        formatSourcesBlock(toCitations(context.sources)),
+      ]
+        .filter(Boolean)
+        .join("\n");
+      navigationHref = ROUTE_REGISTRY["business-expert"];
     } else {
       content = composeStatusAnswer(intent, context);
     }
